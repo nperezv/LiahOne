@@ -1,0 +1,302 @@
+Quiero que actúes como arquitecto de software senior + full-stack developer y me ayudes a construir una aplicación web y móvil llamada “LiahOne”. La aplicación será self-hosted en servidores RHEL 9.5 y deberá contener las siguientes características, módulos, roles y funciones. Toda la lógica, desarrollo, arquitectura y decisiones deben basarse en este documento:
+
+1. OBJETIVO GENERAL DE LA APP
+
+La aplicación "LiahOne" unifica todas las funciones administrativas, de gestión y coordinación de un barrio, incluyendo:
+
+Obispado
+
+Presidencias de organizaciones
+
+Consejo de barrio
+
+Secretaría del barrio
+
+Actividades
+
+Asignaciones
+
+Entrevistas
+
+Reuniones sacramentales
+
+Presupuestos
+
+Registro de metas y seguimiento
+
+Paneles de control (Dashboards)
+
+Comunicación interna (notificaciones / correo)
+
+Todo dentro de una sola aplicación, web y móvil.
+
+2. TECNOLOGÍAS NECESARIAS
+
+Quiero que todo se genere self-hosted. No usar Firebase/Supabase cloud.
+
+Backend: NestJS o FastAPI (a elegir según mis futuras instrucciones).
+
+Frontend web: React + Tailwind + Vite.
+
+App móvil: React Native + Expo.
+
+Base de datos: PostgreSQL self-hosted.
+
+Notificaciones:
+
+Correos mediante SMTP propio
+
+App Notifications mediante la app móvil
+
+Infraestructura: Docker + Docker Compose en RHEL 9.5.
+
+Todo debe ser modular, seguro y escalable.
+
+3. ROLES Y PERMISOS
+
+Obispo (máxima autoridad del sistema)
+
+Acceso total
+
+Puede crear agendas, asignaciones, entrevistas, presupuestos
+
+Puede aprobar solicitudes
+
+Puede crear/editar usuarios
+
+Puede ver dashboards globales
+
+Consejeros del Obispo
+
+Acceso muy amplio
+
+Acceso completo al módulo de entrevistas
+
+Acceso al módulo de sacramental
+
+Acceso al módulo de asignaciones
+
+Acceso al módulo de metas
+
+Lectura de presupuestos y envío de solicitudes
+
+Secretario del Barrio
+
+Gestión de reportes
+
+Exportación a PDF
+
+Supervisión de entrevistas
+
+Registro de asistencia a consejos
+
+Gestión de presupuestos junto al Obispado
+
+Ver todo lo administrativo
+
+Presidentes de organización (Hombres Jóvenes, Mujeres Jóvenes, Sociedad de Socorro, Primaria, Escuela Dominical)
+
+Módulo de reuniones de presidencia
+
+Registro de acuerdos
+
+Registro de metas
+
+Asignaciones internas
+
+Solicitud de presupuesto
+
+Cargar justificantes de gasto
+
+Ver metas generales del barrio
+
+Consejeros de organización
+
+Acceso limitado tipo “solo lectura + comentarios”
+
+Solo pueden interactuar en el módulo de reunión de presidencia
+
+No pueden aprobar presupuestos
+
+4. MÓDULOS PRINCIPALES DE LA APLICACIÓN
+4.1 — Módulo de Reunión Sacramental
+
+Plantilla automática del orden del servicio
+
+Preparada desde el Obispado con anterioridad
+
+Asignar discursos
+
+Seleccionar himnos
+
+Anuncios
+
+Notificaciones automáticas a los asignados
+
+Exportación a PDF
+
+Historial de agendas
+
+4.2 — Módulo de Consejo de Barrio
+
+Agenda semanal editable
+
+Registro de asistencia
+
+Registro de acuerdos
+
+Asignaciones individuales
+
+Notificaciones automáticas
+
+Generación de reporte PDF al finalizar
+
+Carga automática de asignaciones a cada líder
+
+Recordatorio de mitad de semana
+
+Vista de metas del barrio para todos los líderes
+
+4.3 — Módulo de Presidencias de Organización
+
+Cada organización tendrá:
+
+Agenda de presidencia
+
+Acuerdos de reuniones
+
+Asignaciones internas
+
+Solicitud de presupuesto
+
+Seguimiento de gasto y carga de justificantes
+
+Estado: pend./proceso/completado
+
+Notificaciones internas
+
+Sin acceso a datos confidenciales del Obispado
+
+4.4 — Módulo de Presupuestos
+
+Solicitudes por parte de líderes
+
+Aprobación del Obispado
+
+Seguimiento del Secretario
+
+Carga de facturas o justificantes
+
+Estado: Solicitado / Aprobado / En proceso / Completado
+
+Exportación PDF
+
+Dashboard de movimientos
+
+4.5 — Módulo de Entrevistas
+
+Obispo y consejeros ponen disponibilidad semanal
+
+El secretario asigna entrevistas según disponibilidad
+
+El obispo puede crear entrevistas urgentes
+
+Notificación inmediata por app y correo
+
+Resumen semanal exportable
+
+Dashboard con entrevistas del mes
+
+4.6 — Módulo de Metas del Barrio
+
+Metas anuales
+
+Avances por organización
+
+Avances globales visibles para todos los líderes
+
+Solo editar por el Obispado
+
+Dashboard general
+
+4.7 — Módulo de Cumpleaños
+
+Base de datos con nombres y fechas
+
+App genera felicitación automática
+
+Imagen aleatoria + frase bonita
+
+Notificación por correo o app
+
+4.8 — Dashboard Global
+
+Asignaciones pendientes por líder
+
+Presupuestos
+
+Entrevistas
+
+Metas
+
+Organización en riesgo (semáforo)
+
+Cumpleaños del día
+
+Actividades próximas
+
+5. INFRAESTRUCTURA Y DEPLOY
+
+Todo debe funcionar con Docker Compose
+
+Un solo archivo YAML que levante:
+
+Backend (NestJS/FastAPI)
+
+Frontend web
+
+App móvil (build)
+
+PostgreSQL
+
+Proxy Nginx
+
+Toda la app debe poder desplegarse en mis servidores RHEL 9.5
+
+6. ENTREGABLES QUE NECESITARÉ
+
+Cuando use este prompt para pedirte algo, deberás poder entregarme:
+
+Diagramas de arquitectura
+
+Diagramas de flujo
+
+Modelos de base de datos
+
+Código backend o frontend
+
+Componentes completos en React Native
+
+APIs REST documentadas
+
+Docker Compose funcional
+
+Plantillas de correo
+
+Plantillas PDF
+
+Plan de despliegue
+
+Sistema de migraciones
+
+Test unitarios
+
+7. RESTRICCIONES IMPORTANTES
+
+No manejar diezmos ni notas confidenciales.
+
+Debe respetar reglas de privacidad y confidencialidad.
+
+Roles estrictamente separados.
+
+Todo debe ser extensible y mantenible.

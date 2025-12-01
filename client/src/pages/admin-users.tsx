@@ -1,0 +1,584 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { ArrowLeft, Plus, Edit, Trash2, Key } from "lucide-react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+
+const createUserSchema = z.object({
+  username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  name: z.string().min(1, "El nombre es requerido"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  organizationId: z.string().optional(),
+});
+
+const resetPasswordSchema = z.object({
+  newPassword: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+});
+
+const changeRoleSchema = z.object({
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+});
+
+type CreateUserFormValues = z.infer<typeof createUserSchema>;
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
+type ChangeRoleFormValues = z.infer<typeof changeRoleSchema>;
+
+interface User {
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  organizationId?: string;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  type: string;
+}
+
+export default function AdminUsersPage() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+  const [changeRoleUser, setChangeRoleUser] = useState<User | null>(null);
+
+  // Verificar que solo obispo/consejeros puedan acceder
+  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo";
+
+  if (!isAdmin) {
+    return (
+      <div className="container max-w-4xl mx-auto py-8 px-4">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Acceso Denegado</h2>
+          <p className="text-muted-foreground mb-4">
+            No tienes permiso para acceder a este panel de administración.
+          </p>
+          <Button onClick={() => setLocation("/dashboard")}>
+            Volver al Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { data: users = [], isLoading, refetch } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
+  const { data: organizations = [] } = useQuery<Organization[]>({
+    queryKey: ["/api/organizations"],
+  });
+
+  const createForm = useForm<CreateUserFormValues>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+      name: "",
+      email: "",
+      role: "secretario",
+      organizationId: "",
+    },
+  });
+
+  const selectedRole = createForm.watch("role");
+
+  const resetPasswordForm = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      newPassword: "",
+    },
+  });
+
+  const changeRoleForm = useForm<ChangeRoleFormValues>({
+    resolver: zodResolver(changeRoleSchema),
+    defaultValues: {
+      role: "secretario",
+    },
+  });
+
+  const onCreateUser = async (data: CreateUserFormValues) => {
+    try {
+      // Clean up data - don't send empty organizationId
+      const cleanData = {
+        ...data,
+        organizationId: data.organizationId || undefined,
+        email: data.email || undefined,
+      };
+      
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanData),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Error al crear usuario");
+      }
+
+      toast({ title: "Éxito", description: "Usuario creado correctamente" });
+      setIsCreateDialogOpen(false);
+      createForm.reset();
+      refetch();
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "No se pudo crear el usuario", 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  const onResetPassword = async (data: ResetPasswordFormValues) => {
+    if (!resetPasswordUser) return;
+
+    try {
+      const response = await fetch(`/api/users/${resetPasswordUser.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: data.newPassword }),
+      });
+
+      if (!response.ok) throw new Error("Error al resetear contraseña");
+
+      toast({ title: "Éxito", description: "Contraseña resetada correctamente" });
+      setResetPasswordUser(null);
+      resetPasswordForm.reset();
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo resetear la contraseña", variant: "destructive" });
+    }
+  };
+
+  const onChangeRole = async (data: ChangeRoleFormValues) => {
+    if (!changeRoleUser) return;
+
+    try {
+      const response = await fetch(`/api/users/${changeRoleUser.id}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: data.role }),
+      });
+
+      if (!response.ok) throw new Error("Error al cambiar rol");
+
+      toast({ title: "Éxito", description: "Rol actualizado correctamente" });
+      setChangeRoleUser(null);
+      changeRoleForm.reset();
+      refetch();
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo cambiar el rol", variant: "destructive" });
+    }
+  };
+
+  const onDeleteUser = async (userId: string) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este usuario?")) return;
+
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Error al eliminar usuario");
+
+      toast({ title: "Éxito", description: "Usuario eliminado correctamente" });
+      refetch();
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
+    }
+  };
+
+  const roleLabels: Record<string, string> = {
+    obispo: "Obispo",
+    consejero_obispo: "Consejero del Obispo",
+    secretario: "Secretario",
+    presidente_organizacion: "Presidente",
+    consejero_organizacion: "Consejero",
+  };
+
+  return (
+    <div className="container max-w-6xl mx-auto py-8 px-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setLocation("/dashboard")}
+        className="mb-6"
+        data-testid="button-back-to-dashboard"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Volver al Dashboard
+      </Button>
+
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
+          <p className="text-muted-foreground mt-1">
+            Administra todos los usuarios del sistema
+          </p>
+        </div>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-create-user">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Usuario
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+              <DialogDescription>
+                Agrega un nuevo usuario al sistema
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...createForm}>
+              <form onSubmit={createForm.handleSubmit(onCreateUser)} className="space-y-4">
+                <FormField
+                  control={createForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-create-name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createForm.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Usuario</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-create-username" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email (Opcional)</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} data-testid="input-create-email" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} data-testid="input-create-password" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rol</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-create-role">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="obispo">Obispo</SelectItem>
+                          <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
+                          <SelectItem value="secretario">Secretario</SelectItem>
+                          <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
+                          <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
+                          <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedRole) && (
+                  <FormField
+                    control={createForm.control}
+                    name="organizationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organización</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-create-organization">
+                              <SelectValue placeholder="Selecciona una organización" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {organizations.map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                <div className="flex gap-2 justify-end">
+                  <Button type="submit" data-testid="button-submit-create-user">
+                    Crear Usuario
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Usuarios del Sistema</CardTitle>
+          <CardDescription>
+            Total: {users.length} usuarios registrados
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u) => (
+                    <TableRow key={u.id} data-testid={`row-user-${u.id}`}>
+                      <TableCell className="font-medium">{u.name}</TableCell>
+                      <TableCell>{u.username}</TableCell>
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {roleLabels[u.role] || u.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Dialog open={resetPasswordUser?.id === u.id} onOpenChange={(open) => !open && setResetPasswordUser(null)}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setResetPasswordUser(u)}
+                                data-testid={`button-reset-password-${u.id}`}
+                              >
+                                <Key className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            {resetPasswordUser?.id === u.id && (
+                              <DialogContent className="max-w-sm">
+                                <DialogHeader>
+                                  <DialogTitle>Resetear Contraseña</DialogTitle>
+                                  <DialogDescription>
+                                    Resetea la contraseña para {u.name}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <Form {...resetPasswordForm}>
+                                  <form onSubmit={resetPasswordForm.handleSubmit(onResetPassword)} className="space-y-4">
+                                    <FormField
+                                      control={resetPasswordForm.control}
+                                      name="newPassword"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Nueva Contraseña</FormLabel>
+                                          <FormControl>
+                                            <Input type="password" {...field} data-testid="input-reset-password" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <div className="flex gap-2 justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setResetPasswordUser(null);
+                                          resetPasswordForm.reset();
+                                        }}
+                                        data-testid="button-cancel-reset"
+                                      >
+                                        Cancelar
+                                      </Button>
+                                      <Button type="submit" data-testid="button-submit-reset">
+                                        Resetear
+                                      </Button>
+                                    </div>
+                                  </form>
+                                </Form>
+                              </DialogContent>
+                            )}
+                          </Dialog>
+
+                          <Dialog open={changeRoleUser?.id === u.id} onOpenChange={(open) => !open && setChangeRoleUser(null)}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setChangeRoleUser(u);
+                                  changeRoleForm.setValue("role", u.role as any);
+                                }}
+                                data-testid={`button-change-role-${u.id}`}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            {changeRoleUser?.id === u.id && (
+                              <DialogContent className="max-w-sm">
+                                <DialogHeader>
+                                  <DialogTitle>Cambiar Rol</DialogTitle>
+                                  <DialogDescription>
+                                    Cambia el rol para {u.name}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <Form {...changeRoleForm}>
+                                  <form onSubmit={changeRoleForm.handleSubmit(onChangeRole)} className="space-y-4">
+                                    <FormField
+                                      control={changeRoleForm.control}
+                                      name="role"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Rol</FormLabel>
+                                          <Select value={field.value} onValueChange={field.onChange}>
+                                            <FormControl>
+                                              <SelectTrigger data-testid="select-change-role">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                              <SelectItem value="obispo">Obispo</SelectItem>
+                                              <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
+                                              <SelectItem value="secretario">Secretario</SelectItem>
+                                              <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
+                                              <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
+                                              <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <div className="flex gap-2 justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setChangeRoleUser(null);
+                                          changeRoleForm.reset();
+                                        }}
+                                        data-testid="button-cancel-role"
+                                      >
+                                        Cancelar
+                                      </Button>
+                                      <Button type="submit" data-testid="button-submit-role">
+                                        Cambiar
+                                      </Button>
+                                    </div>
+                                  </form>
+                                </Form>
+                              </DialogContent>
+                            )}
+                          </Dialog>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => onDeleteUser(u.id)}
+                            data-testid={`button-delete-user-${u.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
