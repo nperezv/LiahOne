@@ -150,28 +150,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
     try {
       const { username, password, name, email, role, organizationId } = req.body;
-
+      
       if (!username || !password || !name || !role) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Check if the username already exists
+      // Check if username already exists
       const existingUsers = await storage.getAllUsers();
       const usernameExists = existingUsers.some(u => u.username.toLowerCase() === username.toLowerCase());
       if (usernameExists) {
-        return res.status(400).json({ error: "Username already exists" });
+        return res.status(400).json({ error: "El nombre de usuario ya existe" });
       }
-
-      // Roles that require an organizationId
-      const rolesRequireOrg = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
-      if (rolesRequireOrg.includes(role) && !organizationId) {
-        return res.status(400).json({ error: "organizationId is required for this role" });
-      }
-
-      // Bishop-level roles automatically get the Obispado organizationId
-      const bishopRoles = ["consejero_obispo", "secretario"];
-      const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
-      const finalOrganizationId = bishopRoles.includes(role) ? obispadoId : organizationId || null;
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await storage.createUser({
@@ -180,16 +169,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name,
         email: email || null,
         role,
-        organizationId: finalOrganizationId,
+        organizationId: organizationId || null,
       });
 
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
-
     } catch (error: any) {
       console.error("Error creating user:", error);
       if (error.code === '23505') {
-        return res.status(400).json({ error: "Username already exists" });
+        return res.status(400).json({ error: "El nombre de usuario ya existe" });
       }
       res.status(500).json({ error: "Failed to create user: " + (error.message || "Unknown error") });
     }
