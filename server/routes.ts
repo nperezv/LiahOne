@@ -700,8 +700,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const interview = await storage.createInterview(interviewData);
 
+      // Notify the interviewer always
+      await storage.createNotification({
+        userId: interview.interviewerId,
+        type: "upcoming_interview",
+        title: "Entrevista Programada",
+        description: `Tienes una entrevista programada para el ${new Date(interview.date).toLocaleDateString("es-ES")}`,
+        relatedId: interview.id,
+        isRead: false,
+      });
+      
       // Create notification for the person being interviewed (if they have an account)
-      if (assignedToId) {
+      if (assignedToId && assignedToId !== interview.interviewerId) {
         const notification = await storage.createNotification({
           userId: assignedToId,
           type: "upcoming_interview",
@@ -710,8 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           relatedId: interview.id,
           isRead: false,
         });
-        
-        if (isPushConfigured()) {
+               if (isPushConfigured()) {
           await sendPushNotification(assignedToId, {
             title: "Entrevista Programada",
             body: `Tienes una entrevista programada para el ${new Date(interview.date).toLocaleDateString("es-ES")}`,
