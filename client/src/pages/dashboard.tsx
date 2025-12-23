@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Calendar,
   DollarSign,
+  Euro,
   UserCheck,
   Target,
   Cake,
@@ -187,7 +188,7 @@ export default function DashboardPage() {
             <CardTitle className="text-lg font-semibold">
               Solicitudes de Presupuesto
             </CardTitle>
-            <DollarSign className="h-5 w-5 text-muted-foreground" />
+            <Euro className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-2">

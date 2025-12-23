@@ -57,7 +57,7 @@ export default function ActivitiesPage() {
   const deleteMutation = useDeleteActivity();
 
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
-  const canManage = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario" || isOrgMember;
+  const canManage = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario" || user?.role === "secretario_ejecutivo" || isOrgMember;
   const canDelete = user?.role === "obispo" || user?.role === "consejero_obispo" || isOrgMember;
   
   // Filter activities based on user role

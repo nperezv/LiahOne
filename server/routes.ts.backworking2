@@ -657,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ========================================
   // INTERVIEWS
   // ========================================
-  
+
   app.get("/api/interviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const interviews = await storage.getAllInterviews();
@@ -670,112 +670,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/interviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const { personName, ...rest } = req.body;
-  
+      
+      // Try to find user by name (fuzzy match)
       let assignedToId: string | undefined;
-  
       if (personName) {
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
-      
-        let foundUser = users.find(
-          (u) => u.name.toLowerCase() === normalizedInput
-        );
-    
+        
+        // Exact match first
+        let foundUser = users.find((u: any) => u.name.toLowerCase() === normalizedInput);
+        
+        // If no exact match, try partial match
         if (!foundUser) {
-          foundUser = users.find(
-            (u) =>
-              u.name.toLowerCase().includes(normalizedInput) ||
-              normalizedInput.includes(u.name.toLowerCase())
+          foundUser = users.find((u: any) => 
+            u.name.toLowerCase().includes(normalizedInput) || 
+            normalizedInput.includes(u.name.toLowerCase())
           );
         }
-    
-        if (foundUser) assignedToId = foundUser.id;
+        
+        if (foundUser) {
+          assignedToId = foundUser.id;
+        }
       }
-  
+
       const interviewData = insertInterviewSchema.parse({
         personName,
         ...rest,
         assignedBy: req.session.userId,
         ...(assignedToId && { assignedToId }),
       });
-  
       const interview = await storage.createInterview(interviewData);
-  
-      // 🔔 Notificar entrevistador
+
+      // Notify the interviewer always
       await storage.createNotification({
         userId: interview.interviewerId,
         type: "upcoming_interview",
         title: "Entrevista Programada",
-        description: `Tienes una entrevista programada para el ${new Date(
-          interview.date
-        ).toLocaleDateString("es-ES")}`,
+        description: `Tienes una entrevista programada para el ${new Date(interview.date).toLocaleDateString("es-ES")}`,
         relatedId: interview.id,
-        eventDate: interview.date,
         isRead: false,
       });
-  
-      // 🔔 Notificar entrevistado (si existe usuario)
+      
+      // Create notification for the person being interviewed (if they have an account)
       if (assignedToId && assignedToId !== interview.interviewerId) {
         const notification = await storage.createNotification({
           userId: assignedToId,
           type: "upcoming_interview",
           title: "Entrevista Programada",
-          description: `Tienes una entrevista programada para el ${new Date(
-            interview.date
-          ).toLocaleDateString("es-ES")}`,
+          description: `Tienes una entrevista programada para el ${new Date(interview.date).toLocaleDateString("es-ES")}`,
           relatedId: interview.id,
-          eventDate: interview.date,
           isRead: false,
         });
-    
-        if (isPushConfigured()) {
+               if (isPushConfigured()) {
           await sendPushNotification(assignedToId, {
             title: "Entrevista Programada",
-            body: `Tienes una entrevista programada`,
+            body: `Tienes una entrevista programada para el ${new Date(interview.date).toLocaleDateString("es-ES")}`,
             url: "/interviews",
             notificationId: notification.id,
           });
         }
       }
-  
-      // 🔔 Si lo solicita una organización, avisar al obispado
+
+      // Get the requesting user to check if they're an organization member
       const requestingUser = await storage.getUser(req.session.userId!);
-      const isOrgMember = [
-        "presidente_organizacion",
-        "secretario_organizacion",
-        "consejero_organizacion",
-      ].includes(requestingUser?.role || "");
-  
+      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(requestingUser?.role || "");
+      
+      // If org member requests an interview, notify all obispado members
       if (isOrgMember) {
         const users = await storage.getAllUsers();
-        const obispadoMembers = users.filter(
-          (u) => u.role === "obispo" || u.role === "consejero_obispo"
+        const obispadoMembers = users.filter((u: any) => 
+          u.role === "obispo" || u.role === "consejero_obispo"
         );
-    
+        
         for (const member of obispadoMembers) {
           const notification = await storage.createNotification({
             userId: member.id,
             type: "upcoming_interview",
             title: "Nueva Solicitud de Entrevista",
-            description: `${
-              requestingUser?.name || personName
-            } solicita una entrevista`,
+            description: `${requestingUser?.name || personName} solicita una entrevista para el ${new Date(interview.date).toLocaleDateString("es-ES")}`,
             relatedId: interview.id,
-            eventDate: interview.date,
             isRead: false,
           });
-      
+          
           if (isPushConfigured()) {
             await sendPushNotification(member.id, {
               title: "Nueva Solicitud de Entrevista",
-              body: "Se ha solicitado una entrevista",
+              body: `${requestingUser?.name || personName} solicita una entrevista`,
               url: "/interviews",
               notificationId: notification.id,
             });
           }
         }
       }
-  
+
       res.status(201).json(interview);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -784,62 +771,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Internal server error" });
     }
   });
-  
+
   app.put("/api/interviews/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { personName, ...rest } = req.body;
-  
+
       let updateData: any = rest;
-  
+      
       if (personName) {
         updateData.personName = personName;
-      
+        
+        // Try to find user by name (fuzzy match)
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
-      
-        let foundUser = users.find(
-          (u) => u.name.toLowerCase() === normalizedInput
-        );
-    
+        
+        // Exact match first
+        let foundUser = users.find((u: any) => u.name.toLowerCase() === normalizedInput);
+        
+        // If no exact match, try partial match
         if (!foundUser) {
-          foundUser = users.find(
-            (u) =>
-              u.name.toLowerCase().includes(normalizedInput) ||
-              normalizedInput.includes(u.name.toLowerCase())
+          foundUser = users.find((u: any) => 
+            u.name.toLowerCase().includes(normalizedInput) || 
+            normalizedInput.includes(u.name.toLowerCase())
           );
         }
-    
-        updateData.assignedToId = foundUser ? foundUser.id : null;
+        
+        if (foundUser) {
+          updateData.assignedToId = foundUser.id;
+        } else {
+          updateData.assignedToId = null;
+        }
       }
-  
+
       const interviewData = insertInterviewSchema
-        .partial()
-        .extend({
-          status: z
-            .enum(["programada", "completada", "cancelada", "archivada"])
-            .optional(),
-        })
-        .parse(updateData);
-    
+      .partial()
+      .extend({
+          status: z.enum([
+          "programada",
+          "completada",
+          "cancelada",
+          "archivada",
+          ]).optional(),
+      })
+      .parse(updateData);
+
       const interview = await storage.updateInterview(id, interviewData);
       if (!interview) {
         return res.status(404).json({ error: "Interview not found" });
       }
-  
-      // 🔔 Si cambia la fecha → actualizar eventDate
-      if (interviewData.date) {
-        await db
-          .update(notifications)
-          .set({ eventDate: interview.date })
-          .where(
-            and(
-              eq(notifications.relatedId, interview.id),
-              eq(notifications.type, "upcoming_interview")
-            )
-          );
-      }
-  
+
       res.json(interview);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -848,31 +829,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Internal server error" });
     }
   });
-  
-  app.delete(
-    "/api/interviews/:id",
-    requireAuth,
-    requireRole("obispo"),
-    async (req: Request, res: Response) => {
-      try {
-        const { id } = req.params;
-        const interview = await storage.getInterview(id);
-        if (!interview) {
-          return res.status(404).json({ error: "Interview not found" });
-        }
-    
-        await storage.deleteInterview(id);
-        res.status(204).send();
-      } catch {
-        res.status(500).json({ error: "Internal server error" });
+
+  app.delete("/api/interviews/:id", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const interview = await storage.getInterview(id);
+      if (!interview) {
+        return res.status(404).json({ error: "Interview not found" });
       }
+      
+      await storage.deleteInterview(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
     }
-  );
-  
+  });
+
   // ========================================
   // ORGANIZATION INTERVIEWS
   // ========================================
-  
   app.get(
     "/api/organization-interviews",
     requireAuth,
@@ -882,22 +857,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!user || !user.organizationId) {
           return res.status(403).json({ error: "No autorizado" });
         }
-
+  
         const allowedRoles = [
           "presidente_organizacion",
           "consejero_organizacion",
           "secretario_organizacion",
         ];
-
+  
         if (!allowedRoles.includes(user.role)) {
           return res.status(403).json({ error: "No autorizado" });
         }
-
+  
         const interviews =
           await storage.getOrganizationInterviewsByOrganization(
             user.organizationId
           );
-
+  
         res.json(interviews);
       } catch (error) {
         res.status(500).json({ error: "Internal server error" });
@@ -905,115 +880,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/organization-interviews", requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user || !user.organizationId) {
-        return res.status(403).json({ error: "No autorizado" });
-      }
-  
-      const allowedRoles = [
-        "presidente_organizacion",
-        "consejero_organizacion",
-        "secretario_organizacion",
-      ];
-  
-      if (!allowedRoles.includes(user.role)) {
-        return res.status(403).json({ error: "No autorizado" });
-      }
-  
-      const interviewData = insertOrganizationInterviewSchema.parse({
-        ...req.body,
-        organizationId: user.organizationId,
-        createdBy: user.id,
-        status: "programada",
-      });
-  
-      const interview =
-        await storage.createOrganizationInterview(interviewData);
-  
-      const members =
-        await storage.getOrganizationMembers(user.organizationId);
-  
-      for (const member of members) {
-        if (!allowedRoles.includes(member.role)) continue;
-      
-        const notification = await storage.createNotification({
-          userId: member.id,
-          type: "upcoming_interview",
-          title: "Nueva entrevista de organización",
-          description: `Entrevista con ${interview.personName}`,
-          relatedId: interview.id,
-          eventDate: interview.date,
-          isRead: false,
-        });
-    
-        if (isPushConfigured()) {
-          await sendPushNotification(member.id, {
-            title: "Nueva entrevista de organización",
-            body: `Entrevista con ${interview.personName}`,
-            url: "/organization-interviews",
-            notificationId: notification.id,
-          });
-        }
-      }
-  
-      res.status(201).json(interview);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-  
-  app.put(
-    "/api/organization-interviews/:id",
+  app.post(
+    "/api/organization-interviews",
     requireAuth,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const { id } = req.params;
         const user = await storage.getUser(req.session.userId!);
-      
         if (!user || !user.organizationId) {
           return res.status(403).json({ error: "No autorizado" });
         }
-    
+  
+        const allowedRoles = [
+          "presidente_organizacion",
+          "consejero_organizacion",
+          "secretario_organizacion",
+        ];
+  
+        if (!allowedRoles.includes(user.role)) {
+          return res.status(403).json({ error: "No autorizado" });
+        }
+  
+        const interviewData = insertOrganizationInterviewSchema.parse({
+          ...req.body,
+          organizationId: user.organizationId,
+          createdBy: user.id,
+          status: "programada",
+        });
+  
+        const interview =
+          await storage.createOrganizationInterview(interviewData);
+  
+        // 🔔 Notificar a presidencia
+        const members =
+          await storage.getOrganizationMembers(user.organizationId);
+  
+        for (const member of members) {
+          if (!allowedRoles.includes(member.role)) continue;
+  
+          const notification =
+            await storage.createNotification({
+              userId: member.id,
+              type: "upcoming_interview",
+              title: "Nueva entrevista de organización",
+              description: `Entrevista con ${interview.personName}`,
+              relatedId: interview.id,
+              isRead: false,
+            });
+  
+          if (isPushConfigured()) {
+            await sendPushNotification(member.id, {
+              title: "Nueva entrevista de organización",
+              body: `Entrevista con ${interview.personName}`,
+              url: "/organization-interviews",
+              notificationId: notification.id,
+            });
+          }
+        }
+  
+        res.status(201).json(interview);
+      } catch (error) {
+        console.error("❌ CREATE ORG INTERVIEW ERROR:", error);
+
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: error.errors });
+        }
+
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    }
+  );
+
+  app.put(
+    "/api/organization-interviews/:id",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+  
+        const user = await storage.getUser(req.session.userId!);
+        if (!user || !user.organizationId) {
+          return res.status(403).json({ error: "No autorizado" });
+        }
+  
         const interview =
           await storage.getOrganizationInterview(id);
-    
+  
         if (
           !interview ||
           interview.organizationId !== user.organizationId
         ) {
           return res.status(404).json({ error: "No encontrada" });
         }
-    
+  
         const allowedRoles = [
           "presidente_organizacion",
           "consejero_organizacion",
           "secretario_organizacion",
         ];
-    
+  
         if (!allowedRoles.includes(user.role)) {
           return res.status(403).json({ error: "No autorizado" });
         }
-    
+  
         const updateData =
-          insertOrganizationInterviewSchema.partial().parse(req.body);
-    
-        const updated =
+          insertOrganizationInterviewSchema
+            .partial()
+            .parse(req.body);
+         const updated =
           await storage.updateOrganizationInterview(id, updateData);
-    
+              
         if (!updated) {
           return res.status(404).json({ error: "No encontrada" });
         }
-    
-        // 🔔 Notificar cambios (estado o fecha)
-        if (updateData.status || updateData.date) {
-          const members =
-            await storage.getOrganizationMembers(user.organizationId);
-      
+        
+        // 🔔 NOTIFICAR CAMBIO DE ESTADO
+        if (updateData.status) {
+          const members = await storage.getOrganizationMembers(user.organizationId);
+        
           for (const member of members) {
             if (!allowedRoles.includes(member.role)) continue;
           
@@ -1021,26 +1004,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userId: member.id,
               type: "upcoming_interview",
               title: "Entrevista actualizada",
-              description: updateData.status
-                ? `La entrevista con ${updated.personName} ahora está ${updated.status}`
-                : `La fecha de la entrevista con ${updated.personName} fue modificada`,
+              description: `La entrevista con ${updated.personName} ahora está ${updated.status}`,
               relatedId: updated.id,
-              eventDate: updated.date,
               isRead: false,
             });
-        
+          
             if (isPushConfigured()) {
               await sendPushNotification(member.id, {
                 title: "Entrevista actualizada",
-                body: `Entrevista con ${updated.personName}`,
+                body: `Entrevista con ${updated.personName}: ${updated.status}`,
                 url: "/organization-interviews",
                 notificationId: notification.id,
               });
             }
           }
         }
-    
-        res.json(updated);
+        
+        res.json(updated); 
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: error.errors });
@@ -1049,35 +1029,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
-  
+
   app.delete(
     "/api/organization-interviews/:id",
     requireAuth,
-    async (req, res) => {
+    async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
+  
         const user = await storage.getUser(req.session.userId!);
-      
         if (!user || !user.organizationId) {
           return res.status(403).json({ error: "No autorizado" });
         }
-    
+  
         const interview =
           await storage.getOrganizationInterview(id);
-    
+  
         if (
           !interview ||
           interview.organizationId !== user.organizationId
         ) {
           return res.status(404).json({ error: "No encontrada" });
         }
-    
+  
         if (user.role !== "presidente_organizacion") {
-          return res
-            .status(403)
-            .json({ error: "Solo el presidente puede eliminar" });
+          return res.status(403).json({ error: "Solo el presidente puede eliminar" });
         }
-    
+  
         await storage.deleteOrganizationInterview(id);
         res.status(204).send();
       } catch {

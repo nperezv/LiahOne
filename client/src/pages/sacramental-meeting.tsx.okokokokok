@@ -1181,7 +1181,7 @@ export default function SacramentalMeetingPage() {
 
                   <div className="flex gap-2 pt-4">
                     <Button type="submit" className="flex-1" data-testid="button-save-meeting">
-                      Guardar Reunión
+                      Crear Reunión
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                       Cancelar

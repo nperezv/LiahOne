@@ -42,7 +42,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Reunión Sacramental",
     url: "/sacramental-meeting",
     icon: Calendar,
-    roles: ["obispo", "consejero_obispo", "secretario"],
+    roles: ["obispo", "consejero_obispo","secretario_ejecutivo", "secretario"],
   },
   {
     title: "Consejo de Barrio",
@@ -69,12 +69,19 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Presupuestos",
     url: "/budget",
     icon: DollarSign,
+    roles: ["obispo", "consejero_obispo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"],
   },
   {
     title: "Entrevistas",
     url: "/interviews",
     icon: UserCheck,
-    roles: ["obispo", "consejero_obispo", "secretario"],
+    roles: ["obispo", "consejero_obispo", "secretario_ejecutivo"],
+  },
+  {
+    title: "Entrevistas",
+    url: "/organization-interviews",
+    icon: UserCheck,
+    roles: ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"],
   },
   {
     title: "Metas",
@@ -166,7 +173,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-lg font-bold px-4 py-3">
-            LiahOne
+            Liahonapp
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

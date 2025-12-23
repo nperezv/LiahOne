@@ -79,50 +79,32 @@ export function useCreateWardCouncil() {
 }
 
 export function useUpdateWardCouncil() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return apiRequest("PUT", `/api/ward-councils/${id}`, data);
+      const res = await fetch(`/api/ward-councils/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Error updating ward council");
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ward-councils"] });
-      toast({
-        title: "Consejo actualizado",
-        description: "El consejo de barrio ha sido actualizado correctamente.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el consejo.",
-        variant: "destructive",
-      });
     },
   });
 }
 
 export function useDeleteWardCouncil() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
   return useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/ward-councils/${id}`),
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/ward-councils/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Error deleting ward council");
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ward-councils"] });
-      toast({
-        title: "Consejo eliminado",
-        description: "El consejo de barrio ha sido eliminado.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el consejo.",
-        variant: "destructive",
-      });
     },
   });
 }

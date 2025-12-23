@@ -15,6 +15,7 @@ import WardCouncilPage from "@/pages/ward-council";
 import PresidencyMeetingsPage from "@/pages/presidency-meetings";
 import BudgetPage from "@/pages/budget";
 import InterviewsPage from "@/pages/interviews";
+import OrganizationInterviewsPage from "@/pages/organization-interviews";
 import GoalsPage from "@/pages/goals";
 import BirthdaysPage from "@/pages/birthdays";
 import ActivitiesPage from "@/pages/activities";
@@ -56,6 +57,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/interviews">
           <InterviewsPage />
+        </Route>
+        <Route path="/organization-interviews">
+          <OrganizationInterviewsPage />
         </Route>
         <Route path="/goals">
           <GoalsPage />

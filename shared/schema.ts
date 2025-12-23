@@ -43,6 +43,8 @@ export const roleEnum = pgEnum("role", [
   "obispo",
   "consejero_obispo",
   "secretario",
+  "secretario_ejecutivo",
+  "secretario_financiero",
   "presidente_organizacion",
   "consejero_organizacion",
   "secretario_organizacion",
@@ -80,7 +82,22 @@ export const budgetStatusEnum = pgEnum("budget_status", [
 export const interviewStatusEnum = pgEnum("interview_status", [
   "programada",
   "completada",
+  "archivada",
   "cancelada",
+]);
+
+export const organizationInterviewStatusEnum = pgEnum("organization_interview_status", [
+  "programada",
+  "completada",
+  "cancelada",
+  "archivada"
+]);
+
+export const organizationInterviewTypeEnum = pgEnum("organization_interview_type", [                                  "ministracion",
+  "autosuficiencia",
+  "consuelo",
+  "seguimiento",
+  "otro"
 ]);
 
 export const assignmentStatusEnum = pgEnum("assignment_status", [
@@ -118,6 +135,8 @@ export const organizations = pgTable("organizations", {
 export const sacramentalMeetings = pgTable("sacramental_meetings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   date: timestamp("date").notNull(),
+  musicDirector: varchar("music_director"),
+  pianist: varchar("pianist"),
   // Section 2-3: Prelude and welcome with authorities
   presider: text("presider"),
   director: text("director"),
@@ -201,10 +220,25 @@ export const interviews = pgTable("interviews", {
   interviewerId: varchar("interviewer_id").notNull().references(() => users.id),
   assignedToId: varchar("assigned_to_id").references(() => users.id),
   type: text("type").notNull(), // Regular, Temple Recommend, etc.
-  status: interviewStatusEnum("status").notNull().default("programada"),
+  status: interviewStatusEnum("status").default("programada").notNull(),
   urgent: boolean("urgent").default(false).notNull(),
   notes: text("notes"),
   assignedBy: varchar("assigned_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const organizationInterviews = pgTable("organization_interviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  date: timestamp("date").notNull(),
+  personName: text("person_name").notNull(),
+  interviewerId: varchar("interviewer_id").notNull().references(() => users.id),
+  type: organizationInterviewTypeEnum("type").notNull(),
+  status: organizationInterviewStatusEnum("status").notNull().default("programada"),
+  urgent: boolean("urgent").default(false).notNull(),
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -269,6 +303,7 @@ export const notifications = pgTable("notifications", {
   title: text("title").notNull(),
   description: text("description"),
   relatedId: varchar("related_id"), // ID of related entity (interview, assignment, etc)
+  eventDate: timestamp("event_date"),
   isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -371,6 +406,26 @@ export const interviewsRelations = relations(interviews, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const organizationInterviewsRelations = relations(
+  organizationInterviews,
+  ({ one }) => ({
+    interviewer: one(users, {
+      fields: [organizationInterviews.interviewerId],
+      references: [users.id],
+    }),
+
+    creator: one(users, {
+      fields: [organizationInterviews.createdBy],
+      references: [users.id],
+    }),
+
+    organization: one(organizations, {
+      fields: [organizationInterviews.organizationId],
+      references: [organizations.id],
+    }),
+  })
+);
 
 export const goalsRelations = relations(goals, ({ one }) => ({
   organization: one(organizations, {
@@ -514,6 +569,21 @@ export const insertInterviewSchema = createInsertSchema(interviews, {
 
 export const selectInterviewSchema = createSelectSchema(interviews);
 
+// Organization Interviews
+export const insertOrganizationInterviewSchema = createInsertSchema(
+  organizationInterviews,
+  {
+    date: z.coerce.date(),
+  }
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectOrganizationInterviewSchema = createSelectSchema(organizationInterviews);
+
+
 // Goals
 export const insertGoalSchema = createInsertSchema(goals).omit({
   id: true,
@@ -653,6 +723,9 @@ export type InsertBudgetRequest = z.infer<typeof insertBudgetRequestSchema>;
 
 export type Interview = typeof interviews.$inferSelect;
 export type InsertInterview = z.infer<typeof insertInterviewSchema>;
+
+export type OrganizationInterview = typeof organizationInterviews.$inferSelect;
+export type InsertOrganizationInterview = z.infer<typeof insertOrganizationInterviewSchema>;
 
 export type Goal = typeof goals.$inferSelect;
 export type InsertGoal = z.infer<typeof insertGoalSchema>;

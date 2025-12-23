@@ -89,7 +89,7 @@ function formatRole(role: string) {
   const map: Record<string, string> = {
     obispo: "Obispo",
     consejero_obispo: "Consejero",
-    secretario_ejecutivo: "Secretario Ejecutivo",
+    secretario: "Secretario",
   };
   return map[role] ?? role;
 }
@@ -116,7 +116,7 @@ export default function InterviewsPage() {
   );
 
   const isObispado =
-    user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
+    user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario";
 
   const canManage = isObispado || isOrgMember;
   const canCancel = user?.role === "obispo"; // si quieres solo obispo cancela/borra
@@ -151,17 +151,10 @@ export default function InterviewsPage() {
 
   // ✅ Ocultar archivadas por defecto
   const filteredInterviews = useMemo(() => {
-    return filteredInterviewsRaw
-      .filter((i: any) =>
-        showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
-      )
-      .sort(
-        (a: any, b: any) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
+    if (showArchived) return filteredInterviewsRaw;
+    return filteredInterviewsRaw.filter((i: any) => i.status !== "archivada");
   }, [filteredInterviewsRaw, showArchived]);
+
   // ✅ Métricas (sobre no-archivadas)
   const pendingInterviews = filteredInterviews.filter((i: any) => i.status === "programada");
   const completedInterviews = filteredInterviews.filter((i: any) => i.status === "completada");
@@ -213,15 +206,11 @@ export default function InterviewsPage() {
 
   const onEditSubmit = (data: InterviewFormValues) => {
     if (!editingInterview) return;
-  
+
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: data.personName,
-        date: data.date,
-        type: data.type,
-        interviewerId: data.interviewerId,
-        urgent: data.urgent,
+        ...data,
         notes: data.notes || "",
       },
       {
@@ -289,31 +278,28 @@ export default function InterviewsPage() {
       </Badge>
     );
   };
+
   const handleToggleCompleted = (interview: any, checked: boolean) => {
+    // Solo permitimos marcar completada desde pendiente
     if (checked && interview.status === "programada") {
-      updateMutation.mutate(
-        {
-          id: interview.id,
-          data: { status: "completada" },
+      completeMutation.mutate(interview.id, {
+        onSuccess: () => {
+          toast({
+            title: "Entrevista completada",
+            description: "Marcada como completada.",
+          });
         },
-        {
-          onSuccess: () => {
-            toast({
-              title: "Entrevista completada",
-              description: "Marcada como completada.",
-            });
-          },
-          onError: () => {
-            toast({
-              title: "Error",
-              description: "No se pudo completar la entrevista.",
-              variant: "destructive",
-            });
-          },
-        }
-      );
+        onError: () => {
+          toast({
+            title: "Error",
+            description: "No se pudo completar la entrevista.",
+            variant: "destructive",
+          });
+        },
+      });
     }
   };
+
   const handleArchive = (interviewId: string) => {
     updateMutation.mutate(
       { id: interviewId, status: "archivada" },
@@ -633,16 +619,9 @@ export default function InterviewsPage() {
                             {isObispado && isPending && (
                               <div className="flex items-center gap-2">
                                 <Checkbox
-                                  checked={interview.status === "completada"}
-                                  disabled={updateMutation.isPending || interview.status !== "programada"}
-                                  onCheckedChange={(checked) => {
-                                    if (!checked) return;
-
-                                    updateMutation.mutate({
-                                      id: interview.id,
-                                      status: "completada",
-                                    });
-                                  }}
+                                  checked={false}
+                                  onCheckedChange={(v) => handleToggleCompleted(interview, !!v)}
+                                  disabled={completeMutation.isPending}
                                 />
                                 <span className="text-xs text-muted-foreground">Completar</span>
                               </div>

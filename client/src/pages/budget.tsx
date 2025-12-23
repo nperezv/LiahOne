@@ -99,7 +99,7 @@ export default function BudgetPage() {
   const createOrgBudgetMutation = useCreateOrganizationBudget();
   const updateOrgBudgetMutation = useUpdateOrganizationBudget();
 
-  const isObispado = ["obispo", "consejero_obispo"].includes(user?.role || "");
+  const isObispado = ["obispo", "consejero_obispo", "secretario_financiero"].includes(user?.role || "");
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const canApprove = isObispado;
   const canDelete = isObispado;
@@ -416,7 +416,7 @@ export default function BudgetPage() {
                         <FormLabel>Descripción</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="Ej: Material para actividad juvenil"
+                            placeholder="Ej: Material para actividad ..."
                             {...field}
                             data-testid="input-description"
                           />

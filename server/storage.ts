@@ -10,6 +10,7 @@ import {
   presidencyMeetings,
   budgetRequests,
   interviews,
+  organizationInterviews,
   goals,
   birthdays,
   activities,
@@ -33,6 +34,8 @@ import {
   type InsertBudgetRequest,
   type Interview,
   type InsertInterview,
+  type OrganizationInterview,
+  type InsertOrganizationInterview,
   type Goal,
   type InsertGoal,
   type Birthday,
@@ -102,6 +105,19 @@ export interface IStorage {
   createInterview(interview: InsertInterview): Promise<Interview>;
   updateInterview(id: string, data: Partial<InsertInterview>): Promise<Interview | undefined>;
   deleteInterview(id: string): Promise<void>;
+
+  // Organization Interviews
+  getOrganizationInterviewsByOrganization(organizationId: string): Promise<OrganizationInterview[]>;
+  getOrganizationInterview(id: string): Promise<OrganizationInterview | undefined>;
+  createOrganizationInterview(interview: InsertOrganizationInterview): Promise<OrganizationInterview>;
+  updateOrganizationInterview(
+    id: string,
+    data: Partial<InsertOrganizationInterview>
+  ): Promise<OrganizationInterview | undefined>;
+  deleteOrganizationInterview(id: string): Promise<void>;
+
+  // Organization Members
+  getOrganizationMembers(organizationId: string): Promise<User[]>;
 
   // Goals
   getAllGoals(): Promise<Goal[]>;
@@ -390,6 +406,73 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInterview(id: string): Promise<void> {
     await db.delete(interviews).where(eq(interviews.id, id));
+  }
+
+  // ========================================
+  // ORGANIZATION INTERVIEWS
+  // ========================================
+
+  async getOrganizationInterviewsByOrganization(
+    organizationId: string
+  ): Promise<OrganizationInterview[]> {
+    return await db
+      .select()
+      .from(organizationInterviews)
+      .where(eq(organizationInterviews.organizationId, organizationId))
+      .orderBy(desc(organizationInterviews.date));
+  }
+
+  async getOrganizationInterview(
+    id: string
+  ): Promise<OrganizationInterview | undefined> {
+    const [interview] = await db
+      .select()
+      .from(organizationInterviews)
+      .where(eq(organizationInterviews.id, id));
+
+    return interview || undefined;
+  }
+
+  async createOrganizationInterview(
+    insertInterview: InsertOrganizationInterview
+  ): Promise<OrganizationInterview> {
+    const [interview] = await db
+      .insert(organizationInterviews)
+      .values(insertInterview)
+      .returning();
+
+    return interview;
+  }
+
+  async updateOrganizationInterview(
+    id: string,
+    data: Partial<InsertOrganizationInterview>
+  ): Promise<OrganizationInterview | undefined> {
+    const [interview] = await db
+      .update(organizationInterviews)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizationInterviews.id, id))
+      .returning();
+
+    return interview || undefined;
+  }
+
+  async deleteOrganizationInterview(id: string): Promise<void> {
+    await db.delete(organizationInterviews).where(eq(organizationInterviews.id, id));
+  }
+
+  // ========================================
+  // ORGANIZATION MEMBERS
+  // ========================================
+
+  async getOrganizationMembers(organizationId: string): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(eq(users.organizationId, organizationId));
   }
 
   // ========================================

@@ -1,0 +1,463 @@
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Plus,
+  Calendar as CalendarIcon,
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  Archive,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+
+import {
+  useOrganizationInterviews,
+  useCreateOrganizationInterview,
+  useUpdateOrganizationInterview,
+  useDeleteOrganizationInterview,
+  useUsers,
+} from "@/hooks/use-api";
+import { useAuth } from "@/lib/auth";
+import { exportInterviews } from "@/lib/export";
+
+/* =========================
+   Schema
+========================= */
+const interviewSchema = z.object({
+  personName: z.string().min(1),
+  date: z.string().min(1),
+  type: z.string().min(1),
+  interviewerId: z.string().min(1),
+  urgent: z.boolean().default(false),
+  notes: z.string().optional(),
+});
+
+type InterviewFormValues = z.infer<typeof interviewSchema>;
+
+/* =========================
+   Helpers
+========================= */
+function formatInterviewType(type: string) {
+  const map: Record<string, string> = {
+    ministracion: "Ministración",
+    autosuficiencia: "Autosuficiencia",
+    consuelo: "Consuelo",
+    seguimiento: "Seguimiento",
+    otro: "Otro",
+  };
+  return map[type] ?? type;
+}
+
+/* =========================
+   Page
+========================= */
+export default function OrganizationInterviewsPage() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const { data: interviews = [], isLoading } = useOrganizationInterviews();
+  const { data: users = [] } = useUsers();
+
+  const createMutation = useCreateOrganizationInterview();
+  const updateMutation = useUpdateOrganizationInterview();
+  const deleteMutation = useDeleteOrganizationInterview();
+
+  const canManage =
+    user?.role === "presidente_organizacion" ||
+    user?.role === "consejero_organizacion" ||
+    user?.role === "secretario_organizacion";
+
+  const canDelete = user?.role === "presidente_organizacion";
+
+  const interviewers = useMemo(
+    () =>
+      users.filter(
+        (u: any) =>
+          u.role === "presidente_organizacion" ||
+          u.role === "consejero_organizacion"
+      ),
+    [users]
+  );
+
+  const userById = useMemo(() => {
+    const map = new Map<string, any>();
+    users.forEach(u => map.set(u.id, u));
+    return map;
+  }, [users]);
+
+  const filtered = useMemo(() => {
+    if (showArchived) return interviews;
+    return interviews.filter(i => i.status !== "archivada");
+  }, [interviews, showArchived]);
+
+  const pending = filtered.filter(i => i.status === "programada");
+  const completed = filtered.filter(i => i.status === "completada");
+
+  const form = useForm<InterviewFormValues>({
+    resolver: zodResolver(interviewSchema),
+    defaultValues: {
+      personName: "",
+      date: "",
+      type: "",
+      interviewerId: "",
+      urgent: false,
+      notes: "",
+    },
+  });
+
+  /* =========================
+     Handlers
+  ========================= */
+  const handleArchive = (id: string) => {
+    updateMutation.mutate(
+      { id, data: { status: "archivada" } },
+      {
+        onSuccess: () =>
+          toast({
+            title: "Archivada",
+            description: "La entrevista ha sido archivada.",
+          }),
+      }
+    );
+  };
+
+  /* =========================
+     UI
+  ========================= */
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <Skeleton className="h-8 w-64 mb-6" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Entrevistas de Organización</h1>
+          <p className="text-muted-foreground">
+            Gestión de entrevistas de la organización
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportInterviews(interviews)}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+
+          <Button variant="outline" onClick={() => setShowArchived(v => !v)}>
+            {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
+          </Button>
+
+          {canManage && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Entrevista
+                </Button>
+              </DialogTrigger>
+
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Programar Entrevista</DialogTitle>
+                  <DialogDescription>
+                    Registra una entrevista de la organización
+                  </DialogDescription>
+                </DialogHeader>
+
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(data =>
+                      createMutation.mutate(data, {
+                        onSuccess: () => {
+                          toast({ title: "Entrevista creada" });
+                          setIsDialogOpen(false);
+                          form.reset();
+                        },
+                      })
+                    )}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="personName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Persona</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha</FormLabel>
+                          <FormControl>
+                            <Input type="datetime-local" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ministracion">Ministración</SelectItem>
+                              <SelectItem value="autosuficiencia">Autosuficiencia</SelectItem>
+                              <SelectItem value="consuelo">Consuelo</SelectItem>
+                              <SelectItem value="seguimiento">Seguimiento</SelectItem>
+                              <SelectItem value="otro">Otro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="interviewerId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Entrevistador</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {interviewers.map(i => (
+                                <SelectItem key={i.id} value={i.id}>
+                                  {i.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="urgent"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-2">
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          <FormLabel>Urgente</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Notas</FormLabel>
+                          <Textarea {...field} />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit">Guardar</Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <Card>
+          <CardHeader className="flex items-center justify-between">
+            <CardTitle className="text-sm">Pendientes</CardTitle>
+            <CalendarIcon className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pending.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between">
+            <CardTitle className="text-sm">Completadas</CardTitle>
+            <CheckCircle2 className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{completed.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Entrevistas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Persona</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Entrevistador</TableHead>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Prioridad</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(interview => {
+                const isCompleted = interview.status === "completada";
+
+                return (
+                  <TableRow key={interview.id}>
+                    <TableCell>{interview.personName}</TableCell>
+                    <TableCell>{formatInterviewType(interview.type)}</TableCell>
+                    <TableCell>{userById.get(interview.interviewerId)?.name}</TableCell>
+                    <TableCell>{new Date(interview.date).toLocaleString("es-ES")}</TableCell>
+                    <TableCell>
+                      {interview.urgent ? (
+                        <Badge variant="destructive">
+                          <AlertCircle className="h-3 w-3 mr-1" /> Urgente
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Normal</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={isCompleted ? "default" : "outline"}>
+                        {isCompleted ? "Completada" : "Pendiente"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="flex gap-2">
+                      {interview.status === "programada" && (
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={isCompleted}
+                            disabled={updateMutation.isPending}
+                            onCheckedChange={(checked) => {
+                              if (!checked) return;
+
+                              updateMutation.mutate(
+                                {
+                                  id: interview.id,
+                                  data: { status: "completada" },
+                                },
+                                {
+                                  onSuccess: () =>
+                                    toast({
+                                      title: "Entrevista completada",
+                                      description: "Marcada como completada.",
+                                    }),
+                                }
+                              );
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            Completar
+                          </span>
+                        </div>
+                      )}
+
+                      {interview.status === "completada" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleArchive(interview.id)}
+                        >
+                          <Archive className="h-4 w-4 mr-1" />
+                          Archivar
+                        </Button>
+                      )}
+
+                      {canDelete && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteMutation.mutate(interview.id)}
+                        >
+                          Eliminar
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    No hay entrevistas
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

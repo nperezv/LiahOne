@@ -43,8 +43,6 @@ const meetingSchema = z.object({
   date: z.string().optional(),
   presider: z.string().optional(),
   director: z.string().optional(),
-  musicDirector: z.string().optional(),
-  pianist: z.string().optional(),
   visitingAuthority: z.string().optional(),
   announcements: z.string().optional(),
   openingHymn: z.string().optional(),
@@ -91,16 +89,15 @@ export default function SacramentalMeetingPage() {
     "mujeres_jovenes": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
     "sociedad_socorro": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
     "primaria": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
-    "escuela_dominical": ["Presidente", "1er. Consejero", "2do. Consejero", "Secretario"],
-    "jas": ["Líder de JAS"],
+    "escuela_dominical": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
+    "jas": ["Líder de JAS del barrio"],
   };
-
+  
   // Filter organizations for releases and sustainments (exclude cuorum)
   const getOrganizationsForReleases = () => {
-    return (organizations as any[]).filter((org: any) => org.type !== "cuorum_elderes" &&
-      org.type !== "obispado");
+    return (organizations as any[]).filter((org: any) => org.type !== "cuorum_elderes");
   };
-
+  
   // Check if a calling should use custom text input
   const isCustomCallingOrg = (orgId?: string): boolean => {
     const org = (organizations as any[]).find((o: any) => o.id === orgId);
@@ -120,7 +117,7 @@ export default function SacramentalMeetingPage() {
   const createMutation = useCreateSacramentalMeeting();
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
-
+  
   // Log meetings when they load to debug discourses
   console.log("Loaded meetings from API:", meetings);
 
@@ -190,8 +187,6 @@ export default function SacramentalMeetingPage() {
       date: "",
       presider: "",
       director: "",
-      musicDirector: "",
-      pianist: "",
       visitingAuthority: "",
       announcements: "",
       openingHymn: "",
@@ -217,8 +212,6 @@ export default function SacramentalMeetingPage() {
       date: data.date,
       presider: data.presider || "",
       director: data.director || "",
-      musicDirector: data.musicDirector || "",
-      pianist: data.pianist || "",
       visitingAuthority: data.visitingAuthority || "",
       announcements: data.announcements || "",
       openingHymn: data.openingHymn || "",
@@ -230,14 +223,14 @@ export default function SacramentalMeetingPage() {
       closingPrayer: data.closingPrayer || "",
       isTestimonyMeeting: isTestimonyMeeting,
       discourses: isTestimonyMeeting ? [] : discourses,
-      releases: hasReleasesAndSustainments ? releases.filter(r => r.name && r.oldCalling).map(r => ({
-        name: r.name,
-        oldCalling: r.oldCalling,
+      releases: hasReleasesAndSustainments ? releases.filter(r => r.name && r.oldCalling).map(r => ({ 
+        name: r.name, 
+        oldCalling: r.oldCalling, 
         ...(r.organizationId && { organizationId: r.organizationId })
       })) : [],
-      sustainments: hasReleasesAndSustainments ? sustainments.filter(s => s.name && s.calling).map(s => ({
-        name: s.name,
-        calling: s.calling,
+      sustainments: hasReleasesAndSustainments ? sustainments.filter(s => s.name && s.calling).map(s => ({ 
+        name: s.name, 
+        calling: s.calling, 
         ...(s.organizationId && { organizationId: s.organizationId })
       })) : [],
       newMembers: hasNewMembers ? newMembers.filter(m => m.trim()) : [],
@@ -246,7 +239,7 @@ export default function SacramentalMeetingPage() {
       confirmations: hasConfirmations ? confirmations.filter(c => c.trim()) : [],
       stakeBusiness: hasStakeBusiness ? (data.stakeBusiness || "") : "",
     };
-
+    
     if (editingId) {
       updateMutation.mutate(
         { id: editingId, data: payload },
@@ -380,49 +373,19 @@ export default function SacramentalMeetingPage() {
                   {/* ========== SECTION 1: DATE ========== */}
                   <div className="border rounded-md p-4 bg-slate-50 dark:bg-slate-950">
                     <h3 className="text-sm font-semibold mb-3">1. Información General</h3>
-                    <div className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha de la Reunión</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="musicDirector"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Dirige la música</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre completo" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="pianist"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Acompaña al piano</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre completo" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha de la Reunión</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} data-testid="input-date" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   {/* ========== SECTION 2: GREETING ========== */}
@@ -531,7 +494,7 @@ export default function SacramentalMeetingPage() {
                   {/* ========== SECTION 7: WARD BUSINESS ========== */}
                   <div className="border rounded-md p-4 bg-purple-50 dark:bg-purple-950/30">
                     <h3 className="text-sm font-semibold mb-3">7. Asuntos de Barrio</h3>
-
+                    
                     {/* Confirmations - MOVED FIRST */}
                     <div className="mb-4 border rounded p-3 bg-white dark:bg-slate-900">
                       <div className="flex items-center justify-between mb-3">
@@ -992,7 +955,7 @@ export default function SacramentalMeetingPage() {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold">9. Mensajes del Evangelio y Música</h3>
                     </div>
-
+                    
                     <FormField
                       control={form.control}
                       name="isTestimonyMeeting"
@@ -1181,7 +1144,7 @@ export default function SacramentalMeetingPage() {
 
                   <div className="flex gap-2 pt-4">
                     <Button type="submit" className="flex-1" data-testid="button-save-meeting">
-                      Guardar Reunión
+                      Crear Reunión
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                       Cancelar
@@ -1222,7 +1185,7 @@ export default function SacramentalMeetingPage() {
                 <TableCell>
                   {(() => {
                     // Handle both boolean and string values from database
-                    const isTestimony = typeof meeting.isTestimonyMeeting === 'string'
+                    const isTestimony = typeof meeting.isTestimonyMeeting === 'string' 
                       ? meeting.isTestimonyMeeting === 'true'
                       : meeting.isTestimonyMeeting;
                     return (

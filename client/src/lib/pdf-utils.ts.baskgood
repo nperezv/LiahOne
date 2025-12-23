@@ -60,6 +60,8 @@ function formatMeetingDate(date: Date): string {
 
 /**
  * Header + Footer (aplicado a todas las páginas al final)
+ * - Header oscuro con ward/stake/country + fecha
+ * - Footer con stake/country, paginado, footerText
  */
 function addHeaderFooterAllPages(doc: jsPDF, template: PdfTemplate, title: string) {
   const pageCount = doc.getNumberOfPages();
@@ -75,17 +77,14 @@ function addHeaderFooterAllPages(doc: jsPDF, template: PdfTemplate, title: strin
     // Header text
     doc.setTextColor(255, 255, 255);
 
-    // wardName: 14 bold
     doc.setFont(undefined, "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(18);
     doc.text(template.wardName, 15, 11);
 
-    // stake + country: 10 normal
     doc.setFont(undefined, "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(12);
     doc.text(`${template.stakeName || "Estaca"} - ${template.country || "País"}`, 15, 18);
 
-    // fecha/título pequeño: 9
     doc.setFontSize(9);
     doc.text(title, 15, 25);
 
@@ -119,18 +118,15 @@ type PdfCtx = {
 };
 
 function ensureSpace(ctx: PdfCtx, neededHeight: number) {
-  const bottomLimit = ctx.pageHeight - 22;
+  const bottomLimit = ctx.pageHeight - 22; // deja aire para footer
   if (ctx.y + neededHeight > bottomLimit) {
     ctx.doc.addPage();
+    // body starts after header area
     ctx.y = 40;
   }
 }
 
-function setBodyFont(
-  ctx: PdfCtx,
-  size = 11,
-  style: "normal" | "bold" | "italic" | "bolditalic" = "normal"
-) {
+function setBodyFont(ctx: PdfCtx, size = 11, style: "normal" | "bold" | "italic" | "bolditalic" = "normal") {
   ctx.doc.setFontSize(size);
   if (style === "bolditalic") ctx.doc.setFont(undefined, "bolditalic");
   else ctx.doc.setFont(undefined, style);
@@ -149,8 +145,9 @@ function drawAccentRule(ctx: PdfCtx) {
 }
 
 function drawSectionHeader(ctx: PdfCtx, title: string) {
+  // "TITLE  ________"
   ensureSpace(ctx, 14);
-  setBodyFont(ctx, 12, "bold");
+  setBodyFont(ctx, 10.5, "bold");
   ctx.doc.setTextColor(0, 0, 0);
 
   const upper = title.toUpperCase();
@@ -171,6 +168,7 @@ function drawSectionHeader(ctx: PdfCtx, title: string) {
 }
 
 function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>, itemsRight: Array<[string, string]>) {
+  // Similar a tu captura: labels bold, values normal, dos columnas
   const colLeftX = ctx.marginX;
   const colRightX = 110;
   const colGap = 6;
@@ -182,23 +180,26 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
   let leftY = startY;
   let rightY = startY;
 
-  setBodyFont(ctx, 11, "normal");
+  setBodyFont(ctx, 10.5, "normal");
 
   const drawOne = (x: number, y: number, label: string, value: string, maxW: number) => {
     if (!value) return y;
 
-    setBodyFont(ctx, 11, "bold");
+    // label bold
+    setBodyFont(ctx, 12, "bold");
     ctx.doc.text(`${label}:`, x, y);
 
     const labelW = ctx.doc.getTextWidth(`${label}:`);
     const valueX = x + labelW + 4;
 
-    setBodyFont(ctx, 11, "normal");
+    // value normal, wrap if needed
+    setBodyFont(ctx, 10.5, "normal");
     const lines = wrapLines(ctx, value, Math.max(10, maxW - (valueX - x)));
     if (lines.length === 0) return y + ctx.lineHeight;
 
     ctx.doc.text(lines[0], valueX, y);
 
+    // remaining lines aligned under label start (classic look)
     if (lines.length > 1) {
       for (let i = 1; i < lines.length; i++) {
         y += ctx.lineHeight;
@@ -220,11 +221,7 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
   ctx.y = Math.max(leftY, rightY) + 10;
 }
 
-function drawParagraph(
-  ctx: PdfCtx,
-  text: string,
-  opts?: { size?: number; style?: "normal" | "bold" | "italic"; indent?: number }
-) {
+function drawParagraph(ctx: PdfCtx, text: string, opts?: { size?: number; style?: "normal" | "bold" | "italic"; indent?: number }) {
   const size = opts?.size ?? 11;
   const style = opts?.style ?? "normal";
   const indent = opts?.indent ?? 0;
@@ -243,6 +240,7 @@ function drawParagraph(
 }
 
 function drawLabelLine(ctx: PdfCtx, label: string, value: string, opts?: { italicValue?: boolean }) {
+  // "Himno de apertura: Nº ...."
   if (!value) return;
   ensureSpace(ctx, ctx.lineHeight + 4);
 
@@ -275,7 +273,7 @@ function drawBulletList(ctx: PdfCtx, items: string[], opts?: { indent?: number; 
   const indent = opts?.indent ?? 10;
   const bullet = opts?.bullet ?? "–";
 
-  setBodyFont(ctx, 11, "normal");
+  setBodyFont(ctx, 10, "normal");
   const maxW = ctx.pageWidth - 2 * ctx.marginX - indent;
 
   for (const item of items) {
@@ -287,9 +285,11 @@ function drawBulletList(ctx: PdfCtx, items: string[], opts?: { indent?: number; 
     const lines = wrapLines(ctx, item, maxW);
     ensureSpace(ctx, (lines.length + 1) * ctx.lineHeight);
 
+    // first line with bullet
     ctx.doc.text(`${bullet} ${lines[0]}`, ctx.marginX + indent, ctx.y);
     ctx.y += ctx.lineHeight;
 
+    // remaining lines aligned
     for (let i = 1; i < lines.length; i++) {
       ctx.doc.text(lines[i], ctx.marginX + indent + 4, ctx.y);
       ctx.y += ctx.lineHeight;
@@ -342,33 +342,8 @@ function orgNameById(organizations: any[], id: string) {
   return org?.name || "";
 }
 
-function drawInlineLabelValue(
-  ctx: PdfCtx,
-  label: string,
-  value: string,
-  options?: { italicValue?: boolean; boldLabel?: boolean }
-) {
-  if (typeof label !== "string" || !label.trim()) return;
-  if (typeof value !== "string") return;
-
-  ensureSpace(ctx, ctx.lineHeight + 2);
-
-  const x = ctx.marginX;
-  const y = ctx.y;
-
-  setBodyFont(ctx, 11, options?.boldLabel === false ? "normal" : "bold");
-  ctx.doc.text(String(label), x, y);
-
-  const labelWidth = ctx.doc.getTextWidth(String(label)) + 1;
-
-  setBodyFont(ctx, 11, options?.italicValue ? "italic" : "normal");
-  ctx.doc.text(String(value), x + labelWidth, y);
-
-  ctx.y += ctx.lineHeight + 2;
-}
-
 /**
- * ✅ PDF - Reunión Sacramental
+ * ✅ PDF - Reunión Sacramental (FORMATO NUEVO CLÁSICO/LIMPIO)
  */
 export async function generateSacramentalMeetingPDF(meeting: any, organizations: any[] = []) {
   const template = await getTemplate();
@@ -381,7 +356,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
   const ctx: PdfCtx = {
     doc,
     template,
-    y: 40,
+    y: 40, // body starts below header
     marginX: 15,
     pageWidth: 210,
     pageHeight: 297,
@@ -390,19 +365,22 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
     accent,
   };
 
+  // Header/footer text uses formatted date
   const meetingDate = new Date(normalizedMeeting.date);
   const formattedDate = formatMeetingDate(meetingDate);
 
+  // --- BODY CONTENT (page 1) ---
+  // Thin accent rule under header (as your screenshot)
   ctx.y = 35;
   drawAccentRule(ctx);
 
-  // Título principal
-  ensureSpace(ctx, 16);
-  setBodyFont(ctx, 16, "bold");
+  // Title
+  ensureSpace(ctx, 18);
+  setBodyFont(ctx, 22, "bold");
   ctx.doc.text("Programa de Reunión Sacramental", ctx.marginX, ctx.y);
   ctx.y += 14;
 
-  // Bloque de roles inicio
+  // Top roles block (two columns)
   const leftItems: Array<[string, string]> = [];
   const rightItems: Array<[string, string]> = [];
 
@@ -415,9 +393,12 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
 
   drawKeyValueTwoColumns(ctx, leftItems, rightItems);
 
-  // Apertura
+  // --- HIMNO DE APERTURA / ORACIÓN (como tu plantilla clásica) ---
   if (normalizedMeeting.openingHymn) {
     drawLabelLine(ctx, "Himno de apertura", String(normalizedMeeting.openingHymn), { italicValue: true });
+  } else {
+    // si quieres que siempre aparezca:
+    // drawLabelLine(ctx, "Himno de apertura", "—");
   }
 
   if (normalizedMeeting.openingPrayer) {
@@ -425,14 +406,15 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
   }
 
   // --- ANUNCIOS Y ASUNTOS DE BARRIO ---
-  ctx.y += 4; // ESPACIO ENTRE SECCIONES
   drawSectionHeader(ctx, "ANUNCIOS Y ASUNTOS DE BARRIO");
 
-  setBodyFont(ctx, 11, "bold");
+  // Anuncios
+  setBodyFont(ctx, 10, "bold");
   ctx.doc.text("Anuncios:", ctx.marginX, ctx.y);
   ctx.y += 6;
 
   if (normalizedMeeting.announcements && String(normalizedMeeting.announcements).trim()) {
+    // si vienen en líneas con saltos, conviértelo en bullets
     const raw = String(normalizedMeeting.announcements);
     const lines = raw
       .split("\n")
@@ -448,6 +430,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
     drawParagraph(ctx, "—", { indent: 14 });
   }
 
+  // Relevos y Sostenimientos (si existen)
   const filteredReleases = Array.isArray(normalizedMeeting.releases)
     ? normalizedMeeting.releases.filter((r: any) => r?.name && r?.oldCalling)
     : [];
@@ -469,13 +452,16 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
     ctx.doc.text("Relevos y Sostenimientos:", ctx.marginX, ctx.y);
     ctx.y += 6;
 
+    // Relevos
     if (hasReleases) {
       setBodyFont(ctx, 11, "bold");
       ctx.doc.text("Se ha relevado a:", ctx.marginX + 6, ctx.y);
       ctx.y += 6;
 
+      // Group by org
       const grouped = groupBy(filteredReleases, (r: any) => r.organizationId || "sin-organizacion");
 
+      // Classic bullet format (like your image)
       const bullets: string[] = [];
       Object.entries(grouped).forEach(([orgId, rels]) => {
         const orgName = orgNameById(organizations, orgId);
@@ -494,6 +480,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
       );
     }
 
+    // Sostenimientos
     if (hasSustainments) {
       setBodyFont(ctx, 11, "bold");
       ctx.doc.text("Han sido llamados los siguientes hermanos:", ctx.marginX + 6, ctx.y);
@@ -519,6 +506,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
       );
     }
 
+    // Confirmaciones / Nuevos miembros / Ordenaciones / Bendiciones (si existen)
     const confirmations = Array.isArray(normalizedMeeting.confirmations)
       ? normalizedMeeting.confirmations.filter((x: string) => x && x.trim())
       : [];
@@ -553,10 +541,8 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
       ctx.doc.text("Propuestas de sostenimientos para recibir el Sacerdocio:", ctx.marginX + 6, ctx.y);
       ctx.y += 6;
 
-      const bullets = aaronicOrderings.map(
-        (n: string) =>
-          `Proponemos que ${n} reciba el Sacerdocio Aarónico, y que sea ordenado al oficio de [       ].`
-      );
+      // Aquí no sé el texto exacto para cada nombre (oficio), así que mantenemos simple:
+      const bullets = aaronicOrderings.map((n: string) => `Proponemos que ${n} reciba el Sacerdocio Aarónico.`);
       drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
 
       drawParagraph(
@@ -568,7 +554,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
 
     if (childBlessings.length) {
       setBodyFont(ctx, 11, "bold");
-      ctx.doc.text("Bendición de niños:", ctx.marginX + 6, ctx.y);
+      ctx.doc.text("Bendiciones de niños:", ctx.marginX + 6, ctx.y);
       ctx.y += 6;
       const bullets = childBlessings.map((n: string) => `${n}`);
       drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
@@ -576,15 +562,16 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
   }
 
   // --- ASUNTOS Y ANUNCIOS DE ESTACA ---
+  drawSectionHeader(ctx, "ASUNTOS Y ANUNCIOS DE ESTACA");
+
   if (normalizedMeeting.stakeBusiness && String(normalizedMeeting.stakeBusiness).trim()) {
-    ctx.y += 4; // ESPACIO ENTRE SECCIONES
-    drawSectionHeader(ctx, "ASUNTOS Y ANUNCIOS DE ESTACA");
     drawParagraph(ctx, String(normalizedMeeting.stakeBusiness), { indent: 6 });
+  } else {
+    // En tu plantilla aparece "***" cuando no hay nada
     drawParagraph(ctx, "***", { indent: 0 });
   }
 
   // --- SANTA CENA ---
-  ctx.y += 4; // ESPACIO ENTRE SECCIONES
   drawSectionHeader(ctx, "SANTA CENA");
 
   if (normalizedMeeting.sacramentHymn) {
@@ -599,9 +586,9 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
     { indent: 0, style: "normal" }
   );
 
-  // --- MENSAJES / TESTIMONIOS ---
+  // --- MENSAJES / HIMNO INTERMEDIO ---
+  // En tu plantilla clásica, esto va después de Santa Cena.
   if (normalizedMeeting.isTestimonyMeeting) {
-    ctx.y += 4; // ESPACIO ENTRE SECCIONES
     drawSectionHeader(ctx, "TESTIMONIOS");
     drawParagraph(
       ctx,
@@ -613,46 +600,39 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
     const hasDiscourses = discourses.some((d: any) => d?.speaker);
 
     if (hasDiscourses || normalizedMeeting.intermediateHymn) {
-      ctx.y += 4; // ESPACIO ENTRE SECCIONES
-      drawSectionHeader(ctx, "MENSAJES");
+      drawSectionHeader(ctx, "MENSAJES DEL EVANGELIO");
 
+      // Primer mensaje
       if (discourses[0]?.speaker) {
         const d0 = discourses[0];
-        const value = d0.topic
-          ? `${d0.speaker} — ${d0.topic}.`
-          : `${d0.speaker}.`;
-
-        drawInlineLabelValue(ctx, "Mensaje: ", value, { italicValue: true });
+        const firstLine = d0.topic
+          ? `Mensaje: ${d0.speaker} — ${d0.topic}.`
+          : `Mensaje: ${d0.speaker}.`;
+        drawParagraph(ctx, firstLine, { indent: 0, style: "italic" });
       }
 
+      // Himno intermedio
       if (normalizedMeeting.intermediateHymn) {
         const type = normalizedMeeting.intermediateHymnType === "choir" ? "Coro" : "Congregación";
-        drawLabelLine(
-          ctx,
-          "Himno intermedio",
-          `${normalizedMeeting.intermediateHymn} (${type})`,
-          { italicValue: true }
-        );
+        drawLabelLine(ctx, "Himno intermedio", `${normalizedMeeting.intermediateHymn} (${type})`, { italicValue: true });
       }
 
+      // Mensajes adicionales
       if (discourses.length > 1) {
         for (let i = 1; i < discourses.length; i++) {
           const d = discourses[i];
           if (!d?.speaker) continue;
-
-          const value = d.topic
-            ? `${d.speaker} — ${d.topic}.`
-            : `${d.speaker}.`;
-
-          drawInlineLabelValue(ctx, "Mensaje: ", value, { italicValue: true });
+          const line = d.topic
+            ? `Mensaje: ${d.speaker} — ${d.topic}.`
+            : `Mensaje: ${d.speaker}.`;
+          drawParagraph(ctx, line, { indent: 0, style: "italic" });
         }
       }
     }
   }
 
-  // --- CLAUSURA ---
+  // --- HIMNO FINAL / ORACIÓN FINAL ---
   if (normalizedMeeting.closingHymn || normalizedMeeting.closingPrayer) {
-    ctx.y += 4; // ESPACIO ENTRE SECCIONES
     drawSectionHeader(ctx, "CLAUSURA");
     if (normalizedMeeting.closingHymn) {
       drawLabelLine(ctx, "Himno final", String(normalizedMeeting.closingHymn), { italicValue: true });
@@ -662,13 +642,14 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
     }
   }
 
+  // ✅ Apply header/footer to all pages at the end
   addHeaderFooterAllPages(doc, template, formattedDate);
 
   return doc;
 }
 
 /**
- * Export de reuniones
+ * Export de reuniones (lo mantengo simple; si quieres, puedo aplicarle el mismo estilo)
  */
 export async function exportSacramentalMeetings(meetings: any[]): Promise<void> {
   if (meetings.length === 0) {
@@ -679,29 +660,27 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
   const doc = new jsPDF();
   const template = await getTemplate();
 
+  // listado simple (puedes pedir luego que esto también tenga formato “nuevo”)
   let y = 45;
 
   const headerColor = hexToRGB(`#${template.headerColor}`);
   doc.setFillColor(headerColor.r, headerColor.g, headerColor.b);
   doc.rect(0, 0, 210, 28, "F");
   doc.setTextColor(255, 255, 255);
-
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.setFont(undefined, "bold");
   doc.text(template.wardName, 15, 12);
-
   doc.setFontSize(10);
   doc.setFont(undefined, "normal");
   doc.text(`${template.stakeName || "Estaca"} - ${template.country || "País"}`, 15, 20);
 
   doc.setTextColor(0, 0, 0);
-
-  doc.setFontSize(12);
+  doc.setFontSize(14);
   doc.setFont(undefined, "bold");
   doc.text("Reuniones Sacramentales", 15, y);
   y += 10;
 
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont(undefined, "normal");
 
   for (const m of meetings) {
@@ -719,6 +698,7 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
     y += 2;
   }
 
+  // footer
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -733,7 +713,7 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
 }
 
 /**
- * Consejo de barrio
+ * Consejo de barrio (lo dejo como lo tenías, pero con header/footer del template)
  */
 export async function generateWardCouncilPDF(council: any) {
   const template = await getTemplate();
@@ -743,13 +723,14 @@ export async function generateWardCouncilPDF(council: any) {
   const formattedDate = formatMeetingDate(councilDate);
   const accent = hexToRGB(`#${template.accentColor}`);
 
+  // Body start
   let yPos = 40;
   doc.setDrawColor(accent.r, accent.g, accent.b);
   doc.setLineWidth(0.8);
   doc.line(15, 35, 195, 35);
   yPos += 10;
 
-  doc.setFontSize(16);
+  doc.setFontSize(18);
   doc.setFont(undefined, "bold");
   doc.setTextColor(0, 0, 0);
   doc.text("Consejo de Barrio", 15, yPos);
@@ -767,12 +748,10 @@ export async function generateWardCouncilPDF(council: any) {
       yPos = 40;
     }
     doc.setFont(undefined, "bold");
-    doc.setFontSize(12);
     doc.text(`${title}:`, 15, yPos);
     yPos += 7;
 
     doc.setFont(undefined, "normal");
-    doc.setFontSize(11);
     const wrapped = doc.splitTextToSize(text, 180);
     wrapped.forEach((line: string) => {
       if (yPos > 275) {
@@ -801,6 +780,7 @@ export async function generateWardCouncilPDF(council: any) {
 
   writeBlock("Notas", council.notes);
 
+  // header/footer final
   addHeaderFooterAllPages(doc, template, formattedDate);
 
   const date = new Date(council.date).toISOString().split("T")[0];

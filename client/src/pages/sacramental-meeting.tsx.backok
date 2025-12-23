@@ -380,49 +380,46 @@ export default function SacramentalMeetingPage() {
                   {/* ========== SECTION 1: DATE ========== */}
                   <div className="border rounded-md p-4 bg-slate-50 dark:bg-slate-950">
                     <h3 className="text-sm font-semibold mb-3">1. Información General</h3>
-                    <div className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha de la Reunión</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="musicDirector"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Dirige la música</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre completo" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="pianist"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Acompaña al piano</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre completo" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha de la Reunión</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} data-testid="input-date" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="musicDirector"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Dirige la música</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre completo" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  
+                    <FormField
+                      control={form.control}
+                      name="pianist"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Acompaña al piano</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre completo" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   {/* ========== SECTION 2: GREETING ========== */}
@@ -1181,7 +1178,7 @@ export default function SacramentalMeetingPage() {
 
                   <div className="flex gap-2 pt-4">
                     <Button type="submit" className="flex-1" data-testid="button-save-meeting">
-                      Guardar Reunión
+                      Crear Reunión
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                       Cancelar

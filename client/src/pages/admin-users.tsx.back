@@ -42,7 +42,7 @@ const createUserSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
 });
 
@@ -51,7 +51,7 @@ const resetPasswordSchema = z.object({
 });
 
 const changeRoleSchema = z.object({
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
 });
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
@@ -82,7 +82,7 @@ export default function AdminUsersPage() {
   const [changeRoleUser, setChangeRoleUser] = useState<User | null>(null);
 
   // Verificar que solo obispo/consejeros puedan acceder
-  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
+  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo";
 
   if (!isAdmin) {
     return (
@@ -144,7 +144,7 @@ export default function AdminUsersPage() {
         organizationId: data.organizationId || undefined,
         email: data.email || undefined,
       };
-
+      
       const response = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,7 +152,7 @@ export default function AdminUsersPage() {
       });
 
       const result = await response.json();
-
+      
       if (!response.ok) {
         throw new Error(result.error || "Error al crear usuario");
       }
@@ -162,10 +162,10 @@ export default function AdminUsersPage() {
       createForm.reset();
       refetch();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo crear el usuario",
-        variant: "destructive"
+      toast({ 
+        title: "Error", 
+        description: error.message || "No se pudo crear el usuario", 
+        variant: "destructive" 
       });
     }
   };
@@ -232,8 +232,6 @@ export default function AdminUsersPage() {
     obispo: "Obispo",
     consejero_obispo: "Consejero del Obispo",
     secretario: "Secretario",
-    secretario_ejecutivo: "Secretario Ejecutivo",
-    secretario_financiero: "Secretario Financiero",
     presidente_organizacion: "Presidente",
     consejero_organizacion: "Consejero",
   };
@@ -346,8 +344,6 @@ export default function AdminUsersPage() {
                           <SelectItem value="obispo">Obispo</SelectItem>
                           <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
                           <SelectItem value="secretario">Secretario</SelectItem>
-                          <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                          <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
                           <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
                           <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
                           <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
@@ -532,8 +528,6 @@ export default function AdminUsersPage() {
                                               <SelectItem value="obispo">Obispo</SelectItem>
                                               <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
                                               <SelectItem value="secretario">Secretario</SelectItem>
-                                              <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                                              <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
                                               <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
                                               <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
                                               <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
