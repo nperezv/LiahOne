@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Home, Calendar, Users, DollarSign, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare } from "lucide-react";
+import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -68,7 +68,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   {
     title: "Presupuestos",
     url: "/budget",
-    icon: DollarSign,
+    icon: Euro,
     roles: ["obispo", "consejero_obispo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"],
   },
   {

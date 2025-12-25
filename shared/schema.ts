@@ -206,7 +206,7 @@ export const budgetRequests = pgTable("budget_requests", {
   status: budgetStatusEnum("status").notNull().default("solicitado"),
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
-  receipts: jsonb("receipts").$type<{filename: string, url: string}[]>().default([]),
+  receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

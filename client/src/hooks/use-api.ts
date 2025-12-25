@@ -199,6 +199,30 @@ export function useCreateBudgetRequest() {
   });
 }
 
+export function useUpdateBudgetRequest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => apiRequest("PUT", `/api/budget-requests/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/budget-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      toast({
+        title: "Solicitud actualizada",
+        description: "Los comprobantes se han adjuntado correctamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudieron adjuntar los comprobantes. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 export function useApproveBudgetRequest() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Upload, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2, X } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,10 +27,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { 
-  useBudgetRequests, 
-  useCreateBudgetRequest, 
-  useApproveBudgetRequest, 
+import {
+  useBudgetRequests,
+  useCreateBudgetRequest,
+  useUpdateBudgetRequest,
+  useApproveBudgetRequest,
   useDeleteBudgetRequest,
   useWardBudget,
   useUpdateWardBudget,
@@ -42,11 +43,37 @@ import {
 import { useAuth } from "@/lib/auth";
 import { exportBudgetRequests } from "@/lib/export";
 
+const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const isAllowedDocument = (file: File) => {
+  const fileName = file.name.toLowerCase();
+  return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
+};
+
 const budgetSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
   amount: z.string().min(1, "El monto es requerido"),
   notes: z.string().optional(),
-  receiptFile: z.instanceof(File).optional(),
+  receiptFile: z
+    .instanceof(File)
+    .optional()
+    .refine((file) => !file || isAllowedDocument(file), {
+      message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
+    }),
+  activityPlanFile: z
+    .instanceof(File, { message: "El plan de actividades es requerido." })
+    .refine(isAllowedDocument, {
+      message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
+    }),
+});
+
+const expenseReceiptsSchema = z.object({
+  expenseReceipts: z
+    .array(z.instanceof(File))
+    .min(1, "Adjunta al menos un comprobante de gasto.")
+    .refine((files) => files.every((file) => isAllowedDocument(file)), {
+      message: "Adjunta archivos .jpg, .doc, .docx o .pdf válidos.",
+    }),
 });
 
 const wardBudgetSchema = z.object({
@@ -58,8 +85,11 @@ const orgBudgetAssignSchema = z.object({
 });
 
 type BudgetFormValues = z.infer<typeof budgetSchema>;
+type ExpenseReceiptsValues = z.infer<typeof expenseReceiptsSchema>;
 type WardBudgetValues = z.infer<typeof wardBudgetSchema>;
 type OrgBudgetAssignValues = z.infer<typeof orgBudgetAssignSchema>;
+
+type ReceiptCategory = "plan" | "receipt" | "expense";
 
 interface BudgetRequest {
   id: string;
@@ -70,6 +100,7 @@ interface BudgetRequest {
   approvedBy?: string;
   organizationId?: string;
   notes?: string;
+  receipts?: { filename: string; url: string; category?: ReceiptCategory }[];
   createdAt: string;
 }
 
@@ -86,31 +117,52 @@ export default function BudgetPage() {
   const [isBudgetDialogOpen, setIsBudgetDialogOpen] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  
+  const [isReceiptsDialogOpen, setIsReceiptsDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
+
   const { user } = useAuth();
   const { data: requests = [] as any[], isLoading: requestsLoading } = useBudgetRequests();
   const { data: wardBudget, isLoading: wardBudgetLoading } = useWardBudget();
   const { data: organizations = [] as Organization[], isLoading: orgsLoading } = useOrganizations();
-  
+
   const createMutation = useCreateBudgetRequest();
+  const updateMutation = useUpdateBudgetRequest();
   const approveMutation = useApproveBudgetRequest();
   const deleteMutation = useDeleteBudgetRequest();
   const updateWardBudgetMutation = useUpdateWardBudget();
   const createOrgBudgetMutation = useCreateOrganizationBudget();
   const updateOrgBudgetMutation = useUpdateOrganizationBudget();
 
+  const uploadReceiptFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/uploads", {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudo subir el archivo");
+    }
+
+    return response.json() as Promise<{ filename: string; url: string }>;
+  };
+
   const isObispado = ["obispo", "consejero_obispo", "secretario_financiero"].includes(user?.role || "");
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const canApprove = isObispado;
   const canDelete = isObispado;
-  
+  const showActionsColumn = canApprove || canDelete || isOrgMember;
+
   // Get organization budgets for all orgs
   const orgBudgetsByOrg: Record<string, any> = {};
   (organizations as Organization[]).forEach((org: Organization) => {
     const { data: budgets = [] as any[] } = useOrganizationBudgets(org.id);
     orgBudgetsByOrg[org.id] = budgets;
   });
-  
+
   // Filter requests based on user role
   const filteredRequests = isOrgMember
     ? (requests as any[]).filter((r: any) => r.organizationId === user?.organizationId)
@@ -129,6 +181,14 @@ export default function BudgetPage() {
       amount: "",
       notes: "",
       receiptFile: undefined,
+      activityPlanFile: undefined,
+    },
+  });
+
+  const expenseReceiptsForm = useForm<ExpenseReceiptsValues>({
+    resolver: zodResolver(expenseReceiptsSchema),
+    defaultValues: {
+      expenseReceipts: [],
     },
   });
 
@@ -146,24 +206,98 @@ export default function BudgetPage() {
     },
   });
 
-  const onSubmitBudgetRequest = (data: BudgetFormValues) => {
-    const receipts = data.receiptFile 
-      ? [{ filename: data.receiptFile.name, file: data.receiptFile }]
-      : [];
+  const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
+    const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
-    createMutation.mutate({
-      description: data.description,
-      amount: parseFloat(data.amount),
-      status: "solicitado",
-      notes: data.notes || "",
-      receipts,
-      organizationId: user?.organizationId,
-    }, {
-      onSuccess: () => {
-        setIsDialogOpen(false);
-        budgetForm.reset();
+    if (data.receiptFile) {
+      try {
+        const uploadedReceipt = await uploadReceiptFile(data.receiptFile);
+        uploadedReceipts.push({
+          filename: uploadedReceipt.filename,
+          url: uploadedReceipt.url,
+          category: "receipt",
+        });
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo subir el comprobante. Intenta nuevamente.");
+        return;
+      }
+    }
+
+    if (data.activityPlanFile) {
+      try {
+        const uploadedPlan = await uploadReceiptFile(data.activityPlanFile);
+        uploadedReceipts.push({
+          filename: uploadedPlan.filename,
+          url: uploadedPlan.url,
+          category: "plan",
+        });
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo subir el plan de actividades. Intenta nuevamente.");
+        return;
+      }
+    }
+
+    createMutation.mutate(
+      {
+        description: data.description,
+        amount: parseFloat(data.amount),
+        status: "solicitado",
+        notes: data.notes || "",
+        receipts: uploadedReceipts,
+        organizationId: user?.organizationId,
       },
-    });
+      {
+        onSuccess: () => {
+          setIsDialogOpen(false);
+          budgetForm.reset();
+        },
+      }
+    );
+  };
+
+  const onSubmitExpenseReceipts = async (data: ExpenseReceiptsValues) => {
+    if (!selectedRequest) {
+      return;
+    }
+
+    let uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
+
+    try {
+      uploadedReceipts = await Promise.all(
+        data.expenseReceipts.map(async (file) => {
+          const uploaded = await uploadReceiptFile(file);
+          return {
+            filename: uploaded.filename,
+            url: uploaded.url,
+            category: "expense",
+          };
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo subir los comprobantes. Intenta nuevamente.");
+      return;
+    }
+
+    const existingReceipts = selectedRequest.receipts ?? [];
+
+    updateMutation.mutate(
+      {
+        id: selectedRequest.id,
+        data: {
+          receipts: [...existingReceipts, ...uploadedReceipts],
+        },
+      },
+      {
+        onSuccess: () => {
+          setIsReceiptsDialogOpen(false);
+          setSelectedRequest(null);
+          expenseReceiptsForm.reset();
+        },
+      }
+    );
   };
 
   const onSubmitWardBudget = (data: WardBudgetValues) => {
@@ -179,7 +313,7 @@ export default function BudgetPage() {
 
   const onSubmitOrgBudgetAssign = (data: OrgBudgetAssignValues) => {
     const amount = parseFloat(data.amount);
-    
+
     // Validar que no exceda el presupuesto global
     if (amount > remainingGlobalBudget) {
       alert(`El monto excede el presupuesto disponible. Disponible: €${remainingGlobalBudget.toFixed(2)}`);
@@ -191,7 +325,7 @@ export default function BudgetPage() {
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
-      
+
       const existingBudget = (orgBudgetsByOrg[selectedOrgId] || []).find(
         (b: any) => b.year === currentYear && b.quarter === currentQuarter
       );
@@ -284,23 +418,59 @@ export default function BudgetPage() {
     return labels[type] || type;
   };
 
+  const getReceiptLabel = (receipt?: { filename: string; category?: ReceiptCategory }) => {
+    if (receipt?.category === "plan") {
+      return "Plan de actividades";
+    }
+    if (receipt?.category === "expense") {
+      return "Comprobante de gasto";
+    }
+    if (receipt?.category === "receipt") {
+      return "Comprobante de compra";
+    }
+    return "Adjunto";
+  };
+
+  const hasExpenseReceipts = (request: BudgetRequest) =>
+    (request.receipts ?? []).some((receipt) => receipt.category === "expense");
+
+  const downloadReceipt = async (receipt: { filename: string; url?: string }) => {
+    if (!receipt.url) {
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = receipt.url;
+    link.download = receipt.filename;
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   const openAssignDialog = (orgId: string) => {
     setSelectedOrgId(orgId);
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
-    
+
     const existingBudget = (orgBudgetsByOrg[orgId] || []).find(
       (b: any) => b.year === currentYear && b.quarter === currentQuarter
     );
-    
+
     if (existingBudget) {
       orgBudgetForm.setValue("amount", existingBudget.amount.toString());
     } else {
       orgBudgetForm.reset();
     }
-    
+
     setAssignDialogOpen(true);
+  };
+
+  const openReceiptsDialog = (request: BudgetRequest) => {
+    setSelectedRequest(request);
+    setIsReceiptsDialogOpen(true);
+    expenseReceiptsForm.reset({ expenseReceipts: [] });
   };
 
   const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + r.amount, 0);
@@ -464,6 +634,54 @@ export default function BudgetPage() {
                     )}
                   />
 
+                  <FormField
+                    control={budgetForm.control}
+                    name="receiptFile"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Comprobantes de compra (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="file"
+                            accept={allowedDocumentExtensions.join(",")}
+                            onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            data-testid="input-receipt-file"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={budgetForm.control}
+                    name="activityPlanFile"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Plan de actividades</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="file"
+                            accept={allowedDocumentExtensions.join(",")}
+                            onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            data-testid="input-activity-plan-file"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"
@@ -475,6 +693,66 @@ export default function BudgetPage() {
                     </Button>
                     <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
                       {createMutation.isPending ? "Creando..." : "Crear Solicitud"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={isReceiptsDialogOpen}
+            onOpenChange={(open) => {
+              setIsReceiptsDialogOpen(open);
+              if (!open) {
+                setSelectedRequest(null);
+                expenseReceiptsForm.reset({ expenseReceipts: [] });
+              }
+            }}
+          >
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Adjuntar comprobantes de gasto</DialogTitle>
+                <DialogDescription>
+                  Sube los comprobantes de gasto asociados a esta solicitud aprobada.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...expenseReceiptsForm}>
+                <form onSubmit={expenseReceiptsForm.handleSubmit(onSubmitExpenseReceipts)} className="space-y-4">
+                  <FormField
+                    control={expenseReceiptsForm.control}
+                    name="expenseReceipts"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Comprobantes de gasto</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="file"
+                            multiple
+                            accept={allowedDocumentExtensions.join(",")}
+                            onChange={(event) => field.onChange(Array.from(event.target.files ?? []))}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            data-testid="input-expense-receipts"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsReceiptsDialogOpen(false)}
+                      data-testid="button-cancel-expense-receipts"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={updateMutation.isPending} data-testid="button-save-expense-receipts">
+                      {updateMutation.isPending ? "Guardando..." : "Adjuntar"}
                     </Button>
                   </div>
                 </form>
@@ -495,11 +773,11 @@ export default function BudgetPage() {
             (b: any) => b.year === currentYear && b.quarter === currentQuarter
           );
           const assignedAmount = myBudget?.amount || 0;
-          
+
           const mySpending = (requests as any[])
             .filter((r: any) => r.organizationId === user.organizationId && (r.status === "aprobado" || r.status === "completado"))
             .reduce((sum: number, r: any) => sum + r.amount, 0);
-          
+
           const myAvailable = assignedAmount - mySpending;
           const mySpendingPercent = assignedAmount > 0 ? Math.round((mySpending / assignedAmount) * 100) : 0;
 
@@ -520,7 +798,7 @@ export default function BudgetPage() {
                       €{assignedAmount.toFixed(2)}
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Gastos Aprobados ({mySpendingPercent}%)</div>
                     <div className="text-2xl font-bold" data-testid="text-my-spending">
@@ -528,7 +806,7 @@ export default function BudgetPage() {
                     </div>
                     <Progress value={mySpendingPercent} className="h-1 mt-2" />
                   </div>
-                  
+
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Disponible</div>
                     <div className={`text-2xl font-bold ${myAvailable < 0 ? 'text-red-600' : 'text-green-600'}`} data-testid="text-my-available">
@@ -562,7 +840,7 @@ export default function BudgetPage() {
                   Presupuesto disponible para todas las organizaciones
                 </p>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Asignado a organizaciones</span>
@@ -595,12 +873,12 @@ export default function BudgetPage() {
                 (b: any) => b.year === currentYear && b.quarter === currentQuarter
               );
               const assignedAmount = currentBudget?.amount || 0;
-              
+
               // Calculate spending for this organization
               const orgSpending = (requests as any[])
                 .filter((r: any) => r.organizationId === org.id && (r.status === "aprobado" || r.status === "completado"))
                 .reduce((sum: number, r: any) => sum + r.amount, 0);
-              
+
               const available = assignedAmount - orgSpending;
               const spendingPercent = assignedAmount > 0 ? Math.round((orgSpending / assignedAmount) * 100) : 0;
 
@@ -670,8 +948,8 @@ export default function BudgetPage() {
                               >
                                 Cancelar
                               </Button>
-                              <Button 
-                                type="submit" 
+                              <Button
+                                type="submit"
                                 data-testid={`button-save-assign-${org.id}`}
                                 disabled={createOrgBudgetMutation.isPending || updateOrgBudgetMutation.isPending}
                               >
@@ -690,7 +968,7 @@ export default function BudgetPage() {
                         €{assignedAmount.toFixed(2)}
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Gastos Aprobados ({spendingPercent}%)</span>
@@ -700,7 +978,7 @@ export default function BudgetPage() {
                       </div>
                       <Progress value={spendingPercent} className="h-2" />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Disponible</span>
@@ -781,8 +1059,9 @@ export default function BudgetPage() {
                 <TableHead>Descripción</TableHead>
                 <TableHead>Monto</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Adjuntos</TableHead>
                 <TableHead>Fecha</TableHead>
-                {(canApprove || canDelete) && <TableHead>Acciones</TableHead>}
+                {showActionsColumn && <TableHead>Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -803,6 +1082,33 @@ export default function BudgetPage() {
                     </TableCell>
                     <TableCell>€{request.amount.toFixed(2)}</TableCell>
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
+                    <TableCell>
+                      {request.receipts && request.receipts.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {request.receipts.map((receipt: any, index: number) =>
+                            receipt.url ? (
+                              <button
+                                key={`${request.id}-receipt-${index}`}
+                                type="button"
+                                onClick={() => void downloadReceipt(receipt)}
+                                className="text-left text-xs text-blue-600 hover:underline"
+                              >
+                                {getReceiptLabel(receipt)}: {receipt.filename}
+                              </button>
+                            ) : (
+                              <span
+                                key={`${request.id}-receipt-${index}`}
+                                className="text-xs text-muted-foreground"
+                              >
+                                {getReceiptLabel(receipt)}: {receipt.filename}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sin adjuntos</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(request.createdAt).toLocaleDateString("es-ES", {
                         year: "numeric",
@@ -810,7 +1116,7 @@ export default function BudgetPage() {
                         day: "numeric",
                       })}
                     </TableCell>
-                    {(canApprove || canDelete) && (
+                    {showActionsColumn && (
                       <TableCell>
                         <div className="flex gap-2">
                           {canApprove && request.status === "solicitado" && (
@@ -822,6 +1128,18 @@ export default function BudgetPage() {
                             >
                               <CheckCircle2 className="h-4 w-4 mr-1" />
                               Aprobar
+                            </Button>
+                          )}
+                          {request.status === "aprobado" &&
+                            request.requestedBy === user?.id &&
+                            !hasExpenseReceipts(request) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openReceiptsDialog(request)}
+                              data-testid={`button-add-expense-receipts-${request.id}`}
+                            >
+                              Adjuntar comprobantes
                             </Button>
                           )}
                           {canDelete && (
@@ -843,7 +1161,7 @@ export default function BudgetPage() {
                 })
               ) : (
                 <TableRow key="empty">
-                  <TableCell colSpan={(canApprove || canDelete) ? 5 : 4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={showActionsColumn ? 6 : 5} className="text-center py-8 text-muted-foreground">
                     No hay solicitudes de presupuesto
                   </TableCell>
                 </TableRow>

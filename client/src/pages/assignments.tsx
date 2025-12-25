@@ -110,19 +110,18 @@ export default function Assignments() {
   };
 
   const updateStatus = (id: string, status: string) => {
-    const assignment = filteredAssignments.find((a: any) => a.id === id);
-    if (assignment) {
-      updateMutation.mutate({
-        id,
-        ...assignment,
-        status,
-      });
-    }
+    updateMutation.mutate({
+      id,
+      status,
+    });
   };
 
   const pendingAssignments = filteredAssignments.filter((a: any) => a.status === "pendiente");
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
   const completedAssignments = filteredAssignments.filter((a: any) => a.status === "completada");
+  const isAutoCompleteAssignment = (assignment: any) =>
+    assignment.relatedTo?.startsWith("budget:") &&
+    assignment.title === "Adjuntar comprobantes de gasto";
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
@@ -378,15 +377,17 @@ export default function Assignments() {
                       <TableCell>{assignment.personName || "Sin asignar"}</TableCell>
                       <TableCell>{assignment.assignerName || "Desconocido"}</TableCell>
                       <TableCell>
-                        {new Date(assignment.dueDate).toLocaleDateString("es-ES", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
+                        {assignment.dueDate
+                          ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "Sin fecha"}
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment.status)}</TableCell>
                       <TableCell className="space-x-2">
-                        {assignment.status !== "completada" && (
+                        {assignment.status !== "completada" && !isAutoCompleteAssignment(assignment) && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -398,6 +399,11 @@ export default function Assignments() {
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Completar
                           </Button>
+                        )}
+                        {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+                          <p className="text-xs text-muted-foreground">
+                            Se completará automáticamente al adjuntar comprobantes.
+                          </p>
                         )}
                         {canDeleteAssignment(assignment) && (
                           <Button

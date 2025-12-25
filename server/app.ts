@@ -1,4 +1,6 @@
 import { type Server } from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 
 import express, {
   type Express,
@@ -21,6 +23,8 @@ export function log(message: string, source = "express") {
 }
 
 export const app = express();
+const uploadsPath = path.resolve(process.cwd(), "uploads");
+fs.mkdirSync(uploadsPath, { recursive: true });
 
 declare module 'http' {
   interface IncomingMessage {
@@ -33,6 +37,7 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+app.use("/uploads", express.static(uploadsPath));
 
 app.use((req, res, next) => {
   const start = Date.now();

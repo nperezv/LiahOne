@@ -1,6 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { storage } from "./storage";
 import {
   insertUserSchema,
@@ -85,6 +88,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
 
+  const uploadsPath = path.resolve(process.cwd(), "uploads");
+  fs.mkdirSync(uploadsPath, { recursive: true });
+
+  const readRequestBody = async (req: Request) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  };
+
+  const parseMultipart = async (req: Request) => {
+    const contentType = req.headers["content-type"];
+    if (!contentType || !contentType.includes("multipart/form-data")) {
+      throw new Error("Invalid content type");
+    }
+    const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
+    if (!boundaryMatch) {
+      throw new Error("Missing boundary");
+    }
+    const boundary = `--${boundaryMatch[1]}`;
+    const body = await readRequestBody(req);
+    const parts = body.toString("binary").split(boundary);
+    const files: Array<{ fieldname: string; filename: string; contentType?: string; data: Buffer }> = [];
+
+    for (const part of parts) {
+      if (!part || part === "--\r\n" || part === "--") {
+        continue;
+      }
+      const [rawHeaders, rawBody] = part.split("\r\n\r\n");
+      if (!rawBody || !rawHeaders) {
+        continue;
+      }
+      const headers = rawHeaders.split("\r\n").filter(Boolean);
+      const disposition = headers.find((header) =>
+        header.toLowerCase().startsWith("content-disposition")
+      );
+      if (!disposition) {
+        continue;
+      }
+      const nameMatch = disposition.match(/name="([^"]+)"/i);
+      const filenameMatch = disposition.match(/filename="([^"]*)"/i);
+      if (!nameMatch || !filenameMatch || !filenameMatch[1]) {
+        continue;
+      }
+      const fieldname = nameMatch[1];
+      const filename = path.basename(filenameMatch[1]);
+      const contentTypeHeader = headers.find((header) =>
+        header.toLowerCase().startsWith("content-type")
+      );
+      const contentTypeValue = contentTypeHeader?.split(":")[1]?.trim();
+      const data = Buffer.from(rawBody.replace(/\r\n--$/, ""), "binary");
+      files.push({ fieldname, filename, contentType: contentTypeValue, data });
+    }
+
+    return { files };
+  };
+
   // ========================================
   // AUTHENTICATION
   // ========================================
@@ -132,6 +193,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(userWithoutPassword);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
+  // UPLOADS
+  // ========================================
+
+  app.post("/api/uploads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { files } = await parseMultipart(req);
+      const uploadedFile = files.find((file) => file.fieldname === "file");
+      if (!uploadedFile) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const extension = path.extname(uploadedFile.filename);
+      const storedFilename = `${randomUUID()}${extension}`;
+      const storedPath = path.join(uploadsPath, storedFilename);
+      await fs.promises.writeFile(storedPath, uploadedFile.data);
+
+      res.status(201).json({
+        filename: uploadedFile.filename,
+        url: `/uploads/${storedFilename}`,
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Invalid upload data" });
     }
   });
 
@@ -540,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Notify obispado about new budget request
       const allUsers = await storage.getAllUsers();
       const obispadoMembers = allUsers.filter((u: any) => 
-        u.role === "obispo" || u.role === "consejero_obispo"
+        u.role === "obispo" || u.role === "consejero_obispo" || u.role === "secretario_financiero"
       );
 
       for (const member of obispadoMembers) {
@@ -584,6 +671,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Budget request not found" });
       }
 
+      if (requestData.receipts && requestData.receipts.length > 0) {
+        const assignments = await storage.getAllAssignments();
+        const relatedAssignment = assignments.find(
+          (assignment: any) =>
+            assignment.relatedTo === `budget:${id}` &&
+            assignment.title === "Adjuntar comprobantes de gasto" &&
+            assignment.status !== "completada"
+        );
+
+        if (relatedAssignment) {
+          await storage.updateAssignment(relatedAssignment.id, {
+            status: "completada",
+          });
+        }
+      }
+
       res.json(budgetRequest);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -593,13 +696,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/budget-requests/:id/approve", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.post("/api/budget-requests/:id/approve", requireAuth, requireRole("obispo", "consejero_obispo", "secretario_financiero"), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const existingRequest = await storage.getBudgetRequest(id);      
       const budgetRequest = await storage.approveBudgetRequest(id, req.session.userId!);
       if (!budgetRequest) {
         return res.status(404).json({ error: "Budget request not found" });
       }
+
+      if (existingRequest && existingRequest.status !== "aprobado" && budgetRequest.requestedBy) {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+        const assignment = await storage.createAssignment({
+          title: "Adjuntar comprobantes de gasto",
+          description: `Adjunta los comprobantes de gasto para la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}.`,
+          assignedTo: budgetRequest.requestedBy,
+          assignedBy: req.session.userId!,
+          dueDate,
+          relatedTo: `budget:${budgetRequest.id}`,
+        });
+
+        const notification = await storage.createNotification({
+          userId: budgetRequest.requestedBy,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${assignment.title}"`,
+          relatedId: assignment.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(budgetRequest.requestedBy, {
+            title: "Nueva Asignación",
+            body: `Se te ha asignado: "${assignment.title}"`,
+            url: "/assignments",
+            notificationId: notification.id,
+          });
+        }
+      }      
 
       // Create notification for the user who requested the budget
       if (budgetRequest.requestedBy) {
@@ -2082,6 +2217,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!isObispado && !isAssignedTo && !isCreatedBy) {
         return res.status(403).json({ error: "Forbidden" });
+      }
+
+      if (
+        req.body?.status === "completada" &&
+        assignment.relatedTo?.startsWith("budget:") &&
+        assignment.title === "Adjuntar comprobantes de gasto"
+      ) {
+        return res.status(400).json({
+          error: "Completion is automated for expense receipt assignments",
+        });
       }
 
       const assignmentData = insertAssignmentSchema.partial().parse(req.body);
