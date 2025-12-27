@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2, Upload } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -641,27 +641,14 @@ export default function BudgetPage() {
                       <FormItem>
                         <FormLabel>Comprobantes de compra (Opcional)</FormLabel>
                         <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <Input
-                              id="budget-receipt-file"
-                              type="file"
-                              accept={allowedDocumentExtensions.join(",")}
-                              onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
-                              onBlur={field.onBlur}
-                              ref={field.ref}
-                              className="hidden"
-                              data-testid="input-receipt-file"
-                            />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="budget-receipt-file" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" />
-                                Seleccionar comprobante
-                              </label>
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                              {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
-                            </span>
-                          </div>
+                          <Input
+                            type="file"
+                            accept={allowedDocumentExtensions.join(",")}
+                            onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            data-testid="input-receipt-file"
+                          />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
                           Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.
@@ -678,27 +665,14 @@ export default function BudgetPage() {
                       <FormItem>
                         <FormLabel>Plan de actividades</FormLabel>
                         <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <Input
-                              id="budget-activity-plan-file"
-                              type="file"
-                              accept={allowedDocumentExtensions.join(",")}
-                              onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
-                              onBlur={field.onBlur}
-                              ref={field.ref}
-                              className="hidden"
-                              data-testid="input-activity-plan-file"
-                            />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="budget-activity-plan-file" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" />
-                                Subir plan de actividades
-                              </label>
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                              {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
-                            </span>
-                          </div>
+                          <Input
+                            type="file"
+                            accept={allowedDocumentExtensions.join(",")}
+                            onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            data-testid="input-activity-plan-file"
+                          />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
                           Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio.
@@ -751,30 +725,15 @@ export default function BudgetPage() {
                       <FormItem>
                         <FormLabel>Comprobantes de gasto</FormLabel>
                         <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <Input
-                              id="expense-receipts"
-                              type="file"
-                              multiple
-                              accept={allowedDocumentExtensions.join(",")}
-                              onChange={(event) => field.onChange(Array.from(event.target.files ?? []))}
-                              onBlur={field.onBlur}
-                              ref={field.ref}
-                              className="hidden"
-                              data-testid="input-expense-receipts"
-                            />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="expense-receipts" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" />
-                                Adjuntar comprobantes
-                              </label>
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                              {field.value?.length
-                                ? `Archivos seleccionados: ${field.value.length}`
-                                : "Ningún archivo seleccionado"}
-                            </span>
-                          </div>
+                          <Input
+                            type="file"
+                            multiple
+                            accept={allowedDocumentExtensions.join(",")}
+                            onChange={(event) => field.onChange(Array.from(event.target.files ?? []))}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                            data-testid="input-expense-receipts"
+                          />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
                           Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.

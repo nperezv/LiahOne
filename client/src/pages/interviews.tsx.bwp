@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { endOfMonth, endOfQuarter, endOfWeek, startOfMonth, startOfQuarter, startOfWeek } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -56,7 +54,7 @@ import {
   useUpdateInterview,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
+import { exportInterviews } from "@/lib/export";
 
 /**
  * Estado (backend):
@@ -103,9 +101,6 @@ export default function InterviewsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingInterview, setEditingInterview] = useState<any>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [exportRange, setExportRange] = useState<"week" | "month" | "quarter">("week");
-  const [exportInterviewerId, setExportInterviewerId] = useState("all");
 
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
@@ -350,52 +345,6 @@ export default function InterviewsPage() {
     });
   };
 
-  const handleExportPdf = async () => {
-    const now = new Date();
-    const range = exportRange;
-    const startDate =
-      range === "month"
-        ? startOfMonth(now)
-        : range === "quarter"
-          ? startOfQuarter(now)
-          : startOfWeek(now);
-    const endDate =
-      range === "month"
-        ? endOfMonth(now)
-        : range === "quarter"
-          ? endOfQuarter(now)
-          : endOfWeek(now);
-
-    const baseInterviews = filteredInterviewsRaw.filter((interview: any) => interview.status === "programada");
-    const rangeInterviews = baseInterviews.filter((interview: any) => {
-      const interviewDate = new Date(interview.date);
-      return interviewDate >= startDate && interviewDate <= endDate;
-    });
-
-    const finalInterviews = exportInterviewerId === "all"
-      ? rangeInterviews
-      : rangeInterviews.filter((interview: any) => interview.interviewerId === exportInterviewerId);
-
-    const interviewerLabel =
-      exportInterviewerId === "all"
-        ? "Todos"
-        : userById.get(exportInterviewerId)?.name || "—";
-
-    await generateInterviewAgendaPDF(
-      finalInterviews.map((interview: any) => ({
-        ...interview,
-        interviewerName: userById.get(interview.interviewerId)?.name || "—",
-      })),
-      {
-        startDate,
-        endDate,
-        interviewerLabel,
-      }
-    );
-
-    setIsExportDialogOpen(false);
-  };
-
   if (isLoading) {
     return (
       <div className="p-8">
@@ -416,61 +365,10 @@ export default function InterviewsPage() {
         </div>
 
         <div className="flex gap-2 items-center">
-          <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" data-testid="button-export-interviews">
-                <Download className="h-4 w-4 mr-2" />
-                Exportar PDF
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Exportar agenda</DialogTitle>
-                <DialogDescription>
-                  Selecciona el periodo y entrevistador para generar el PDF.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Periodo</Label>
-                  <Select value={exportRange} onValueChange={(value) => setExportRange(value as "week" | "month" | "quarter")}>
-                    <SelectTrigger data-testid="select-export-range">
-                      <SelectValue placeholder="Seleccionar periodo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="week">Semana actual</SelectItem>
-                      <SelectItem value="month">Mes actual</SelectItem>
-                      <SelectItem value="quarter">Trimestre actual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Entrevistador</Label>
-                  <Select value={exportInterviewerId} onValueChange={setExportInterviewerId}>
-                    <SelectTrigger data-testid="select-export-interviewer">
-                      <SelectValue placeholder="Seleccionar entrevistador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {interviewers.map((interviewer: any) => (
-                        <SelectItem key={interviewer.id} value={interviewer.id}>
-                          {interviewer.name} ({formatRole(interviewer.role)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleExportPdf} data-testid="button-export-pdf-confirm">
-                    Generar PDF
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" onClick={() => exportInterviews(interviews)} data-testid="button-export-interviews">
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
 
           <Button
             variant="outline"
@@ -507,7 +405,7 @@ export default function InterviewsPage() {
                           <FormLabel>Nombre de la Persona</FormLabel>
                           {isOrgMember ? (
                             <FormControl>
-                              <Input placeholder="Nombre Apllido" {...field} disabled={true} data-testid="input-person-name" />
+                              <Input placeholder="Juan Pérez" {...field} disabled={true} data-testid="input-person-name" />
                             </FormControl>
                           ) : (
                             <div className="space-y-2">
