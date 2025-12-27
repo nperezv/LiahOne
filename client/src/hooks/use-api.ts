@@ -2,6 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+const REALTIME_QUERY_OPTIONS = {
+  refetchInterval: 5000,
+  refetchOnWindowFocus: true,
+  staleTime: 3000,
+};
+
 // ========================================
 // DASHBOARD
 // ========================================
@@ -9,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 export function useDashboardStats() {
   return useQuery({
     queryKey: ["/api/dashboard/stats"],
+    ...REALTIME_QUERY_OPTIONS,
   });
 }
 
@@ -19,6 +26,7 @@ export function useDashboardStats() {
 export function useSacramentalMeetings() {
   return useQuery({
     queryKey: ["/api/sacramental-meetings"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -52,6 +60,7 @@ export function useCreateSacramentalMeeting() {
 export function useWardCouncils() {
   return useQuery({
     queryKey: ["/api/ward-councils"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -135,6 +144,7 @@ export function usePresidencyMeetings(organizationId?: string) {
   return useQuery({
     queryKey: organizationId ? ["/api/presidency-meetings", organizationId] : ["/api/presidency-meetings"],
     enabled: !!organizationId,
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -173,6 +183,7 @@ export function useCreatePresidencyMeeting(organizationId?: string) {
 export function useBudgetRequests() {
   return useQuery({
     queryKey: ["/api/budget-requests"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -256,6 +267,7 @@ export function useApproveBudgetRequest() {
 export function useInterviews() {
   return useQuery({
     queryKey: ["/api/interviews"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -368,6 +380,7 @@ export function useUpdateInterviewAvailability() {
 export function useOrganizationInterviews() {
   return useQuery({
     queryKey: ["/api/organization-interviews"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -512,6 +525,7 @@ export function useDeleteOrganizationInterview() {
 export function useGoals() {
   return useQuery({
     queryKey: ["/api/goals"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -546,6 +560,7 @@ export function useCreateGoal() {
 export function useBirthdays() {
   return useQuery({
     queryKey: ["/api/birthdays"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -579,6 +594,7 @@ export function useCreateBirthday() {
 export function useOrganizations() {
   return useQuery({
     queryKey: ["/api/organizations"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -589,6 +605,7 @@ export function useOrganizations() {
 export function useUsers() {
   return useQuery({
     queryKey: ["/api/users"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -599,6 +616,7 @@ export function useUsers() {
 export function useActivities() {
   return useQuery({
     queryKey: ["/api/activities"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -633,6 +651,7 @@ export function useCreateActivity() {
 export function useAssignments() {
   return useQuery({
     queryKey: ["/api/assignments"],
+    ...REALTIME_QUERY_OPTIONS,
   });
 }
 
@@ -834,6 +853,7 @@ export function useDeleteInterview() {
 export function useWardBudget() {
   return useQuery({
     queryKey: ["/api/ward-budget"],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 
@@ -867,6 +887,7 @@ export function useUpdateWardBudget() {
 export function useOrganizationBudgets(organizationId: string) {
   return useQuery({
     queryKey: ["/api/organization-budgets", organizationId],
+    ...REALTIME_QUERY_OPTIONS,    
   });
 }
 

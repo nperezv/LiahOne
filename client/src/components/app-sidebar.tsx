@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -19,7 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
-import { useDashboardStats } from "@/hooks/use-api";
+import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
 
 interface Organization {
   id: string;
@@ -168,9 +167,7 @@ export function AppSidebar() {
     }
   }, [isMobile, setOpenMobile]);
   // Fetch organizations to map organization ID to type
-  const { data: organizations = [] } = useQuery<Organization[]>({
-    queryKey: ["/api/organizations"],
-  });
+  const { data: organizations = [] } = useOrganizations();
 
   // Get organization type from user's organization (for presidents/counselors/secretaries)
   const organizationType = user?.organizationId && organizations.length > 0
