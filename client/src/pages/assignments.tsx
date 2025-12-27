@@ -387,7 +387,9 @@ export default function Assignments() {
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment.status)}</TableCell>
                       <TableCell className="space-x-2">
-                        {assignment.status !== "completada" && !isAutoCompleteAssignment(assignment) && (
+                        {isObispado &&
+                          assignment.status !== "completada" &&
+                          !isAutoCompleteAssignment(assignment) && (
                           <Button
                             size="sm"
                             variant="outline"

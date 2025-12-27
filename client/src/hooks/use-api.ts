@@ -184,6 +184,7 @@ export function useCreateBudgetRequest() {
     mutationFn: (data: any) => apiRequest("POST", "/api/budget-requests", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/budget-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });      
       toast({
         title: "Solicitud creada",
         description: "La solicitud de presupuesto ha sido enviada.",
@@ -208,6 +209,7 @@ export function useUpdateBudgetRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/budget-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });      
       toast({
         title: "Solicitud actualizada",
         description: "Los comprobantes se han adjuntado correctamente.",
@@ -290,7 +292,8 @@ export function useCompleteInterview() {
       apiRequest("PUT", `/api/interviews/${interviewId}`, { status: "completada" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });      
       toast({
         title: "Entrevista completada",
         description: "La entrevista ha sido marcada como completada.",
@@ -317,6 +320,7 @@ export function useUpdateInterview() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });      
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
         title: "Entrevista actualizada",

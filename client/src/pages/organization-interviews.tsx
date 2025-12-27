@@ -146,15 +146,15 @@ export default function OrganizationInterviewsPage() {
 
   const canDelete = user?.role === "presidente_organizacion";
 
-  const interviewers = useMemo(
-    () =>
-      users.filter(
-        (u: any) =>
-          u.role === "presidente_organizacion" ||
-          u.role === "consejero_organizacion"
-      ),
-    [users]
-  );
+  const interviewers = useMemo(() => {
+    if (!user?.organizationId) return [];
+    return users.filter(
+      (u: any) =>
+        u.organizationId === user.organizationId &&
+        (u.role === "presidente_organizacion" ||
+          u.role === "consejero_organizacion")
+    );
+  }, [users, user?.organizationId]);
 
   const userById = useMemo(() => {
     const map = new Map<string, any>();

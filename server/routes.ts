@@ -807,7 +807,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { personName, ...rest } = req.body;
   
       let assignedToId: string | undefined;
-  
+      let assignedUser: any | undefined; 
+
       if (personName) {
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
@@ -823,15 +824,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
               normalizedInput.includes(u.name.toLowerCase())
           );
         }
-    
-        if (foundUser) assignedToId = foundUser.id;
+
+        if (foundUser) {
+          assignedToId = foundUser.id;
+          assignedUser = foundUser;
+        }    	
       }
-  
+      const requestingUser = await storage.getUser(req.session.userId!);
+      const isRequestFromObispado = ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(
+        requestingUser?.role || ""
+      );
+      const isAssignedOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
+        assignedUser?.role || ""
+      );
+      const shouldCreateAssignment = Boolean(
+        isRequestFromObispado && assignedToId && isAssignedOrgMember
+      );  
       const interviewData = insertInterviewSchema.parse({
         personName,
         ...rest,
         assignedBy: req.session.userId,
-        ...(assignedToId && { assignedToId }),
+        ...(assignedToId && !shouldCreateAssignment && { assignedToId }),	
       });
   
       const interview = await storage.createInterview(interviewData);
@@ -850,7 +863,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
   
       // 🔔 Notificar entrevistado (si existe usuario)
-      if (assignedToId && assignedToId !== interview.interviewerId) {
+      if (assignedToId && !shouldCreateAssignment && assignedToId !== interview.interviewerId) {      
         const notification = await storage.createNotification({
           userId: assignedToId,
           type: "upcoming_interview",
@@ -872,9 +885,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-  
+ 
+      if (shouldCreateAssignment && assignedToId) {
+        const interviewer = await storage.getUser(interview.interviewerId);
+        const interviewDateValue = new Date(interview.date);
+        const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const assignmentTitle = `Entrevista programada - ${interviewDate} | ${interviewTime}`;
+        const descriptionParts = [
+          `Entrevista programada con ${interviewer?.name || "el obispado"} el ${interviewDate}.`,
+        ];
+        if (rest.notes) {
+          descriptionParts.push(`Notas: ${rest.notes}`);
+        }
+
+        const assignment = await storage.createAssignment({
+          title: assignmentTitle,
+          description: descriptionParts.join(" "),
+          assignedTo: assignedToId,
+          assignedBy: req.session.userId,
+          dueDate: interview.date,
+          status: "pendiente",
+          relatedTo: `interview:${interview.id}`,
+        });
+
+        const notification = await storage.createNotification({
+          userId: assignedToId,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${assignment.title}"`,
+          relatedId: assignment.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(assignedToId, {
+            title: "Nueva Asignación",
+            body: `Se te ha asignado: "${assignment.title}"`,
+            url: "/assignments",
+            notificationId: notification.id,
+          });
+        }
+      }
+
       // 🔔 Si lo solicita una organización, avisar al obispado
-      const requestingUser = await storage.getUser(req.session.userId!);
       const isOrgMember = [
         "presidente_organizacion",
         "secretario_organizacion",
@@ -975,6 +1036,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
       }
   
+      if (interviewData.date || interviewData.status === "completada") {
+        const assignments = await storage.getAllAssignments();
+        const relatedAssignment = assignments.find(
+          (assignment: any) => assignment.relatedTo === `interview:${interview.id}`
+        );
+
+        if (relatedAssignment) {
+          const updateAssignmentData: any = {};
+
+          if (interviewData.date) {
+            const interviewDateValue = new Date(interview.date);
+            const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+            const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            updateAssignmentData.title = `Entrevista programada - ${interviewDate} | ${interviewTime}`;
+            updateAssignmentData.dueDate = interview.date;
+          }
+
+          if (interviewData.status === "completada") {
+            updateAssignmentData.status = "completada";
+          }
+
+          if (Object.keys(updateAssignmentData).length > 0) {
+            await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
+          }
+        }
+      }
+
       res.json(interview);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2217,6 +2313,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!isObispado && !isAssignedTo && !isCreatedBy) {
         return res.status(403).json({ error: "Forbidden" });
+      }
+
+      if (
+        req.body?.status === "completada" &&
+        assignment.relatedTo?.startsWith("interview:") &&
+        !isObispado
+      ) {
+        return res.status(403).json({
+          error: "Forbidden - Only obispado can complete interview assignments",
+        });
       }
 
       if (
