@@ -894,11 +894,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           month: "2-digit",
           day: "2-digit",
         });
-        const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+        const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+	const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         });
-        const assignmentTitle = `Entrevista programada - ${interviewDate} | ${interviewTime}`;
+        const assignmentTitle = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
         const descriptionParts = [
           `Entrevista programada con ${interviewer?.name || "el obispado"} el ${interviewDate}.`,
         ];
@@ -1052,12 +1058,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               month: "2-digit",
               day: "2-digit",
             });
+            const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            });
             const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
               hour: "2-digit",
               minute: "2-digit",
+              hour12: false,
             });
 
-            updateAssignmentData.title = `Entrevista programada - ${interviewDate} | ${interviewTime}`;
+            updateAssignmentData.title = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
             updateAssignmentData.dueDate = interview.date;
           }
 

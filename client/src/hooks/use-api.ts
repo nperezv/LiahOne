@@ -267,7 +267,8 @@ export function useApproveBudgetRequest() {
 export function useInterviews() {
   return useQuery({
     queryKey: ["/api/interviews"],
-    ...REALTIME_QUERY_OPTIONS,    
+    ...REALTIME_QUERY_OPTIONS,
+    refetchOnMount: true,    
   });
 }
 
@@ -277,8 +278,21 @@ export function useCreateInterview() {
 
   return useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/interviews", data),
-    onSuccess: () => {
+    onSuccess: (createdInterview) => {
+      if (createdInterview) {
+        queryClient.setQueryData(
+          ["/api/interviews"],
+          (old: any[] | undefined) => {
+            if (!old) return [createdInterview];
+            if (old.some((item) => item.id === createdInterview.id)) {
+              return old;
+            }
+            return [createdInterview, ...old];
+          }
+        );
+      }	    
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.refetchQueries({ queryKey: ["/api/interviews"] });      
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
         title: "Entrevista programada",
@@ -380,7 +394,8 @@ export function useUpdateInterviewAvailability() {
 export function useOrganizationInterviews() {
   return useQuery({
     queryKey: ["/api/organization-interviews"],
-    ...REALTIME_QUERY_OPTIONS,    
+    ...REALTIME_QUERY_OPTIONS,
+    refetchOnMount: true,
   });
 }
 
@@ -391,8 +406,23 @@ export function useCreateOrganizationInterview() {
   return useMutation({
     mutationFn: (data: any) =>
       apiRequest("POST", "/api/organization-interviews", data),
-    onSuccess: () => {
+    onSuccess: (createdInterview) => {
+      if (createdInterview) {
+        queryClient.setQueryData(
+          ["/api/organization-interviews"],
+          (old: any[] | undefined) => {
+            if (!old) return [createdInterview];
+            if (old.some((item) => item.id === createdInterview.id)) {
+              return old;
+            }
+            return [createdInterview, ...old];
+          }
+        );
+      }
       queryClient.invalidateQueries({
+        queryKey: ["/api/organization-interviews"],
+      });
+      queryClient.refetchQueries({
         queryKey: ["/api/organization-interviews"],
       });
       queryClient.invalidateQueries({

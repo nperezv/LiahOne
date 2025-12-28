@@ -217,7 +217,7 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     rightY = drawOne(colRightX, rightY, k, v, maxRightW);
   });
 
-  ctx.y = Math.max(leftY, rightY) + 10;
+  ctx.y = Math.max(leftY, rightY) + 6;
 }
 
 function drawParagraph(
@@ -511,7 +511,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
   ensureSpace(ctx, 16);
   setBodyFont(ctx, 16, "bold");
   ctx.doc.text("Programa de Reunión Sacramental", ctx.marginX, ctx.y);
-  ctx.y += 14;
+  ctx.y += 10;
 
   // Bloque de roles inicio
   const leftItems: Array<[string, string]> = [];
@@ -577,7 +577,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
 
   if (hasReleases || hasSustainments || hasOtherBusiness) {
     setBodyFont(ctx, 11, "bold");
-    ctx.doc.text("Relevos y Sostenimientos:", ctx.marginX, ctx.y);
+    ctx.doc.text("Asuntos de barrio:", ctx.marginX, ctx.y);
     ctx.y += 6;
 
     if (hasReleases) {
@@ -653,7 +653,7 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
 
     if (newMembers.length) {
       setBodyFont(ctx, 11, "bold");
-      ctx.doc.text("Nuevos miembros y conversos:", ctx.marginX + 6, ctx.y);
+      ctx.doc.text("Bienvenida y voto de apoyo a los nuevos conversos:", ctx.marginX + 6, ctx.y);
       ctx.y += 6;
       const bullets = newMembers.map((n: string) => `${n}`);
       drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
