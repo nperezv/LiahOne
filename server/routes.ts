@@ -237,6 +237,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { accessToken, refreshTokenId: refreshRecord.id };
   };
 
+  const isBcryptHash = (value: string) => value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
+
   app.post("/api/login", async (req: Request, res: Response) => {
     try {
       const { username, password, rememberDevice, deviceId } = req.body;
@@ -259,7 +261,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      const isLegacyPassword = !isBcryptHash(user.password);
+      const isValidPassword = isLegacyPassword
+        ? password === user.password
+        : await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         await storage.createLoginEvent({
           userId: user.id,
@@ -271,6 +276,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reason: "invalid_credentials",
         });
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (isLegacyPassword) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await storage.updateUser(user.id, { password: hashedPassword });
       }
 
       const existingDevice = deviceHash
