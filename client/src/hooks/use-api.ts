@@ -12,8 +12,43 @@ const REALTIME_QUERY_OPTIONS = {
 // DASHBOARD
 // ========================================
 
+export interface DashboardStats {
+  pendingAssignments: number;
+  upcomingInterviews: number;
+  budgetRequests: {
+    pending: number;
+    approved: number;
+    total: number;
+  };
+  goals: {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
+  organizationGoals?: {
+    items: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      currentValue: number;
+      targetValue: number;
+      percentage: number;
+    }>;
+    completed: number;
+    total: number;
+    percentage: number;
+  };
+  upcomingBirthdays: Array<{ name: string; date: string }>;
+  organizationHealth: Array<{
+    name: string;
+    status: "healthy" | "warning" | "critical";
+  }>;
+  upcomingActivities: Array<{ title: string; date: string; location: string }>;
+  userRole?: string;
+}
+
 export function useDashboardStats() {
-  return useQuery({
+  return useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
     ...REALTIME_QUERY_OPTIONS,
   });
@@ -24,7 +59,7 @@ export function useDashboardStats() {
 // ========================================
 
 export function useSacramentalMeetings() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/sacramental-meetings"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -58,7 +93,7 @@ export function useCreateSacramentalMeeting() {
 // ========================================
 
 export function useWardCouncils() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/ward-councils"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -141,7 +176,7 @@ export function useDeleteWardCouncil() {
 // ========================================
 
 export function usePresidencyMeetings(organizationId?: string) {
-  return useQuery({
+  return useQuery<any>({
     queryKey: organizationId ? ["/api/presidency-meetings", organizationId] : ["/api/presidency-meetings"],
     enabled: !!organizationId,
     ...REALTIME_QUERY_OPTIONS,    
@@ -181,7 +216,7 @@ export function useCreatePresidencyMeeting(organizationId?: string) {
 // ========================================
 
 export function useBudgetRequests() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/budget-requests"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -265,7 +300,7 @@ export function useApproveBudgetRequest() {
 // ========================================
 
 export function useInterviews() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/interviews"],
     ...REALTIME_QUERY_OPTIONS,
     refetchOnMount: true,    
@@ -392,7 +427,7 @@ export function useUpdateInterviewAvailability() {
 // ========================================
 
 export function useOrganizationInterviews() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/organization-interviews"],
     ...REALTIME_QUERY_OPTIONS,
     refetchOnMount: true,
@@ -553,7 +588,7 @@ export function useDeleteOrganizationInterview() {
 // ========================================
 
 export function useGoals() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/goals"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -588,7 +623,7 @@ export function useCreateGoal() {
 // ========================================
 
 export function useBirthdays() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/birthdays"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -621,8 +656,15 @@ export function useCreateBirthday() {
 // ORGANIZATIONS
 // ========================================
 
+export interface Organization {
+  id: string;
+  name: string;
+  type: string;
+  presidentId?: string | null;
+}
+
 export function useOrganizations() {
-  return useQuery({
+  return useQuery<Organization[]>({
     queryKey: ["/api/organizations"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -633,7 +675,7 @@ export function useOrganizations() {
 // ========================================
 
 export function useUsers() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/users"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -643,8 +685,21 @@ export function useUsers() {
 // ACTIVITIES
 // ========================================
 
+export interface Activity {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  location?: string;
+  organizationId?: string | null;
+  responsiblePerson?: string | null;
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export function useActivities() {
-  return useQuery({
+  return useQuery<Activity[]>({
     queryKey: ["/api/activities"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -679,7 +734,7 @@ export function useCreateActivity() {
 // ========================================
 
 export function useAssignments() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/assignments"],
     ...REALTIME_QUERY_OPTIONS,
   });
@@ -881,7 +936,7 @@ export function useDeleteInterview() {
 // ========================================
 
 export function useWardBudget() {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/ward-budget"],
     ...REALTIME_QUERY_OPTIONS,    
   });
@@ -915,7 +970,7 @@ export function useUpdateWardBudget() {
 // ========================================
 
 export function useOrganizationBudgets(organizationId: string) {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ["/api/organization-budgets", organizationId],
     ...REALTIME_QUERY_OPTIONS,    
   });
