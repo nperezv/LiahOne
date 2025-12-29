@@ -15,43 +15,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDashboardStats } from "@/hooks/use-api";
+import { DashboardStats, useDashboardStats } from "@/hooks/use-api";
 import { useLocation } from "wouter";
-
-interface DashboardStats {
-  pendingAssignments: number;
-  upcomingInterviews: number;
-  budgetRequests: {
-    pending: number;
-    approved: number;
-    total: number;
-  };
-  goals: {
-    completed: number;
-    total: number;
-    percentage: number;
-  };
-  organizationGoals?: {
-    items: Array<{
-      id: string;
-      title: string;
-      description?: string;
-      currentValue: number;
-      targetValue: number;
-      percentage: number;
-    }>;
-    completed: number;
-    total: number;
-    percentage: number;
-  };
-  upcomingBirthdays: Array<{ name: string; date: string }>;
-  organizationHealth: Array<{
-    name: string;
-    status: "healthy" | "warning" | "critical";
-  }>;
-  upcomingActivities: Array<{ title: string; date: string; location: string }>;
-  userRole?: string;
-}
 
 export default function DashboardPage() {
   const { data: stats, isLoading } = useDashboardStats();
