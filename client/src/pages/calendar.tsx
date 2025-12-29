@@ -22,7 +22,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
 
-  const { data: events = [], isLoading } = useQuery({
+  const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
   });
 
@@ -73,11 +73,13 @@ export default function CalendarPage() {
   };
 
   const eventsOnDate = (date: Date) => {
-    return events.filter(event => isSameDay(new Date(event.date), date));
+    return events.filter((event) => isSameDay(new Date(event.date), date));
   };
 
   const upcomingEvents = events
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
     .slice(0, 10);
 
   if (isLoading) {
