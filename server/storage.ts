@@ -20,6 +20,10 @@ import {
   organizationBudgets,
   notifications,
   pushSubscriptions,
+  userDevices,
+  refreshTokens,
+  loginEvents,
+  emailOtps,
   type User,
   type InsertUser,
   type Organization,
@@ -54,12 +58,17 @@ import {
   type InsertNotification,
   type PushSubscription,
   type InsertPushSubscription,
+  type UserDevice,
+  type RefreshToken,
+  type LoginEvent,
+  type EmailOtp,
 } from "@shared/schema";
 
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByNormalizedUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
@@ -178,6 +187,51 @@ export interface IStorage {
   deletePushSubscription(id: string): Promise<void>;
   deletePushSubscriptionByEndpoint(endpoint: string): Promise<void>;
   getAllPushSubscriptions(): Promise<PushSubscription[]>;
+
+  // Devices
+  getUserDeviceByHash(userId: string, deviceHash: string): Promise<UserDevice | undefined>;
+  upsertUserDevice(data: { userId: string; deviceHash: string; trusted?: boolean; label?: string }): Promise<UserDevice>;
+  updateUserDeviceLastUsed(id: string): Promise<void>;
+
+  // Refresh Tokens
+  createRefreshToken(data: {
+    userId: string;
+    deviceHash?: string | null;
+    tokenHash: string;
+    ipAddress?: string | null;
+    country?: string | null;
+    userAgent?: string | null;
+    expiresAt: Date;
+  }): Promise<RefreshToken>;
+  getRefreshTokenByHash(tokenHash: string): Promise<RefreshToken | undefined>;
+  revokeRefreshToken(id: string, replacedByTokenId?: string | null): Promise<void>;
+  revokeRefreshTokensByUser(userId: string): Promise<void>;
+  getActiveRefreshTokens(): Promise<RefreshToken[]>;
+
+  // Login Events
+  createLoginEvent(data: {
+    userId?: string | null;
+    deviceHash?: string | null;
+    ipAddress?: string | null;
+    country?: string | null;
+    userAgent?: string | null;
+    success: boolean;
+    reason?: string | null;
+  }): Promise<LoginEvent>;
+  getRecentLoginEvents(limit?: number): Promise<LoginEvent[]>;
+  getLastLoginEventForUser(userId: string): Promise<LoginEvent | undefined>;
+
+  // Email OTPs
+  createEmailOtp(data: {
+    userId: string;
+    codeHash: string;
+    deviceHash?: string | null;
+    ipAddress?: string | null;
+    country?: string | null;
+    expiresAt: Date;
+  }): Promise<EmailOtp>;
+  getEmailOtpById(id: string): Promise<EmailOtp | undefined>;
+  consumeEmailOtp(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -192,6 +246,15 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async getUserByNormalizedUsername(username: string): Promise<User | undefined> {
+    const normalized = username.trim().toLowerCase();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(sql`lower(trim(${users.username}))`, normalized));
     return user || undefined;
   }
 
@@ -280,14 +343,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWardCouncil(insertCouncil: InsertWardCouncil): Promise<WardCouncil> {
-    const [council] = await db.insert(wardCouncils).values(insertCouncil).returning();
+    const councilData: typeof wardCouncils.$inferInsert =
+      insertCouncil as typeof wardCouncils.$inferInsert;
+    const [council] = await db.insert(wardCouncils).values(councilData).returning();
     return council;
   }
 
   async updateWardCouncil(id: string, data: Partial<InsertWardCouncil>): Promise<WardCouncil | undefined> {
+    const updateData = {
+      ...data,
+      updatedAt: new Date(),
+    } as Partial<typeof wardCouncils.$inferInsert>;
     const [council] = await db
       .update(wardCouncils)
-      .set({ ...data, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(wardCouncils.id, id))
       .returning();
     return council || undefined;
@@ -315,14 +384,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPresidencyMeeting(insertMeeting: InsertPresidencyMeeting): Promise<PresidencyMeeting> {
-    const [meeting] = await db.insert(presidencyMeetings).values(insertMeeting).returning();
+    const meetingData: typeof presidencyMeetings.$inferInsert =
+      insertMeeting as typeof presidencyMeetings.$inferInsert;
+    const [meeting] = await db.insert(presidencyMeetings).values(meetingData).returning();
     return meeting;
   }
 
   async updatePresidencyMeeting(id: string, data: Partial<InsertPresidencyMeeting>): Promise<PresidencyMeeting | undefined> {
+    const updateData = {
+      ...data,
+      updatedAt: new Date(),
+    } as Partial<typeof presidencyMeetings.$inferInsert>;
     const [meeting] = await db
       .update(presidencyMeetings)
-      .set({ ...data, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(presidencyMeetings.id, id))
       .returning();
     return meeting || undefined;
@@ -346,14 +421,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBudgetRequest(insertRequest: InsertBudgetRequest): Promise<BudgetRequest> {
-    const [request] = await db.insert(budgetRequests).values(insertRequest).returning();
+    const requestData: typeof budgetRequests.$inferInsert = insertRequest as typeof budgetRequests.$inferInsert;
+    const [request] = await db.insert(budgetRequests).values(requestData).returning();
     return request;
   }
 
   async updateBudgetRequest(id: string, data: Partial<InsertBudgetRequest>): Promise<BudgetRequest | undefined> {
+    const updateData = {
+      ...data,
+      updatedAt: new Date(),
+    } as Partial<typeof budgetRequests.$inferInsert>;
     const [request] = await db
       .update(budgetRequests)
-      .set({ ...data, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(budgetRequests.id, id))
       .returning();
     return request || undefined;
@@ -809,6 +889,195 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPushSubscriptions(): Promise<PushSubscription[]> {
     return await db.select().from(pushSubscriptions);
+  }
+
+  // ========================================
+  // DEVICES
+  // ========================================
+
+  async getUserDeviceByHash(userId: string, deviceHash: string): Promise<UserDevice | undefined> {
+    const [device] = await db
+      .select()
+      .from(userDevices)
+      .where(and(eq(userDevices.userId, userId), eq(userDevices.deviceHash, deviceHash)));
+    return device || undefined;
+  }
+
+  async upsertUserDevice(data: {
+    userId: string;
+    deviceHash: string;
+    trusted?: boolean;
+    label?: string;
+  }): Promise<UserDevice> {
+    const existing = await this.getUserDeviceByHash(data.userId, data.deviceHash);
+    if (existing) {
+      const [updated] = await db
+        .update(userDevices)
+        .set({
+          trusted: data.trusted ?? existing.trusted,
+          label: data.label ?? existing.label,
+          lastUsedAt: new Date(),
+        })
+        .where(eq(userDevices.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [device] = await db
+      .insert(userDevices)
+      .values({
+        userId: data.userId,
+        deviceHash: data.deviceHash,
+        trusted: data.trusted ?? false,
+        label: data.label ?? null,
+        lastUsedAt: new Date(),
+      })
+      .returning();
+    return device;
+  }
+
+  async updateUserDeviceLastUsed(id: string): Promise<void> {
+    await db
+      .update(userDevices)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(userDevices.id, id));
+  }
+
+  // ========================================
+  // REFRESH TOKENS
+  // ========================================
+
+  async createRefreshToken(data: {
+    userId: string;
+    deviceHash?: string | null;
+    tokenHash: string;
+    ipAddress?: string | null;
+    country?: string | null;
+    userAgent?: string | null;
+    expiresAt: Date;
+  }): Promise<RefreshToken> {
+    const [token] = await db
+      .insert(refreshTokens)
+      .values({
+        userId: data.userId,
+        deviceHash: data.deviceHash ?? null,
+        tokenHash: data.tokenHash,
+        ipAddress: data.ipAddress ?? null,
+        country: data.country ?? null,
+        userAgent: data.userAgent ?? null,
+        expiresAt: data.expiresAt,
+      })
+      .returning();
+    return token;
+  }
+
+  async getRefreshTokenByHash(tokenHash: string): Promise<RefreshToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, tokenHash));
+    return token || undefined;
+  }
+
+  async revokeRefreshToken(id: string, replacedByTokenId?: string | null): Promise<void> {
+    await db
+      .update(refreshTokens)
+      .set({
+        revokedAt: new Date(),
+        replacedByTokenId: replacedByTokenId ?? null,
+      })
+      .where(eq(refreshTokens.id, id));
+  }
+
+  async revokeRefreshTokensByUser(userId: string): Promise<void> {
+    await db
+      .update(refreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(refreshTokens.userId, userId), sql`${refreshTokens.revokedAt} IS NULL`));
+  }
+
+  async getActiveRefreshTokens(): Promise<RefreshToken[]> {
+    return await db
+      .select()
+      .from(refreshTokens)
+      .where(and(sql`${refreshTokens.revokedAt} IS NULL`, gte(refreshTokens.expiresAt, new Date())));
+  }
+
+  // ========================================
+  // LOGIN EVENTS
+  // ========================================
+
+  async createLoginEvent(data: {
+    userId?: string | null;
+    deviceHash?: string | null;
+    ipAddress?: string | null;
+    country?: string | null;
+    userAgent?: string | null;
+    success: boolean;
+    reason?: string | null;
+  }): Promise<LoginEvent> {
+    const [event] = await db
+      .insert(loginEvents)
+      .values({
+        userId: data.userId ?? null,
+        deviceHash: data.deviceHash ?? null,
+        ipAddress: data.ipAddress ?? null,
+        country: data.country ?? null,
+        userAgent: data.userAgent ?? null,
+        success: data.success,
+        reason: data.reason ?? null,
+      })
+      .returning();
+    return event;
+  }
+
+  async getRecentLoginEvents(limit = 50): Promise<LoginEvent[]> {
+    return await db.select().from(loginEvents).orderBy(desc(loginEvents.createdAt)).limit(limit);
+  }
+
+  async getLastLoginEventForUser(userId: string): Promise<LoginEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(loginEvents)
+      .where(and(eq(loginEvents.userId, userId), eq(loginEvents.success, true)))
+      .orderBy(desc(loginEvents.createdAt))
+      .limit(1);
+    return event || undefined;
+  }
+
+  // ========================================
+  // EMAIL OTPS
+  // ========================================
+
+  async createEmailOtp(data: {
+    userId: string;
+    codeHash: string;
+    deviceHash?: string | null;
+    ipAddress?: string | null;
+    country?: string | null;
+    expiresAt: Date;
+  }): Promise<EmailOtp> {
+    const [otp] = await db
+      .insert(emailOtps)
+      .values({
+        userId: data.userId,
+        codeHash: data.codeHash,
+        deviceHash: data.deviceHash ?? null,
+        ipAddress: data.ipAddress ?? null,
+        country: data.country ?? null,
+        expiresAt: data.expiresAt,
+      })
+      .returning();
+    return otp;
+  }
+
+  async getEmailOtpById(id: string): Promise<EmailOtp | undefined> {
+    const [otp] = await db.select().from(emailOtps).where(eq(emailOtps.id, id));
+    return otp || undefined;
+  }
+
+  async consumeEmailOtp(id: string): Promise<void> {
+    await db.update(emailOtps).set({ consumedAt: new Date() }).where(eq(emailOtps.id, id));
   }
 }
 
