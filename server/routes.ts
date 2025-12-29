@@ -6,7 +6,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { storage } from "./storage";
 import { db } from "./db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   insertUserSchema,
   insertSacramentalMeetingSchema,
@@ -116,6 +116,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   if (!process.env.REFRESH_TOKEN_SECRET) {
     throw new Error("REFRESH_TOKEN_SECRET environment variable is required");
+  }
+
+  const authColumnResult = await db.execute(
+    sql`select 1 from information_schema.columns where table_name = 'users' and column_name = 'require_email_otp'`
+  );
+  const authColumnRows = "rows" in authColumnResult ? authColumnResult.rows : authColumnResult;
+  const authColumn = Array.isArray(authColumnRows) ? authColumnRows[0] : undefined;
+  if (!authColumn) {
+    throw new Error(
+      "Database schema is missing auth columns. Apply migrations/0003_auth_security.sql or run npm run db:push.",
+    );
   }
 
   app.use(
