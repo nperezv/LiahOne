@@ -64,6 +64,10 @@ function formatMeetingDate(date: Date): string {
 function addHeaderFooterAllPages(doc: jsPDF, template: PdfTemplate, title: string) {
   const pageCount = doc.getNumberOfPages();
   const headerColor = hexToRGB(`#${template.headerColor}`);
+  const wardName = template.wardName ?? "Barrio";
+  const stakeName = template.stakeName ?? "Estaca";
+  const country = template.country ?? "País";
+  const footerText = template.footerText ?? "";
 
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -76,14 +80,14 @@ function addHeaderFooterAllPages(doc: jsPDF, template: PdfTemplate, title: strin
     doc.setTextColor(255, 255, 255);
 
     // wardName: 14 bold
-    doc.setFont(undefined, "bold");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text(template.wardName, 15, 11);
+    doc.text(wardName, 15, 11);
 
     // stake + country: 10 normal
-    doc.setFont(undefined, "normal");
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`${template.stakeName || "Estaca"} - ${template.country || "País"}`, 15, 18);
+    doc.text(`${stakeName} - ${country}`, 15, 18);
 
     // fecha/título pequeño: 9
     doc.setFontSize(9);
@@ -92,14 +96,14 @@ function addHeaderFooterAllPages(doc: jsPDF, template: PdfTemplate, title: strin
     // Footer
     doc.setTextColor(120, 120, 120);
     doc.setFontSize(9);
-    doc.setFont(undefined, "normal");
+    doc.setFont("helvetica", "normal");
 
-    const leftFooter = `${template.stakeName || "Estaca"} - ${template.country || "País"}`;
+    const leftFooter = `${stakeName} - ${country}`;
     doc.text(leftFooter, 15, 292);
 
     doc.text(`Página ${i} de ${pageCount}`, 105, 292, { align: "center" });
 
-    doc.text(template.footerText, 195, 292, { align: "right" });
+    doc.text(footerText, 195, 292, { align: "right" });
 
     // Reset color for body
     doc.setTextColor(0, 0, 0);
@@ -132,8 +136,8 @@ function setBodyFont(
   style: "normal" | "bold" | "italic" | "bolditalic" = "normal"
 ) {
   ctx.doc.setFontSize(size);
-  if (style === "bolditalic") ctx.doc.setFont(undefined, "bolditalic");
-  else ctx.doc.setFont(undefined, style);
+  if (style === "bolditalic") ctx.doc.setFont("helvetica", "bolditalic");
+  else ctx.doc.setFont("helvetica", style);
 }
 
 function wrapLines(ctx: PdfCtx, text: string, maxWidth: number): string[] {
@@ -789,6 +793,10 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
 
   const doc = new jsPDF();
   const template = await getTemplate();
+  const wardName = template.wardName ?? "Barrio";
+  const stakeName = template.stakeName ?? "Estaca";
+  const country = template.country ?? "País";
+  const footerText = template.footerText ?? "";
 
   let y = 45;
 
@@ -798,28 +806,28 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
   doc.setTextColor(255, 255, 255);
 
   doc.setFontSize(14);
-  doc.setFont(undefined, "bold");
-  doc.text(template.wardName, 15, 12);
+  doc.setFont("helvetica", "bold");
+  doc.text(wardName, 15, 12);
 
   doc.setFontSize(10);
-  doc.setFont(undefined, "normal");
-  doc.text(`${template.stakeName || "Estaca"} - ${template.country || "País"}`, 15, 20);
+  doc.setFont("helvetica", "normal");
+  doc.text(`${stakeName} - ${country}`, 15, 20);
 
   doc.setTextColor(0, 0, 0);
 
   doc.setFontSize(12);
-  doc.setFont(undefined, "bold");
+  doc.setFont("helvetica", "bold");
   doc.text("Reuniones Sacramentales", 15, y);
   y += 10;
 
   doc.setFontSize(11);
-  doc.setFont(undefined, "normal");
+  doc.setFont("helvetica", "normal");
 
   for (const m of meetings) {
     const d = new Date(m.date);
     const line = `${formatMeetingDate(d)}  —  Preside: ${m.presider || "-"}  —  Dirige: ${m.director || "-"}`;
     const lines = doc.splitTextToSize(line, 180);
-    lines.forEach((ln) => {
+    lines.forEach((ln: string) => {
       if (y > 275) {
         doc.addPage();
         y = 45;
@@ -835,9 +843,9 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
     doc.setPage(i);
     doc.setFontSize(9);
     doc.setTextColor(120, 120, 120);
-    doc.text(`${template.stakeName || "Estaca"} - ${template.country || "País"}`, 15, 292);
+    doc.text(`${stakeName} - ${country}`, 15, 292);
     doc.text(`Página ${i} de ${pageCount}`, 105, 292, { align: "center" });
-    doc.text(template.footerText, 195, 292, { align: "right" });
+    doc.text(footerText, 195, 292, { align: "right" });
   }
 
   doc.save("reuniones-sacramentales.pdf");
@@ -861,13 +869,13 @@ export async function generateWardCouncilPDF(council: any) {
   yPos += 10;
 
   doc.setFontSize(16);
-  doc.setFont(undefined, "bold");
+  doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.text("Consejo de Barrio", 15, yPos);
   yPos += 10;
 
   doc.setFontSize(11);
-  doc.setFont(undefined, "normal");
+  doc.setFont("helvetica", "normal");
   doc.text(`Fecha: ${formattedDate}`, 15, yPos);
   yPos += 12;
 
@@ -877,12 +885,12 @@ export async function generateWardCouncilPDF(council: any) {
       doc.addPage();
       yPos = 40;
     }
-    doc.setFont(undefined, "bold");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text(`${title}:`, 15, yPos);
     yPos += 7;
 
-    doc.setFont(undefined, "normal");
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     const wrapped = doc.splitTextToSize(text, 180);
     wrapped.forEach((line: string) => {

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare } from "lucide-react";
+import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -18,13 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
-import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
-
-interface Organization {
-  id: string;
-  name: string;
-  type: string;
-}
+import { Organization, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 
 interface MenuItem {
   title: string;
@@ -120,6 +114,12 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Configuración",
     url: "/settings",
     icon: Settings,
+    roles: ["obispo", "consejero_obispo"],
+  },
+  {
+    title: "Administración",
+    url: "/admin/users",
+    icon: Shield,
     roles: ["obispo", "consejero_obispo"],
   },
 ];

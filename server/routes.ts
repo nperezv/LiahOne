@@ -5,6 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { storage } from "./storage";
+import { db } from "./db";
+import { and, eq } from "drizzle-orm";
 import {
   insertUserSchema,
   insertSacramentalMeetingSchema,
@@ -22,10 +24,24 @@ import {
   insertOrganizationBudgetSchema,
   insertNotificationSchema,
   insertPushSubscriptionSchema,
+  notifications,
 } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
+import {
+  createAccessToken,
+  generateRefreshToken,
+  generateOtpCode,
+  getClientIp,
+  getCountryFromIp,
+  getDeviceHash,
+  getOtpExpiry,
+  getRefreshExpiry,
+  hashToken,
+  sendLoginOtpEmail,
+  verifyAccessToken,
+} from "./auth";
 
 // Extend Express Session type
 declare module "express-session" {
@@ -34,14 +50,35 @@ declare module "express-session" {
   }
 }
 
+function getUserIdFromRequest(req: Request): string | null {
+  if (req.session.userId) {
+    return req.session.userId;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authHeader.replace("Bearer ", "").trim();
+  const payload = verifyAccessToken(token);
+  if (!payload) {
+    return null;
+  }
+
+  req.session.userId = payload.userId;
+  return payload.userId;
+}
+
 // Auth middleware
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
+  const userId = getUserIdFromRequest(req);
+  if (!userId) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  
+
   try {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -55,11 +92,12 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
 // Role-based auth middleware
 function requireRole(...roles: string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session.userId) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(userId);
     if (!user || !roles.includes(user.role)) {
       return res.status(403).json({ error: "Forbidden" });
     }
@@ -72,6 +110,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup session middleware
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable is required");
+  }
+  if (!process.env.ACCESS_TOKEN_SECRET) {
+    throw new Error("ACCESS_TOKEN_SECRET environment variable is required");
+  }
+  if (!process.env.REFRESH_TOKEN_SECRET) {
+    throw new Error("REFRESH_TOKEN_SECRET environment variable is required");
   }
 
   app.use(
@@ -146,40 +190,281 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { files };
   };
 
+  const getCookie = (req: Request, name: string) => {
+    const cookieHeader = req.headers.cookie;
+    if (!cookieHeader) return null;
+    const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
+    for (const cookie of cookies) {
+      const [cookieName, ...rest] = cookie.split("=");
+      if (cookieName === name) {
+        return decodeURIComponent(rest.join("="));
+      }
+    }
+    return null;
+  };
+
   // ========================================
   // AUTHENTICATION
   // ========================================
 
+  const issueTokens = async (req: Request, res: Response, userId: string, deviceHash?: string | null) => {
+    const refreshToken = generateRefreshToken();
+    const refreshTokenHash = hashToken(refreshToken);
+    const ipAddress = getClientIp(req);
+    const country = getCountryFromIp(ipAddress);
+    const userAgent = req.headers["user-agent"] ?? null;
+    const refreshExpiry = getRefreshExpiry();
+    const refreshRecord = await storage.createRefreshToken({
+      userId,
+      deviceHash,
+      tokenHash: refreshTokenHash,
+      ipAddress,
+      country,
+      userAgent,
+      expiresAt: refreshExpiry,
+    });
+
+    const accessToken = createAccessToken(userId, refreshRecord.id);
+
+    res.cookie("refresh_token", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: refreshExpiry.getTime() - Date.now(),
+      path: "/api",
+    });
+
+    return { accessToken, refreshTokenId: refreshRecord.id };
+  };
+
+  const isBcryptHash = (value: string) => value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
+
   app.post("/api/login", async (req: Request, res: Response) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, rememberDevice, deviceId } = req.body;
+      const deviceHash = getDeviceHash(deviceId);
+      const ipAddress = getClientIp(req);
+      const country = getCountryFromIp(ipAddress);
+      const userAgent = req.headers["user-agent"] ?? null;
 
       const user = await storage.getUserByUsername(username);
       if (!user) {
+        await storage.createLoginEvent({
+          userId: null,
+          deviceHash,
+          ipAddress,
+          country,
+          userAgent,
+          success: false,
+          reason: "invalid_credentials",
+        });
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      const isLegacyPassword = !isBcryptHash(user.password);
+      const isValidPassword = isLegacyPassword
+        ? password === user.password
+        : await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
+        await storage.createLoginEvent({
+          userId: user.id,
+          deviceHash,
+          ipAddress,
+          country,
+          userAgent,
+          success: false,
+          reason: "invalid_credentials",
+        });
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      if (isLegacyPassword) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await storage.updateUser(user.id, { password: hashedPassword });
+      }
+
+      const existingDevice = deviceHash
+        ? await storage.getUserDeviceByHash(user.id, deviceHash)
+        : undefined;
+      const lastLogin = await storage.getLastLoginEventForUser(user.id);
+      const unusualCountry = lastLogin?.country && country && lastLogin.country !== country;
+
+      const requiresOtp =
+        user.requireEmailOtp ||
+        !deviceHash ||
+        !existingDevice?.trusted ||
+        unusualCountry;
+
+      if (requiresOtp) {
+        if (!user.email) {
+          return res.status(400).json({ error: "Email required for verification" });
+        }
+
+        const otpCode = generateOtpCode();
+        const otpHash = hashToken(otpCode);
+        const otp = await storage.createEmailOtp({
+          userId: user.id,
+          codeHash: otpHash,
+          deviceHash,
+          ipAddress,
+          country,
+          expiresAt: getOtpExpiry(),
+        });
+
+        await sendLoginOtpEmail(user.email, otpCode);
+
+        await storage.createLoginEvent({
+          userId: user.id,
+          deviceHash,
+          ipAddress,
+          country,
+          userAgent,
+          success: false,
+          reason: "otp_required",
+        });
+
+        return res.status(202).json({
+          requiresEmailCode: true,
+          otpId: otp.id,
+          email: user.email,
+        });
+      }
+
+      if (deviceHash) {
+        await storage.upsertUserDevice({
+          userId: user.id,
+          deviceHash,
+          trusted: !!rememberDevice,
+        });
+      }
+
+      const { accessToken } = await issueTokens(req, res, user.id, deviceHash);
       req.session.userId = user.id;
-      
+
+      await storage.createLoginEvent({
+        userId: user.id,
+        deviceHash,
+        ipAddress,
+        country,
+        userAgent,
+        success: true,
+        reason: "login_success",
+      });
+
       const { password: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      res.json({ user: userWithoutPassword, accessToken });
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  app.post("/api/logout", (req: Request, res: Response) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: "Failed to logout" });
+  app.post("/api/login/verify", async (req: Request, res: Response) => {
+    try {
+      const { otpId, code, rememberDevice, deviceId } = req.body;
+      if (!otpId || !code) {
+        return res.status(400).json({ error: "Code is required" });
       }
-      res.json({ message: "Logged out successfully" });
-    });
+      const deviceHash = getDeviceHash(deviceId);
+      const ipAddress = getClientIp(req);
+      const country = getCountryFromIp(ipAddress);
+      const userAgent = req.headers["user-agent"] ?? null;
+      const otp = await storage.getEmailOtpById(otpId);
+      if (!otp || otp.consumedAt || otp.expiresAt < new Date()) {
+        return res.status(400).json({ error: "Invalid or expired code" });
+      }
+
+      const codeHash = hashToken(code);
+      if (codeHash !== otp.codeHash) {
+        return res.status(400).json({ error: "Invalid or expired code" });
+      }
+
+      await storage.consumeEmailOtp(otp.id);
+      const user = await storage.getUser(otp.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (deviceHash) {
+        await storage.upsertUserDevice({
+          userId: user.id,
+          deviceHash,
+          trusted: !!rememberDevice,
+        });
+      }
+
+      const { accessToken } = await issueTokens(req, res, user.id, deviceHash);
+      req.session.userId = user.id;
+
+      await storage.createLoginEvent({
+        userId: user.id,
+        deviceHash,
+        ipAddress,
+        country,
+        userAgent,
+        success: true,
+        reason: "otp_success",
+      });
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword, accessToken });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/refresh", async (req: Request, res: Response) => {
+    try {
+      const refreshToken = getCookie(req, "refresh_token");
+      if (!refreshToken) {
+        return res.status(401).json({ error: "Missing refresh token" });
+      }
+
+      const refreshTokenHash = hashToken(refreshToken);
+      const storedToken = await storage.getRefreshTokenByHash(refreshTokenHash);
+      if (!storedToken || storedToken.revokedAt || storedToken.expiresAt < new Date()) {
+        return res.status(401).json({ error: "Invalid refresh token" });
+      }
+
+      const user = await storage.getUser(storedToken.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { accessToken: newAccessToken, refreshTokenId } = await issueTokens(
+        req,
+        res,
+        user.id,
+        storedToken.deviceHash
+      );
+      await storage.revokeRefreshToken(storedToken.id, refreshTokenId);
+
+      res.json({ accessToken: newAccessToken });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to refresh token" });
+    }
+  });
+
+  app.post("/api/logout", async (req: Request, res: Response) => {
+    try {
+      const refreshToken = getCookie(req, "refresh_token");
+      if (refreshToken) {
+        const refreshTokenHash = hashToken(refreshToken);
+        const storedToken = await storage.getRefreshTokenByHash(refreshTokenHash);
+        if (storedToken) {
+          await storage.revokeRefreshToken(storedToken.id);
+        }
+      }
+
+      res.clearCookie("refresh_token", { path: "/api" });
+      req.session.destroy((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Failed to logout" });
+        }
+        res.json({ message: "Logged out successfully" });
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to logout" });
+    }
   });
 
   app.get("/api/me", requireAuth, async (req: Request, res: Response) => {
@@ -285,11 +570,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/profile", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { name, email, username } = req.body;
+      const { name, email, username, requireEmailOtp } = req.body;
       const user = await storage.updateUser(req.session.userId!, {
         name: name || undefined,
         email: email || undefined,
         username: username || undefined,
+        requireEmailOtp: typeof requireEmailOtp === "boolean" ? requireEmailOtp : undefined,
       });
 
       if (!user) {
@@ -356,6 +642,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to reset password" });
     }
   });
+
+  app.get("/api/admin/sessions", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getActiveRefreshTokens();
+      const users = await storage.getAllUsers();
+      const usersById = new Map(users.map((u) => [u.id, u]));
+
+      const response = sessions.map((session) => {
+        const user = usersById.get(session.userId);
+        return {
+          id: session.id,
+          userId: session.userId,
+          username: user?.username,
+          name: user?.name,
+          role: user?.role,
+          ipAddress: session.ipAddress,
+          country: session.country,
+          userAgent: session.userAgent,
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt,
+          deviceHash: session.deviceHash,
+        };
+      });
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to load sessions" });
+    }
+  });
+
+  app.post(
+    "/api/admin/sessions/:id/revoke",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo"),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        await storage.revokeRefreshToken(id);
+        res.json({ message: "Session revoked" });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to revoke session" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/admin/access-log",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo"),
+    async (req: Request, res: Response) => {
+      try {
+        const events = await storage.getRecentLoginEvents();
+        const users = await storage.getAllUsers();
+        const usersById = new Map(users.map((u) => [u.id, u]));
+
+        const response = events.map((event) => {
+          const user = event.userId ? usersById.get(event.userId) : undefined;
+          return {
+            id: event.id,
+            userId: event.userId,
+            username: user?.username,
+            name: user?.name,
+            role: user?.role,
+            ipAddress: event.ipAddress,
+            country: event.country,
+            userAgent: event.userAgent,
+            success: event.success,
+            reason: event.reason,
+            createdAt: event.createdAt,
+          };
+        });
+
+        res.json(response);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to load access log" });
+      }
+    }
+  );
 
   app.patch("/api/users/:id/role", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
     try {
@@ -916,7 +1280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: assignmentTitle,
           description: descriptionParts.join(" "),
           assignedTo: assignedToId,
-          assignedBy: req.session.userId,
+          assignedBy: req.session.userId!,
           dueDate: interview.date,
           status: "pendiente",
           relatedTo: `interview:${interview.id}`,
