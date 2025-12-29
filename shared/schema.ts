@@ -117,8 +117,57 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   email: text("email"),
+  requireEmailOtp: boolean("require_email_otp").notNull().default(false),
   role: roleEnum("role").notNull(),
   organizationId: varchar("organization_id").references(() => organizations.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userDevices = pgTable("user_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  deviceHash: text("device_hash").notNull(),
+  label: text("label"),
+  trusted: boolean("trusted").notNull().default(false),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  deviceHash: text("device_hash"),
+  tokenHash: text("token_hash").notNull(),
+  ipAddress: text("ip_address"),
+  country: text("country"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  replacedByTokenId: varchar("replaced_by_token_id"),
+});
+
+export const loginEvents = pgTable("login_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  deviceHash: text("device_hash"),
+  ipAddress: text("ip_address"),
+  country: text("country"),
+  userAgent: text("user_agent"),
+  success: boolean("success").notNull().default(false),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const emailOtps = pgTable("email_otps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  codeHash: text("code_hash").notNull(),
+  deviceHash: text("device_hash"),
+  ipAddress: text("ip_address"),
+  country: text("country"),
+  expiresAt: timestamp("expires_at").notNull(),
+  consumedAt: timestamp("consumed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -127,7 +176,7 @@ export const organizations = pgTable("organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   type: organizationTypeEnum("type").notNull(),
-  presidentId: varchar("president_id").references(() => users.id),
+  presidentId: varchar("president_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -483,6 +532,7 @@ export const birthdaysRelations = relations(birthdays, ({ one }) => ({
 // Users
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email().optional().or(z.literal("")),
+  requireEmailOtp: z.boolean().optional(),
 }).omit({ id: true, createdAt: true });
 
 export const selectUserSchema = createSelectSchema(users);
@@ -706,6 +756,11 @@ export type InsertOrganizationBudget = z.infer<typeof insertOrganizationBudgetSc
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+export type UserDevice = typeof userDevices.$inferSelect;
+export type RefreshToken = typeof refreshTokens.$inferSelect;
+export type LoginEvent = typeof loginEvents.$inferSelect;
+export type EmailOtp = typeof emailOtps.$inferSelect;
+
 export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 
@@ -729,9 +784,6 @@ export type InsertOrganizationInterview = z.infer<typeof insertOrganizationInter
 
 export type Goal = typeof goals.$inferSelect;
 export type InsertGoal = z.infer<typeof insertGoalSchema>;
-
-export type Birthday = typeof birthdays.$inferSelect;
-export type InsertBirthday = z.infer<typeof insertBirthdaySchema>;
 
 export type Assignment = typeof assignments.$inferSelect;
 export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;

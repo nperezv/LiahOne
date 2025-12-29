@@ -520,8 +520,10 @@ export default function InterviewsPage() {
                               </FormControl>
                               <div className="border rounded-md max-h-40 overflow-y-auto">
                                 {organizationMembers
-                                  .filter(u => u.name.toLowerCase().includes(field.value.toLowerCase()))
-                                  .map(u => (
+                                  .filter((u: any) =>
+                                    u.name.toLowerCase().includes(field.value.toLowerCase())
+                                  )
+                                  .map((u: any) => (
                                     <div
                                       key={u.id}
                                       onClick={() => field.onChange(u.name)}

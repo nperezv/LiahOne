@@ -158,7 +158,7 @@ export default function OrganizationInterviewsPage() {
 
   const userById = useMemo(() => {
     const map = new Map<string, any>();
-    users.forEach(u => map.set(u.id, u));
+    users.forEach((u: any) => map.set(u.id, u));
     return map;
   }, [users]);
 
@@ -407,7 +407,7 @@ export default function OrganizationInterviewsPage() {
                               <SelectValue placeholder="Seleccionar" />
                             </SelectTrigger>
                             <SelectContent>
-                              {interviewers.map(i => (
+                              {interviewers.map((i: any) => (
                                 <SelectItem key={i.id} value={i.id}>
                                   {i.name}
                                 </SelectItem>
@@ -504,7 +504,7 @@ export default function OrganizationInterviewsPage() {
             </TableHeader>
 
             <TableBody>
-              {filteredInterviews.map(interview => (
+              {filteredInterviews.map((interview: any) => (
                 <TableRow key={interview.id}>
                   <TableCell>{interview.personName}</TableCell>
                   <TableCell>
@@ -687,7 +687,7 @@ export default function OrganizationInterviewsPage() {
                         <SelectValue placeholder="Seleccionar" />
                       </SelectTrigger>
                       <SelectContent>
-                        {interviewers.map(i => (
+                        {interviewers.map((i: any) => (
                           <SelectItem key={i.id} value={i.id}>
                             {i.name}
                           </SelectItem>
