@@ -286,6 +286,7 @@ export const organizationInterviews = pgTable("organization_interviews", {
   type: organizationInterviewTypeEnum("type").notNull(),
   status: organizationInterviewStatusEnum("status").notNull().default("programada"),
   urgent: boolean("urgent").default(false).notNull(),
+  confidential: boolean("confidential").default(false).notNull(),
   notes: text("notes"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
