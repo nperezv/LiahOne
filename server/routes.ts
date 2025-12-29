@@ -241,13 +241,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/login", async (req: Request, res: Response) => {
     try {
+      const includeDebug = process.env.NODE_ENV !== "production";
       const { username, password, rememberDevice, deviceId } = req.body;
+      const trimmedUsername = typeof username === "string" ? username.trim() : "";
+      const trimmedPassword = typeof password === "string" ? password.trim() : "";
       const deviceHash = getDeviceHash(deviceId);
       const ipAddress = getClientIp(req);
       const country = getCountryFromIp(ipAddress);
       const userAgent = req.headers["user-agent"] ?? null;
 
-      const user = await storage.getUserByUsername(username);
+      const user =
+        (trimmedUsername
+          ? await storage.getUserByUsername(trimmedUsername)
+          : undefined) ??
+        (trimmedUsername
+          ? await storage.getUserByNormalizedUsername(trimmedUsername)
+          : undefined);
       if (!user) {
         await storage.createLoginEvent({
           userId: null,
@@ -258,13 +267,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false,
           reason: "invalid_credentials",
         });
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({
+          error: "Invalid credentials",
+          ...(includeDebug ? { detail: "user_not_found" } : {}),
+        });
       }
 
       const isLegacyPassword = !isBcryptHash(user.password);
       const isValidPassword = isLegacyPassword
-        ? password === user.password
-        : await bcrypt.compare(password, user.password);
+        ? trimmedPassword === user.password.trim()
+        : typeof password === "string" && await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         await storage.createLoginEvent({
           userId: user.id,
@@ -275,11 +287,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false,
           reason: "invalid_credentials",
         });
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({
+          error: "Invalid credentials",
+          ...(includeDebug
+            ? { detail: isLegacyPassword ? "legacy_password_mismatch" : "password_mismatch" }
+            : {}),
+        });
       }
 
       if (isLegacyPassword) {
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
         await storage.updateUser(user.id, { password: hashedPassword });
       }
 
@@ -351,7 +368,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { password: _, ...userWithoutPassword } = user;
       res.json({ user: userWithoutPassword, accessToken });
     } catch (error) {
-      res.status(500).json({ error: "Internal server error" });
+      console.error("Login failed:", error);
+      const includeDebug = process.env.NODE_ENV !== "production";
+      res.status(500).json({
+        error: "Internal server error",
+        ...(includeDebug && error instanceof Error ? { detail: error.message } : {}),
+      });
     }
   });
 

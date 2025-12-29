@@ -68,6 +68,7 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByNormalizedUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
@@ -245,6 +246,15 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async getUserByNormalizedUsername(username: string): Promise<User | undefined> {
+    const normalized = username.trim().toLowerCase();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(sql`lower(trim(${users.username}))`, normalized));
     return user || undefined;
   }
 
