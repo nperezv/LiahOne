@@ -295,11 +295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         !existingDevice?.trusted ||
         unusualCountry;
 
-      if (requiresOtp) {
-        if (!user.email) {
-          return res.status(400).json({ error: "Email required for verification" });
-        }
-
+      const canSendOtp = Boolean(user.email);
+      if (requiresOtp && canSendOtp) {
         const otpCode = generateOtpCode();
         const otpHash = hashToken(otpCode);
         const otp = await storage.createEmailOtp({
