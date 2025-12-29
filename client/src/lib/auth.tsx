@@ -73,8 +73,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response?.accessToken) {
         setAccessToken(response.accessToken);
-      }
-      if (response?.user) {
+        const meResponse = await fetch("/api/me", {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${response.accessToken}` },
+        });
+        if (meResponse.ok) {
+          const userData = await meResponse.json();
+          setUser(userData);
+        } else if (response?.user) {
+          setUser(response.user);
+        }
+      } else if (response?.user) {
         setUser(response.user);
       }
 
@@ -95,8 +104,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response?.accessToken) {
         setAccessToken(response.accessToken);
-      }
-      if (response?.user) {
+        const meResponse = await fetch("/api/me", {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${response.accessToken}` },
+        });
+        if (meResponse.ok) {
+          const userData = await meResponse.json();
+          setUser(userData);
+        } else if (response?.user) {
+          setUser(response.user);
+        }
+      } else if (response?.user) {
         setUser(response.user);
       }
     } catch (error) {
