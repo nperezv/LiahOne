@@ -71,12 +71,14 @@ export default function Assignments() {
   };
   
   // Filter assignments based on user role
+  const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
   const filteredAssignments = isOrgMember
     ? assignments.filter((a: any) => {
         // Organization members see assignments they are assigned to and created by them
-        return a.assignedTo === user.id || a.assignedBy === user.id;
+        if (!userId) return false;
+        return a.assignedTo === userId || a.assignedBy === userId;
       })
     : assignments;
 
@@ -85,7 +87,7 @@ export default function Assignments() {
     // Obispado can delete any assignment
     if (isObispado) return true;
     // Org members can only delete assignments they created
-    if (isOrgMember) return assignment.assignedBy === user?.id;
+    if (isOrgMember) return assignment.assignedBy === userId;
     return false;
   };
 

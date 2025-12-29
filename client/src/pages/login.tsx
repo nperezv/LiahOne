@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
 import logoImage from "@assets/liahone_logo_1764035733311.png";
@@ -13,16 +14,20 @@ import logoImage from "@assets/liahone_logo_1764035733311.png";
 const loginSchema = z.object({
   username: z.string().min(1, "El nombre de usuario es requerido"),
   password: z.string().min(1, "La contraseña es requerida"),
+  rememberDevice: z.boolean().default(false),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 interface LoginPageProps {
-  onLogin: (credentials: LoginFormValues) => void;
+  onLogin: (credentials: LoginFormValues) => Promise<{ requiresEmailCode?: boolean; otpId?: string; email?: string }>;
+  onVerify: (payload: { otpId: string; code: string; rememberDevice: boolean }) => Promise<void>;
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [otpState, setOtpState] = useState<{ otpId: string; email: string; rememberDevice: boolean } | null>(null);
+  const [otpCode, setOtpCode] = useState("");
   const { toast } = useToast();
 
   const form = useForm<LoginFormValues>({
@@ -30,17 +35,48 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     defaultValues: {
       username: "",
       password: "",
+      rememberDevice: false,
     },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     try {
-      await onLogin(data);
+      const response = await onLogin(data);
+      if (response?.requiresEmailCode && response.otpId && response.email) {
+        setOtpState({
+          otpId: response.otpId,
+          email: response.email,
+          rememberDevice: data.rememberDevice,
+        });
+        return;
+      }
     } catch (error) {
       toast({
         title: "Error de autenticación",
         description: "Credenciales inválidas. Por favor, intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onVerifyCode = async () => {
+    if (!otpState) return;
+    setIsLoading(true);
+    try {
+      await onVerify({
+        otpId: otpState.otpId,
+        code: otpCode,
+        rememberDevice: otpState.rememberDevice,
+      });
+      setOtpState(null);
+      setOtpCode("");
+    } catch (error) {
+      toast({
+        title: "Error de autenticación",
+        description: "No se pudo verificar el código. Intenta nuevamente.",
         variant: "destructive",
       });
     } finally {
@@ -99,11 +135,49 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="rememberDevice"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal">Recuerda este dispositivo</FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {otpState && (
+                <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Te enviamos un código al correo <strong>{otpState.email}</strong>.
+                  </p>
+                  <Input
+                    value={otpCode}
+                    onChange={(event) => setOtpCode(event.target.value)}
+                    placeholder="Código de 6 dígitos"
+                    maxLength={6}
+                    data-testid="input-otp"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={onVerifyCode}
+                    disabled={isLoading || otpCode.length < 6}
+                  >
+                    Verificar código
+                  </Button>
+                </div>
+              )}
+
               <Button
-                type="submit"
+                type="button"
                 className="w-full"
                 disabled={isLoading}
                 data-testid="button-login"
+                onClick={form.handleSubmit(onSubmit)}
               >
                 {isLoading ? (
                   "Iniciando sesión..."
