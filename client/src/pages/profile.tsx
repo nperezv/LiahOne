@@ -8,15 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth-tokens";
 import { PushNotificationSettings } from "@/components/push-notification-settings";
 
 const profileSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
+  requireEmailOtp: z.boolean().optional(),
 });
 
 const passwordSchema = z.object({
@@ -45,6 +48,7 @@ export default function ProfilePage() {
       name: user?.name || "",
       email: user?.email || "",
       username: user?.username || "",
+      requireEmailOtp: user?.requireEmailOtp ?? false,
     },
   });
 
@@ -61,7 +65,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch("/api/profile", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(data),
       });
 
@@ -79,7 +83,7 @@ export default function ProfilePage() {
     try {
       const response = await fetch("/api/profile/change-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           currentPassword: data.currentPassword,
           newPassword: data.newPassword,
@@ -162,6 +166,14 @@ export default function ProfilePage() {
               <div>
                 <label className="text-sm font-medium">Usuario</label>
                 <p className="text-sm text-muted-foreground mt-1">{user?.username || "No disponible"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Código por email</label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {user?.requireEmailOtp
+                    ? "Siempre requerido"
+                    : "Solo en dispositivos nuevos o cambios sospechosos"}
+                </p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => setIsEditing(true)} data-testid="button-edit-profile">
@@ -315,6 +327,19 @@ export default function ProfilePage() {
                         <Input {...field} data-testid="input-username" />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="requireEmailOtp"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center space-x-2">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="text-sm font-normal">Requerir código por email en cada inicio</FormLabel>
                     </FormItem>
                   )}
                 />
