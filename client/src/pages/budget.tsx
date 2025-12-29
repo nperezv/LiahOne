@@ -42,6 +42,7 @@ import {
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportBudgetRequests } from "@/lib/export";
+import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
 
@@ -139,7 +140,7 @@ export default function BudgetPage() {
 
     const response = await fetch("/api/uploads", {
       method: "POST",
-      credentials: "include",
+      headers: getAuthHeaders(),
       body: formData,
     });
 

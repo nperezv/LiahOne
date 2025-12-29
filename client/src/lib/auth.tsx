@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { apiRequest } from "./queryClient";
+import { getDeviceId, refreshAccessToken, setAccessToken } from "./auth-tokens";
 
 interface User {
   id: string;
@@ -8,13 +9,15 @@ interface User {
   email?: string;
   role: string;
   organizationId?: string;
+  requireEmailOtp?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (payload: { username: string; password: string; rememberDevice: boolean }) => Promise<{ requiresEmailCode?: boolean; otpId?: string; email?: string }>;
+  verifyLogin: (payload: { otpId: string; code: string; rememberDevice: boolean }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -25,13 +28,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in (only on mount)
     const checkAuth = async () => {
       try {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+          return;
+        }
+
         const response = await fetch("/api/me", {
           credentials: "include",
+          headers: { Authorization: `Bearer ${refreshed}` },
         });
-        
+
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
@@ -46,10 +54,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (payload: { username: string; password: string; rememberDevice: boolean }) => {
     try {
-      const userData = await apiRequest("POST", "/api/login", { username, password });
-      setUser(userData);
+      const response = await apiRequest("POST", "/api/login", {
+        username: payload.username,
+        password: payload.password,
+        rememberDevice: payload.rememberDevice,
+        deviceId: getDeviceId(),
+      });
+
+      if (response?.requiresEmailCode) {
+        return {
+          requiresEmailCode: true,
+          otpId: response.otpId,
+          email: response.email,
+        };
+      }
+
+      if (response?.accessToken) {
+        setAccessToken(response.accessToken);
+      }
+      if (response?.user) {
+        setUser(response.user);
+      }
+
+      return {};
+    } catch (error) {
+      throw new Error("Login failed");
+    }
+  };
+
+  const verifyLogin = async (payload: { otpId: string; code: string; rememberDevice: boolean }) => {
+    try {
+      const response = await apiRequest("POST", "/api/login/verify", {
+        otpId: payload.otpId,
+        code: payload.code,
+        rememberDevice: payload.rememberDevice,
+        deviceId: getDeviceId(),
+      });
+
+      if (response?.accessToken) {
+        setAccessToken(response.accessToken);
+      }
+      if (response?.user) {
+        setUser(response.user);
+      }
     } catch (error) {
       throw new Error("Login failed");
     }
@@ -58,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await apiRequest("POST", "/api/logout", {});
+      setAccessToken(null);
       setUser(null);
     } catch (error) {
       console.error("Logout failed:", error);
@@ -71,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        verifyLogin,
         logout,
       }}
     >
