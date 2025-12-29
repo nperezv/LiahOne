@@ -1208,7 +1208,7 @@ export default function SacramentalMeetingPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {meetings.map((meeting) => (
+            {meetings.map((meeting: any) => (
               <TableRow key={meeting.id}>
                 <TableCell>
                   {new Date(meeting.date).toLocaleDateString("es-ES", {
