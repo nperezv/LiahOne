@@ -173,10 +173,11 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
               )}
 
               <Button
-                type="submit"
+                type="button"
                 className="w-full"
                 disabled={isLoading}
                 data-testid="button-login"
+                onClick={form.handleSubmit(onSubmit)}
               >
                 {isLoading ? (
                   "Iniciando sesión..."
