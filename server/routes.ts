@@ -1,11 +1,12 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { and, eq, sql } from "drizzle-orm";
 import {
   insertUserSchema,
@@ -118,6 +119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     throw new Error("REFRESH_TOKEN_SECRET environment variable is required");
   }
 
+  const PgSession = connectPgSimple(session);
+
   const authColumnResult = await db.execute(
     sql`select 1 from information_schema.columns where table_name = 'users' and column_name = 'require_email_otp'`
   );
@@ -134,6 +137,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       secret: process.env.SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
+      store: new PgSession({
+        pool,
+        tableName: "user_sessions",
+        createTableIfMissing: true,
+      }),
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
@@ -287,7 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isLegacyPassword = !isBcryptHash(user.password);
       const isValidPassword = isLegacyPassword
         ? trimmedPassword === user.password.trim()
-        : typeof password === "string" && await bcrypt.compare(password, user.password);
+        : typeof password === "string" && await bcrypt.compare(trimmedPassword, user.password);
       if (!isValidPassword) {
         await storage.createLoginEvent({
           userId: user.id,
