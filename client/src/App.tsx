@@ -27,13 +27,13 @@ import ProfilePage from "@/pages/profile";
 import AdminUsersPage from "@/pages/admin-users";
 
 function LoginRoute() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, verifyLogin } = useAuth();
 
   if (isAuthenticated) {
     return <Redirect to="/dashboard" />;
   }
 
-  return <LoginPage onLogin={(credentials) => login(credentials.username, credentials.password)} />;
+  return <LoginPage onLogin={(credentials) => login(credentials)} onVerify={verifyLogin} />;
 }
 
 function ProtectedRoutes() {
