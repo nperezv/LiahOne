@@ -109,7 +109,7 @@ NOTAS:
 ${meeting.notes || "No hay notas registradas"}
 
 ---
-Documento generado desde LiahOne - Sistema Administrativo de Barrio`;
+Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
 
     // Create a simple text file and trigger download
     const element = document.createElement("a");

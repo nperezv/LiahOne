@@ -138,7 +138,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
-        <h1 className="text-lg font-semibold">LiahOne</h1>
+        <h1 className="text-lg font-semibold">Liahonaap</h1>
       </div>
 
       {/* DERECHA */}
