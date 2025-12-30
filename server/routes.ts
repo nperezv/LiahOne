@@ -287,7 +287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isLegacyPassword = !isBcryptHash(user.password);
       const isValidPassword = isLegacyPassword
         ? trimmedPassword === user.password.trim()
-        : typeof password === "string" && await bcrypt.compare(password, user.password);
+        : typeof password === "string" && await bcrypt.compare(trimmedPassword, user.password);
       if (!isValidPassword) {
         await storage.createLoginEvent({
           userId: user.id,
