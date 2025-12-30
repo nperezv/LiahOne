@@ -189,10 +189,13 @@ export default function GoalsPage() {
   }));
 
   const overallProgress = goalsWithPercentage.length > 0
-    ? Math.round(goalsWithPercentage.reduce((sum, g) => sum + g.percentage, 0) / goalsWithPercentage.length)
+    ? Math.round(
+        goalsWithPercentage.reduce((sum: number, g: any) => sum + g.percentage, 0) /
+          goalsWithPercentage.length
+      )
     : 0;
 
-  const completedGoals = goalsWithPercentage.filter(g => g.percentage >= 100).length;
+  const completedGoals = goalsWithPercentage.filter((g: any) => g.percentage >= 100).length;
 
   if (isLoading) {
     return (

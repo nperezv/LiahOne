@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
@@ -73,6 +74,33 @@ interface Organization {
   type: string;
 }
 
+interface AdminSession {
+  id: string;
+  userId: string;
+  username?: string;
+  name?: string;
+  role?: string;
+  ipAddress?: string;
+  country?: string;
+  userAgent?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+interface AccessLogEntry {
+  id: string;
+  userId?: string;
+  username?: string;
+  name?: string;
+  role?: string;
+  ipAddress?: string;
+  country?: string;
+  userAgent?: string;
+  success: boolean;
+  reason?: string;
+  createdAt: string;
+}
+
 export default function AdminUsersPage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -82,7 +110,7 @@ export default function AdminUsersPage() {
   const [changeRoleUser, setChangeRoleUser] = useState<User | null>(null);
 
   // Verificar que solo obispo/consejeros puedan acceder
-  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
+  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo";
 
   if (!isAdmin) {
     return (
@@ -102,10 +130,22 @@ export default function AdminUsersPage() {
 
   const { data: users = [], isLoading, refetch } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    enabled: isAdmin,
   });
 
   const { data: organizations = [] } = useQuery<Organization[]>({
     queryKey: ["/api/organizations"],
+    enabled: isAdmin,
+  });
+
+  const { data: sessions = [], refetch: refetchSessions } = useQuery<AdminSession[]>({
+    queryKey: ["/api/admin/sessions"],
+    enabled: isAdmin,
+  });
+
+  const { data: accessLog = [] } = useQuery<AccessLogEntry[]>({
+    queryKey: ["/api/admin/access-log"],
+    enabled: isAdmin,
   });
 
   const createForm = useForm<CreateUserFormValues>({
@@ -147,7 +187,7 @@ export default function AdminUsersPage() {
 
       const response = await fetch("/api/users", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(cleanData),
       });
 
@@ -176,7 +216,7 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch(`/api/users/${resetPasswordUser.id}/reset-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ newPassword: data.newPassword }),
       });
 
@@ -196,7 +236,7 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch(`/api/users/${changeRoleUser.id}/role`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ role: data.role }),
       });
 
@@ -217,6 +257,7 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch(`/api/users/${userId}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) throw new Error("Error al eliminar usuario");
@@ -225,6 +266,20 @@ export default function AdminUsersPage() {
       refetch();
     } catch (error) {
       toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
+    }
+  };
+
+  const onRevokeSession = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/admin/sessions/${sessionId}/revoke`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error("Error al revocar sesión");
+      toast({ title: "Éxito", description: "Sesión revocada correctamente" });
+      refetchSessions();
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo revocar la sesión", variant: "destructive" });
     }
   };
 
@@ -583,6 +638,118 @@ export default function AdminUsersPage() {
               </Table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Sesiones activas</CardTitle>
+          <CardDescription>
+            Revoca accesos activos y revisa desde qué dispositivos se conectan.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Ubicación</TableHead>
+                  <TableHead>Creada</TableHead>
+                  <TableHead>Expira</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      No hay sesiones activas registradas.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  sessions.map((session) => (
+                    <TableRow key={session.id}>
+                      <TableCell>
+                        <div className="font-medium">{session.name || session.username || "Usuario"}</div>
+                        <div className="text-xs text-muted-foreground">{session.role}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{session.country || "Sin país"}</div>
+                        <div className="text-xs text-muted-foreground">{session.ipAddress || "IP desconocida"}</div>
+                      </TableCell>
+                      <TableCell>{new Date(session.createdAt).toLocaleString()}</TableCell>
+                      <TableCell>{new Date(session.expiresAt).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onRevokeSession(session.id)}
+                        >
+                          Revocar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Últimos accesos</CardTitle>
+          <CardDescription>
+            Registro reciente de inicios de sesión para auditoría básica.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Ubicación</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Motivo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accessLog.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      No hay accesos registrados.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  accessLog.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <div className="font-medium">{entry.name || entry.username || "Desconocido"}</div>
+                        <div className="text-xs text-muted-foreground">{entry.role}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={entry.success ? "default" : "destructive"}>
+                          {entry.success ? "Éxito" : "Fallido"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{entry.country || "Sin país"}</div>
+                        <div className="text-xs text-muted-foreground">{entry.ipAddress || "IP desconocida"}</div>
+                      </TableCell>
+                      <TableCell>{new Date(entry.createdAt).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {entry.reason || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

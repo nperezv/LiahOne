@@ -75,7 +75,7 @@ export default function BirthdaysPage() {
   const { data: birthdays = [], isLoading } = useBirthdays();
   const createMutation = useCreateBirthday();
   const { toast } = useToast();
-  const { data: organizations = [] } = useQuery({
+  const { data: organizations = [] } = useQuery<any[]>({
     queryKey: ["/api/organizations"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
@@ -169,13 +169,15 @@ export default function BirthdaysPage() {
     daysUntil: calculateDaysUntil(b.birthDate),
   }));
 
-  const allBirthdaysSorted = birthdaysWithDays.sort((a, b) => a.daysUntil - b.daysUntil);
+  const allBirthdaysSorted = birthdaysWithDays.sort(
+    (a: any, b: any) => a.daysUntil - b.daysUntil
+  );
   
   const upcomingBirthdays = showOnly30Days
-    ? allBirthdaysSorted.filter(b => b.daysUntil <= 30)
+    ? allBirthdaysSorted.filter((b: any) => b.daysUntil <= 30)
     : allBirthdaysSorted;
 
-  const todaysBirthdays = birthdaysWithDays.filter(b => b.daysUntil === 0);
+  const todaysBirthdays = birthdaysWithDays.filter((b: any) => b.daysUntil === 0);
 
   // Get random phrase and image for a birthday (deterministic by name)
   const getRandomGreeting = (name: string) => {
@@ -217,7 +219,7 @@ export default function BirthdaysPage() {
               Agregar Cumpleaños
             </Button>
           </DialogTrigger>
-          <DialogContent onOpenChange={handleCloseDialog}>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingBirthdayId ? "Editar Cumpleaños" : "Agregar Cumpleaños"}</DialogTitle>
               <DialogDescription>
