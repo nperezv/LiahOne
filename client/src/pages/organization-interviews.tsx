@@ -274,9 +274,9 @@ export default function OrganizationInterviewsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       {/* Header */}
-      <div className="flex justify-between mb-6">
+      <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold">
             Entrevistas de Organización
@@ -286,9 +286,10 @@ export default function OrganizationInterviewsPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => exportInterviews(interviews)}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -297,6 +298,7 @@ export default function OrganizationInterviewsPage() {
 
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setShowArchived(v => !v)}
           >
             {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
@@ -305,7 +307,7 @@ export default function OrganizationInterviewsPage() {
           {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Nueva Entrevista
                 </Button>
@@ -345,7 +347,7 @@ export default function OrganizationInterviewsPage() {
                       )}
                     />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <FormField
                         control={form.control}
                         name="date"
@@ -462,7 +464,7 @@ export default function OrganizationInterviewsPage() {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2">
         <Card>
           <CardHeader className="flex justify-between">
             <CardTitle className="text-sm">Pendientes</CardTitle>
@@ -489,8 +491,8 @@ export default function OrganizationInterviewsPage() {
         <CardHeader>
           <CardTitle>Entrevistas</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="overflow-x-auto">
+          <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Persona</TableHead>
@@ -529,18 +531,16 @@ export default function OrganizationInterviewsPage() {
                     {getStatusBadge(interview.status)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {interview.status === "programada" && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Checkbox
                             checked={false}
                             onCheckedChange={checked =>
                               handleToggleCompleted(interview, !!checked)
                             }
                           />
-                          <span className="text-xs text-muted-foreground">
-                            Completar
-                          </span>
+                          <span>Completar</span>
                         </div>
                       )}
 
@@ -548,6 +548,7 @@ export default function OrganizationInterviewsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="whitespace-nowrap"
                           onClick={() => handleArchive(interview.id)}
                         >
                           <Archive className="h-4 w-4 mr-1" />
@@ -560,6 +561,7 @@ export default function OrganizationInterviewsPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="whitespace-nowrap"
                             onClick={() =>
                               handleEditClick(interview)
                             }
@@ -574,6 +576,7 @@ export default function OrganizationInterviewsPage() {
                           <Button
                             size="sm"
                             variant="destructive"
+                            className="whitespace-nowrap"
                             onClick={() =>
                               deleteMutation.mutate(interview.id)
                             }
@@ -627,7 +630,7 @@ export default function OrganizationInterviewsPage() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField
                   control={editForm.control}
                   name="date"

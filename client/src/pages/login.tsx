@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
-import logoImage from "@assets/liahone_logo_1764035733311.png";
+import logoImage from "@assets/liahonaap-logo.svg";
 
 const loginSchema = z.object({
   username: z.string().min(1, "El nombre de usuario es requerido"),
@@ -89,7 +89,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center pt-6 pb-4">
           <div className="flex justify-center">
-            <img src={logoImage} alt="LiahOne Logo" className="h-64 w-64 object-contain" data-testid="img-logo" />
+            <img src={logoImage} alt="Liahonaap Logo" className="h-64 w-64 object-contain" data-testid="img-logo" />
           </div>
           <CardDescription className="text-base">
             Sistema de Gestión Administrativa
