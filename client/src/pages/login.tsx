@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
-import logoImage from "@assets/liahonaaplogo.svg";
+import logoImage from "@assets/liahonapplogo.svg";
 
 const loginSchema = z.object({
   username: z.string().min(1, "El nombre de usuario es requerido"),
