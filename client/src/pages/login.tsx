@@ -87,11 +87,17 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center pt-6 pb-4">
+        <CardHeader className="space-y-1 text-center pt-4 pb-2">
           <div className="flex justify-center">
-            <img src={logoImage} alt="Liahonaap Logo" className="h-64 w-64 object-contain" data-testid="img-logo" />
+            <img
+              src={logoImage}
+              alt="Liahonapp Logo"
+              className="h-32 w-auto object-contain"
+              data-testid="img-logo"
+            />
           </div>
-          <CardDescription className="text-base">
+
+          <CardDescription className="text-sm text-muted-foreground">
             Sistema de Gestión Administrativa
           </CardDescription>
         </CardHeader>
