@@ -35,7 +35,6 @@ import {
   createAccessToken,
   generateRefreshToken,
   generateOtpCode,
-  generateTemporaryPassword,
   getClientIp,
   getCountryFromIp,
   getDeviceHash,
@@ -43,7 +42,6 @@ import {
   getRefreshExpiry,
   hashToken,
   sendAccessRequestEmail,
-  sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
   verifyAccessToken,
 } from "./auth";
@@ -75,8 +73,6 @@ function getUserIdFromRequest(req: Request): string | null {
   return payload.userId;
 }
 
-const passwordChangeAllowedPaths = new Set(["/api/profile/change-password", "/api/logout", "/api/me"]);
-
 // Auth middleware
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = getUserIdFromRequest(req);
@@ -88,9 +84,6 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
     const user = await storage.getUser(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
-    }
-    if (user.requirePasswordChange && !passwordChangeAllowedPaths.has(req.path)) {
-      return res.status(403).json({ error: "Password change required" });
     }
     (req as any).user = user;
     next();
@@ -108,13 +101,7 @@ function requireRole(...roles: string[]) {
     }
 
     const user = await storage.getUser(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    if (user.requirePasswordChange && !passwordChangeAllowedPaths.has(req.path)) {
-      return res.status(403).json({ error: "Password change required" });
-    }
-    if (!roles.includes(user.role)) {
+    if (!user || !roles.includes(user.role)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -647,9 +634,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
     try {
-      const { username, name, email, role, organizationId, accessRequestId, phone } = req.body;
+      const { username, password, name, email, role, organizationId, accessRequestId, phone } = req.body;
 
-      if (!username || !name || !role) {
+      if (!username || !password || !name || !role) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -671,42 +658,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
       const finalOrganizationId = bishopRoles.includes(role) ? obispadoId : organizationId || null;
 
-      const accessRequest = accessRequestId
-        ? await storage.getAccessRequest(accessRequestId)
-        : null;
-      if (accessRequestId && !accessRequest) {
-        return res.status(404).json({ error: "Access request not found" });
-      }
-
-      const recipientEmail = accessRequest?.email || email;
-      if (!recipientEmail) {
-        return res.status(400).json({ error: "Email is required to send credentials" });
-      }
-
-      const temporaryPassword = generateTemporaryPassword();
-      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
       const user = await storage.createUser({
         username,
         password: hashedPassword,
         name,
-        email: email || accessRequest?.email || null,
+        email: email || null,
         phone: phone || null,
         role,
         organizationId: finalOrganizationId,
-        requirePasswordChange: true,
-      });
-
-      if (accessRequestId) {
-        await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
-      }
-
-      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
-      await sendNewUserCredentialsEmail({
-        toEmail: recipientEmail,
-        name: user.name,
-        username: user.username,
-        temporaryPassword,
-        loginUrl: `${baseUrl}/login`,
       });
 
       if (accessRequestId) {
@@ -809,7 +769,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const updatedUser = await storage.updateUser(req.session.userId!, {
         password: hashedPassword,
-        requirePasswordChange: false,
       });
 
       if (!updatedUser) {
@@ -838,7 +797,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const user = await storage.updateUser(id, {
         password: hashedPassword,
-        requirePasswordChange: true,
       });
 
       if (!user) {
