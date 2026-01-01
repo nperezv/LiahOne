@@ -260,15 +260,8 @@
   }
 
   .app-splash-logo {
-    width: 72px;
-    height: 72px;
-  }
-
-  .app-splash-text {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    width: 140px;
+    height: 140px;
   }
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */

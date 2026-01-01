@@ -141,7 +141,6 @@ function App() {
             <div className="app-splash" aria-hidden="true">
               <div className="app-splash-content">
                 <img src={logoImage} alt="" className="app-splash-logo" />
-                <span className="app-splash-text">Liahonapp</span>
               </div>
             </div>
           )}
