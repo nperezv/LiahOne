@@ -35,6 +35,7 @@ import {
   createAccessToken,
   generateRefreshToken,
   generateOtpCode,
+  generateTemporaryPassword,
   getClientIp,
   getCountryFromIp,
   getDeviceHash,
@@ -42,6 +43,7 @@ import {
   getRefreshExpiry,
   hashToken,
   sendAccessRequestEmail,
+  sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
   verifyAccessToken,
 } from "./auth";
@@ -634,10 +636,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
     try {
-      const { username, password, name, email, role, organizationId, accessRequestId, phone } = req.body;
+      const { username, name, email, role, organizationId, accessRequestId, phone } = req.body;
 
-      if (!username || !password || !name || !role) {
+      if (!username || !name || !role) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (!email) {
+        return res.status(400).json({ error: "Email is required to send credentials" });
       }
 
       // Check if the username already exists
@@ -658,13 +664,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
       const finalOrganizationId = bishopRoles.includes(role) ? obispadoId : organizationId || null;
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const temporaryPassword = generateTemporaryPassword();
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
       const user = await storage.createUser({
         username,
         password: hashedPassword,
         name,
-        email: email || null,
+        email,
         phone: phone || null,
+        requirePasswordChange: true,
         role,
         organizationId: finalOrganizationId,
       });
@@ -672,6 +680,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (accessRequestId) {
         await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
       }
+
+      await sendNewUserCredentialsEmail({
+        toEmail: email,
+        name,
+        username,
+        temporaryPassword,
+      });
 
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
@@ -769,6 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const updatedUser = await storage.updateUser(req.session.userId!, {
         password: hashedPassword,
+        requirePasswordChange: false,
       });
 
       if (!updatedUser) {
