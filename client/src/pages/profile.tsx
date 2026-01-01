@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,6 +41,13 @@ export default function ProfilePage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user?.requirePasswordChange) {
+      setIsChangingPassword(true);
+      setIsEditing(false);
+    }
+  }, [user?.requirePasswordChange]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -96,6 +103,11 @@ export default function ProfilePage() {
       }
 
       toast({ title: "Éxito", description: "Contraseña cambiada correctamente" });
+      if (user?.requirePasswordChange) {
+        window.location.reload();
+        return;
+      }
+
       setIsChangingPassword(false);
       passwordForm.reset();
     } catch (error) {
@@ -157,7 +169,13 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {!isEditing && !isChangingPassword ? (
+          {user?.requirePasswordChange && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+              Por seguridad, debes actualizar tu contraseña temporal antes de continuar.
+            </div>
+          )}
+
+          {!isEditing && !isChangingPassword && !user?.requirePasswordChange ? (
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Email</label>
@@ -184,7 +202,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </div>
-          ) : isChangingPassword ? (
+          ) : isChangingPassword || user?.requirePasswordChange ? (
             <Form {...passwordForm}>
               <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
                 <FormField
@@ -272,17 +290,19 @@ export default function ProfilePage() {
                   <Button type="submit" data-testid="button-save-password">
                     Cambiar Contraseña
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsChangingPassword(false);
-                      passwordForm.reset();
-                    }}
-                    data-testid="button-cancel-password"
-                  >
-                    Cancelar
-                  </Button>
+                  {!user?.requirePasswordChange && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsChangingPassword(false);
+                        passwordForm.reset();
+                      }}
+                      data-testid="button-cancel-password"
+                    >
+                      Cancelar
+                    </Button>
+                  )}
                 </div>
               </form>
             </Form>

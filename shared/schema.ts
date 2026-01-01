@@ -125,6 +125,7 @@ export const users = pgTable("users", {
   email: text("email"),
   phone: text("phone"),
   requireEmailOtp: boolean("require_email_otp").notNull().default(false),
+  requirePasswordChange: boolean("require_password_change").notNull().default(false),
   role: roleEnum("role").notNull(),
   organizationId: varchar("organization_id").references(() => organizations.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -553,6 +554,7 @@ export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   requireEmailOtp: z.boolean().optional(),
+  requirePasswordChange: z.boolean().optional(),
 }).omit({ id: true, createdAt: true });
 
 export const selectUserSchema = createSelectSchema(users);

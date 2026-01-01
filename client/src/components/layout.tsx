@@ -18,6 +18,10 @@ export function Layout({ children }: LayoutProps) {
     return <Redirect to={redirectTarget} />;
   }
 
+  if (user?.requirePasswordChange && window.location.pathname !== "/profile") {
+    return <Redirect to="/profile?forcePasswordChange=1" />;
+  }
+
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",

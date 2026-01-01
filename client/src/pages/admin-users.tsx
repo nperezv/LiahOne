@@ -40,9 +40,8 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   name: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  email: z.string().email("Email inválido"),
   phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
@@ -194,7 +193,6 @@ export default function AdminUsersPage() {
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       username: "",
-      password: "",
       name: "",
       email: "",
       phone: "",
@@ -215,13 +213,12 @@ export default function AdminUsersPage() {
           .toLowerCase()
           .replace(/\s+/g, ".");
 
-    createForm.reset({
-      username: suggestedUsername,
-      password: "",
-      name: accessRequest.name,
-      email: accessRequest.email,
-      phone: accessRequest.phone || "",
-      role: "secretario",
+      createForm.reset({
+        username: suggestedUsername,
+        name: accessRequest.name,
+        email: accessRequest.email,
+        phone: accessRequest.phone || "",
+        role: "secretario",
       organizationId: "",
     });
 
@@ -279,7 +276,8 @@ export default function AdminUsersPage() {
       createForm.reset();
       refetch();
       if (accessRequest?.id) {
-        setPrefilledRequestId(null);
+        setPrefilledRequestId(accessRequest.id);
+        setLocation("/admin/users");
       }
     } catch (error: any) {
       toast({
@@ -405,11 +403,11 @@ export default function AdminUsersPage() {
               Nuevo Usuario
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-xl">
             <DialogHeader>
               <DialogTitle>Crear Nuevo Usuario</DialogTitle>
               <DialogDescription>
-                Agrega un nuevo usuario al sistema
+                Se generará una contraseña temporal y se enviará al correo.
               </DialogDescription>
             </DialogHeader>
             <Form {...createForm}>
@@ -425,145 +423,120 @@ export default function AdminUsersPage() {
                       <span className="text-muted-foreground">Teléfono:</span>{" "}
                       {accessRequest.phone || "No especificado"}
                     </div>
-                    {accessRequest.phone && (
-                      <Button asChild variant="outline" size="sm">
-                        <a
-                          href={`https://wa.me/${accessRequest.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                            `Hola ${accessRequest.name}, estamos revisando tu solicitud de acceso.`
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Abrir WhatsApp
-                        </a>
-                      </Button>
-                    )}
                   </div>
                 )}
-                <FormField
-                  control={createForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-create-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Usuario</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-create-username" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email (Opcional)</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} data-testid="input-create-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Teléfono (Opcional)</FormLabel>
-                      <FormControl>
-                        <Input type="tel" {...field} data-testid="input-create-phone" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contraseña</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} data-testid="input-create-password" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rol</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-create-role">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="obispo">Obispo</SelectItem>
-                          <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
-                          <SelectItem value="secretario">Secretario</SelectItem>
-                          <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                          <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
-                          <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
-                          <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
-                          <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedRole) && (
+                <div className="grid gap-4 md:grid-cols-2">
                   <FormField
                     control={createForm.control}
-                    name="organizationId"
+                    name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Organización</FormLabel>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-create-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Usuario</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-create-username" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} data-testid="input-create-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Teléfono (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input type="tel" {...field} data-testid="input-create-phone" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Rol</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger data-testid="select-create-organization">
-                              <SelectValue placeholder="Selecciona una organización" />
+                            <SelectTrigger data-testid="select-create-role">
+                              <SelectValue />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {organizations.map((org) => (
-                              <SelectItem key={org.id} value={org.id}>
-                                {org.name}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="obispo">Obispo</SelectItem>
+                            <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
+                            <SelectItem value="secretario">Secretario</SelectItem>
+                            <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
+                            <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
+                            <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
+                            <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
+                            <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
+
+                  {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedRole) && (
+                    <FormField
+                      control={createForm.control}
+                      name="organizationId"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Organización</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-create-organization">
+                                <SelectValue placeholder="Selecciona una organización" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {organizations.map((org) => (
+                                <SelectItem key={org.id} value={org.id}>
+                                  {org.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
 
                 <div className="flex gap-2 justify-end">
                   <Button type="submit" data-testid="button-submit-create-user">
