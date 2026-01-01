@@ -4,8 +4,8 @@
   "description": "Sistema integral de gestión administrativa para barrios. Gestiona reuniones, presupuestos, entrevistas, metas y más.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#3b82f6",
+  "background_color": "#050505",
+  "theme_color": "#050505",
   "orientation": "portrait-primary",
   "icons": [
     {
