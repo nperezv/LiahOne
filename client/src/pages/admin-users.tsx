@@ -129,7 +129,10 @@ export default function AdminUsersPage() {
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
 
   // Verificar que solo obispo/consejeros puedan acceder
-  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo";
+  const isAdmin =
+    user?.role === "obispo" ||
+    user?.role === "consejero_obispo" ||
+    user?.role === "secretario_ejecutivo";
 
   if (!isAdmin) {
     return (

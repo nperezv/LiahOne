@@ -30,9 +30,12 @@ import AdminUsersPage from "@/pages/admin-users";
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
+  const params = new URLSearchParams(window.location.search);
+  const nextParam = params.get("next");
+  const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
 
   if (isAuthenticated) {
-    return <Redirect to="/dashboard" />;
+    return <Redirect to={safeNext ?? "/dashboard"} />;
   }
 
   return <LoginPage onLogin={(credentials) => login(credentials)} onVerify={verifyLogin} />;

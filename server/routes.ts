@@ -601,7 +601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/access-requests/:id",
     requireAuth,
-    requireRole("obispo", "consejero_obispo"),
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const accessRequest = await storage.getAccessRequest(req.params.id);
@@ -628,7 +628,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.post(
+    "/api/users",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { username, password, name, email, role, organizationId, accessRequestId, phone } = req.body;
 
@@ -681,7 +685,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/users/:id", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.patch(
+    "/api/users/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { username, name, email, role, organizationId, phone } = req.body;
@@ -773,7 +781,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users/:id/reset-password", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.post(
+    "/api/users/:id/reset-password",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { newPassword } = req.body;
@@ -798,7 +810,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/sessions", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.get(
+    "/api/admin/sessions",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const sessions = await storage.getActiveRefreshTokens();
       const users = await storage.getAllUsers();
@@ -830,7 +846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/admin/sessions/:id/revoke",
     requireAuth,
-    requireRole("obispo", "consejero_obispo"),
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
@@ -845,7 +861,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/admin/access-log",
     requireAuth,
-    requireRole("obispo", "consejero_obispo"),
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const events = await storage.getRecentLoginEvents();
@@ -876,7 +892,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.patch("/api/users/:id/role", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.patch(
+    "/api/users/:id/role",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { role } = req.body;
@@ -898,7 +918,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:id", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.delete(
+    "/api/users/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       await storage.deleteUser(id);
