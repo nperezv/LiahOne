@@ -196,6 +196,80 @@
  * need to be distinguished from eachother visually.
  */
 @layer utilities {
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes logo-float {
+      0% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-2px);
+      }
+      100% {
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes splash-fade {
+      0% {
+        opacity: 1;
+      }
+      70% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes splash-pop {
+      0% {
+        transform: scale(0.96);
+        opacity: 0;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+  }
+
+  .animate-logo-float {
+    animation: logo-float 3s ease-in-out infinite;
+  }
+
+  .app-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    background: hsl(var(--background));
+    animation: splash-fade 0.9s ease forwards;
+    pointer-events: none;
+  }
+
+  .app-splash-content {
+    display: grid;
+    place-items: center;
+    gap: 0.75rem;
+    animation: splash-pop 0.6s ease-out forwards;
+  }
+
+  .app-splash-logo {
+    width: 72px;
+    height: 72px;
+  }
+
+  .app-splash-text {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type="search"]::-webkit-search-cancel-button {
