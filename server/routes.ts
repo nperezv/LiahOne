@@ -709,6 +709,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         loginUrl: `${baseUrl}/login`,
       });
 
+      if (accessRequestId) {
+        await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
+      }
+
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
 
