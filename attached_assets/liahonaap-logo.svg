@@ -1,0 +1,20 @@
+<svg width="512" height="256" viewBox="0 0 512 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="liahonaap-gradient" x1="32" y1="32" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB" />
+      <stop offset="1" stop-color="#38BDF8" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="256" rx="28" fill="#F8FAFC" />
+  <g transform="translate(40 36)">
+    <rect width="160" height="160" rx="40" fill="url(#liahonaap-gradient)" />
+    <path d="M64 118V42H94V92H132V118H64Z" fill="white" />
+    <path d="M105 118V78H131V118H105Z" fill="#E0F2FE" />
+  </g>
+  <g fill="#0F172A">
+    <text x="230" y="120" font-family="Inter, system-ui, sans-serif" font-size="48" font-weight="700">Liahonaap</text>
+    <text x="230" y="162" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="500" fill="#475569">
+      Plataforma administrativa
+    </text>
+  </g>
+</svg>
