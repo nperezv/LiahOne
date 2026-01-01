@@ -250,98 +250,98 @@ export default function BirthdaysPage() {
                     )}
                   />
 
-                <FormField
-                  control={form.control}
-                  name="birthDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fecha de Nacimiento</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} data-testid="input-birth-date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email (Opcional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="juan@example.com"
-                          {...field}
-                          data-testid="input-email"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Teléfono (Opcional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="tel"
-                          placeholder="+1 (555) 000-0000"
-                          {...field}
-                          data-testid="input-phone"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="organizationId"
-                  render={({ field }) => {
-                    const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
-                    const userOrgName = organizations.find((org: any) => org.id === user?.organizationId)?.name;
-                    
-                    return (
+                  <FormField
+                    control={form.control}
+                    name="birthDate"
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Organización {isOrgMember ? "" : "(Opcional)"}</FormLabel>
-                        {isOrgMember ? (
-                          <FormControl>
-                            <Input
-                              value={userOrgName || ""}
-                              disabled
-                              data-testid="input-organization-display"
-                            />
-                          </FormControl>
-                        ) : (
-                          <Select value={field.value || "none"} onValueChange={(value) => field.onChange(value === "none" ? "" : value)}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-organization">
-                                <SelectValue placeholder="Seleccionar organización" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="none">Sin organización</SelectItem>
-                              {organizations.map((org: any) => (
-                                <SelectItem key={org.id} value={org.id}>
-                                  {org.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
+                        <FormLabel>Fecha de Nacimiento</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} data-testid="input-birth-date" />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
-                    );
-                  }}
-                />
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="juan@example.com"
+                            {...field}
+                            data-testid="input-email"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Teléfono (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="tel"
+                            placeholder="+1 (555) 000-0000"
+                            {...field}
+                            data-testid="input-phone"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="organizationId"
+                    render={({ field }) => {
+                      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
+                      const userOrgName = organizations.find((org: any) => org.id === user?.organizationId)?.name;
+
+                      return (
+                        <FormItem>
+                          <FormLabel>Organización {isOrgMember ? "" : "(Opcional)"}</FormLabel>
+                          {isOrgMember ? (
+                            <FormControl>
+                              <Input
+                                value={userOrgName || ""}
+                                disabled
+                                data-testid="input-organization-display"
+                              />
+                            </FormControl>
+                          ) : (
+                            <Select value={field.value || "none"} onValueChange={(value) => field.onChange(value === "none" ? "" : value)}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-organization">
+                                  <SelectValue placeholder="Seleccionar organización" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="none">Sin organización</SelectItem>
+                                {organizations.map((org: any) => (
+                                  <SelectItem key={org.id} value={org.id}>
+                                    {org.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
 
                 <div className="flex justify-end gap-2">
                   <Button
@@ -361,6 +361,7 @@ export default function BirthdaysPage() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
 
       {todaysBirthdays.length > 0 && (
         <div className="mb-6">
