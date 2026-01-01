@@ -151,7 +151,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           <img
             src={logoImage}
             alt="Liahonapp"
-            className="h-7 w-7 animate-logo-float"
+            className="h-[2.375rem] w-[2.375rem] animate-logo-float"
           />
           <h1 className="text-lg font-semibold">{wardName}</h1>
         </div>
