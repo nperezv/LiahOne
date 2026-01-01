@@ -21,6 +21,25 @@ const BIRTHDAY_PHRASES = [
 const BIRTHDAY_IMAGES = [
   "🎉", "🎂", "🎈", "🌟", "💝", "🎊", "🎁", "✨", "🎀", "🎭"
 ];
+
+const BIRTHDAY_IMAGE_LIBRARY = [
+  {
+    label: "Globos y pastel",
+    url: "https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    label: "Pastel con velas",
+    url: "https://images.unsplash.com/photo-1516455207990-7a41ce80f7ee?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    label: "Confeti festivo",
+    url: "https://images.unsplash.com/photo-1527529482837-4698179dc6ce?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    label: "Regalos coloridos",
+    url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=800&q=80",
+  },
+];
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -70,6 +89,10 @@ export default function BirthdaysPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showOnly30Days, setShowOnly30Days] = useState(false);
   const [editingBirthdayId, setEditingBirthdayId] = useState<string | null>(null);
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [selectedBirthday, setSelectedBirthday] = useState<any | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState("random");
+  const [selectedImage, setSelectedImage] = useState("random");
   
   const { user } = useAuth();
   const { data: birthdays = [], isLoading } = useBirthdays();
@@ -188,6 +211,79 @@ export default function BirthdaysPage() {
       phrase: BIRTHDAY_PHRASES[phraseIndex],
       image: BIRTHDAY_IMAGES[imageIndex],
     };
+  };
+
+  const getRandomImageUrl = (name: string) => {
+    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return BIRTHDAY_IMAGE_LIBRARY[hash % BIRTHDAY_IMAGE_LIBRARY.length];
+  };
+
+  const openSendDialog = (birthday: any) => {
+    if (!birthday?.phone && !birthday?.email) {
+      toast({
+        title: "Sin contacto",
+        description: "Este cumpleaños no tiene teléfono ni email registrado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedBirthday(birthday);
+    setSelectedTemplate("random");
+    setSelectedImage("random");
+    setIsSendDialogOpen(true);
+  };
+
+  const buildBirthdayMessage = (birthday: any) => {
+    const randomGreeting = getRandomGreeting(birthday.name);
+    const phrase =
+      selectedTemplate === "random"
+        ? randomGreeting.phrase
+        : BIRTHDAY_PHRASES[Number(selectedTemplate)];
+    const imageEmoji =
+      selectedTemplate === "random"
+        ? randomGreeting.image
+        : BIRTHDAY_IMAGES[Number(selectedTemplate) % BIRTHDAY_IMAGES.length];
+    const imageSelection =
+      selectedImage === "random"
+        ? getRandomImageUrl(birthday.name)
+        : BIRTHDAY_IMAGE_LIBRARY[Number(selectedImage)];
+    const messageLines = [
+      `¡Hola ${birthday.name}!`,
+      `${imageEmoji} ${phrase}`,
+      "",
+      "Mira esta imagen de cumpleaños:",
+      imageSelection.url,
+    ];
+    return messageLines.join("\n");
+  };
+
+  const handleSendGreeting = () => {
+    if (!selectedBirthday) return;
+
+    const message = buildBirthdayMessage(selectedBirthday);
+
+    if (selectedBirthday.phone) {
+      const digits = selectedBirthday.phone.replace(/[^\d]/g, "");
+      if (!digits) {
+        toast({
+          title: "Teléfono inválido",
+          description: "No se encontró un número válido para WhatsApp.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const url = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else if (selectedBirthday.email) {
+      const url = `mailto:${selectedBirthday.email}?subject=${encodeURIComponent(
+        "¡Feliz cumpleaños!"
+      )}&body=${encodeURIComponent(message)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    setIsSendDialogOpen(false);
+    setSelectedBirthday(null);
   };
 
   if (isLoading) {
@@ -389,7 +485,12 @@ export default function BirthdaysPage() {
                         </div>
                         <p className="text-sm text-pink-700 dark:text-pink-300 italic">{greeting.phrase}</p>
                       </div>
-                      <Button size="sm" variant="default" data-testid={`button-greet-${birthday.id}`}>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => openSendDialog(birthday)}
+                        data-testid={`button-greet-${birthday.id}`}
+                      >
                         <Send className="h-4 w-4 mr-1" />
                         Enviar
                       </Button>
@@ -484,7 +585,12 @@ export default function BirthdaysPage() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                         {(birthday.email || birthday.phone) && (
-                          <Button size="sm" variant="outline" data-testid={`button-send-${birthday.id}`}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openSendDialog(birthday)}
+                            data-testid={`button-send-${birthday.id}`}
+                          >
                             {birthday.phone ? (
                               <>
                                 <Send className="h-4 w-4 mr-1" />
@@ -513,6 +619,80 @@ export default function BirthdaysPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar felicitación</DialogTitle>
+            <DialogDescription>
+              Selecciona una plantilla y una imagen (o déjalo en aleatorio).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <FormLabel>Plantilla de mensaje</FormLabel>
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger data-testid="select-birthday-template">
+                  <SelectValue placeholder="Selecciona una plantilla" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="random">Aleatorio</SelectItem>
+                  {BIRTHDAY_PHRASES.map((phrase, index) => (
+                    <SelectItem key={phrase} value={String(index)}>
+                      {phrase}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <FormLabel>Imagen de cumpleaños</FormLabel>
+              <Select value={selectedImage} onValueChange={setSelectedImage}>
+                <SelectTrigger data-testid="select-birthday-image">
+                  <SelectValue placeholder="Selecciona una imagen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="random">Aleatorio</SelectItem>
+                  {BIRTHDAY_IMAGE_LIBRARY.map((image, index) => (
+                    <SelectItem key={image.url} value={String(index)}>
+                      {image.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedBirthday && (
+              <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                <p className="mb-2 font-medium text-foreground">Vista previa</p>
+                <pre className="whitespace-pre-wrap text-xs text-muted-foreground">
+                  {buildBirthdayMessage(selectedBirthday)}
+                </pre>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsSendDialogOpen(false)}
+                data-testid="button-cancel-send"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSendGreeting}
+                data-testid="button-confirm-send"
+              >
+                Enviar felicitación
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
