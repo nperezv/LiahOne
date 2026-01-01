@@ -3,7 +3,6 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, VariantProps } from "class-variance-authority"
-import logoImage from "@assets/liahonapplogo2.svg"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -275,7 +274,7 @@ function SidebarTrigger({
       {...props}
     >
       <img
-        src={logoImage}
+        src="/favicon.svg"
         alt="Abrir sidebar"
         className={cn(
           "h-5 w-5 transition-all duration-300 ease-out",
