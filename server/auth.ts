@@ -52,6 +52,10 @@ export function generateOtpCode() {
   return `${crypto.randomInt(0, 1000000)}`.padStart(6, "0");
 }
 
+export function generateTemporaryPassword() {
+  return crypto.randomBytes(9).toString("base64url");
+}
+
 export function getOtpExpiry() {
   return new Date(Date.now() + OTP_TTL_MS);
 }
@@ -103,5 +107,90 @@ export async function sendLoginOtpEmail(toEmail: string, code: string) {
     to: toEmail,
     subject: "Tu código de acceso",
     text: `Tu código de verificación es: ${code}. Expira en 10 minutos.`,
+  });
+}
+
+export async function sendAccessRequestEmail(payload: {
+  toEmail: string;
+  requesterName: string;
+  requesterEmail: string;
+  calling?: string | null;
+  phone?: string | null;
+  reviewUrl: string;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. Access request:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  const callingLine = payload.calling ? `Llamamiento: ${payload.calling}` : "Llamamiento: (no especificado)";
+  const phoneLine = payload.phone ? `Teléfono: ${payload.phone}` : "Teléfono: (no especificado)";
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "Nueva solicitud de acceso",
+    text: [
+      `Se ha recibido una solicitud de acceso.`,
+      `Nombre: ${payload.requesterName}`,
+      `Email: ${payload.requesterEmail}`,
+      callingLine,
+      phoneLine,
+      "",
+      `Revisar solicitud: ${payload.reviewUrl}`,
+    ].join("\n"),
+  });
+}
+
+export async function sendNewUserCredentialsEmail(payload: {
+  toEmail: string;
+  name: string;
+  username: string;
+  temporaryPassword: string;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. New user credentials:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "Credenciales de tu nueva cuenta",
+    text: [
+      `Hola ${payload.name},`,
+      "",
+      "Tu cuenta ha sido creada. Usa estas credenciales para iniciar sesión:",
+      `Usuario: ${payload.username}`,
+      `Contraseña temporal: ${payload.temporaryPassword}`,
+      "",
+      "Por seguridad, deberás cambiar esta contraseña en tu primer inicio de sesión.",
+    ].join("\n"),
   });
 }

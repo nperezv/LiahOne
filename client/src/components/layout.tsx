@@ -13,7 +13,13 @@ export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
 
   if (!isAuthenticated) {
-    return <Redirect to="/login" />;
+    const next = `${window.location.pathname}${window.location.search}`;
+    const redirectTarget = next.startsWith("/login") ? "/login" : `/login?next=${encodeURIComponent(next)}`;
+    return <Redirect to={redirectTarget} />;
+  }
+
+  if (user?.requirePasswordChange && window.location.pathname !== "/profile") {
+    return <Redirect to="/profile?forcePasswordChange=1" />;
   }
 
   const sidebarStyle = {

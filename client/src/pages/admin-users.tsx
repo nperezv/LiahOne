@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,9 +40,9 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   name: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  email: z.string().email("Email inválido"),
+  phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
 });
@@ -51,19 +51,25 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
-const changeRoleSchema = z.object({
+const editUserSchema = z.object({
+  name: z.string().min(1, "El nombre es requerido"),
+  username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  organizationId: z.string().optional(),
 });
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
 type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
-type ChangeRoleFormValues = z.infer<typeof changeRoleSchema>;
+type EditUserFormValues = z.infer<typeof editUserSchema>;
 
 interface User {
   id: string;
   username: string;
   name: string;
   email: string;
+  phone?: string | null;
   role: string;
   organizationId?: string;
 }
@@ -101,16 +107,80 @@ interface AccessLogEntry {
   createdAt: string;
 }
 
+interface AccessRequest {
+  id: string;
+  name: string;
+  email: string;
+  calling?: string | null;
+  phone?: string | null;
+  contactConsent: boolean;
+  status: "pendiente" | "aprobada" | "rechazada";
+  createdAt: string;
+}
+
+interface UserDeletionSummary {
+  activitiesCreated: number;
+  assignmentsAssignedTo: number;
+  assignmentsAssignedBy: number;
+  budgetRequestsRequested: number;
+  budgetRequestsApproved: number;
+  emailOtps: number;
+  goalsCreated: number;
+  interviewsAssigned: number;
+  interviewsInterviewer: number;
+  interviewsAssignedTo: number;
+  loginEvents: number;
+  notifications: number;
+  organizationInterviewsCreated: number;
+  organizationInterviewsInterviewer: number;
+  presidencyMeetingsCreated: number;
+  pushSubscriptions: number;
+  refreshTokens: number;
+  sacramentalMeetingsCreated: number;
+  userDevices: number;
+  wardCouncilsCreated: number;
+}
+
+const deletionLabels: { key: keyof UserDeletionSummary; label: string }[] = [
+  { key: "assignmentsAssignedTo", label: "Asignaciones asignadas al usuario" },
+  { key: "assignmentsAssignedBy", label: "Asignaciones creadas por el usuario" },
+  { key: "interviewsAssigned", label: "Entrevistas asignadas por el usuario" },
+  { key: "interviewsInterviewer", label: "Entrevistas donde es entrevistador" },
+  { key: "interviewsAssignedTo", label: "Entrevistas asignadas al usuario" },
+  { key: "organizationInterviewsCreated", label: "Entrevistas de organización creadas" },
+  { key: "organizationInterviewsInterviewer", label: "Entrevistas de organización donde es entrevistador" },
+  { key: "goalsCreated", label: "Metas creadas" },
+  { key: "activitiesCreated", label: "Actividades creadas" },
+  { key: "sacramentalMeetingsCreated", label: "Reuniones sacramentales creadas" },
+  { key: "wardCouncilsCreated", label: "Consejos de barrio creados" },
+  { key: "presidencyMeetingsCreated", label: "Reuniones de presidencia creadas" },
+  { key: "budgetRequestsRequested", label: "Solicitudes de presupuesto creadas" },
+  { key: "budgetRequestsApproved", label: "Solicitudes de presupuesto aprobadas" },
+  { key: "notifications", label: "Notificaciones activas" },
+  { key: "pushSubscriptions", label: "Suscripciones push" },
+  { key: "refreshTokens", label: "Sesiones activas" },
+  { key: "userDevices", label: "Dispositivos registrados" },
+  { key: "emailOtps", label: "Códigos OTP pendientes" },
+  { key: "loginEvents", label: "Eventos de inicio de sesión" },
+];
+
 export default function AdminUsersPage() {
   const { user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
-  const [changeRoleUser, setChangeRoleUser] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [deleteSummary, setDeleteSummary] = useState<UserDeletionSummary | null>(null);
+  const [deleteSummaryLoading, setDeleteSummaryLoading] = useState(false);
+  const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
 
   // Verificar que solo obispo/consejeros puedan acceder
-  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo";
+  const isAdmin =
+    user?.role === "obispo" ||
+    user?.role === "consejero_obispo" ||
+    user?.role === "secretario_ejecutivo";
 
   if (!isAdmin) {
     return (
@@ -148,19 +218,103 @@ export default function AdminUsersPage() {
     enabled: isAdmin,
   });
 
+  const requestId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("requestId");
+  }, [location]);
+
+  const { data: accessRequest } = useQuery<AccessRequest | null>({
+    queryKey: ["/api/access-requests", requestId],
+    enabled: isAdmin && Boolean(requestId),
+    queryFn: async () => {
+      if (!requestId) return null;
+      const response = await fetch(`/api/access-requests/${requestId}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return response.json();
+    },
+  });
+
   const createForm = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       username: "",
-      password: "",
       name: "",
       email: "",
+      phone: "",
       role: "secretario",
       organizationId: "",
     },
   });
 
-  const selectedRole = createForm.watch("role");
+  useEffect(() => {
+    if (!accessRequest || prefilledRequestId === accessRequest.id) {
+      return;
+    }
+
+    const suggestedUsername = accessRequest.email
+      ? accessRequest.email.split("@")[0]
+      : accessRequest.name
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, ".");
+
+      createForm.reset({
+        username: suggestedUsername,
+        name: accessRequest.name,
+        email: accessRequest.email,
+        phone: accessRequest.phone || "",
+        role: "secretario",
+      organizationId: "",
+    });
+
+    setPrefilledRequestId(accessRequest.id);
+    setIsCreateDialogOpen(true);
+  }, [accessRequest, createForm, prefilledRequestId]);
+
+  useEffect(() => {
+    if (!deleteUser) {
+      setDeleteSummary(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadSummary = async () => {
+      setDeleteSummaryLoading(true);
+      try {
+        const response = await fetch(`/api/users/${deleteUser.id}/delete-summary`, {
+          headers: getAuthHeaders(),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("Error al cargar dependencias");
+        }
+        const summary = await response.json();
+        setDeleteSummary(summary);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          toast({
+            title: "Error",
+            description: "No se pudo cargar el resumen de dependencias.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setDeleteSummaryLoading(false);
+        }
+      }
+    };
+
+    loadSummary();
+
+    return () => {
+      controller.abort();
+    };
+  }, [deleteUser, toast]);
 
   const resetPasswordForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -169,12 +323,20 @@ export default function AdminUsersPage() {
     },
   });
 
-  const changeRoleForm = useForm<ChangeRoleFormValues>({
-    resolver: zodResolver(changeRoleSchema),
+  const editUserForm = useForm<EditUserFormValues>({
+    resolver: zodResolver(editUserSchema),
     defaultValues: {
+      name: "",
+      username: "",
+      email: "",
+      phone: "",
       role: "secretario",
+      organizationId: "",
     },
   });
+
+  const selectedRole = createForm.watch("role");
+  const selectedEditRole = editUserForm.watch("role");
 
   const onCreateUser = async (data: CreateUserFormValues) => {
     try {
@@ -183,6 +345,8 @@ export default function AdminUsersPage() {
         ...data,
         organizationId: data.organizationId || undefined,
         email: data.email || undefined,
+        phone: data.phone || undefined,
+        accessRequestId: accessRequest?.id,
       };
 
       const response = await fetch("/api/users", {
@@ -201,6 +365,10 @@ export default function AdminUsersPage() {
       setIsCreateDialogOpen(false);
       createForm.reset();
       refetch();
+      if (accessRequest?.id) {
+        setPrefilledRequestId(accessRequest.id);
+        setLocation("/admin/users");
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -230,39 +398,61 @@ export default function AdminUsersPage() {
     }
   };
 
-  const onChangeRole = async (data: ChangeRoleFormValues) => {
-    if (!changeRoleUser) return;
+  const onEditUser = async (data: EditUserFormValues) => {
+    if (!editUser) return;
 
     try {
-      const response = await fetch(`/api/users/${changeRoleUser.id}/role`, {
+      const response = await fetch(`/api/users/${editUser.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ role: data.role }),
+        body: JSON.stringify({
+          ...data,
+          organizationId: data.organizationId || undefined,
+          email: data.email || undefined,
+          phone: data.phone || undefined,
+        }),
       });
 
-      if (!response.ok) throw new Error("Error al cambiar rol");
+      if (!response.ok) throw new Error("Error al actualizar usuario");
 
-      toast({ title: "Éxito", description: "Rol actualizado correctamente" });
-      setChangeRoleUser(null);
-      changeRoleForm.reset();
+      toast({ title: "Éxito", description: "Usuario actualizado correctamente" });
+      setEditUser(null);
+      editUserForm.reset();
       refetch();
     } catch (error) {
-      toast({ title: "Error", description: "No se pudo cambiar el rol", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudo actualizar el usuario", variant: "destructive" });
     }
   };
 
-  const onDeleteUser = async (userId: string) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este usuario?")) return;
+  const onDeleteUser = (targetUser: User) => {
+    setDeleteUser(targetUser);
+  };
+
+  const onConfirmDeleteUser = async (cleanAll: boolean) => {
+    if (!deleteUser) return;
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`/api/users/${deleteUser.id}?cleanAll=${cleanAll}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
 
+      if (response.status === 409) {
+        const data = await response.json();
+        setDeleteSummary(data.summary);
+        toast({
+          title: "No se puede eliminar",
+          description: "El usuario tiene registros asociados.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (!response.ok) throw new Error("Error al eliminar usuario");
 
       toast({ title: "Éxito", description: "Usuario eliminado correctamente" });
+      setDeleteUser(null);
+      setDeleteSummary(null);
       refetch();
     } catch (error) {
       toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
@@ -293,6 +483,16 @@ export default function AdminUsersPage() {
     consejero_organizacion: "Consejero",
   };
 
+  const deleteSummaryItems = useMemo(() => {
+    if (!deleteSummary) return [];
+    return deletionLabels
+      .map((item) => ({
+        ...item,
+        count: deleteSummary[item.key] ?? 0,
+      }))
+      .filter((item) => item.count > 0);
+  }, [deleteSummary]);
+
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4">
       <Button
@@ -320,125 +520,140 @@ export default function AdminUsersPage() {
               Nuevo Usuario
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-xl">
             <DialogHeader>
               <DialogTitle>Crear Nuevo Usuario</DialogTitle>
               <DialogDescription>
-                Agrega un nuevo usuario al sistema
+                Se generará una contraseña temporal y se enviará al correo.
               </DialogDescription>
             </DialogHeader>
             <Form {...createForm}>
               <form onSubmit={createForm.handleSubmit(onCreateUser)} className="space-y-4">
-                <FormField
-                  control={createForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-create-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Usuario</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-create-username" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email (Opcional)</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} data-testid="input-create-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contraseña</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} data-testid="input-create-password" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={createForm.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rol</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-create-role">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="obispo">Obispo</SelectItem>
-                          <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
-                          <SelectItem value="secretario">Secretario</SelectItem>
-                          <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                          <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
-                          <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
-                          <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
-                          <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedRole) && (
+                {accessRequest && (
+                  <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm space-y-2">
+                    <div className="font-medium">Solicitud de acceso pendiente</div>
+                    <div>
+                      <span className="text-muted-foreground">Llamamiento:</span>{" "}
+                      {accessRequest.calling || "No especificado"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Teléfono:</span>{" "}
+                      {accessRequest.phone || "No especificado"}
+                    </div>
+                  </div>
+                )}
+                <div className="grid gap-4 md:grid-cols-2">
                   <FormField
                     control={createForm.control}
-                    name="organizationId"
+                    name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Organización</FormLabel>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-create-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Usuario</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-create-username" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} data-testid="input-create-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Teléfono (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input type="tel" {...field} data-testid="input-create-phone" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Rol</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger data-testid="select-create-organization">
-                              <SelectValue placeholder="Selecciona una organización" />
+                            <SelectTrigger data-testid="select-create-role">
+                              <SelectValue />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {organizations.map((org) => (
-                              <SelectItem key={org.id} value={org.id}>
-                                {org.name}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="obispo">Obispo</SelectItem>
+                            <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
+                            <SelectItem value="secretario">Secretario</SelectItem>
+                            <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
+                            <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
+                            <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
+                            <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
+                            <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
+
+                  {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedRole) && (
+                    <FormField
+                      control={createForm.control}
+                      name="organizationId"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Organización</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-create-organization">
+                                <SelectValue placeholder="Selecciona una organización" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {organizations.map((org) => (
+                                <SelectItem key={org.id} value={org.id}>
+                                  {org.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
 
                 <div className="flex gap-2 justify-end">
                   <Button type="submit" data-testid="button-submit-create-user">
@@ -450,6 +665,85 @@ export default function AdminUsersPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <Dialog
+        open={Boolean(deleteUser)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteUser(null);
+            setDeleteSummary(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Eliminar usuario</DialogTitle>
+            <DialogDescription>
+              Esta acción eliminará la cuenta de {deleteUser?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteSummaryLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : deleteSummary && deleteSummaryItems.length > 0 ? (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                Hay registros asociados que impiden eliminar el usuario directamente:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                {deleteSummaryItems.map((item) => (
+                  <li key={item.key}>
+                    {item.label}: <span className="font-medium">{item.count}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Si eliges limpiar todo, se eliminarán esos registros y los eventos de inicio
+                de sesión o aprobaciones quedarán sin usuario para mantener auditoría básica.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No se encontraron registros asociados. Puedes eliminar este usuario.
+            </p>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteUser(null);
+                setDeleteSummary(null);
+              }}
+              data-testid="button-cancel-delete"
+            >
+              Cancelar
+            </Button>
+            {deleteSummary && deleteSummaryItems.length > 0 ? (
+              <Button
+                variant="destructive"
+                onClick={() => onConfirmDeleteUser(true)}
+                disabled={deleteSummaryLoading}
+                data-testid="button-confirm-clean-delete"
+              >
+                Limpiar todo y eliminar
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                onClick={() => onConfirmDeleteUser(false)}
+                disabled={deleteSummaryLoading}
+                data-testid="button-confirm-delete"
+              >
+                Eliminar usuario
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
@@ -474,6 +768,7 @@ export default function AdminUsersPage() {
                     <TableHead>Usuario</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
+                    <TableHead>Teléfono</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -488,6 +783,7 @@ export default function AdminUsersPage() {
                           {roleLabels[u.role] || u.role}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{u.phone || "-"}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Dialog open={resetPasswordUser?.id === u.id} onOpenChange={(open) => !open && setResetPasswordUser(null)}>
@@ -547,39 +843,102 @@ export default function AdminUsersPage() {
                             )}
                           </Dialog>
 
-                          <Dialog open={changeRoleUser?.id === u.id} onOpenChange={(open) => !open && setChangeRoleUser(null)}>
+                          <Dialog open={editUser?.id === u.id} onOpenChange={(open) => !open && setEditUser(null)}>
                             <DialogTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                  setChangeRoleUser(u);
-                                  changeRoleForm.setValue("role", u.role as any);
+                                  setEditUser(u);
+                                  editUserForm.reset({
+                                    name: u.name,
+                                    username: u.username,
+                                    email: u.email || "",
+                                    phone: u.phone || "",
+                                    role: u.role as EditUserFormValues["role"],
+                                    organizationId: u.organizationId || "",
+                                  });
                                 }}
-                                data-testid={`button-change-role-${u.id}`}
+                                data-testid={`button-edit-user-${u.id}`}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </DialogTrigger>
-                            {changeRoleUser?.id === u.id && (
-                              <DialogContent className="max-w-sm">
+                            {editUser?.id === u.id && (
+                              <DialogContent className="max-w-lg">
                                 <DialogHeader>
-                                  <DialogTitle>Cambiar Rol</DialogTitle>
+                                  <DialogTitle>Editar Usuario</DialogTitle>
                                   <DialogDescription>
-                                    Cambia el rol para {u.name}
+                                    Modifica los datos de {u.name}
                                   </DialogDescription>
                                 </DialogHeader>
-                                <Form {...changeRoleForm}>
-                                  <form onSubmit={changeRoleForm.handleSubmit(onChangeRole)} className="space-y-4">
+                                <Form {...editUserForm}>
+                                  <form onSubmit={editUserForm.handleSubmit(onEditUser)} className="space-y-4">
                                     <FormField
-                                      control={changeRoleForm.control}
+                                      control={editUserForm.control}
+                                      name="name"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Nombre</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} data-testid="input-edit-name" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="username"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Usuario</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} data-testid="input-edit-username" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="email"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Email (Opcional)</FormLabel>
+                                          <FormControl>
+                                            <Input type="email" {...field} data-testid="input-edit-email" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="phone"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Teléfono (Opcional)</FormLabel>
+                                          <FormControl>
+                                            <Input type="tel" {...field} data-testid="input-edit-phone" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
                                       name="role"
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Rol</FormLabel>
                                           <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
-                                              <SelectTrigger data-testid="select-change-role">
+                                              <SelectTrigger data-testid="select-edit-role">
                                                 <SelectValue />
                                               </SelectTrigger>
                                             </FormControl>
@@ -599,20 +958,47 @@ export default function AdminUsersPage() {
                                       )}
                                     />
 
+                                    {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedEditRole) && (
+                                      <FormField
+                                        control={editUserForm.control}
+                                        name="organizationId"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Organización</FormLabel>
+                                            <Select value={field.value} onValueChange={field.onChange}>
+                                              <FormControl>
+                                                <SelectTrigger data-testid="select-edit-organization">
+                                                  <SelectValue placeholder="Selecciona una organización" />
+                                                </SelectTrigger>
+                                              </FormControl>
+                                              <SelectContent>
+                                                {organizations.map((org) => (
+                                                  <SelectItem key={org.id} value={org.id}>
+                                                    {org.name}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+
                                     <div className="flex gap-2 justify-end">
                                       <Button
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
-                                          setChangeRoleUser(null);
-                                          changeRoleForm.reset();
+                                          setEditUser(null);
+                                          editUserForm.reset();
                                         }}
-                                        data-testid="button-cancel-role"
+                                        data-testid="button-cancel-edit"
                                       >
                                         Cancelar
                                       </Button>
-                                      <Button type="submit" data-testid="button-submit-role">
-                                        Cambiar
+                                      <Button type="submit" data-testid="button-submit-edit">
+                                        Guardar
                                       </Button>
                                     </div>
                                   </form>
@@ -625,7 +1011,7 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive hover:text-destructive"
-                            onClick={() => onDeleteUser(u.id)}
+                            onClick={() => onDeleteUser(u)}
                             data-testid={`button-delete-user-${u.id}`}
                           >
                             <Trash2 className="h-4 w-4" />

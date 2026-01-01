@@ -24,6 +24,7 @@ import {
   refreshTokens,
   loginEvents,
   emailOtps,
+  accessRequests,
   type User,
   type InsertUser,
   type Organization,
@@ -62,7 +63,32 @@ import {
   type RefreshToken,
   type LoginEvent,
   type EmailOtp,
+  type AccessRequest,
+  type InsertAccessRequest,
 } from "@shared/schema";
+
+export interface UserDeletionSummary {
+  activitiesCreated: number;
+  assignmentsAssignedTo: number;
+  assignmentsAssignedBy: number;
+  budgetRequestsRequested: number;
+  budgetRequestsApproved: number;
+  emailOtps: number;
+  goalsCreated: number;
+  interviewsAssigned: number;
+  interviewsInterviewer: number;
+  interviewsAssignedTo: number;
+  loginEvents: number;
+  notifications: number;
+  organizationInterviewsCreated: number;
+  organizationInterviewsInterviewer: number;
+  presidencyMeetingsCreated: number;
+  pushSubscriptions: number;
+  refreshTokens: number;
+  sacramentalMeetingsCreated: number;
+  userDevices: number;
+  wardCouncilsCreated: number;
+}
 
 export interface IStorage {
   // Users
@@ -73,6 +99,8 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
+  getUserDeletionSummary(id: string): Promise<UserDeletionSummary>;
+  deleteUserWithCleanup(id: string): Promise<void>;
 
   // Organizations
   getAllOrganizations(): Promise<Organization[]>;
@@ -232,6 +260,11 @@ export interface IStorage {
   }): Promise<EmailOtp>;
   getEmailOtpById(id: string): Promise<EmailOtp | undefined>;
   consumeEmailOtp(id: string): Promise<void>;
+
+  // Access Requests
+  createAccessRequest(data: InsertAccessRequest): Promise<AccessRequest>;
+  getAccessRequest(id: string): Promise<AccessRequest | undefined>;
+  updateAccessRequest(id: string, data: Partial<InsertAccessRequest & { status?: AccessRequest["status"] }>): Promise<AccessRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -278,6 +311,143 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: string): Promise<void> {
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getUserDeletionSummary(id: string): Promise<UserDeletionSummary> {
+    const [activitiesCreated] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(activities)
+      .where(eq(activities.createdBy, id));
+    const [assignmentsAssignedTo] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(assignments)
+      .where(eq(assignments.assignedTo, id));
+    const [assignmentsAssignedBy] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(assignments)
+      .where(eq(assignments.assignedBy, id));
+    const [budgetRequestsRequested] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(budgetRequests)
+      .where(eq(budgetRequests.requestedBy, id));
+    const [budgetRequestsApproved] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(budgetRequests)
+      .where(eq(budgetRequests.approvedBy, id));
+    const [emailOtpsCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(emailOtps)
+      .where(eq(emailOtps.userId, id));
+    const [goalsCreated] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(goals)
+      .where(eq(goals.createdBy, id));
+    const [interviewsAssigned] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(interviews)
+      .where(eq(interviews.assignedBy, id));
+    const [interviewsInterviewer] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(interviews)
+      .where(eq(interviews.interviewerId, id));
+    const [interviewsAssignedTo] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(interviews)
+      .where(eq(interviews.assignedToId, id));
+    const [loginEventsCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(loginEvents)
+      .where(eq(loginEvents.userId, id));
+    const [notificationsCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(eq(notifications.userId, id));
+    const [organizationInterviewsCreated] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(organizationInterviews)
+      .where(eq(organizationInterviews.createdBy, id));
+    const [organizationInterviewsInterviewer] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(organizationInterviews)
+      .where(eq(organizationInterviews.interviewerId, id));
+    const [presidencyMeetingsCreated] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(presidencyMeetings)
+      .where(eq(presidencyMeetings.createdBy, id));
+    const [pushSubscriptionsCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, id));
+    const [refreshTokensCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(refreshTokens)
+      .where(eq(refreshTokens.userId, id));
+    const [sacramentalMeetingsCreated] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(sacramentalMeetings)
+      .where(eq(sacramentalMeetings.createdBy, id));
+    const [userDevicesCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(userDevices)
+      .where(eq(userDevices.userId, id));
+    const [wardCouncilsCreated] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(wardCouncils)
+      .where(eq(wardCouncils.createdBy, id));
+
+    return {
+      activitiesCreated: Number(activitiesCreated.count),
+      assignmentsAssignedTo: Number(assignmentsAssignedTo.count),
+      assignmentsAssignedBy: Number(assignmentsAssignedBy.count),
+      budgetRequestsRequested: Number(budgetRequestsRequested.count),
+      budgetRequestsApproved: Number(budgetRequestsApproved.count),
+      emailOtps: Number(emailOtpsCount.count),
+      goalsCreated: Number(goalsCreated.count),
+      interviewsAssigned: Number(interviewsAssigned.count),
+      interviewsInterviewer: Number(interviewsInterviewer.count),
+      interviewsAssignedTo: Number(interviewsAssignedTo.count),
+      loginEvents: Number(loginEventsCount.count),
+      notifications: Number(notificationsCount.count),
+      organizationInterviewsCreated: Number(organizationInterviewsCreated.count),
+      organizationInterviewsInterviewer: Number(organizationInterviewsInterviewer.count),
+      presidencyMeetingsCreated: Number(presidencyMeetingsCreated.count),
+      pushSubscriptions: Number(pushSubscriptionsCount.count),
+      refreshTokens: Number(refreshTokensCount.count),
+      sacramentalMeetingsCreated: Number(sacramentalMeetingsCreated.count),
+      userDevices: Number(userDevicesCount.count),
+      wardCouncilsCreated: Number(wardCouncilsCreated.count),
+    };
+  }
+
+  async deleteUserWithCleanup(id: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(notifications).where(eq(notifications.userId, id));
+      await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, id));
+      await tx.delete(userDevices).where(eq(userDevices.userId, id));
+      await tx.delete(refreshTokens).where(eq(refreshTokens.userId, id));
+      await tx.delete(emailOtps).where(eq(emailOtps.userId, id));
+
+      await tx.delete(assignments).where(eq(assignments.assignedTo, id));
+      await tx.delete(assignments).where(eq(assignments.assignedBy, id));
+      await tx.delete(interviews).where(eq(interviews.assignedBy, id));
+      await tx.delete(interviews).where(eq(interviews.interviewerId, id));
+      await tx.update(interviews).set({ assignedToId: null }).where(eq(interviews.assignedToId, id));
+
+      await tx.delete(activities).where(eq(activities.createdBy, id));
+      await tx.delete(goals).where(eq(goals.createdBy, id));
+      await tx.delete(wardCouncils).where(eq(wardCouncils.createdBy, id));
+      await tx.delete(presidencyMeetings).where(eq(presidencyMeetings.createdBy, id));
+      await tx.delete(sacramentalMeetings).where(eq(sacramentalMeetings.createdBy, id));
+      await tx.delete(organizationInterviews).where(eq(organizationInterviews.createdBy, id));
+      await tx.delete(organizationInterviews).where(eq(organizationInterviews.interviewerId, id));
+
+      await tx.delete(budgetRequests).where(eq(budgetRequests.requestedBy, id));
+      await tx.update(budgetRequests).set({ approvedBy: null }).where(eq(budgetRequests.approvedBy, id));
+
+      await tx.update(loginEvents).set({ userId: null }).where(eq(loginEvents.userId, id));
+
+      await tx.delete(users).where(eq(users.id, id));
+    });
   }
 
   // ========================================
@@ -1078,6 +1248,32 @@ export class DatabaseStorage implements IStorage {
 
   async consumeEmailOtp(id: string): Promise<void> {
     await db.update(emailOtps).set({ consumedAt: new Date() }).where(eq(emailOtps.id, id));
+  }
+
+  // ========================================
+  // ACCESS REQUESTS
+  // ========================================
+
+  async createAccessRequest(data: InsertAccessRequest): Promise<AccessRequest> {
+    const [request] = await db.insert(accessRequests).values(data).returning();
+    return request;
+  }
+
+  async getAccessRequest(id: string): Promise<AccessRequest | undefined> {
+    const [request] = await db.select().from(accessRequests).where(eq(accessRequests.id, id));
+    return request || undefined;
+  }
+
+  async updateAccessRequest(
+    id: string,
+    data: Partial<InsertAccessRequest & { status?: AccessRequest["status"] }>
+  ): Promise<AccessRequest | undefined> {
+    const [request] = await db
+      .update(accessRequests)
+      .set({ ...data })
+      .where(eq(accessRequests.id, id))
+      .returning();
+    return request || undefined;
   }
 }
 
