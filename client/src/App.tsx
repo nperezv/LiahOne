@@ -9,6 +9,8 @@ import { Layout } from "@/components/layout";
 
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
+import WelcomePage from "@/pages/welcome";
+import RequestAccessPage from "@/pages/request-access";
 import DashboardPage from "@/pages/dashboard";
 import SacramentalMeetingPage from "@/pages/sacramental-meeting";
 import WardCouncilPage from "@/pages/ward-council";
@@ -99,9 +101,11 @@ function ProtectedRoutes() {
 function Router() {
   return (
     <Switch>
+      <Route path="/welcome" component={WelcomePage} />
       <Route path="/login" component={LoginRoute} />
+      <Route path="/request-access" component={RequestAccessPage} />
       <Route path="/">
-        <Redirect to="/dashboard" />
+        <Redirect to="/welcome" />
       </Route>
       <Route component={ProtectedRoutes} />
     </Switch>
