@@ -29,6 +29,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
+import logoImage from "@assets/liahonapplogo2.svg";
 import {
   formatDistanceToNow,
   formatDistanceToNowStrict,
@@ -146,7 +147,14 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
-        <h1 className="text-lg font-semibold">{wardName}</h1>
+        <div className="flex items-center gap-2">
+          <img
+            src={logoImage}
+            alt="Liahonapp"
+            className="h-7 w-7 animate-logo-float"
+          />
+          <h1 className="text-lg font-semibold">{wardName}</h1>
+        </div>
       </div>
 
       {/* DERECHA */}
