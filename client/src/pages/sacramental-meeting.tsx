@@ -344,14 +344,14 @@ export default function SacramentalMeetingPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Reunión Sacramental</h1>
           <p className="text-sm text-muted-foreground">
             Gestiona la programación de las reuniones sacramentales
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           <Button
             variant="outline"
             onClick={() => exportSacramentalMeetings(meetings)}

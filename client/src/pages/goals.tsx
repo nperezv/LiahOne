@@ -208,8 +208,8 @@ export default function GoalsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Metas Anuales</h1>
           <p className="text-sm text-muted-foreground">
             {activeTab === "barrio" 
@@ -217,47 +217,48 @@ export default function GoalsPage() {
               : "Metas de tu organización"}
           </p>
         </div>
-        {showCreateButton && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-goal">
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Meta
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Crear Nueva Meta</DialogTitle>
-                <DialogDescription>
-                  {isOrgMember ? "Define una nueva meta para tu organización" : "Define una nueva meta para el barrio o una organización"}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Título de la Meta</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Aumentar asistencia sacramental"
-                            {...field}
-                            data-testid="input-title"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          {showCreateButton && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-create-goal">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Meta
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Crear Nueva Meta</DialogTitle>
+                  <DialogDescription>
+                    {isOrgMember ? "Define una nueva meta para tu organización" : "Define una nueva meta para el barrio o una organización"}
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Título de la Meta</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Ej: Aumentar asistencia sacramental"
+                              {...field}
+                              data-testid="input-title"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descripción (Opcional)</FormLabel>
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descripción (Opcional)</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Detalles adicionales sobre la meta"
