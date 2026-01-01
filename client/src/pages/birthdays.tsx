@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -69,6 +69,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 import { useBirthdays, useCreateBirthday } from "@/hooks/use-api";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
@@ -629,9 +630,9 @@ export default function BirthdaysPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+            <div className="space-y-4">
             <div className="space-y-2">
-              <FormLabel>Plantilla de mensaje</FormLabel>
+              <Label>Plantilla de mensaje</Label>
               <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
                 <SelectTrigger data-testid="select-birthday-template">
                   <SelectValue placeholder="Selecciona una plantilla" />
@@ -648,7 +649,7 @@ export default function BirthdaysPage() {
             </div>
 
             <div className="space-y-2">
-              <FormLabel>Imagen de cumpleaños</FormLabel>
+              <Label>Imagen de cumpleaños</Label>
               <Select value={selectedImage} onValueChange={setSelectedImage}>
                 <SelectTrigger data-testid="select-birthday-image">
                   <SelectValue placeholder="Selecciona una imagen" />
