@@ -941,12 +941,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      await storage.deleteUser(id);
+      const cleanAll = req.query.cleanAll === "true";
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const summary = await storage.getUserDeletionSummary(id);
+      const hasDependencies = Object.values(summary).some((count) => count > 0);
+
+      if (hasDependencies && !cleanAll) {
+        return res.status(409).json({
+          error: "User has related records",
+          summary,
+        });
+      }
+
+      if (cleanAll) {
+        await storage.deleteUserWithCleanup(id);
+      } else {
+        await storage.deleteUser(id);
+      }
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete user" });
     }
   });
+
+  app.get(
+    "/api/users/:id/delete-summary",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const user = await storage.getUser(id);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        const summary = await storage.getUserDeletionSummary(id);
+        res.json(summary);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to load deletion summary" });
+      }
+    }
+  );
 
   // ========================================
   // SACRAMENTAL MEETINGS

@@ -118,6 +118,52 @@ interface AccessRequest {
   createdAt: string;
 }
 
+interface UserDeletionSummary {
+  activitiesCreated: number;
+  assignmentsAssignedTo: number;
+  assignmentsAssignedBy: number;
+  budgetRequestsRequested: number;
+  budgetRequestsApproved: number;
+  emailOtps: number;
+  goalsCreated: number;
+  interviewsAssigned: number;
+  interviewsInterviewer: number;
+  interviewsAssignedTo: number;
+  loginEvents: number;
+  notifications: number;
+  organizationInterviewsCreated: number;
+  organizationInterviewsInterviewer: number;
+  presidencyMeetingsCreated: number;
+  pushSubscriptions: number;
+  refreshTokens: number;
+  sacramentalMeetingsCreated: number;
+  userDevices: number;
+  wardCouncilsCreated: number;
+}
+
+const deletionLabels: { key: keyof UserDeletionSummary; label: string }[] = [
+  { key: "assignmentsAssignedTo", label: "Asignaciones asignadas al usuario" },
+  { key: "assignmentsAssignedBy", label: "Asignaciones creadas por el usuario" },
+  { key: "interviewsAssigned", label: "Entrevistas asignadas por el usuario" },
+  { key: "interviewsInterviewer", label: "Entrevistas donde es entrevistador" },
+  { key: "interviewsAssignedTo", label: "Entrevistas asignadas al usuario" },
+  { key: "organizationInterviewsCreated", label: "Entrevistas de organización creadas" },
+  { key: "organizationInterviewsInterviewer", label: "Entrevistas de organización donde es entrevistador" },
+  { key: "goalsCreated", label: "Metas creadas" },
+  { key: "activitiesCreated", label: "Actividades creadas" },
+  { key: "sacramentalMeetingsCreated", label: "Reuniones sacramentales creadas" },
+  { key: "wardCouncilsCreated", label: "Consejos de barrio creados" },
+  { key: "presidencyMeetingsCreated", label: "Reuniones de presidencia creadas" },
+  { key: "budgetRequestsRequested", label: "Solicitudes de presupuesto creadas" },
+  { key: "budgetRequestsApproved", label: "Solicitudes de presupuesto aprobadas" },
+  { key: "notifications", label: "Notificaciones activas" },
+  { key: "pushSubscriptions", label: "Suscripciones push" },
+  { key: "refreshTokens", label: "Sesiones activas" },
+  { key: "userDevices", label: "Dispositivos registrados" },
+  { key: "emailOtps", label: "Códigos OTP pendientes" },
+  { key: "loginEvents", label: "Eventos de inicio de sesión" },
+];
+
 export default function AdminUsersPage() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
@@ -125,6 +171,9 @@ export default function AdminUsersPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
   const [editUser, setEditUser] = useState<User | null>(null);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [deleteSummary, setDeleteSummary] = useState<UserDeletionSummary | null>(null);
+  const [deleteSummaryLoading, setDeleteSummaryLoading] = useState(false);
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
 
   // Verificar que solo obispo/consejeros puedan acceder
@@ -225,6 +274,47 @@ export default function AdminUsersPage() {
     setPrefilledRequestId(accessRequest.id);
     setIsCreateDialogOpen(true);
   }, [accessRequest, createForm, prefilledRequestId]);
+
+  useEffect(() => {
+    if (!deleteUser) {
+      setDeleteSummary(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadSummary = async () => {
+      setDeleteSummaryLoading(true);
+      try {
+        const response = await fetch(`/api/users/${deleteUser.id}/delete-summary`, {
+          headers: getAuthHeaders(),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("Error al cargar dependencias");
+        }
+        const summary = await response.json();
+        setDeleteSummary(summary);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          toast({
+            title: "Error",
+            description: "No se pudo cargar el resumen de dependencias.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setDeleteSummaryLoading(false);
+        }
+      }
+    };
+
+    loadSummary();
+
+    return () => {
+      controller.abort();
+    };
+  }, [deleteUser, toast]);
 
   const resetPasswordForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -334,18 +424,35 @@ export default function AdminUsersPage() {
     }
   };
 
-  const onDeleteUser = async (userId: string) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este usuario?")) return;
+  const onDeleteUser = (targetUser: User) => {
+    setDeleteUser(targetUser);
+  };
+
+  const onConfirmDeleteUser = async (cleanAll: boolean) => {
+    if (!deleteUser) return;
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`/api/users/${deleteUser.id}?cleanAll=${cleanAll}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
 
+      if (response.status === 409) {
+        const data = await response.json();
+        setDeleteSummary(data.summary);
+        toast({
+          title: "No se puede eliminar",
+          description: "El usuario tiene registros asociados.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (!response.ok) throw new Error("Error al eliminar usuario");
 
       toast({ title: "Éxito", description: "Usuario eliminado correctamente" });
+      setDeleteUser(null);
+      setDeleteSummary(null);
       refetch();
     } catch (error) {
       toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
@@ -375,6 +482,16 @@ export default function AdminUsersPage() {
     presidente_organizacion: "Presidente",
     consejero_organizacion: "Consejero",
   };
+
+  const deleteSummaryItems = useMemo(() => {
+    if (!deleteSummary) return [];
+    return deletionLabels
+      .map((item) => ({
+        ...item,
+        count: deleteSummary[item.key] ?? 0,
+      }))
+      .filter((item) => item.count > 0);
+  }, [deleteSummary]);
 
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4">
@@ -548,6 +665,85 @@ export default function AdminUsersPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <Dialog
+        open={Boolean(deleteUser)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteUser(null);
+            setDeleteSummary(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Eliminar usuario</DialogTitle>
+            <DialogDescription>
+              Esta acción eliminará la cuenta de {deleteUser?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteSummaryLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : deleteSummary && deleteSummaryItems.length > 0 ? (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                Hay registros asociados que impiden eliminar el usuario directamente:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                {deleteSummaryItems.map((item) => (
+                  <li key={item.key}>
+                    {item.label}: <span className="font-medium">{item.count}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Si eliges limpiar todo, se eliminarán esos registros y los eventos de inicio
+                de sesión o aprobaciones quedarán sin usuario para mantener auditoría básica.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No se encontraron registros asociados. Puedes eliminar este usuario.
+            </p>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteUser(null);
+                setDeleteSummary(null);
+              }}
+              data-testid="button-cancel-delete"
+            >
+              Cancelar
+            </Button>
+            {deleteSummary && deleteSummaryItems.length > 0 ? (
+              <Button
+                variant="destructive"
+                onClick={() => onConfirmDeleteUser(true)}
+                disabled={deleteSummaryLoading}
+                data-testid="button-confirm-clean-delete"
+              >
+                Limpiar todo y eliminar
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                onClick={() => onConfirmDeleteUser(false)}
+                disabled={deleteSummaryLoading}
+                data-testid="button-confirm-delete"
+              >
+                Eliminar usuario
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
@@ -815,7 +1011,7 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive hover:text-destructive"
-                            onClick={() => onDeleteUser(u.id)}
+                            onClick={() => onDeleteUser(u)}
                             data-testid={`button-delete-user-${u.id}`}
                           >
                             <Trash2 className="h-4 w-4" />
