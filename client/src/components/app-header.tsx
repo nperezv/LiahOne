@@ -13,6 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiRequest } from "@/lib/queryClient";
 import {
   formatDistanceToNow,
   formatDistanceToNowStrict,
@@ -72,6 +74,10 @@ const EVENT_NOTIFICATION_TYPES = [
 
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const [, setLocation] = useLocation();
+  const { data: template } = useQuery({
+    queryKey: ["/api/pdf-template"],
+    queryFn: () => apiRequest("GET", "/api/pdf-template"),
+  });
   const {
     notifications,
     unreadCount,
@@ -94,6 +100,8 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
   const isAdmin =
     user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
+
+  const wardName = template?.wardName?.trim() || "Liahonapp";
 
   const getInitials = (name?: string) => {
     if (!name) return "U";
@@ -138,7 +146,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
-        <h1 className="text-lg font-semibold">Liahonaap</h1>
+        <h1 className="text-lg font-semibold">{wardName}</h1>
       </div>
 
       {/* DERECHA */}

@@ -208,148 +208,152 @@ export default function GoalsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Metas Anuales</h1>
           <p className="text-sm text-muted-foreground">
-            {activeTab === "barrio" 
+            {activeTab === "barrio"
               ? "Seguimiento del progreso de las metas del barrio"
               : "Metas de tu organización"}
           </p>
         </div>
-        {showCreateButton && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-goal">
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Meta
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Crear Nueva Meta</DialogTitle>
-                <DialogDescription>
-                  {isOrgMember ? "Define una nueva meta para tu organización" : "Define una nueva meta para el barrio o una organización"}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Título de la Meta</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Aumentar asistencia sacramental"
-                            {...field}
-                            data-testid="input-title"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descripción (Opcional)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Detalles adicionales sobre la meta"
-                            {...field}
-                            data-testid="textarea-description"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-2 gap-4">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          {showCreateButton && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-create-goal">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Meta
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Crear Nueva Meta</DialogTitle>
+                  <DialogDescription>
+                    {isOrgMember
+                      ? "Define una nueva meta para tu organización"
+                      : "Define una nueva meta para el barrio o una organización"}
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <FormField
                       control={form.control}
-                      name="year"
+                      name="title"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Año</FormLabel>
-                          <FormControl>
-                            <Input type="number" {...field} data-testid="input-year" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="targetValue"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Valor Objetivo</FormLabel>
+                          <FormLabel>Título de la Meta</FormLabel>
                           <FormControl>
                             <Input
-                              type="number"
-                              placeholder="100"
+                              placeholder="Ej: Aumentar asistencia sacramental"
                               {...field}
-                              data-testid="input-target-value"
+                              data-testid="input-title"
                             />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  </div>
 
-                  {!isOrgMember && (
                     <FormField
                       control={form.control}
-                      name="organizationId"
+                      name="description"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Organización (Opcional)</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-organization">
-                                <SelectValue placeholder="Barrio completo" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {organizations.map((org: any) => (
-                                <SelectItem key={org.id} value={org.id}>
-                                  {org.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormLabel>Descripción (Opcional)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Detalles adicionales sobre la meta"
+                              {...field}
+                              data-testid="textarea-description"
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
 
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsDialogOpen(false)}
-                      data-testid="button-cancel"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
-                      {createMutation.isPending ? "Creando..." : "Crear Meta"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="year"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Año</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} data-testid="input-year" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="targetValue"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Valor Objetivo</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="100"
+                                {...field}
+                                data-testid="input-target-value"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {!isOrgMember && (
+                      <FormField
+                        control={form.control}
+                        name="organizationId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Organización (Opcional)</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-organization">
+                                  <SelectValue placeholder="Barrio completo" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {organizations.map((org: any) => (
+                                  <SelectItem key={org.id} value={org.id}>
+                                    {org.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                        data-testid="button-cancel"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
+                        {createMutation.isPending ? "Creando..." : "Crear Meta"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {/* Tabs for Ward vs Organization Goals */}
