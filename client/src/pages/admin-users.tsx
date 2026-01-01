@@ -40,9 +40,8 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   name: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  email: z.string().email("Email inválido"),
   phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
@@ -194,7 +193,6 @@ export default function AdminUsersPage() {
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       username: "",
-      password: "",
       name: "",
       email: "",
       phone: "",
@@ -217,7 +215,6 @@ export default function AdminUsersPage() {
 
     createForm.reset({
       username: suggestedUsername,
-      password: "",
       name: accessRequest.name,
       email: accessRequest.email,
       phone: accessRequest.phone || "",
@@ -414,32 +411,19 @@ export default function AdminUsersPage() {
             </DialogHeader>
             <Form {...createForm}>
               <form onSubmit={createForm.handleSubmit(onCreateUser)} className="space-y-4">
-                {accessRequest && (
-                  <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm space-y-2">
-                    <div className="font-medium">Solicitud de acceso pendiente</div>
-                    <div>
-                      <span className="text-muted-foreground">Llamamiento:</span>{" "}
-                      {accessRequest.calling || "No especificado"}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Teléfono:</span>{" "}
-                      {accessRequest.phone || "No especificado"}
-                    </div>
-                    {accessRequest.phone && (
-                      <Button asChild variant="outline" size="sm">
-                        <a
-                          href={`https://wa.me/${accessRequest.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                            `Hola ${accessRequest.name}, estamos revisando tu solicitud de acceso.`
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Abrir WhatsApp
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                )}
+        {accessRequest && (
+          <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm space-y-2">
+            <div className="font-medium">Solicitud de acceso pendiente</div>
+            <div>
+              <span className="text-muted-foreground">Llamamiento:</span>{" "}
+              {accessRequest.calling || "No especificado"}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Teléfono:</span>{" "}
+              {accessRequest.phone || "No especificado"}
+            </div>
+          </div>
+        )}
                 <FormField
                   control={createForm.control}
                   name="name"
@@ -473,7 +457,7 @@ export default function AdminUsersPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email (Opcional)</FormLabel>
+                      <FormLabel>Email</FormLabel>
                       <FormControl>
                         <Input type="email" {...field} data-testid="input-create-email" />
                       </FormControl>
@@ -496,19 +480,9 @@ export default function AdminUsersPage() {
                   )}
                 />
 
-                <FormField
-                  control={createForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contraseña</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} data-testid="input-create-password" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <p className="text-xs text-muted-foreground">
+                  Se generará una contraseña temporal y se enviará por email al usuario.
+                </p>
 
                 <FormField
                   control={createForm.control}
