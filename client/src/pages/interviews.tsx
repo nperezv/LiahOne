@@ -407,15 +407,15 @@ export default function InterviewsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Entrevistas</h1>
           <p className="text-sm text-muted-foreground">
             {isOrgMember ? "Solicita entrevistas con el Obispado" : "Programa y gestiona las entrevistas del barrio"}
           </p>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" data-testid="button-export-interviews">

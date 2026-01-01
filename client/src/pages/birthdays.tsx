@@ -205,49 +205,50 @@ export default function BirthdaysPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Cumpleaños</h1>
           <p className="text-sm text-muted-foreground">
             Gestiona y envía felicitaciones automáticas de cumpleaños
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-birthday">
-              <Plus className="h-4 w-4 mr-2" />
-              Agregar Cumpleaños
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingBirthdayId ? "Editar Cumpleaños" : "Agregar Cumpleaños"}</DialogTitle>
-              <DialogDescription>
-                {editingBirthdayId 
-                  ? "Actualiza los detalles del cumpleaños"
-                  : "Registra un cumpleaños para enviar felicitaciones"
-                }
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Juan Pérez"
-                          {...field}
-                          data-testid="input-name"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-birthday">
+                <Plus className="h-4 w-4 mr-2" />
+                Agregar Cumpleaños
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingBirthdayId ? "Editar Cumpleaños" : "Agregar Cumpleaños"}</DialogTitle>
+                <DialogDescription>
+                  {editingBirthdayId 
+                    ? "Actualiza los detalles del cumpleaños"
+                    : "Registra un cumpleaños para enviar felicitaciones"
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Juan Pérez"
+                            {...field}
+                            data-testid="input-name"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                 <FormField
                   control={form.control}
