@@ -24,6 +24,7 @@ import {
   refreshTokens,
   loginEvents,
   emailOtps,
+  accessRequests,
   type User,
   type InsertUser,
   type Organization,
@@ -62,6 +63,8 @@ import {
   type RefreshToken,
   type LoginEvent,
   type EmailOtp,
+  type AccessRequest,
+  type InsertAccessRequest,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -232,6 +235,11 @@ export interface IStorage {
   }): Promise<EmailOtp>;
   getEmailOtpById(id: string): Promise<EmailOtp | undefined>;
   consumeEmailOtp(id: string): Promise<void>;
+
+  // Access Requests
+  createAccessRequest(data: InsertAccessRequest): Promise<AccessRequest>;
+  getAccessRequest(id: string): Promise<AccessRequest | undefined>;
+  updateAccessRequest(id: string, data: Partial<InsertAccessRequest & { status?: AccessRequest["status"] }>): Promise<AccessRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1078,6 +1086,32 @@ export class DatabaseStorage implements IStorage {
 
   async consumeEmailOtp(id: string): Promise<void> {
     await db.update(emailOtps).set({ consumedAt: new Date() }).where(eq(emailOtps.id, id));
+  }
+
+  // ========================================
+  // ACCESS REQUESTS
+  // ========================================
+
+  async createAccessRequest(data: InsertAccessRequest): Promise<AccessRequest> {
+    const [request] = await db.insert(accessRequests).values(data).returning();
+    return request;
+  }
+
+  async getAccessRequest(id: string): Promise<AccessRequest | undefined> {
+    const [request] = await db.select().from(accessRequests).where(eq(accessRequests.id, id));
+    return request || undefined;
+  }
+
+  async updateAccessRequest(
+    id: string,
+    data: Partial<InsertAccessRequest & { status?: AccessRequest["status"] }>
+  ): Promise<AccessRequest | undefined> {
+    const [request] = await db
+      .update(accessRequests)
+      .set({ ...data })
+      .where(eq(accessRequests.id, id))
+      .returning();
+    return request || undefined;
   }
 }
 

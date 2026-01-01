@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,6 +41,14 @@ export default function ProfilePage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const { toast } = useToast();
+  const requiresPasswordChange = Boolean(user?.requirePasswordChange);
+
+  useEffect(() => {
+    if (requiresPasswordChange) {
+      setIsChangingPassword(true);
+      setIsEditing(false);
+    }
+  }, [requiresPasswordChange]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -96,6 +104,10 @@ export default function ProfilePage() {
       }
 
       toast({ title: "Éxito", description: "Contraseña cambiada correctamente" });
+      if (requiresPasswordChange) {
+        window.location.reload();
+        return;
+      }
       setIsChangingPassword(false);
       passwordForm.reset();
     } catch (error) {
@@ -143,6 +155,11 @@ export default function ProfilePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {requiresPasswordChange && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+              Debes cambiar tu contraseña antes de continuar usando la aplicación.
+            </div>
+          )}
           <div className="flex items-start gap-6">
             <Avatar className="h-20 w-20">
               <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
@@ -272,17 +289,19 @@ export default function ProfilePage() {
                   <Button type="submit" data-testid="button-save-password">
                     Cambiar Contraseña
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsChangingPassword(false);
-                      passwordForm.reset();
-                    }}
-                    data-testid="button-cancel-password"
-                  >
-                    Cancelar
-                  </Button>
+                  {!requiresPasswordChange && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsChangingPassword(false);
+                        passwordForm.reset();
+                      }}
+                      data-testid="button-cancel-password"
+                    >
+                      Cancelar
+                    </Button>
+                  )}
                 </div>
               </form>
             </Form>

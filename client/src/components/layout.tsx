@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -11,9 +11,16 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
+  const [location] = useLocation();
 
   if (!isAuthenticated) {
-    return <Redirect to="/login" />;
+    const next = `${window.location.pathname}${window.location.search}`;
+    const redirectTarget = next.startsWith("/login") ? "/login" : `/login?next=${encodeURIComponent(next)}`;
+    return <Redirect to={redirectTarget} />;
+  }
+
+  if (user?.requirePasswordChange && location !== "/profile") {
+    return <Redirect to="/profile" />;
   }
 
   const sidebarStyle = {

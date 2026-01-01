@@ -10,6 +10,7 @@ interface User {
   role: string;
   organizationId?: string;
   requireEmailOtp?: boolean;
+  requirePasswordChange?: boolean;
 }
 
 interface AuthContextType {

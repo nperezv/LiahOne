@@ -23,6 +23,7 @@ import {
   insertPdfTemplateSchema,
   insertWardBudgetSchema,
   insertOrganizationBudgetSchema,
+  insertAccessRequestSchema,
   insertNotificationSchema,
   insertPushSubscriptionSchema,
   notifications,
@@ -34,12 +35,15 @@ import {
   createAccessToken,
   generateRefreshToken,
   generateOtpCode,
+  generateTemporaryPassword,
   getClientIp,
   getCountryFromIp,
   getDeviceHash,
   getOtpExpiry,
   getRefreshExpiry,
   hashToken,
+  sendAccessRequestEmail,
+  sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
   verifyAccessToken,
 } from "./auth";
@@ -71,6 +75,8 @@ function getUserIdFromRequest(req: Request): string | null {
   return payload.userId;
 }
 
+const passwordChangeAllowedPaths = new Set(["/api/profile/change-password", "/api/logout", "/api/me"]);
+
 // Auth middleware
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = getUserIdFromRequest(req);
@@ -82,6 +88,9 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
     const user = await storage.getUser(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+    if (user.requirePasswordChange && !passwordChangeAllowedPaths.has(req.path)) {
+      return res.status(403).json({ error: "Password change required" });
     }
     (req as any).user = user;
     next();
@@ -99,7 +108,13 @@ function requireRole(...roles: string[]) {
     }
 
     const user = await storage.getUser(userId);
-    if (!user || !roles.includes(user.role)) {
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (user.requirePasswordChange && !passwordChangeAllowedPaths.has(req.path)) {
+      return res.status(403).json({ error: "Password change required" });
+    }
+    if (!roles.includes(user.role)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -546,6 +561,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // ACCESS REQUESTS
+  // ========================================
+
+  app.post("/api/access-requests", async (req: Request, res: Response) => {
+    try {
+      const parsed = insertAccessRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid access request data" });
+      }
+
+      const accessRequest = await storage.createAccessRequest(parsed.data);
+
+      const users = await storage.getAllUsers();
+      const notificationRoles = ["obispo", "consejero_obispo", "secretario_financiero"];
+      const roleRecipients = users
+        .filter((user) => notificationRoles.includes(user.role) && user.email)
+        .map((user) => user.email!)
+        .filter((email, index, arr) => arr.indexOf(email) === index);
+      const fallbackRecipient = process.env.BISHOP_EMAIL;
+      const recipients = roleRecipients.length > 0
+        ? roleRecipients
+        : fallbackRecipient
+          ? [fallbackRecipient]
+          : [];
+
+      if (recipients.length > 0) {
+        const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+        const reviewUrl = `${baseUrl}/admin/users?requestId=${accessRequest.id}`;
+        await Promise.all(
+          recipients.map((recipient) =>
+            sendAccessRequestEmail({
+              toEmail: recipient,
+              requesterName: accessRequest.name,
+              requesterEmail: accessRequest.email,
+              calling: accessRequest.calling,
+              phone: accessRequest.phone,
+              reviewUrl,
+            })
+          )
+        );
+      } else {
+        console.warn("No access request email recipients configured.", accessRequest);
+      }
+
+      res.status(201).json(accessRequest);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create access request" });
+    }
+  });
+
+  app.get(
+    "/api/access-requests/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
+      try {
+        const accessRequest = await storage.getAccessRequest(req.params.id);
+        if (!accessRequest) {
+          return res.status(404).json({ error: "Access request not found" });
+        }
+        res.json(accessRequest);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to load access request" });
+      }
+    }
+  );
+
+  // ========================================
   // USERS
   // ========================================
 
@@ -558,11 +641,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.post(
+    "/api/users",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
-      const { username, password, name, email, role, organizationId } = req.body;
+      const { username, name, email, role, organizationId, accessRequestId, phone } = req.body;
 
-      if (!username || !password || !name || !role) {
+      if (!username || !name || !role) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -584,14 +671,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
       const finalOrganizationId = bishopRoles.includes(role) ? obispadoId : organizationId || null;
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const accessRequest = accessRequestId
+        ? await storage.getAccessRequest(accessRequestId)
+        : null;
+      if (accessRequestId && !accessRequest) {
+        return res.status(404).json({ error: "Access request not found" });
+      }
+
+      const recipientEmail = accessRequest?.email || email;
+      if (!recipientEmail) {
+        return res.status(400).json({ error: "Email is required to send credentials" });
+      }
+
+      const temporaryPassword = generateTemporaryPassword();
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
       const user = await storage.createUser({
         username,
         password: hashedPassword,
         name,
-        email: email || null,
+        email: email || accessRequest?.email || null,
+        phone: phone || null,
         role,
         organizationId: finalOrganizationId,
+        requirePasswordChange: true,
+      });
+
+      if (accessRequestId) {
+        await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
+      }
+
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      await sendNewUserCredentialsEmail({
+        toEmail: recipientEmail,
+        name: user.name,
+        username: user.username,
+        temporaryPassword,
+        loginUrl: `${baseUrl}/login`,
       });
 
       const { password: _, ...userWithoutPassword } = user;
@@ -603,6 +718,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Username already exists" });
       }
       res.status(500).json({ error: "Failed to create user: " + (error.message || "Unknown error") });
+    }
+  });
+
+  app.patch(
+    "/api/users/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { username, name, email, role, organizationId, phone } = req.body;
+
+      if (role) {
+        const rolesRequireOrg = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
+        if (rolesRequireOrg.includes(role) && !organizationId) {
+          return res.status(400).json({ error: "organizationId is required for this role" });
+        }
+      }
+
+      if (username) {
+        const existingUsers = await storage.getAllUsers();
+        const usernameExists = existingUsers.some(
+          (u) => u.username.toLowerCase() === username.toLowerCase() && u.id !== id
+        );
+        if (usernameExists) {
+          return res.status(400).json({ error: "Username already exists" });
+        }
+      }
+
+      const updatedUser = await storage.updateUser(id, {
+        username: username || undefined,
+        name: name || undefined,
+        email: email || undefined,
+        role: role || undefined,
+        organizationId: organizationId ?? undefined,
+        phone: phone || undefined,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user" });
     }
   });
 
@@ -644,6 +805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const updatedUser = await storage.updateUser(req.session.userId!, {
         password: hashedPassword,
+        requirePasswordChange: false,
       });
 
       if (!updatedUser) {
@@ -656,7 +818,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users/:id/reset-password", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.post(
+    "/api/users/:id/reset-password",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { newPassword } = req.body;
@@ -668,6 +834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const user = await storage.updateUser(id, {
         password: hashedPassword,
+        requirePasswordChange: true,
       });
 
       if (!user) {
@@ -681,7 +848,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/sessions", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.get(
+    "/api/admin/sessions",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const sessions = await storage.getActiveRefreshTokens();
       const users = await storage.getAllUsers();
@@ -713,7 +884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/admin/sessions/:id/revoke",
     requireAuth,
-    requireRole("obispo", "consejero_obispo"),
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
@@ -728,7 +899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/admin/access-log",
     requireAuth,
-    requireRole("obispo", "consejero_obispo"),
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const events = await storage.getRecentLoginEvents();
@@ -759,7 +930,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.patch("/api/users/:id/role", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.patch(
+    "/api/users/:id/role",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { role } = req.body;
@@ -781,7 +956,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:id", requireAuth, requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.delete(
+    "/api/users/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       await storage.deleteUser(id);
