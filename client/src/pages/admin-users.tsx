@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,6 +43,7 @@ const createUserSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
 });
@@ -51,19 +52,25 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
-const changeRoleSchema = z.object({
+const editUserSchema = z.object({
+  name: z.string().min(1, "El nombre es requerido"),
+  username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  organizationId: z.string().optional(),
 });
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
 type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
-type ChangeRoleFormValues = z.infer<typeof changeRoleSchema>;
+type EditUserFormValues = z.infer<typeof editUserSchema>;
 
 interface User {
   id: string;
   username: string;
   name: string;
   email: string;
+  phone?: string | null;
   role: string;
   organizationId?: string;
 }
@@ -101,16 +108,31 @@ interface AccessLogEntry {
   createdAt: string;
 }
 
+interface AccessRequest {
+  id: string;
+  name: string;
+  email: string;
+  calling?: string | null;
+  phone?: string | null;
+  contactConsent: boolean;
+  status: "pendiente" | "aprobada" | "rechazada";
+  createdAt: string;
+}
+
 export default function AdminUsersPage() {
   const { user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
-  const [changeRoleUser, setChangeRoleUser] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
 
   // Verificar que solo obispo/consejeros puedan acceder
-  const isAdmin = user?.role === "obispo" || user?.role === "consejero_obispo";
+  const isAdmin =
+    user?.role === "obispo" ||
+    user?.role === "consejero_obispo" ||
+    user?.role === "secretario_ejecutivo";
 
   if (!isAdmin) {
     return (
@@ -148,6 +170,26 @@ export default function AdminUsersPage() {
     enabled: isAdmin,
   });
 
+  const requestId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("requestId");
+  }, [location]);
+
+  const { data: accessRequest } = useQuery<AccessRequest | null>({
+    queryKey: ["/api/access-requests", requestId],
+    enabled: isAdmin && Boolean(requestId),
+    queryFn: async () => {
+      if (!requestId) return null;
+      const response = await fetch(`/api/access-requests/${requestId}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return response.json();
+    },
+  });
+
   const createForm = useForm<CreateUserFormValues>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
@@ -155,12 +197,37 @@ export default function AdminUsersPage() {
       password: "",
       name: "",
       email: "",
+      phone: "",
       role: "secretario",
       organizationId: "",
     },
   });
 
-  const selectedRole = createForm.watch("role");
+  useEffect(() => {
+    if (!accessRequest || prefilledRequestId === accessRequest.id) {
+      return;
+    }
+
+    const suggestedUsername = accessRequest.email
+      ? accessRequest.email.split("@")[0]
+      : accessRequest.name
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, ".");
+
+    createForm.reset({
+      username: suggestedUsername,
+      password: "",
+      name: accessRequest.name,
+      email: accessRequest.email,
+      phone: accessRequest.phone || "",
+      role: "secretario",
+      organizationId: "",
+    });
+
+    setPrefilledRequestId(accessRequest.id);
+    setIsCreateDialogOpen(true);
+  }, [accessRequest, createForm, prefilledRequestId]);
 
   const resetPasswordForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -169,12 +236,20 @@ export default function AdminUsersPage() {
     },
   });
 
-  const changeRoleForm = useForm<ChangeRoleFormValues>({
-    resolver: zodResolver(changeRoleSchema),
+  const editUserForm = useForm<EditUserFormValues>({
+    resolver: zodResolver(editUserSchema),
     defaultValues: {
+      name: "",
+      username: "",
+      email: "",
+      phone: "",
       role: "secretario",
+      organizationId: "",
     },
   });
+
+  const selectedRole = createForm.watch("role");
+  const selectedEditRole = editUserForm.watch("role");
 
   const onCreateUser = async (data: CreateUserFormValues) => {
     try {
@@ -183,6 +258,8 @@ export default function AdminUsersPage() {
         ...data,
         organizationId: data.organizationId || undefined,
         email: data.email || undefined,
+        phone: data.phone || undefined,
+        accessRequestId: accessRequest?.id,
       };
 
       const response = await fetch("/api/users", {
@@ -201,6 +278,9 @@ export default function AdminUsersPage() {
       setIsCreateDialogOpen(false);
       createForm.reset();
       refetch();
+      if (accessRequest?.id) {
+        setPrefilledRequestId(null);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -230,24 +310,29 @@ export default function AdminUsersPage() {
     }
   };
 
-  const onChangeRole = async (data: ChangeRoleFormValues) => {
-    if (!changeRoleUser) return;
+  const onEditUser = async (data: EditUserFormValues) => {
+    if (!editUser) return;
 
     try {
-      const response = await fetch(`/api/users/${changeRoleUser.id}/role`, {
+      const response = await fetch(`/api/users/${editUser.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ role: data.role }),
+        body: JSON.stringify({
+          ...data,
+          organizationId: data.organizationId || undefined,
+          email: data.email || undefined,
+          phone: data.phone || undefined,
+        }),
       });
 
-      if (!response.ok) throw new Error("Error al cambiar rol");
+      if (!response.ok) throw new Error("Error al actualizar usuario");
 
-      toast({ title: "Éxito", description: "Rol actualizado correctamente" });
-      setChangeRoleUser(null);
-      changeRoleForm.reset();
+      toast({ title: "Éxito", description: "Usuario actualizado correctamente" });
+      setEditUser(null);
+      editUserForm.reset();
       refetch();
     } catch (error) {
-      toast({ title: "Error", description: "No se pudo cambiar el rol", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudo actualizar el usuario", variant: "destructive" });
     }
   };
 
@@ -329,6 +414,32 @@ export default function AdminUsersPage() {
             </DialogHeader>
             <Form {...createForm}>
               <form onSubmit={createForm.handleSubmit(onCreateUser)} className="space-y-4">
+                {accessRequest && (
+                  <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm space-y-2">
+                    <div className="font-medium">Solicitud de acceso pendiente</div>
+                    <div>
+                      <span className="text-muted-foreground">Llamamiento:</span>{" "}
+                      {accessRequest.calling || "No especificado"}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Teléfono:</span>{" "}
+                      {accessRequest.phone || "No especificado"}
+                    </div>
+                    {accessRequest.phone && (
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={`https://wa.me/${accessRequest.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                            `Hola ${accessRequest.name}, estamos revisando tu solicitud de acceso.`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir WhatsApp
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <FormField
                   control={createForm.control}
                   name="name"
@@ -365,6 +476,20 @@ export default function AdminUsersPage() {
                       <FormLabel>Email (Opcional)</FormLabel>
                       <FormControl>
                         <Input type="email" {...field} data-testid="input-create-email" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teléfono (Opcional)</FormLabel>
+                      <FormControl>
+                        <Input type="tel" {...field} data-testid="input-create-phone" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -474,6 +599,7 @@ export default function AdminUsersPage() {
                     <TableHead>Usuario</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
+                    <TableHead>Teléfono</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -488,6 +614,7 @@ export default function AdminUsersPage() {
                           {roleLabels[u.role] || u.role}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{u.phone || "-"}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Dialog open={resetPasswordUser?.id === u.id} onOpenChange={(open) => !open && setResetPasswordUser(null)}>
@@ -547,39 +674,102 @@ export default function AdminUsersPage() {
                             )}
                           </Dialog>
 
-                          <Dialog open={changeRoleUser?.id === u.id} onOpenChange={(open) => !open && setChangeRoleUser(null)}>
+                          <Dialog open={editUser?.id === u.id} onOpenChange={(open) => !open && setEditUser(null)}>
                             <DialogTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                  setChangeRoleUser(u);
-                                  changeRoleForm.setValue("role", u.role as any);
+                                  setEditUser(u);
+                                  editUserForm.reset({
+                                    name: u.name,
+                                    username: u.username,
+                                    email: u.email || "",
+                                    phone: u.phone || "",
+                                    role: u.role as EditUserFormValues["role"],
+                                    organizationId: u.organizationId || "",
+                                  });
                                 }}
-                                data-testid={`button-change-role-${u.id}`}
+                                data-testid={`button-edit-user-${u.id}`}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </DialogTrigger>
-                            {changeRoleUser?.id === u.id && (
-                              <DialogContent className="max-w-sm">
+                            {editUser?.id === u.id && (
+                              <DialogContent className="max-w-lg">
                                 <DialogHeader>
-                                  <DialogTitle>Cambiar Rol</DialogTitle>
+                                  <DialogTitle>Editar Usuario</DialogTitle>
                                   <DialogDescription>
-                                    Cambia el rol para {u.name}
+                                    Modifica los datos de {u.name}
                                   </DialogDescription>
                                 </DialogHeader>
-                                <Form {...changeRoleForm}>
-                                  <form onSubmit={changeRoleForm.handleSubmit(onChangeRole)} className="space-y-4">
+                                <Form {...editUserForm}>
+                                  <form onSubmit={editUserForm.handleSubmit(onEditUser)} className="space-y-4">
                                     <FormField
-                                      control={changeRoleForm.control}
+                                      control={editUserForm.control}
+                                      name="name"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Nombre</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} data-testid="input-edit-name" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="username"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Usuario</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} data-testid="input-edit-username" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="email"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Email (Opcional)</FormLabel>
+                                          <FormControl>
+                                            <Input type="email" {...field} data-testid="input-edit-email" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="phone"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Teléfono (Opcional)</FormLabel>
+                                          <FormControl>
+                                            <Input type="tel" {...field} data-testid="input-edit-phone" />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
                                       name="role"
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Rol</FormLabel>
                                           <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
-                                              <SelectTrigger data-testid="select-change-role">
+                                              <SelectTrigger data-testid="select-edit-role">
                                                 <SelectValue />
                                               </SelectTrigger>
                                             </FormControl>
@@ -599,20 +789,47 @@ export default function AdminUsersPage() {
                                       )}
                                     />
 
+                                    {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedEditRole) && (
+                                      <FormField
+                                        control={editUserForm.control}
+                                        name="organizationId"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Organización</FormLabel>
+                                            <Select value={field.value} onValueChange={field.onChange}>
+                                              <FormControl>
+                                                <SelectTrigger data-testid="select-edit-organization">
+                                                  <SelectValue placeholder="Selecciona una organización" />
+                                                </SelectTrigger>
+                                              </FormControl>
+                                              <SelectContent>
+                                                {organizations.map((org) => (
+                                                  <SelectItem key={org.id} value={org.id}>
+                                                    {org.name}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+
                                     <div className="flex gap-2 justify-end">
                                       <Button
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
-                                          setChangeRoleUser(null);
-                                          changeRoleForm.reset();
+                                          setEditUser(null);
+                                          editUserForm.reset();
                                         }}
-                                        data-testid="button-cancel-role"
+                                        data-testid="button-cancel-edit"
                                       >
                                         Cancelar
                                       </Button>
-                                      <Button type="submit" data-testid="button-submit-role">
-                                        Cambiar
+                                      <Button type="submit" data-testid="button-submit-edit">
+                                        Guardar
                                       </Button>
                                     </div>
                                   </form>
