@@ -266,7 +266,7 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-10 w-10 transition-transform duration-200 ease-out", className)}
+      className={cn("h-[3.625rem] w-[3.625rem] transition-transform duration-200 ease-out", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
@@ -277,7 +277,7 @@ function SidebarTrigger({
         src="/favicon.svg"
         alt="Abrir sidebar"
         className={cn(
-          "h-6 w-6 transition-all duration-300 ease-out",
+          "h-[2.175rem] w-[2.175rem] transition-all duration-300 ease-out",
           isExpanded ? "rotate-90 scale-95 opacity-40" : "rotate-0 opacity-100"
         )}
       />
