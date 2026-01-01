@@ -72,6 +72,12 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "reminder",
 ]);
 
+export const accessRequestStatusEnum = pgEnum("access_request_status", [
+  "pendiente",
+  "aprobada",
+  "rechazada",
+]);
+
 export const budgetStatusEnum = pgEnum("budget_status", [
   "solicitado",
   "aprobado",
@@ -117,6 +123,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   email: text("email"),
+  phone: text("phone"),
   requireEmailOtp: boolean("require_email_otp").notNull().default(false),
   role: roleEnum("role").notNull(),
   organizationId: varchar("organization_id").references(() => organizations.id),
@@ -168,6 +175,17 @@ export const emailOtps = pgTable("email_otps", {
   country: text("country"),
   expiresAt: timestamp("expires_at").notNull(),
   consumedAt: timestamp("consumed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const accessRequests = pgTable("access_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  calling: text("calling"),
+  phone: text("phone"),
+  contactConsent: boolean("contact_consent").notNull().default(false),
+  status: accessRequestStatusEnum("status").notNull().default("pendiente"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -533,6 +551,7 @@ export const birthdaysRelations = relations(birthdays, ({ one }) => ({
 // Users
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
   requireEmailOtp: z.boolean().optional(),
 }).omit({ id: true, createdAt: true });
 
@@ -633,6 +652,15 @@ export const insertOrganizationInterviewSchema = createInsertSchema(
 });
 
 export const selectOrganizationInterviewSchema = createSelectSchema(organizationInterviews);
+
+// Access Requests
+export const insertAccessRequestSchema = createInsertSchema(accessRequests).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
+
+export const selectAccessRequestSchema = createSelectSchema(accessRequests);
 
 
 // Goals
@@ -761,6 +789,7 @@ export type UserDevice = typeof userDevices.$inferSelect;
 export type RefreshToken = typeof refreshTokens.$inferSelect;
 export type LoginEvent = typeof loginEvents.$inferSelect;
 export type EmailOtp = typeof emailOtps.$inferSelect;
+export type AccessRequest = typeof accessRequests.$inferSelect;
 
 export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -794,6 +823,7 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 
 export type PdfTemplate = typeof pdfTemplates.$inferSelect;
 export type InsertPdfTemplate = z.infer<typeof insertPdfTemplateSchema>;
+export type InsertAccessRequest = z.infer<typeof insertAccessRequestSchema>;
 
 // Notification Schemas
 export const insertNotificationSchema = createInsertSchema(notifications).omit({
