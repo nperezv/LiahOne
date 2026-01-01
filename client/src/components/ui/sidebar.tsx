@@ -277,7 +277,7 @@ function SidebarTrigger({
         src="/favicon.svg"
         alt="Abrir sidebar"
         className={cn(
-          "h-[2.175rem] w-[2.175rem] transition-all duration-300 ease-out",
+          "h-[2.5rem] w-[2.5rem] transition-all duration-300 ease-out",
           isExpanded ? "rotate-90 scale-95 opacity-40" : "rotate-0 opacity-100"
         )}
       />
