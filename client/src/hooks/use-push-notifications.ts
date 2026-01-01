@@ -46,7 +46,7 @@ export function usePushNotifications() {
         p256dh: json.keys.p256dh,
         auth: json.keys.auth,
       });
-      return res.json();
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/push/status"] });
@@ -56,7 +56,7 @@ export function usePushNotifications() {
   const unsubscribeMutation = useMutation({
     mutationFn: async (endpoint: string) => {
       const res = await apiRequest("POST", "/api/push/unsubscribe", { endpoint });
-      return res.json();
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/push/status"] });
