@@ -181,6 +181,7 @@ export default function LeadershipPage() {
   const secretarios = typedUsers.filter((user) =>
     ["secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role)
   );
+  const [primerConsejero, segundoConsejero] = consejeros;
 
   const organizationItems = organizations
     .filter((org) => organizationOrder.includes(org.type))
