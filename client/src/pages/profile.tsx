@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
@@ -40,6 +40,9 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -70,10 +73,32 @@ export default function ProfilePage() {
 
   const onSubmit = async (data: ProfileFormValues) => {
     try {
+      let avatarUrl = user?.avatarUrl ?? null;
+      if (removeAvatar) {
+        avatarUrl = null;
+      }
+
+      if (avatarFile) {
+        const formData = new FormData();
+        formData.append("file", avatarFile);
+        const uploadResponse = await fetch("/api/uploads", {
+          method: "POST",
+          headers: { ...getAuthHeaders() },
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Error al subir la foto");
+        }
+
+        const uploaded = await uploadResponse.json();
+        avatarUrl = uploaded.url;
+      }
+
       const response = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, avatarUrl }),
       });
 
       if (!response.ok) throw new Error("Error al actualizar perfil");
@@ -134,6 +159,40 @@ export default function ProfilePage() {
       .slice(0, 2);
   };
 
+  const avatarPreview = useMemo(() => {
+    if (avatarFile) {
+      return URL.createObjectURL(avatarFile);
+    }
+    if (removeAvatar) {
+      return null;
+    }
+    return user?.avatarUrl ?? null;
+  }, [avatarFile, removeAvatar, user?.avatarUrl]);
+
+  useEffect(() => {
+    if (!avatarFile || !avatarPreview) {
+      return;
+    }
+
+    return () => {
+      URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarFile, avatarPreview]);
+
+  const handleAvatarSelect = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarRemove = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAvatarFile(null);
+    setRemoveAvatar(true);
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = "";
+    }
+  };
+
   return (
     <div className="container max-w-2xl mx-auto py-8 px-4">
       <Button
@@ -156,16 +215,43 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-start gap-6">
-            <Avatar className="h-20 w-20">
-              <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                {user ? getInitials(user.name) : "U"}
-              </AvatarFallback>
-            </Avatar>
+            <button
+              type="button"
+              className="relative h-20 w-20 rounded-full"
+              onClick={isEditing ? handleAvatarSelect : undefined}
+              aria-label="Cambiar foto de perfil"
+            >
+              <Avatar className="h-20 w-20">
+                {avatarPreview && <AvatarImage src={avatarPreview} alt={user?.name} />}
+                <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+                  {user ? getInitials(user.name) : "U"}
+                </AvatarFallback>
+              </Avatar>
+              {isEditing && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-black/50 text-[10px] font-semibold text-white opacity-0 transition-opacity hover:opacity-100">
+                  <span>{avatarPreview ? "Cambiar" : "Subir"}</span>
+                  {avatarPreview && (
+                    <button
+                      type="button"
+                      className="text-[10px] underline"
+                      onClick={handleAvatarRemove}
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              )}
+            </button>
             <div className="flex-1">
               <h3 className="text-lg font-semibold">{user?.name || "Usuario"}</h3>
               <p className="text-sm text-muted-foreground">
                 {user ? roleLabels[user.role] || user.role : "Rol"}
               </p>
+              {isEditing && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Haz clic en el círculo para subir, cambiar o quitar tu foto.
+                </p>
+              )}
             </div>
           </div>
 
@@ -323,6 +409,18 @@ export default function ProfilePage() {
                   )}
                 />
 
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setAvatarFile(file);
+                    setRemoveAvatar(false);
+                  }}
+                />
+
                 <FormField
                   control={form.control}
                   name="email"
@@ -374,6 +472,8 @@ export default function ProfilePage() {
                     onClick={() => {
                       setIsEditing(false);
                       form.reset();
+                      setAvatarFile(null);
+                      setRemoveAvatar(false);
                     }}
                     data-testid="button-cancel-edit"
                   >
