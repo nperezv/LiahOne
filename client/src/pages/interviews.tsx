@@ -56,6 +56,7 @@ import {
   useUpdateInterview,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
+import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
 
 /**
@@ -205,10 +206,13 @@ export default function InterviewsPage() {
           setIsDialogOpen(false);
           form.reset();
         },
-        onError: () => {
+        onError: (error) => {
           toast({
             title: "Error",
-            description: "No se pudo crear la entrevista.",
+            description: getApiErrorMessage(
+              error,
+              "No se pudo crear la entrevista."
+            ),
             variant: "destructive",
           });
         },
@@ -239,10 +243,13 @@ export default function InterviewsPage() {
           setEditingInterview(null);
           editForm.reset();
         },
-        onError: () => {
+        onError: (error) => {
           toast({
             title: "Error",
-            description: "No se pudo actualizar la entrevista.",
+            description: getApiErrorMessage(
+              error,
+              "No se pudo actualizar la entrevista."
+            ),
             variant: "destructive",
           });
         },
