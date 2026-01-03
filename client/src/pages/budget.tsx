@@ -200,8 +200,10 @@ export default function BudgetPage() {
   ), [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
   const currentQuarterBudget = quarterBudgets[currentQuarter as 1 | 2 | 3 | 4] || 0;
 
-  // Calculate budget stats
-  const totalAssignedToOrgs = Object.values(orgBudgetsByOrg).flat().reduce((sum: number, b: any) => sum + (b?.amount || 0), 0);
+  const totalAssignedToOrgs = Object.values(orgBudgetsByOrg)
+    .flat()
+    .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
+    .reduce((sum: number, budget: any) => sum + (budget?.amount || 0), 0);
   const globalBudget = currentQuarterBudget;
   const remainingGlobalBudget = globalBudget - totalAssignedToOrgs;
   const globalUtilizationPercent = globalBudget > 0 ? Math.round((totalAssignedToOrgs / globalBudget) * 100) : 0;
