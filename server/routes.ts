@@ -1282,6 +1282,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateAssignment(relatedAssignment.id, {
             status: "completada",
           });
+
+          const currentUser = (req as any).user;
+          const completerName = currentUser?.name || "La persona asignada";
+          const allUsers = await storage.getAllUsers();
+          const obispadoMembers = allUsers.filter((member: any) =>
+            ["obispo", "consejero_obispo", "secretario_financiero"].includes(member.role)
+          );
+          const recipients = new Set<string>([
+            ...obispadoMembers.map((member: any) => member.id),
+            relatedAssignment.assignedBy,
+          ]);
+          recipients.delete(relatedAssignment.assignedTo);
+
+          for (const userId of recipients) {
+            const notification = await storage.createNotification({
+              userId,
+              type: "reminder",
+              title: "Comprobantes adjuntados",
+              description: `${completerName} completó la asignación "${relatedAssignment.title}" para la solicitud "${budgetRequest.description}".`,
+              relatedId: budgetRequest.id,
+              isRead: false,
+            });
+
+            if (isPushConfigured()) {
+              await sendPushNotification(userId, {
+                title: "Comprobantes adjuntados",
+                body: `${completerName} completó la asignación "${relatedAssignment.title}".`,
+                url: "/budget",
+                notificationId: notification.id,
+              });
+            }
+          }
         }
       }
 
