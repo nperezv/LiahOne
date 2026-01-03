@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -124,6 +124,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
+  avatarUrl: text("avatar_url"),
   requireEmailOtp: boolean("require_email_otp").notNull().default(false),
   requirePasswordChange: boolean("require_password_change").notNull().default(false),
   role: roleEnum("role").notNull(),
@@ -315,7 +316,7 @@ export const organizationInterviews = pgTable("organization_interviews", {
 // Goals (Ward goals)
 export const goals = pgTable("goals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  year: integer("year").notNull(),
+  year: integer("year").notNull().default(sql`extract(year from now())`),
   title: text("title").notNull(),
   description: text("description"),
   targetValue: integer("target_value").notNull(),
@@ -553,6 +554,7 @@ export const birthdaysRelations = relations(birthdays, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
+  avatarUrl: z.string().optional().or(z.literal("")),
   requireEmailOtp: z.boolean().optional(),
   requirePasswordChange: z.boolean().optional(),
 }).omit({ id: true, createdAt: true });
@@ -733,7 +735,13 @@ export const selectPdfTemplateSchema = createSelectSchema(pdfTemplates);
 // Ward Budget (Global)
 export const wardBudgets = pgTable("ward_budgets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  amount: integer("amount").notNull().default(0),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  annualAmount: numeric("annual_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  year: integer("year").notNull().default(sql`extract(year from now())`),
+  q1Amount: numeric("q1_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  q2Amount: numeric("q2_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  q3Amount: numeric("q3_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  q4Amount: numeric("q4_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -742,7 +750,7 @@ export const wardBudgets = pgTable("ward_budgets", {
 export const organizationBudgets = pgTable("organization_budgets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id),
-  amount: integer("amount").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   year: integer("year").notNull(),
   quarter: integer("quarter").notNull(), // 1-4
   createdAt: timestamp("created_at").defaultNow().notNull(),

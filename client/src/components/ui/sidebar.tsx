@@ -3,7 +3,6 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, VariantProps } from "class-variance-authority"
-import { PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -258,7 +257,8 @@ function SidebarTrigger({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, open, openMobile, isMobile } = useSidebar()
+  const isExpanded = isMobile ? openMobile : open
 
   return (
     <Button
@@ -266,14 +266,21 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-7 w-7", className)}
+      className={cn("h-[3.625rem] w-[3.625rem] transition-transform duration-200 ease-out", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <img
+        src="/favicon.svg"
+        alt="Abrir sidebar"
+        className={cn(
+          "h-[2.5rem] w-[2.5rem] transition-all duration-300 ease-out",
+          isExpanded ? "rotate-90 scale-95 opacity-40" : "rotate-0 opacity-100"
+        )}
+      />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )

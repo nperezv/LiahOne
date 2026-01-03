@@ -947,7 +947,15 @@ export function useUpdateWardBudget() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: { amount: number }) => apiRequest("PATCH", "/api/ward-budget", data),
+    mutationFn: (data: {
+      amount?: string;
+      annualAmount?: string;
+      year?: number;
+      q1Amount?: string;
+      q2Amount?: string;
+      q3Amount?: string;
+      q4Amount?: string;
+    }) => apiRequest("PATCH", "/api/ward-budget", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ward-budget"] });
       toast({
@@ -1004,9 +1012,13 @@ export function useUpdateOrganizationBudget() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => apiRequest("PATCH", `/api/organization-budgets/${id}`, data),
-    onSuccess: () => {
+    mutationFn: ({ id, data }: { id: string; data: any; organizationId?: string }) =>
+      apiRequest("PATCH", `/api/organization-budgets/${id}`, data),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/organization-budgets"] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/organization-budgets", variables.organizationId] });
+      }
       toast({
         title: "Presupuesto actualizado",
         description: "El presupuesto ha sido actualizado.",

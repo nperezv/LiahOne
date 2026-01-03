@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,6 +39,7 @@ interface AppHeaderProps {
   user?: {
     name: string;
     role: string;
+    avatarUrl?: string | null;
   };
   onLogout?: () => void;
 }
@@ -146,7 +147,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
-        <h1 className="text-lg font-semibold">{wardName}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold">{wardName}</h1>
+        </div>
       </div>
 
       {/* DERECHA */}
@@ -271,6 +274,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex gap-2">
               <Avatar className="h-8 w-8">
+                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
                 <AvatarFallback>
                   {getInitials(user?.name)}
                 </AvatarFallback>

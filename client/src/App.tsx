@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
+import logoImage from "@assets/liahonapplogo2.svg";
 
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
@@ -14,6 +15,7 @@ import RequestAccessPage from "@/pages/request-access";
 import DashboardPage from "@/pages/dashboard";
 import SacramentalMeetingPage from "@/pages/sacramental-meeting";
 import WardCouncilPage from "@/pages/ward-council";
+import LeadershipPage from "@/pages/leadership";
 import PresidencyMeetingsPage from "@/pages/presidency-meetings";
 import BudgetPage from "@/pages/budget";
 import InterviewsPage from "@/pages/interviews";
@@ -53,6 +55,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/ward-council">
           <WardCouncilPage />
+        </Route>
+        <Route path="/leadership">
+          <LeadershipPage />
         </Route>
         <Route path="/presidency/:org">
           <PresidencyMeetingsPage />
@@ -116,9 +121,19 @@ function Router() {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   useEffect(() => {
     // Apply dark mode globally
     document.documentElement.classList.add("dark");
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setShowSplash(false);
+    }, 900);
+
+    return () => window.clearTimeout(timeout);
   }, []);
 
   return (
@@ -126,6 +141,13 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
+          {showSplash && (
+            <div className="app-splash" aria-hidden="true">
+              <div className="app-splash-content">
+                <img src={logoImage} alt="" className="app-splash-logo" />
+              </div>
+            </div>
+          )}
           <Router />
         </TooltipProvider>
       </AuthProvider>

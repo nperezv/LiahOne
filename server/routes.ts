@@ -748,12 +748,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/profile", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { name, email, username, requireEmailOtp } = req.body;
+      const { name, email, username, requireEmailOtp, avatarUrl } = req.body;
+      const hasAvatarUpdate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "avatarUrl");
       const user = await storage.updateUser(req.session.userId!, {
         name: name || undefined,
         email: email || undefined,
         username: username || undefined,
         requireEmailOtp: typeof requireEmailOtp === "boolean" ? requireEmailOtp : undefined,
+        avatarUrl: hasAvatarUpdate ? avatarUrl : undefined,
       });
 
       if (!user) {
@@ -1282,6 +1284,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateAssignment(relatedAssignment.id, {
             status: "completada",
           });
+
+          const currentUser = (req as any).user;
+          const completerName = currentUser?.name || "La persona asignada";
+          const allUsers = await storage.getAllUsers();
+          const obispadoMembers = allUsers.filter((member: any) =>
+            ["obispo", "consejero_obispo", "secretario_financiero"].includes(member.role)
+          );
+          const recipients = new Set<string>([
+            ...obispadoMembers.map((member: any) => member.id),
+            relatedAssignment.assignedBy,
+          ]);
+          recipients.delete(relatedAssignment.assignedTo);
+
+          for (const userId of recipients) {
+            const notification = await storage.createNotification({
+              userId,
+              type: "reminder",
+              title: "Comprobantes adjuntados",
+              description: `${completerName} completó la asignación "${relatedAssignment.title}" para la solicitud "${budgetRequest.description}".`,
+              relatedId: budgetRequest.id,
+              isRead: false,
+            });
+
+            if (isPushConfigured()) {
+              await sendPushNotification(userId, {
+                title: "Comprobantes adjuntados",
+                body: `${completerName} completó la asignación "${relatedAssignment.title}".`,
+                url: "/budget",
+                notificationId: notification.id,
+              });
+            }
+          }
         }
       }
 
@@ -2495,15 +2529,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/ward-budget", requireAuth, async (req: Request, res: Response) => {
     const budget = await storage.getWardBudget();
-    res.json(budget || { amount: 0 });
+    if (budget) {
+      return res.json(budget);
+    }
+    const now = new Date();
+    res.json({
+      amount: 0,
+      annualAmount: 0,
+      year: now.getFullYear(),
+      q1Amount: 0,
+      q2Amount: 0,
+      q3Amount: 0,
+      q4Amount: 0,
+    });
   });
 
   app.patch("/api/ward-budget", requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
-    const parsed = insertWardBudgetSchema.safeParse(req.body);
+    const parsed = insertWardBudgetSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid budget data" });
     }
-    const budget = await storage.updateWardBudget(parsed.data);
+    const now = new Date();
+    const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+    const payload = {
+      ...parsed.data,
+      year: parsed.data.year ?? now.getFullYear(),
+    };
+    const quarterAmounts = [payload.q1Amount, payload.q2Amount, payload.q3Amount, payload.q4Amount];
+    const quarterAmount = quarterAmounts[currentQuarter - 1];
+    if (typeof quarterAmount === "number") {
+      payload.amount = quarterAmount;
+    }
+    const budget = await storage.updateWardBudget(payload);
     res.json(budget);
   });
 
