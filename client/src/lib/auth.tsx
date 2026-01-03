@@ -7,6 +7,7 @@ interface User {
   name: string;
   username: string;
   email?: string;
+  avatarUrl?: string | null;
   role: string;
   organizationId?: string;
   requireEmailOtp?: boolean;

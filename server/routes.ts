@@ -748,12 +748,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/profile", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { name, email, username, requireEmailOtp } = req.body;
+      const { name, email, username, requireEmailOtp, avatarUrl } = req.body;
+      const hasAvatarUpdate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "avatarUrl");
       const user = await storage.updateUser(req.session.userId!, {
         name: name || undefined,
         email: email || undefined,
         username: username || undefined,
         requireEmailOtp: typeof requireEmailOtp === "boolean" ? requireEmailOtp : undefined,
+        avatarUrl: hasAvatarUpdate ? avatarUrl : undefined,
       });
 
       if (!user) {
