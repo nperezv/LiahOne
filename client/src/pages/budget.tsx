@@ -53,7 +53,6 @@ const parseBudgetNumber = (value: string) => {
 };
 
 const parseBudgetValue = (value: string) => Math.round(parseBudgetNumber(value));
-};
 
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
