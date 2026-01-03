@@ -46,6 +46,15 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
 
+const parseBudgetNumber = (value: string) => {
+  const normalized = value.replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const parseBudgetValue = (value: string) => Math.round(parseBudgetNumber(value));
+};
+
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
@@ -247,6 +256,22 @@ export default function BudgetPage() {
     });
   }, [annualBudget, quarterBudgets, wardBudgetForm]);
 
+  const annualAmountValue = wardBudgetForm.watch("annualAmount");
+  const annualAmountDirty = wardBudgetForm.formState.dirtyFields.annualAmount;
+
+  useEffect(() => {
+    if (!annualAmountDirty) {
+      return;
+    }
+    const parsedAnnual = parseBudgetNumber(annualAmountValue);
+    const perQuarter = parsedAnnual / 4;
+    const formatted = perQuarter.toFixed(2);
+    wardBudgetForm.setValue("q1Amount", formatted, { shouldDirty: true });
+    wardBudgetForm.setValue("q2Amount", formatted, { shouldDirty: true });
+    wardBudgetForm.setValue("q3Amount", formatted, { shouldDirty: true });
+    wardBudgetForm.setValue("q4Amount", formatted, { shouldDirty: true });
+  }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
+
   const orgBudgetForm = useForm<OrgBudgetAssignValues>({
     resolver: zodResolver(orgBudgetAssignSchema),
     defaultValues: {
@@ -349,29 +374,29 @@ export default function BudgetPage() {
   };
 
   const onSubmitWardBudget = (data: WardBudgetValues) => {
-    const annualAmount = parseFloat(data.annualAmount);
-    const q1Amount = parseFloat(data.q1Amount);
-    const q2Amount = parseFloat(data.q2Amount);
-    const q3Amount = parseFloat(data.q3Amount);
-    const q4Amount = parseFloat(data.q4Amount);
-    const quartersTotal = q1Amount + q2Amount + q3Amount + q4Amount;
+    const annualAmountRaw = parseBudgetNumber(data.annualAmount);
+    const q1AmountRaw = parseBudgetNumber(data.q1Amount);
+    const q2AmountRaw = parseBudgetNumber(data.q2Amount);
+    const q3AmountRaw = parseBudgetNumber(data.q3Amount);
+    const q4AmountRaw = parseBudgetNumber(data.q4Amount);
+    const quartersTotal = q1AmountRaw + q2AmountRaw + q3AmountRaw + q4AmountRaw;
 
-    if (quartersTotal > annualAmount) {
+    if (quartersTotal > annualAmountRaw) {
       alert(`La suma de los trimestres (€${quartersTotal.toFixed(2)}) excede el presupuesto anual.`);
       return;
     }
 
-    const quarterAmounts = [q1Amount, q2Amount, q3Amount, q4Amount];
+    const quarterAmounts = [q1AmountRaw, q2AmountRaw, q3AmountRaw, q4AmountRaw];
     const currentQuarterAmount = quarterAmounts[currentQuarter - 1] ?? 0;
 
     updateWardBudgetMutation.mutate({
-      annualAmount,
+      annualAmount: parseBudgetValue(data.annualAmount),
       year: currentYear,
-      q1Amount,
-      q2Amount,
-      q3Amount,
-      q4Amount,
-      amount: currentQuarterAmount,
+      q1Amount: parseBudgetValue(data.q1Amount),
+      q2Amount: parseBudgetValue(data.q2Amount),
+      q3Amount: parseBudgetValue(data.q3Amount),
+      q4Amount: parseBudgetValue(data.q4Amount),
+      amount: Math.round(currentQuarterAmount),
     }, {
       onSuccess: () => {
         setIsBudgetDialogOpen(false);
@@ -381,7 +406,7 @@ export default function BudgetPage() {
   };
 
   const onSubmitOrgBudgetAssign = (data: OrgBudgetAssignValues) => {
-    const amount = parseFloat(data.amount);
+    const amount = parseBudgetValue(data.amount);
 
     // Validar que no exceda el presupuesto global
     if (amount > remainingGlobalBudget) {
