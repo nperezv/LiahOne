@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -42,6 +42,7 @@ export default function ProfilePage() {
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -169,12 +170,28 @@ export default function ProfilePage() {
   }, [avatarFile, removeAvatar, user?.avatarUrl]);
 
   useEffect(() => {
+    if (!avatarFile || !avatarPreview) {
+      return;
+    }
+
     return () => {
-      if (avatarFile) {
-        URL.revokeObjectURL(avatarPreview ?? "");
-      }
+      URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarFile, avatarPreview]);
+
+  const handleAvatarSelect = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarRemove = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAvatarFile(null);
+    setRemoveAvatar(true);
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className="container max-w-2xl mx-auto py-8 px-4">
@@ -198,17 +215,43 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-start gap-6">
-            <Avatar className="h-20 w-20">
-              {avatarPreview && <AvatarImage src={avatarPreview} alt={user?.name} />}
-              <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                {user ? getInitials(user.name) : "U"}
-              </AvatarFallback>
-            </Avatar>
+            <button
+              type="button"
+              className="relative h-20 w-20 rounded-full"
+              onClick={isEditing ? handleAvatarSelect : undefined}
+              aria-label="Cambiar foto de perfil"
+            >
+              <Avatar className="h-20 w-20">
+                {avatarPreview && <AvatarImage src={avatarPreview} alt={user?.name} />}
+                <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+                  {user ? getInitials(user.name) : "U"}
+                </AvatarFallback>
+              </Avatar>
+              {isEditing && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-black/50 text-[10px] font-semibold text-white opacity-0 transition-opacity hover:opacity-100">
+                  <span>{avatarPreview ? "Cambiar" : "Subir"}</span>
+                  {avatarPreview && (
+                    <button
+                      type="button"
+                      className="text-[10px] underline"
+                      onClick={handleAvatarRemove}
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              )}
+            </button>
             <div className="flex-1">
               <h3 className="text-lg font-semibold">{user?.name || "Usuario"}</h3>
               <p className="text-sm text-muted-foreground">
                 {user ? roleLabels[user.role] || user.role : "Rol"}
               </p>
+              {isEditing && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Haz clic en el círculo para subir, cambiar o quitar tu foto.
+                </p>
+              )}
             </div>
           </div>
 
@@ -366,34 +409,17 @@ export default function ProfilePage() {
                   )}
                 />
 
-                <div className="space-y-2">
-                  <FormLabel>Foto de perfil (opcional)</FormLabel>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null;
-                      setAvatarFile(file);
-                      setRemoveAvatar(false);
-                    }}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setAvatarFile(null);
-                        setRemoveAvatar(true);
-                      }}
-                      disabled={!user?.avatarUrl && !avatarPreview}
-                    >
-                      Quitar foto
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Se recomienda una imagen cuadrada.
-                    </p>
-                  </div>
-                </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setAvatarFile(file);
+                    setRemoveAvatar(false);
+                  }}
+                />
 
                 <FormField
                   control={form.control}
