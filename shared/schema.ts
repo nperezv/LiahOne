@@ -315,7 +315,7 @@ export const organizationInterviews = pgTable("organization_interviews", {
 // Goals (Ward goals)
 export const goals = pgTable("goals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  year: integer("year").notNull(),
+  year: integer("year").notNull().default(sql`extract(year from now())`),
   title: text("title").notNull(),
   description: text("description"),
   targetValue: integer("target_value").notNull(),
@@ -734,6 +734,12 @@ export const selectPdfTemplateSchema = createSelectSchema(pdfTemplates);
 export const wardBudgets = pgTable("ward_budgets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   amount: integer("amount").notNull().default(0),
+  annualAmount: integer("annual_amount").notNull().default(0),
+  year: integer("year").notNull(),
+  q1Amount: integer("q1_amount").notNull().default(0),
+  q2Amount: integer("q2_amount").notNull().default(0),
+  q3Amount: integer("q3_amount").notNull().default(0),
+  q4Amount: integer("q4_amount").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

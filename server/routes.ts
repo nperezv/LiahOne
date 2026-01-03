@@ -2495,15 +2495,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/ward-budget", requireAuth, async (req: Request, res: Response) => {
     const budget = await storage.getWardBudget();
-    res.json(budget || { amount: 0 });
+    if (budget) {
+      return res.json(budget);
+    }
+    const now = new Date();
+    res.json({
+      amount: 0,
+      annualAmount: 0,
+      year: now.getFullYear(),
+      q1Amount: 0,
+      q2Amount: 0,
+      q3Amount: 0,
+      q4Amount: 0,
+    });
   });
 
   app.patch("/api/ward-budget", requireRole("obispo", "consejero_obispo"), async (req: Request, res: Response) => {
-    const parsed = insertWardBudgetSchema.safeParse(req.body);
+    const parsed = insertWardBudgetSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Invalid budget data" });
     }
-    const budget = await storage.updateWardBudget(parsed.data);
+    const now = new Date();
+    const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+    const payload = {
+      ...parsed.data,
+      year: parsed.data.year ?? now.getFullYear(),
+    };
+    const quarterAmounts = [payload.q1Amount, payload.q2Amount, payload.q3Amount, payload.q4Amount];
+    const quarterAmount = quarterAmounts[currentQuarter - 1];
+    if (typeof quarterAmount === "number") {
+      payload.amount = quarterAmount;
+    }
+    const budget = await storage.updateWardBudget(payload);
     res.json(budget);
   });
 

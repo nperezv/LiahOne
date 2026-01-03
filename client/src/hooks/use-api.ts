@@ -947,7 +947,15 @@ export function useUpdateWardBudget() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: { amount: number }) => apiRequest("PATCH", "/api/ward-budget", data),
+    mutationFn: (data: {
+      amount?: number;
+      annualAmount?: number;
+      year?: number;
+      q1Amount?: number;
+      q2Amount?: number;
+      q3Amount?: number;
+      q4Amount?: number;
+    }) => apiRequest("PATCH", "/api/ward-budget", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ward-budget"] });
       toast({

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,7 +36,6 @@ import {
   useDeleteBudgetRequest,
   useWardBudget,
   useUpdateWardBudget,
-  useOrganizationBudgets,
   useCreateOrganizationBudget,
   useUpdateOrganizationBudget,
   useOrganizations,
@@ -45,6 +45,14 @@ import { exportBudgetRequests } from "@/lib/export";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const parseBudgetNumber = (value: string) => {
+  const normalized = value.replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const parseBudgetValue = (value: string) => Math.round(parseBudgetNumber(value));
 
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
@@ -78,7 +86,11 @@ const expenseReceiptsSchema = z.object({
 });
 
 const wardBudgetSchema = z.object({
-  amount: z.string().min(1, "El monto es requerido"),
+  annualAmount: z.string().min(1, "El monto anual es requerido"),
+  q1Amount: z.string().min(1, "El monto del trimestre 1 es requerido"),
+  q2Amount: z.string().min(1, "El monto del trimestre 2 es requerido"),
+  q3Amount: z.string().min(1, "El monto del trimestre 3 es requerido"),
+  q4Amount: z.string().min(1, "El monto del trimestre 4 es requerido"),
 });
 
 const orgBudgetAssignSchema = z.object({
@@ -158,20 +170,49 @@ export default function BudgetPage() {
   const showActionsColumn = canApprove || canDelete || isOrgMember;
 
   // Get organization budgets for all orgs
-  const orgBudgetsByOrg: Record<string, any> = {};
-  (organizations as Organization[]).forEach((org: Organization) => {
-    const { data: budgets = [] as any[] } = useOrganizationBudgets(org.id);
-    orgBudgetsByOrg[org.id] = budgets;
+  const orgBudgetQueries = useQueries({
+    queries: (organizations as Organization[]).map((org) => ({
+      queryKey: ["/api/organization-budgets", org.id],
+      enabled: Boolean(org.id),
+    })),
   });
+
+  const orgBudgetsByOrg = (organizations as Organization[]).reduce<Record<string, any[]>>((acc, org, index) => {
+    acc[org.id] = (orgBudgetQueries[index]?.data as any[]) ?? [];
+    return acc;
+  }, {});
 
   // Filter requests based on user role
   const filteredRequests = isOrgMember
     ? (requests as any[]).filter((r: any) => r.organizationId === user?.organizationId)
     : requests;
 
-  // Calculate budget stats
-  const totalAssignedToOrgs = Object.values(orgBudgetsByOrg).flat().reduce((sum: number, b: any) => sum + (b?.amount || 0), 0);
-  const globalBudget = wardBudget?.amount || 0;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+
+  const quarterBudgets = useMemo(() => ({
+    1: wardBudget?.q1Amount ?? (currentQuarter === 1 ? wardBudget?.amount ?? 0 : 0),
+    2: wardBudget?.q2Amount ?? (currentQuarter === 2 ? wardBudget?.amount ?? 0 : 0),
+    3: wardBudget?.q3Amount ?? (currentQuarter === 3 ? wardBudget?.amount ?? 0 : 0),
+    4: wardBudget?.q4Amount ?? (currentQuarter === 4 ? wardBudget?.amount ?? 0 : 0),
+  }), [currentQuarter, wardBudget?.amount, wardBudget?.q1Amount, wardBudget?.q2Amount, wardBudget?.q3Amount, wardBudget?.q4Amount]);
+
+  const quarterBudgetValues = useMemo(() => Object.values(quarterBudgets), [quarterBudgets]);
+
+  const annualBudget = useMemo(() => (
+    wardBudget?.annualAmount
+    ?? (quarterBudgetValues.some((value) => value > 0)
+      ? quarterBudgetValues.reduce((sum, value) => sum + value, 0)
+      : wardBudget?.amount || 0)
+  ), [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
+  const currentQuarterBudget = quarterBudgets[currentQuarter as 1 | 2 | 3 | 4] || 0;
+
+  const totalAssignedToOrgs = Object.values(orgBudgetsByOrg)
+    .flat()
+    .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
+    .reduce((sum: number, budget: any) => sum + (budget?.amount || 0), 0);
+  const globalBudget = currentQuarterBudget;
   const remainingGlobalBudget = globalBudget - totalAssignedToOrgs;
   const globalUtilizationPercent = globalBudget > 0 ? Math.round((totalAssignedToOrgs / globalBudget) * 100) : 0;
 
@@ -196,9 +237,39 @@ export default function BudgetPage() {
   const wardBudgetForm = useForm<WardBudgetValues>({
     resolver: zodResolver(wardBudgetSchema),
     defaultValues: {
-      amount: wardBudget?.amount?.toString() || "0",
+      annualAmount: annualBudget.toString(),
+      q1Amount: quarterBudgets[1].toString(),
+      q2Amount: quarterBudgets[2].toString(),
+      q3Amount: quarterBudgets[3].toString(),
+      q4Amount: quarterBudgets[4].toString(),
     },
   });
+
+  useEffect(() => {
+    wardBudgetForm.reset({
+      annualAmount: annualBudget.toString(),
+      q1Amount: quarterBudgets[1].toString(),
+      q2Amount: quarterBudgets[2].toString(),
+      q3Amount: quarterBudgets[3].toString(),
+      q4Amount: quarterBudgets[4].toString(),
+    });
+  }, [annualBudget, quarterBudgets, wardBudgetForm]);
+
+  const annualAmountValue = wardBudgetForm.watch("annualAmount");
+  const annualAmountDirty = wardBudgetForm.formState.dirtyFields.annualAmount;
+
+  useEffect(() => {
+    if (!annualAmountDirty) {
+      return;
+    }
+    const parsedAnnual = parseBudgetNumber(annualAmountValue);
+    const perQuarter = parsedAnnual / 4;
+    const formatted = perQuarter.toFixed(2);
+    wardBudgetForm.setValue("q1Amount", formatted, { shouldDirty: true });
+    wardBudgetForm.setValue("q2Amount", formatted, { shouldDirty: true });
+    wardBudgetForm.setValue("q3Amount", formatted, { shouldDirty: true });
+    wardBudgetForm.setValue("q4Amount", formatted, { shouldDirty: true });
+  }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
 
   const orgBudgetForm = useForm<OrgBudgetAssignValues>({
     resolver: zodResolver(orgBudgetAssignSchema),
@@ -302,8 +373,29 @@ export default function BudgetPage() {
   };
 
   const onSubmitWardBudget = (data: WardBudgetValues) => {
+    const annualAmountRaw = parseBudgetNumber(data.annualAmount);
+    const q1AmountRaw = parseBudgetNumber(data.q1Amount);
+    const q2AmountRaw = parseBudgetNumber(data.q2Amount);
+    const q3AmountRaw = parseBudgetNumber(data.q3Amount);
+    const q4AmountRaw = parseBudgetNumber(data.q4Amount);
+    const quartersTotal = q1AmountRaw + q2AmountRaw + q3AmountRaw + q4AmountRaw;
+
+    if (quartersTotal > annualAmountRaw) {
+      alert(`La suma de los trimestres (€${quartersTotal.toFixed(2)}) excede el presupuesto anual.`);
+      return;
+    }
+
+    const quarterAmounts = [q1AmountRaw, q2AmountRaw, q3AmountRaw, q4AmountRaw];
+    const currentQuarterAmount = quarterAmounts[currentQuarter - 1] ?? 0;
+
     updateWardBudgetMutation.mutate({
-      amount: parseFloat(data.amount),
+      annualAmount: parseBudgetValue(data.annualAmount),
+      year: currentYear,
+      q1Amount: parseBudgetValue(data.q1Amount),
+      q2Amount: parseBudgetValue(data.q2Amount),
+      q3Amount: parseBudgetValue(data.q3Amount),
+      q4Amount: parseBudgetValue(data.q4Amount),
+      amount: Math.round(currentQuarterAmount),
     }, {
       onSuccess: () => {
         setIsBudgetDialogOpen(false);
@@ -313,7 +405,7 @@ export default function BudgetPage() {
   };
 
   const onSubmitOrgBudgetAssign = (data: OrgBudgetAssignValues) => {
-    const amount = parseFloat(data.amount);
+    const amount = parseBudgetValue(data.amount);
 
     // Validar que no exceda el presupuesto global
     if (amount > remainingGlobalBudget) {
@@ -519,32 +611,110 @@ export default function BudgetPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Presupuesto Global del Barrio</DialogTitle>
+                  <DialogTitle>Presupuesto anual y trimestral</DialogTitle>
                   <DialogDescription>
-                    Define el monto total del presupuesto para el barrio (en euros)
+                    Define el presupuesto anual y su desglose por trimestre (en euros)
                   </DialogDescription>
                 </DialogHeader>
                 <Form {...wardBudgetForm}>
                   <form onSubmit={wardBudgetForm.handleSubmit(onSubmitWardBudget)} className="space-y-4">
                     <FormField
                       control={wardBudgetForm.control}
-                      name="amount"
+                      name="annualAmount"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Monto Total (€)</FormLabel>
+                          <FormLabel>Presupuesto anual (€)</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               step="0.01"
                               placeholder="0.00"
                               {...field}
-                              data-testid="input-ward-budget-amount"
+                              data-testid="input-ward-budget-annual"
                             />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FormField
+                        control={wardBudgetForm.control}
+                        name="q1Amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Trimestre 1 (€)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                                data-testid="input-ward-budget-q1"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={wardBudgetForm.control}
+                        name="q2Amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Trimestre 2 (€)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                                data-testid="input-ward-budget-q2"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={wardBudgetForm.control}
+                        name="q3Amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Trimestre 3 (€)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                                data-testid="input-ward-budget-q3"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={wardBudgetForm.control}
+                        name="q4Amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Trimestre 4 (€)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                                data-testid="input-ward-budget-q4"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                     <div className="flex justify-end gap-2">
                       <Button
                         type="button"
@@ -868,19 +1038,34 @@ export default function BudgetPage() {
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <div>
               <CardTitle className="text-lg">Presupuesto Global del Barrio</CardTitle>
-              <CardDescription>Monto total asignado</CardDescription>
+              <CardDescription>Presupuesto anual y trimestre actual</CardDescription>
             </div>
             <Euro className="h-6 w-6 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <div className="text-4xl font-bold" data-testid="text-ward-budget">
-                  €{globalBudget.toFixed(2)}
+                <div className="text-4xl font-bold" data-testid="text-ward-budget-annual">
+                  €{annualBudget.toFixed(2)}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Presupuesto disponible para todas las organizaciones
+                  Presupuesto anual {wardBudget?.year ?? currentYear}
                 </p>
+                <div className="mt-4 rounded-lg border p-3">
+                  <div className="text-sm font-medium">Trimestre {currentQuarter}</div>
+                  <div className="text-2xl font-semibold" data-testid="text-ward-budget-quarter">
+                    €{globalBudget.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Presupuesto disponible para el trimestre actual
+                  </p>
+                </div>
+                <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                  <div>Trimestre 1: €{quarterBudgets[1].toFixed(2)}</div>
+                  <div>Trimestre 2: €{quarterBudgets[2].toFixed(2)}</div>
+                  <div>Trimestre 3: €{quarterBudgets[3].toFixed(2)}</div>
+                  <div>Trimestre 4: €{quarterBudgets[4].toFixed(2)}</div>
+                </div>
               </div>
 
               <div className="space-y-2">
