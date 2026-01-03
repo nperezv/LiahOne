@@ -1,11 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -107,66 +102,84 @@ function LeaderAvatar({
   );
 }
 
-function LeaderItem({ user, fallbackLabel }: { user?: UserSummary | null; fallbackLabel?: string }) {
-  if (!user) {
-    return <p className="text-sm text-muted-foreground">{fallbackLabel ?? "Sin asignar"}</p>;
+function CounselorSlot({ counselor }: { counselor?: UserSummary | null }) {
+  if (!counselor) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
+          ?
+        </div>
+        <span className="text-xs text-muted-foreground">Consejero</span>
+      </div>
+    );
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <LeaderAvatar user={user} />
-      <div>
-        <p className="text-sm font-medium">{user.name}</p>
-        <p className="text-xs text-muted-foreground">{roleLabels[user.role] ?? user.role}</p>
-      </div>
+    <div className="flex flex-col items-center gap-2">
+      <LeaderAvatar user={counselor} sizeClassName="h-14 w-14" />
+      <span className="text-xs text-muted-foreground">
+        {roleLabels[counselor.role] ?? counselor.role}
+      </span>
     </div>
   );
 }
 
-function OrganizationSummary({
-  label,
+function LeadershipCluster({
+  title,
   president,
+  counselors,
+  secretaries,
 }: {
-  label: string;
+  title: string;
   president?: UserSummary | null;
+  counselors: UserSummary[];
+  secretaries: UserSummary[];
 }) {
-  return (
-    <div className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-        {label
-          .split(" ")
-          .map((word) => word[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase()}
-      </div>
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        {president ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <LeaderAvatar user={president} sizeClassName="h-6 w-6" />
-            <span>{president.name}</span>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Sin presidencia</p>
-        )}
-      </div>
-    </div>
-  );
-}
+  const [firstCounselor, secondCounselor] = counselors;
 
-function LeaderGroup({ title, users }: { title: string; users: UserSummary[] }) {
   return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-muted-foreground">{title}</h4>
-      <div className="space-y-2">
-        {users.length > 0 ? (
-          users.map((user) => <LeaderItem key={user.id} user={user} />)
-        ) : (
-          <LeaderItem fallbackLabel="Sin asignar" />
-        )}
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-center">{title}</h2>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-end justify-center gap-6">
+          <CounselorSlot counselor={firstCounselor} />
+          <div className="flex flex-col items-center gap-2">
+            {president ? (
+              <>
+                <LeaderAvatar user={president} sizeClassName="h-20 w-20" />
+                <span className="text-sm font-semibold">
+                  {roleLabels[president.role] ?? president.role}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
+                  ?
+                </div>
+                <span className="text-sm text-muted-foreground">Sin asignar</span>
+              </>
+            )}
+          </div>
+          <CounselorSlot counselor={secondCounselor} />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Secretarios
+          </span>
+          {secretaries.length > 0 ? (
+            <div className="flex flex-wrap justify-center gap-2">
+              {secretaries.map((secretary) => (
+                <LeaderAvatar key={secretary.id} user={secretary} sizeClassName="h-8 w-8" />
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">Sin asignar</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -200,138 +213,52 @@ export default function LeadershipPage() {
       <div>
         <h1 className="text-2xl font-bold">Estructura del consejo de barrio</h1>
         <p className="text-sm text-muted-foreground">
-          Organigramas mínimos con despliegue al hacer clic, estilo Teams.
+          Organigrama visual con presidencias y secretarios en un formato minimalista.
         </p>
       </div>
 
-      <Collapsible>
-        <Card>
-          <CardHeader className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Obispado</h2>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Ver organigrama
-                </button>
-              </CollapsibleTrigger>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <LeaderGroup title="Obispo" users={obispo ? [obispo] : []} />
-              <LeaderGroup title="Consejeros" users={consejeros} />
-              <LeaderGroup title="Secretarios" users={secretarios} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CollapsibleContent className="rounded-lg border border-border/60 bg-muted/40 p-4">
-              <pre className="whitespace-pre font-mono text-sm text-muted-foreground">
-{`                              OBISPADO
-                                  │
-      ┌───────────────────────────┼───────────────────────────┐
-      │                           │                           │
-                                OBISPO
-      │                           │                           │
-PRIMER CONSEJERO            SEGUNDO CONSEJERO             SECRETARIOS
-                                                          (del barrio)
+      <LeadershipCluster
+        title="Obispado"
+        president={obispo}
+        counselors={consejeros}
+        secretaries={secretarios}
+      />
 
-                                OBISPO
-                                  │`}
-              </pre>
-            </CollapsibleContent>
-          </CardContent>
-        </Card>
-      </Collapsible>
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold text-center">Consejo de barrio</h2>
+        </CardHeader>
+        <CardContent className="grid gap-6">
+          {organizationItems.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center">
+              No hay organizaciones registradas.
+            </p>
+          )}
+          {organizationItems.map((org) => {
+            const president =
+              getOrganizationPresident(org.presidentId) ??
+              typedUsers.find(
+                (user) => user.role === "presidente_organizacion" && user.organizationId === org.id
+              );
+            const counselors = typedUsers.filter(
+              (user) => user.role === "consejero_organizacion" && user.organizationId === org.id
+            );
+            const secretaries = typedUsers.filter(
+              (user) => user.role === "secretario_organizacion" && user.organizationId === org.id
+            );
 
-      <Collapsible>
-        <Card>
-          <CardHeader className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Organizaciones del consejo de barrio</h2>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Ver organigrama
-                </button>
-              </CollapsibleTrigger>
-            </div>
-            {organizationItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No hay organizaciones registradas.
-              </p>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {organizationItems.map((org) => (
-                  <OrganizationSummary
-                    key={org.id}
-                    label={organizationLabels[org.type] ?? org.name}
-                    president={getOrganizationPresident(org.presidentId)}
-                  />
-                ))}
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <CollapsibleContent className="rounded-lg border border-border/60 bg-muted/40 p-4">
-              <pre className="whitespace-pre font-mono text-sm text-muted-foreground">
-{`┌─────────────────────────────┼──────────────────────────────────┐
-      │                             │                                │
-(TRATO DIRECTO)               PRIMER CONSEJERO                 SEGUNDO CONSEJERO
-      │                             │                                │
-      │                ┌────────────┼──────────────┐       ┌──────────┼──────────┐
-      │                │            │              │       │          │          │
-CUÓRUM DE ÉLDERES   MUJERES JÓVENES  ESCUELA     OBRA DEL  OBRA MISIONAL  PRIMARIA  HAZ
- (Presidencia)                     DOMINICAL    TEMPLO
-      │
-SOCIEDAD DE SOCORRO
- (Presidencia)
-
-      │
-      ├─ ADULTOS SOLTEROS (AS)
-      │   (dependen de QE y SR · consejero asignado: PRIMER CONSEJERO)
-      │
-      └─ JÓVENES ADULTOS SOLTEROS (JAS)
-          (dependen de QE y SR · consejero asignado: SEGUNDO CONSEJERO)`}
-              </pre>
-            </CollapsibleContent>
-          </CardContent>
-        </Card>
-      </Collapsible>
-
-      <Collapsible>
-        <Card>
-          <CardHeader className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">
-                Apéndice – Presidencia del Sacerdocio Aarónico
-              </h2>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Ver organigrama
-                </button>
-              </CollapsibleTrigger>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CollapsibleContent className="rounded-lg border border-border/60 bg-muted/40 p-4">
-              <pre className="whitespace-pre font-mono text-sm text-muted-foreground">
-{`                           OBISPADO
-      (Obispo + Primer Consejero + Segundo Consejero)
-                                  │
-                 PRESIDENCIA DEL SACERDOCIO AARÓNICO
-                                  │
-                           HOMBRES JÓVENES`}
-              </pre>
-            </CollapsibleContent>
-          </CardContent>
-        </Card>
-      </Collapsible>
+            return (
+              <LeadershipCluster
+                key={org.id}
+                title={organizationLabels[org.type] ?? org.name}
+                president={president}
+                counselors={counselors}
+                secretaries={secretaries}
+              />
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }
