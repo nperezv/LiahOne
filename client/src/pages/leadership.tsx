@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -118,48 +118,79 @@ function LeaderItem({ user, fallbackLabel }: { user?: UserSummary | null; fallba
   );
 }
 
-function OrgChartNode({
+function DiagramNode({
+  title,
   user,
   fallbackLabel = "Sin asignar",
 }: {
+  title: string;
   user?: UserSummary | null;
   fallbackLabel?: string;
 }) {
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center gap-2 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
-          ?
-        </div>
-        <p className="max-w-[140px] text-sm font-medium text-muted-foreground">{fallbackLabel}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col items-center gap-2 text-center">
-      <LeaderAvatar user={user} sizeClassName="h-12 w-12" />
-      <div className="max-w-[140px] text-sm font-medium">{user.name}</div>
-      <div className="text-xs text-muted-foreground">{roleLabels[user.role] ?? user.role}</div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      {user ? (
+        <>
+          <LeaderAvatar user={user} sizeClassName="h-12 w-12" />
+          <p className="max-w-[160px] text-sm font-medium">{user.name}</p>
+        </>
+      ) : (
+        <>
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
+            ?
+          </div>
+          <p className="max-w-[160px] text-sm font-medium text-muted-foreground">
+            {fallbackLabel}
+          </p>
+        </>
+      )}
     </div>
   );
 }
 
-function OrgChartRow({ title, users }: { title: string; users: UserSummary[] }) {
-  const hasUsers = users.length > 0;
-
+function OrganizationNode({
+  label,
+  president,
+  helperText,
+}: {
+  label: string;
+  president?: UserSummary | null;
+  helperText?: string;
+}) {
   return (
-    <div className="space-y-2">
-      <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
+    <div className="flex flex-col items-center gap-2 text-center">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
       </p>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 justify-items-center">
-        {hasUsers ? (
-          users.map((user) => <OrgChartNode key={user.id} user={user} />)
-        ) : (
-          <OrgChartNode fallbackLabel="Sin asignar" />
-        )}
-      </div>
+      {president ? (
+        <>
+          <LeaderAvatar user={president} sizeClassName="h-10 w-10" />
+          <p className="text-sm font-medium">{president.name}</p>
+        </>
+      ) : (
+        <div className="text-sm text-muted-foreground">Sin presidencia</div>
+      )}
+      {helperText && (
+        <p className="text-xs text-muted-foreground">{helperText}</p>
+      )}
+    </div>
+  );
+}
+
+function LevelHeader({
+  colorClassName,
+  title,
+}: {
+  colorClassName: string;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide">
+      <span className={cn("h-3 w-3 rounded-sm", colorClassName)} />
+      <span>{title}</span>
     </div>
   );
 }
@@ -190,6 +221,7 @@ export default function LeadershipPage() {
   const secretarios = typedUsers.filter((user) =>
     ["secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role)
   );
+  const [primerConsejero, segundoConsejero] = consejeros;
 
   const organizationItems = organizations
     .filter((org) => organizationOrder.includes(org.type))
@@ -197,98 +229,232 @@ export default function LeadershipPage() {
       (a, b) => organizationOrder.indexOf(a.type) - organizationOrder.indexOf(b.type)
     );
 
+  const findOrganization = (type: string) =>
+    organizationItems.find((org) => org.type === type);
+
+  const getOrganizationPresident = (orgId?: string) =>
+    typedUsers.find((user) => user.id === orgId) ??
+    typedUsers.find(
+      (user) => user.role === "presidente_organizacion" && user.organizationId === orgId
+    );
+
   return (
     <div className="container max-w-5xl mx-auto py-8 px-4 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Estructura del consejo de barrio</h1>
         <p className="text-sm text-muted-foreground">
-          Organigrama con los líderes actuales y sus responsabilidades.
+          Vista tipo Teams con niveles, despliegue y responsabilidades del liderazgo.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Obispado</CardTitle>
+          <LevelHeader colorClassName="bg-blue-500" title="Nivel 1 - Obispado (como cuerpo)" />
         </CardHeader>
-        <CardContent className="space-y-4">
-          <LeaderGroup title="Obispo" users={obispo ? [obispo] : []} />
-          <LeaderGroup title="Consejeros" users={consejeros} />
-          <LeaderGroup title="Secretarios" users={secretarios} />
+        <CardContent className="space-y-6">
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-4 space-y-4">
+            <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Obispado
+            </p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <LeaderGroup title="Obispo" users={obispo ? [obispo] : []} />
+              <LeaderGroup title="Consejeros" users={consejeros} />
+              <LeaderGroup title="Secretarios" users={secretarios} />
+            </div>
+          </div>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              El Obispado actúa como una presidencia unida y es responsable de:
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>La dirección espiritual del barrio.</li>
+              <li>El Consejo de Barrio y sus organizaciones.</li>
+              <li>La supervisión de todas las organizaciones.</li>
+              <li>La presidencia del Sacerdocio Aarónico.</li>
+            </ul>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Organigrama de líderes de barrio</CardTitle>
+          <LevelHeader colorClassName="bg-emerald-500" title="Nivel 2 - Despliegue del Obispado" />
         </CardHeader>
-        <CardContent className="space-y-8">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Obispo
-              </p>
-              <div className="flex justify-center">
-                <OrgChartNode user={obispo} />
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <div className="h-4 w-px bg-border" />
-            </div>
-            <OrgChartRow title="Consejeros" users={consejeros} />
-            <div className="flex justify-center">
-              <div className="h-4 w-px bg-border" />
-            </div>
-            <OrgChartRow title="Secretarios" users={secretarios} />
-          </div>
-
-          <div className="space-y-6">
-            <p className="text-sm font-semibold text-muted-foreground text-center">
-              Organizaciones del consejo de barrio
-            </p>
-            {organizationItems.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground">
-                No hay organizaciones registradas.
-              </p>
-            )}
-            {organizationItems.map((org) => {
-              const president =
-                typedUsers.find((user) => user.id === org.presidentId) ??
-                typedUsers.find(
-                  (user) => user.role === "presidente_organizacion" && user.organizationId === org.id
-                );
-              const counselors = typedUsers.filter(
-                (user) => user.role === "consejero_organizacion" && user.organizationId === org.id
-              );
-              const secretaries = typedUsers.filter(
-                (user) => user.role === "secretario_organizacion" && user.organizationId === org.id
-              );
-
-              return (
-                <div key={org.id} className="rounded-lg border border-border/60 p-4 space-y-4">
-                  <h3 className="text-base font-semibold text-center">
-                    {organizationLabels[org.type] ?? org.name}
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Presidencia
-                      </p>
-                      <div className="flex justify-center">
-                        <OrgChartNode user={president} />
-                      </div>
-                    </div>
-                    <div className="flex justify-center">
-                      <div className="h-4 w-px bg-border" />
-                    </div>
-                    <OrgChartRow title="Consejeros" users={counselors} />
-                    <div className="flex justify-center">
-                      <div className="h-4 w-px bg-border" />
-                    </div>
-                    <OrgChartRow title="Secretarios" users={secretaries} />
+        <CardContent className="space-y-6">
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
+            <div className="flex flex-col items-center gap-4">
+              <DiagramNode title="Obispo" user={obispo} />
+              <div className="h-5 w-px bg-border" />
+              <div className="w-full max-w-4xl space-y-3">
+                <div className="mx-auto h-px w-3/4 bg-border" />
+                <div className="grid grid-cols-3 items-start">
+                  <div className="flex justify-center">
+                    <div className="h-4 w-px bg-border" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="h-4 w-px bg-border" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="h-4 w-px bg-border" />
                   </div>
                 </div>
-              );
-            })}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <DiagramNode title="Primer Consejero" user={primerConsejero} />
+                  <DiagramNode title="Segundo Consejero" user={segundoConsejero} />
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Secretarios
+                    </p>
+                    {secretarios.length > 0 ? (
+                      <div className="space-y-2">
+                        {secretarios.map((secretario) => (
+                          <div key={secretario.id} className="flex items-center gap-2">
+                            <LeaderAvatar user={secretario} sizeClassName="h-8 w-8" />
+                            <div className="text-left">
+                              <p className="text-sm font-medium">{secretario.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {roleLabels[secretario.role] ?? secretario.role}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Sin asignar</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Funciones clave:</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>El Obispo preside el Consejo de Barrio y dirige la obra espiritual.</li>
+              <li>Los Consejeros apoyan al Obispo y dan seguimiento a responsabilidades.</li>
+              <li>Los Secretarios coordinan registros, informes y apoyo administrativo.</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <LevelHeader
+            colorClassName="bg-amber-500"
+            title="Nivel 3 - Organizaciones y responsabilidades"
+          />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
+            <div className="flex flex-col items-center gap-4">
+              <DiagramNode title="Obispo" user={obispo} />
+              <div className="h-5 w-px bg-border" />
+              <div className="w-full max-w-4xl space-y-3">
+                <div className="mx-auto h-px w-3/4 bg-border" />
+                <div className="grid grid-cols-3 items-start">
+                  <div className="flex justify-center">
+                    <div className="h-4 w-px bg-border" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="h-4 w-px bg-border" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="h-4 w-px bg-border" />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-4">
+                    <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Trato directo
+                    </p>
+                    {["cuorum_elderes", "sociedad_socorro"].map((type) => {
+                      const org = findOrganization(type);
+                      return (
+                        <OrganizationNode
+                          key={type}
+                          label={organizationLabels[type] ?? type}
+                          president={getOrganizationPresident(org?.presidentId)}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-4">
+                    <DiagramNode title="Primer Consejero" user={primerConsejero} />
+                    {["mujeres_jovenes", "escuela_dominical", "obra_del_templo"].map((type) => {
+                      const org = findOrganization(type);
+                      return (
+                        <OrganizationNode
+                          key={type}
+                          label={organizationLabels[type] ?? "Obra del Templo"}
+                          president={getOrganizationPresident(org?.presidentId)}
+                          helperText={type === "obra_del_templo" ? "Asignación sugerida" : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-4">
+                    <DiagramNode title="Segundo Consejero" user={segundoConsejero} />
+                    {["primaria", "hombres_jovenes", "obra_misional"].map((type) => {
+                      const org = findOrganization(type);
+                      return (
+                        <OrganizationNode
+                          key={type}
+                          label={organizationLabels[type] ?? "Obra Misional"}
+                          president={getOrganizationPresident(org?.presidentId)}
+                          helperText={type === "obra_misional" ? "Asignación sugerida" : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Claves importantes del Nivel 3:</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>AS y JAS dependen de Cuórum de Élderes y Sociedad de Socorro.</li>
+              <li>Se indica el consejero asignado para el seguimiento.</li>
+              <li>Las presidencias siguen siendo las que dirigen cada organización.</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <LevelHeader
+            colorClassName="bg-purple-500"
+            title="Apéndice - Obispado como presidencia del Sacerdocio Aarónico"
+          />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Obispado
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {obispo && <LeaderAvatar user={obispo} sizeClassName="h-10 w-10" />}
+                  {consejeros.map((user) => (
+                    <LeaderAvatar key={user.id} user={user} sizeClassName="h-10 w-10" />
+                  ))}
+                </div>
+              </div>
+              <div className="h-5 w-px bg-border" />
+              <div className="text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Presidencia del Sacerdocio Aarónico
+              </div>
+              <div className="h-5 w-px bg-border" />
+              <OrganizationNode
+                label={organizationLabels.hombres_jovenes ?? "Hombres Jóvenes"}
+                president={getOrganizationPresident(findOrganization("hombres_jovenes")?.presidentId)}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
