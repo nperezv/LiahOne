@@ -1081,7 +1081,7 @@ export default function BudgetPage() {
                     Presupuesto disponible para el trimestre actual
                   </p>
                 </div>
-                <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
                   <div>Trimestre 1: €{quarterBudgets[1].toFixed(2)}</div>
                   <div>Trimestre 2: €{quarterBudgets[2].toFixed(2)}</div>
                   <div>Trimestre 3: €{quarterBudgets[3].toFixed(2)}</div>
