@@ -124,6 +124,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
+  avatarUrl: text("avatar_url"),
   requireEmailOtp: boolean("require_email_otp").notNull().default(false),
   requirePasswordChange: boolean("require_password_change").notNull().default(false),
   role: roleEnum("role").notNull(),
@@ -553,6 +554,7 @@ export const birthdaysRelations = relations(birthdays, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users, {
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
+  avatarUrl: z.string().optional().or(z.literal("")),
   requireEmailOtp: z.boolean().optional(),
   requirePasswordChange: z.boolean().optional(),
 }).omit({ id: true, createdAt: true });

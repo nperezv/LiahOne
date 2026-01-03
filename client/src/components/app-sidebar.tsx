@@ -48,6 +48,21 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     roles: ["obispo", "consejero_obispo", "secretario"],
   },
   {
+    title: "Liderazgo",
+    url: "/leadership",
+    icon: Users,
+    roles: [
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+      "presidente_organizacion",
+      "consejero_organizacion",
+      "secretario_organizacion",
+    ],
+  },
+  {
     title: "Presidencias",
     icon: FileText,
     roles: ["obispo", "consejero_obispo", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"],

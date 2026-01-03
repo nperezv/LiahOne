@@ -33,7 +33,7 @@ export function Layout({ children }: LayoutProps) {
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
           <AppHeader
-            user={user ? { name: user.name, role: user.role } : undefined}
+            user={user ? { name: user.name, role: user.role, avatarUrl: user.avatarUrl } : undefined}
             onLogout={logout}
           />
           <main className="flex-1 overflow-y-auto">
