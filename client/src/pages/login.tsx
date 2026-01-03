@@ -107,6 +107,23 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!deferredPrompt) return;
+
+    const handleUserGesture = async () => {
+      try {
+        await deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+      } finally {
+        (window as Window & { deferredPwaPrompt?: BeforeInstallPromptEvent }).deferredPwaPrompt = undefined;
+        setDeferredPrompt(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", handleUserGesture, { once: true });
+    return () => window.removeEventListener("pointerdown", handleUserGesture);
+  }, [deferredPrompt]);
+
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     try {
