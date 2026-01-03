@@ -1548,9 +1548,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         if (hasCollision) {
           return res.status(409).json({
-            error: `El ${interviewerRoleLabel}${
+            error: `No se puede crear la entrevista porque el ${interviewerRoleLabel}${
               interviewer?.name ? ` ${interviewer.name}` : ""
-            } ya tiene una entrevista programada en esa fecha y hora.`,
+            } ya tiene otra entrevista confirmada en esa fecha y hora.`,
           });
         }
       }
@@ -1758,9 +1758,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           if (hasCollision) {
             return res.status(409).json({
-              error: `El ${interviewerRoleLabel}${
+              error: `No se puede actualizar la entrevista porque el ${interviewerRoleLabel}${
                 interviewer?.name ? ` ${interviewer.name}` : ""
-              } ya tiene una entrevista programada en esa fecha y hora.`,
+              } ya tiene otra entrevista confirmada en esa fecha y hora.`,
             });
           }
         }
@@ -1925,9 +1925,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         if (hasCollision) {
           return res.status(409).json({
-            error: `El ${interviewerRoleLabel}${
+            error: `No se puede crear la entrevista porque el ${interviewerRoleLabel}${
               interviewer?.name ? ` ${interviewer.name}` : ""
-            } ya tiene una entrevista programada en esa fecha y hora.`,
+            } ya tiene otra entrevista confirmada en esa fecha y hora.`,
           });
         }
       }
@@ -2027,9 +2027,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             if (hasCollision) {
               return res.status(409).json({
-                error: `El ${interviewerRoleLabel}${
+                error: `No se puede actualizar la entrevista porque el ${interviewerRoleLabel}${
                   interviewer?.name ? ` ${interviewer.name}` : ""
-                } ya tiene una entrevista programada en esa fecha y hora.`,
+                } ya tiene otra entrevista confirmada en esa fecha y hora.`,
               });
             }
           }
