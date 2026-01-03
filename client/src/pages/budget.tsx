@@ -54,7 +54,18 @@ const parseBudgetNumber = (value: string) => {
 
 const roundToTwoDecimals = (value: number) => Math.round(value * 100) / 100;
 
-const parseBudgetValue = (value: string) => roundToTwoDecimals(parseBudgetNumber(value));
+const formatBudgetValue = (value: number) => roundToTwoDecimals(value).toFixed(2);
+
+const toBudgetNumber = (value?: number | string | null) => {
+  if (typeof value === "number") {
+    return Number.isNaN(value) ? 0 : value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
 
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
@@ -194,26 +205,29 @@ export default function BudgetPage() {
   const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
 
   const quarterBudgets = useMemo(() => ({
-    1: wardBudget?.q1Amount ?? (currentQuarter === 1 ? wardBudget?.amount ?? 0 : 0),
-    2: wardBudget?.q2Amount ?? (currentQuarter === 2 ? wardBudget?.amount ?? 0 : 0),
-    3: wardBudget?.q3Amount ?? (currentQuarter === 3 ? wardBudget?.amount ?? 0 : 0),
-    4: wardBudget?.q4Amount ?? (currentQuarter === 4 ? wardBudget?.amount ?? 0 : 0),
+    1: toBudgetNumber(wardBudget?.q1Amount ?? (currentQuarter === 1 ? wardBudget?.amount ?? 0 : 0)),
+    2: toBudgetNumber(wardBudget?.q2Amount ?? (currentQuarter === 2 ? wardBudget?.amount ?? 0 : 0)),
+    3: toBudgetNumber(wardBudget?.q3Amount ?? (currentQuarter === 3 ? wardBudget?.amount ?? 0 : 0)),
+    4: toBudgetNumber(wardBudget?.q4Amount ?? (currentQuarter === 4 ? wardBudget?.amount ?? 0 : 0)),
   }), [currentQuarter, wardBudget?.amount, wardBudget?.q1Amount, wardBudget?.q2Amount, wardBudget?.q3Amount, wardBudget?.q4Amount]);
 
   const quarterBudgetValues = useMemo(() => Object.values(quarterBudgets), [quarterBudgets]);
 
-  const annualBudget = useMemo(() => (
-    wardBudget?.annualAmount
-    ?? (quarterBudgetValues.some((value) => value > 0)
+  const annualBudget = useMemo(() => {
+    const annualAmount = toBudgetNumber(wardBudget?.annualAmount);
+    if (annualAmount > 0) {
+      return annualAmount;
+    }
+    return quarterBudgetValues.some((value) => value > 0)
       ? quarterBudgetValues.reduce((sum, value) => sum + value, 0)
-      : wardBudget?.amount || 0)
-  ), [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
+      : toBudgetNumber(wardBudget?.amount);
+  }, [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
   const currentQuarterBudget = quarterBudgets[currentQuarter as 1 | 2 | 3 | 4] || 0;
 
   const totalAssignedToOrgs = Object.values(orgBudgetsByOrg)
     .flat()
     .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
-    .reduce((sum: number, budget: any) => sum + (budget?.amount || 0), 0);
+    .reduce((sum: number, budget: any) => sum + toBudgetNumber(budget?.amount), 0);
   const globalBudget = currentQuarterBudget;
   const remainingGlobalBudget = globalBudget - totalAssignedToOrgs;
   const globalUtilizationPercent = globalBudget > 0 ? Math.round((totalAssignedToOrgs / globalBudget) * 100) : 0;
@@ -239,21 +253,21 @@ export default function BudgetPage() {
   const wardBudgetForm = useForm<WardBudgetValues>({
     resolver: zodResolver(wardBudgetSchema),
     defaultValues: {
-      annualAmount: annualBudget.toString(),
-      q1Amount: quarterBudgets[1].toString(),
-      q2Amount: quarterBudgets[2].toString(),
-      q3Amount: quarterBudgets[3].toString(),
-      q4Amount: quarterBudgets[4].toString(),
+      annualAmount: formatBudgetValue(annualBudget),
+      q1Amount: formatBudgetValue(quarterBudgets[1]),
+      q2Amount: formatBudgetValue(quarterBudgets[2]),
+      q3Amount: formatBudgetValue(quarterBudgets[3]),
+      q4Amount: formatBudgetValue(quarterBudgets[4]),
     },
   });
 
   useEffect(() => {
     wardBudgetForm.reset({
-      annualAmount: annualBudget.toString(),
-      q1Amount: quarterBudgets[1].toString(),
-      q2Amount: quarterBudgets[2].toString(),
-      q3Amount: quarterBudgets[3].toString(),
-      q4Amount: quarterBudgets[4].toString(),
+      annualAmount: formatBudgetValue(annualBudget),
+      q1Amount: formatBudgetValue(quarterBudgets[1]),
+      q2Amount: formatBudgetValue(quarterBudgets[2]),
+      q3Amount: formatBudgetValue(quarterBudgets[3]),
+      q4Amount: formatBudgetValue(quarterBudgets[4]),
     });
   }, [annualBudget, quarterBudgets, wardBudgetForm]);
 
@@ -271,10 +285,10 @@ export default function BudgetPage() {
     const q3 = baseQuarter;
     const q4 = roundToTwoDecimals(parsedAnnual - q1 - q2 - q3);
 
-    wardBudgetForm.setValue("q1Amount", q1.toFixed(2), { shouldDirty: true });
-    wardBudgetForm.setValue("q2Amount", q2.toFixed(2), { shouldDirty: true });
-    wardBudgetForm.setValue("q3Amount", q3.toFixed(2), { shouldDirty: true });
-    wardBudgetForm.setValue("q4Amount", q4.toFixed(2), { shouldDirty: true });
+    wardBudgetForm.setValue("q1Amount", formatBudgetValue(q1), { shouldDirty: true });
+    wardBudgetForm.setValue("q2Amount", formatBudgetValue(q2), { shouldDirty: true });
+    wardBudgetForm.setValue("q3Amount", formatBudgetValue(q3), { shouldDirty: true });
+    wardBudgetForm.setValue("q4Amount", formatBudgetValue(q4), { shouldDirty: true });
   }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
 
   const orgBudgetForm = useForm<OrgBudgetAssignValues>({
@@ -395,13 +409,13 @@ export default function BudgetPage() {
     const currentQuarterAmount = quarterAmounts[currentQuarter - 1] ?? 0;
 
     updateWardBudgetMutation.mutate({
-      annualAmount: parseBudgetValue(data.annualAmount),
+      annualAmount: formatBudgetValue(annualAmountRaw),
       year: currentYear,
-      q1Amount: parseBudgetValue(data.q1Amount),
-      q2Amount: parseBudgetValue(data.q2Amount),
-      q3Amount: parseBudgetValue(data.q3Amount),
-      q4Amount: parseBudgetValue(data.q4Amount),
-      amount: roundToTwoDecimals(currentQuarterAmount),
+      q1Amount: formatBudgetValue(q1AmountRaw),
+      q2Amount: formatBudgetValue(q2AmountRaw),
+      q3Amount: formatBudgetValue(q3AmountRaw),
+      q4Amount: formatBudgetValue(q4AmountRaw),
+      amount: formatBudgetValue(currentQuarterAmount),
     }, {
       onSuccess: () => {
         setIsBudgetDialogOpen(false);
@@ -411,7 +425,7 @@ export default function BudgetPage() {
   };
 
   const onSubmitOrgBudgetAssign = (data: OrgBudgetAssignValues) => {
-    const amount = parseBudgetValue(data.amount);
+    const amount = roundToTwoDecimals(parseBudgetNumber(data.amount));
 
     if (selectedOrgId) {
       const now = new Date();
@@ -421,7 +435,7 @@ export default function BudgetPage() {
       const existingBudget = (orgBudgetsByOrg[selectedOrgId] || []).find(
         (b: any) => b.year === currentYear && b.quarter === currentQuarter
       );
-      const existingAmount = existingBudget?.amount || 0;
+      const existingAmount = toBudgetNumber(existingBudget?.amount);
       const maxAssignable = remainingGlobalBudget + existingAmount;
 
       if (amount > maxAssignable) {
@@ -433,7 +447,7 @@ export default function BudgetPage() {
         // Update existing
         updateOrgBudgetMutation.mutate({
           id: existingBudget.id,
-          data: { amount },
+          data: { amount: formatBudgetValue(amount) },
           organizationId: selectedOrgId,
         }, {
           onSuccess: () => {
@@ -446,7 +460,7 @@ export default function BudgetPage() {
         // Create new
         createOrgBudgetMutation.mutate({
           organizationId: selectedOrgId,
-          amount,
+          amount: formatBudgetValue(amount),
           year: currentYear,
           quarter: currentQuarter,
         }, {
@@ -991,7 +1005,7 @@ export default function BudgetPage() {
           const myBudget = (orgBudgetsByOrg[user.organizationId] || []).find(
             (b: any) => b.year === currentYear && b.quarter === currentQuarter
           );
-          const assignedAmount = myBudget?.amount || 0;
+          const assignedAmount = toBudgetNumber(myBudget?.amount);
 
           const mySpending = (requests as any[])
             .filter((r: any) => r.organizationId === user.organizationId && (r.status === "aprobado" || r.status === "completado"))
@@ -1106,7 +1120,7 @@ export default function BudgetPage() {
               const currentBudget = (orgBudgetsByOrg[org.id] || []).find(
                 (b: any) => b.year === currentYear && b.quarter === currentQuarter
               );
-              const assignedAmount = currentBudget?.amount || 0;
+              const assignedAmount = toBudgetNumber(currentBudget?.amount);
 
               // Calculate spending for this organization
               const orgSpending = (requests as any[])

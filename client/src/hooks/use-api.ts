@@ -948,13 +948,13 @@ export function useUpdateWardBudget() {
 
   return useMutation({
     mutationFn: (data: {
-      amount?: number;
-      annualAmount?: number;
+      amount?: string;
+      annualAmount?: string;
       year?: number;
-      q1Amount?: number;
-      q2Amount?: number;
-      q3Amount?: number;
-      q4Amount?: number;
+      q1Amount?: string;
+      q2Amount?: string;
+      q3Amount?: string;
+      q4Amount?: string;
     }) => apiRequest("PATCH", "/api/ward-budget", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ward-budget"] });
