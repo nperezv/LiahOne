@@ -7,7 +7,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { storage } from "./storage";
 import { db, pool } from "./db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import {
   insertUserSchema,
   insertSacramentalMeetingSchema,
@@ -27,6 +27,8 @@ import {
   insertNotificationSchema,
   insertPushSubscriptionSchema,
   notifications,
+  interviews,
+  organizationInterviews,
 } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcrypt";
@@ -109,6 +111,62 @@ function requireRole(...roles: string[]) {
 
     next();
   };
+}
+
+const interviewCollisionRoles = new Map<string, string>([
+  ["obispo", "Obispo"],
+  ["consejero_obispo", "Consejero del Obispo"],
+  ["presidente_organizacion", "Presidente de organización"],
+]);
+
+async function hasInterviewCollision({
+  interviewerId,
+  date,
+  excludeInterviewId,
+  excludeOrganizationInterviewId,
+}: {
+  interviewerId: string;
+  date: Date;
+  excludeInterviewId?: string;
+  excludeOrganizationInterviewId?: string;
+}): Promise<boolean> {
+  const interviewFilters = [
+    eq(interviews.interviewerId, interviewerId),
+    eq(interviews.date, date),
+    eq(interviews.status, "programada"),
+  ];
+  if (excludeInterviewId) {
+    interviewFilters.push(ne(interviews.id, excludeInterviewId));
+  }
+
+  const [interview] = await db
+    .select({ id: interviews.id })
+    .from(interviews)
+    .where(and(...interviewFilters))
+    .limit(1);
+
+  if (interview) {
+    return true;
+  }
+
+  const organizationInterviewFilters = [
+    eq(organizationInterviews.interviewerId, interviewerId),
+    eq(organizationInterviews.date, date),
+    eq(organizationInterviews.status, "programada"),
+  ];
+  if (excludeOrganizationInterviewId) {
+    organizationInterviewFilters.push(
+      ne(organizationInterviews.id, excludeOrganizationInterviewId)
+    );
+  }
+
+  const [organizationInterview] = await db
+    .select({ id: organizationInterviews.id })
+    .from(organizationInterviews)
+    .where(and(...organizationInterviewFilters))
+    .limit(1);
+
+  return Boolean(organizationInterview);
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1478,6 +1536,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assignedBy: req.session.userId,
         ...(assignedToId && !shouldCreateAssignment && { assignedToId }),	
       });
+
+      const interviewer = await storage.getUser(interviewData.interviewerId);
+      const interviewerRoleLabel = interviewer?.role
+        ? interviewCollisionRoles.get(interviewer.role)
+        : undefined;
+      if (interviewerRoleLabel) {
+        const hasCollision = await hasInterviewCollision({
+          interviewerId: interviewData.interviewerId,
+          date: interviewData.date,
+        });
+        if (hasCollision) {
+          return res.status(409).json({
+            error: `El ${interviewerRoleLabel}${
+              interviewer?.name ? ` ${interviewer.name}` : ""
+            } ya tiene una entrevista programada en esa fecha y hora.`,
+          });
+        }
+      }
   
       const interview = await storage.createInterview(interviewData);
   
@@ -1622,6 +1698,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/interviews/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const currentInterview = await storage.getInterview(id);
+      if (!currentInterview) {
+        return res.status(404).json({ error: "Interview not found" });
+      }
       const { personName, ...rest } = req.body;
   
       let updateData: any = rest;
@@ -1655,6 +1735,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .optional(),
         })
         .parse(updateData);
+
+      const nextInterviewerId =
+        interviewData.interviewerId ?? currentInterview.interviewerId;
+      const nextInterviewDate = interviewData.date ?? currentInterview.date;
+      const nextStatus = interviewData.status ?? currentInterview.status;
+      const shouldCheckCollision =
+        nextStatus === "programada" &&
+        (interviewData.date ||
+          interviewData.interviewerId ||
+          interviewData.status === "programada");
+      if (shouldCheckCollision) {
+        const interviewer = await storage.getUser(nextInterviewerId);
+        const interviewerRoleLabel = interviewer?.role
+          ? interviewCollisionRoles.get(interviewer.role)
+          : undefined;
+        if (interviewerRoleLabel) {
+          const hasCollision = await hasInterviewCollision({
+            interviewerId: nextInterviewerId,
+            date: nextInterviewDate,
+            excludeInterviewId: id,
+          });
+          if (hasCollision) {
+            return res.status(409).json({
+              error: `El ${interviewerRoleLabel}${
+                interviewer?.name ? ` ${interviewer.name}` : ""
+              } ya tiene una entrevista programada en esa fecha y hora.`,
+            });
+          }
+        }
+      }
     
       const interview = await storage.updateInterview(id, interviewData);
       if (!interview) {
@@ -1803,6 +1913,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: user.id,
         status: "programada",
       });
+
+      const interviewer = await storage.getUser(interviewData.interviewerId);
+      const interviewerRoleLabel = interviewer?.role
+        ? interviewCollisionRoles.get(interviewer.role)
+        : undefined;
+      if (interviewerRoleLabel) {
+        const hasCollision = await hasInterviewCollision({
+          interviewerId: interviewData.interviewerId,
+          date: interviewData.date,
+        });
+        if (hasCollision) {
+          return res.status(409).json({
+            error: `El ${interviewerRoleLabel}${
+              interviewer?.name ? ` ${interviewer.name}` : ""
+            } ya tiene una entrevista programada en esa fecha y hora.`,
+          });
+        }
+      }
   
       const interview =
         await storage.createOrganizationInterview(interviewData);
@@ -1876,6 +2004,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
         const updateData =
           insertOrganizationInterviewSchema.partial().parse(req.body);
+
+        const nextInterviewerId =
+          updateData.interviewerId ?? interview.interviewerId;
+        const nextInterviewDate = updateData.date ?? interview.date;
+        const nextStatus = updateData.status ?? interview.status;
+        const shouldCheckCollision =
+          nextStatus === "programada" &&
+          (updateData.date ||
+            updateData.interviewerId ||
+            updateData.status === "programada");
+        if (shouldCheckCollision) {
+          const interviewer = await storage.getUser(nextInterviewerId);
+          const interviewerRoleLabel = interviewer?.role
+            ? interviewCollisionRoles.get(interviewer.role)
+            : undefined;
+          if (interviewerRoleLabel) {
+            const hasCollision = await hasInterviewCollision({
+              interviewerId: nextInterviewerId,
+              date: nextInterviewDate,
+              excludeOrganizationInterviewId: id,
+            });
+            if (hasCollision) {
+              return res.status(409).json({
+                error: `El ${interviewerRoleLabel}${
+                  interviewer?.name ? ` ${interviewer.name}` : ""
+                } ya tiene una entrevista programada en esa fecha y hora.`,
+              });
+            }
+          }
+        }
     
         const updated =
           await storage.updateOrganizationInterview(id, updateData);
