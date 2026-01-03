@@ -3,8 +3,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useOrganizations, useUsers } from "@/hooks/use-api";
@@ -91,9 +89,6 @@ function LeaderAvatar({
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{user.name}</DialogTitle>
-        </DialogHeader>
         <div className="flex flex-col items-center gap-2 py-2">
           <Avatar className="h-24 w-24">
             {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
@@ -148,7 +143,6 @@ function CounselorSlot({ counselor }: { counselor?: UserSummary | null }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <LeaderAvatar user={counselor} sizeClassName="h-14 w-14" />
-      <span className="text-sm font-light">{counselor.name}</span>
       <span className="text-xs text-muted-foreground">
         {roleLabels[counselor.role] ?? counselor.role}
       </span>
@@ -181,7 +175,6 @@ function LeadershipCluster({
             {president ? (
               <>
                 <LeaderAvatar user={president} sizeClassName="h-20 w-20" />
-                <span className="text-sm font-light">{president.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {roleLabels[president.role] ?? president.role}
                 </span>
