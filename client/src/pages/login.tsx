@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,6 +18,10 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
 
 interface LoginPageProps {
   onLogin: (credentials: LoginFormValues) => Promise<{ requiresEmailCode?: boolean; otpId?: string; email?: string }>;
@@ -28,6 +32,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [otpState, setOtpState] = useState<{ otpId: string; email: string; rememberDevice: boolean } | null>(null);
   const [otpCode, setOtpCode] = useState("");
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const { toast } = useToast();
 
   const form = useForm<LoginFormValues>({
@@ -81,6 +86,35 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const storedPrompt = (window as Window & { deferredPwaPrompt?: BeforeInstallPromptEvent })
+      .deferredPwaPrompt;
+    if (storedPrompt) {
+      setDeferredPrompt(storedPrompt);
+    }
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    try {
+      await deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+    } finally {
+      (window as Window & { deferredPwaPrompt?: BeforeInstallPromptEvent }).deferredPwaPrompt = undefined;
+      setDeferredPrompt(null);
     }
   };
 
@@ -194,6 +228,18 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                   </>
                 )}
               </Button>
+
+              {deferredPrompt && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={handleInstallClick}
+                  data-testid="button-install-app"
+                >
+                  Instalar aplicación
+                </Button>
+              )}
             </form>
           </Form>
         </CardContent>
