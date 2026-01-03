@@ -16,6 +16,7 @@ interface UserSummary {
   role: string;
   organizationId?: string | null;
   avatarUrl?: string | null;
+  phone?: string | null;
 }
 
 const roleLabels: Record<string, string> = {
@@ -67,6 +68,9 @@ function LeaderAvatar({
   sizeClassName?: string;
 }) {
   const roleLabel = roleLabels[user.role] ?? user.role;
+  const phoneDigits = user.phone?.replace(/[^\d]/g, "") ?? "";
+  const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
+  const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
 
   return (
     <Dialog>
@@ -95,7 +99,34 @@ function LeaderAvatar({
             {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
-          <p className="text-sm text-muted-foreground">{roleLabel}</p>
+          <p className="text-sm font-light">{user.name}</p>
+          <p className="text-xs text-muted-foreground">{roleLabel}</p>
+          <div className="flex gap-2 pt-2">
+            <a
+              href={phoneHref}
+              className={cn(
+                "rounded-md border border-border px-3 py-1 text-sm font-medium",
+                phoneHref
+                  ? "text-foreground hover:bg-muted"
+                  : "pointer-events-none text-muted-foreground"
+              )}
+            >
+              Llamar
+            </a>
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(
+                "rounded-md border border-border px-3 py-1 text-sm font-medium",
+                whatsappHref
+                  ? "text-foreground hover:bg-muted"
+                  : "pointer-events-none text-muted-foreground"
+              )}
+            >
+              WhatsApp
+            </a>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -117,6 +148,7 @@ function CounselorSlot({ counselor }: { counselor?: UserSummary | null }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <LeaderAvatar user={counselor} sizeClassName="h-14 w-14" />
+      <span className="text-sm font-light">{counselor.name}</span>
       <span className="text-xs text-muted-foreground">
         {roleLabels[counselor.role] ?? counselor.role}
       </span>
@@ -149,7 +181,8 @@ function LeadershipCluster({
             {president ? (
               <>
                 <LeaderAvatar user={president} sizeClassName="h-20 w-20" />
-                <span className="text-sm font-semibold">
+                <span className="text-sm font-light">{president.name}</span>
+                <span className="text-xs text-muted-foreground">
                   {roleLabels[president.role] ?? president.role}
                 </span>
               </>
@@ -211,9 +244,9 @@ export default function LeadershipPage() {
   return (
     <div className="container max-w-5xl mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Estructura del consejo de barrio</h1>
+        <h1 className="text-2xl font-bold">Líderes del barrio:</h1>
         <p className="text-sm text-muted-foreground">
-          Organigrama visual con presidencias y secretarios en un formato minimalista.
+          Organigrama del Obispado y líderes del consejo de barrio.
         </p>
       </div>
 
