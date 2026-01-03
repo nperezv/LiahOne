@@ -52,7 +52,9 @@ const parseBudgetNumber = (value: string) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const parseBudgetValue = (value: string) => Math.round(parseBudgetNumber(value));
+const roundToTwoDecimals = (value: number) => Math.round(value * 100) / 100;
+
+const parseBudgetValue = (value: string) => roundToTwoDecimals(parseBudgetNumber(value));
 
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
@@ -263,12 +265,16 @@ export default function BudgetPage() {
       return;
     }
     const parsedAnnual = parseBudgetNumber(annualAmountValue);
-    const perQuarter = parsedAnnual / 4;
-    const formatted = perQuarter.toFixed(2);
-    wardBudgetForm.setValue("q1Amount", formatted, { shouldDirty: true });
-    wardBudgetForm.setValue("q2Amount", formatted, { shouldDirty: true });
-    wardBudgetForm.setValue("q3Amount", formatted, { shouldDirty: true });
-    wardBudgetForm.setValue("q4Amount", formatted, { shouldDirty: true });
+    const baseQuarter = roundToTwoDecimals(parsedAnnual / 4);
+    const q1 = baseQuarter;
+    const q2 = baseQuarter;
+    const q3 = baseQuarter;
+    const q4 = roundToTwoDecimals(parsedAnnual - q1 - q2 - q3);
+
+    wardBudgetForm.setValue("q1Amount", q1.toFixed(2), { shouldDirty: true });
+    wardBudgetForm.setValue("q2Amount", q2.toFixed(2), { shouldDirty: true });
+    wardBudgetForm.setValue("q3Amount", q3.toFixed(2), { shouldDirty: true });
+    wardBudgetForm.setValue("q4Amount", q4.toFixed(2), { shouldDirty: true });
   }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
 
   const orgBudgetForm = useForm<OrgBudgetAssignValues>({
@@ -373,14 +379,14 @@ export default function BudgetPage() {
   };
 
   const onSubmitWardBudget = (data: WardBudgetValues) => {
-    const annualAmountRaw = parseBudgetNumber(data.annualAmount);
-    const q1AmountRaw = parseBudgetNumber(data.q1Amount);
-    const q2AmountRaw = parseBudgetNumber(data.q2Amount);
-    const q3AmountRaw = parseBudgetNumber(data.q3Amount);
-    const q4AmountRaw = parseBudgetNumber(data.q4Amount);
-    const quartersTotal = q1AmountRaw + q2AmountRaw + q3AmountRaw + q4AmountRaw;
+    const annualAmountRaw = roundToTwoDecimals(parseBudgetNumber(data.annualAmount));
+    const q1AmountRaw = roundToTwoDecimals(parseBudgetNumber(data.q1Amount));
+    const q2AmountRaw = roundToTwoDecimals(parseBudgetNumber(data.q2Amount));
+    const q3AmountRaw = roundToTwoDecimals(parseBudgetNumber(data.q3Amount));
+    const q4AmountRaw = roundToTwoDecimals(parseBudgetNumber(data.q4Amount));
+    const quartersTotal = roundToTwoDecimals(q1AmountRaw + q2AmountRaw + q3AmountRaw + q4AmountRaw);
 
-    if (quartersTotal > annualAmountRaw) {
+    if (quartersTotal > annualAmountRaw + 0.01) {
       alert(`La suma de los trimestres (€${quartersTotal.toFixed(2)}) excede el presupuesto anual.`);
       return;
     }
@@ -395,7 +401,7 @@ export default function BudgetPage() {
       q2Amount: parseBudgetValue(data.q2Amount),
       q3Amount: parseBudgetValue(data.q3Amount),
       q4Amount: parseBudgetValue(data.q4Amount),
-      amount: Math.round(currentQuarterAmount),
+      amount: roundToTwoDecimals(currentQuarterAmount),
     }, {
       onSuccess: () => {
         setIsBudgetDialogOpen(false);
@@ -407,14 +413,7 @@ export default function BudgetPage() {
   const onSubmitOrgBudgetAssign = (data: OrgBudgetAssignValues) => {
     const amount = parseBudgetValue(data.amount);
 
-    // Validar que no exceda el presupuesto global
-    if (amount > remainingGlobalBudget) {
-      alert(`El monto excede el presupuesto disponible. Disponible: €${remainingGlobalBudget.toFixed(2)}`);
-      return;
-    }
-
     if (selectedOrgId) {
-      // Check if budget already exists for current quarter
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
@@ -422,12 +421,20 @@ export default function BudgetPage() {
       const existingBudget = (orgBudgetsByOrg[selectedOrgId] || []).find(
         (b: any) => b.year === currentYear && b.quarter === currentQuarter
       );
+      const existingAmount = existingBudget?.amount || 0;
+      const maxAssignable = remainingGlobalBudget + existingAmount;
+
+      if (amount > maxAssignable) {
+        alert(`El monto excede el presupuesto disponible. Disponible: €${maxAssignable.toFixed(2)}`);
+        return;
+      }
 
       if (existingBudget) {
         // Update existing
         updateOrgBudgetMutation.mutate({
           id: existingBudget.id,
           data: { amount },
+          organizationId: selectedOrgId,
         }, {
           onSuccess: () => {
             setAssignDialogOpen(false);
