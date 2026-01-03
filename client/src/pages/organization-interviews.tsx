@@ -65,6 +65,7 @@ import {
   useUsers,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
+import { getApiErrorMessage } from "@/lib/error-utils";
 import { exportInterviews } from "@/lib/export";
 
 /* =========================
@@ -250,10 +251,13 @@ export default function OrganizationInterviewsPage() {
           setEditingInterview(null);
           editForm.reset();
         },
-        onError: () => {
+        onError: (error) => {
           toast({
             title: "Error",
-            description: "No se pudo actualizar la entrevista.",
+            description: getApiErrorMessage(
+              error,
+              "No se pudo actualizar la entrevista."
+            ),
             variant: "destructive",
           });
         },
@@ -329,6 +333,16 @@ export default function OrganizationInterviewsPage() {
                           toast({ title: "Entrevista creada" });
                           setIsDialogOpen(false);
                           form.reset();
+                        },
+                        onError: (error) => {
+                          toast({
+                            title: "Error",
+                            description: getApiErrorMessage(
+                              error,
+                              "No se pudo crear la entrevista."
+                            ),
+                            variant: "destructive",
+                          });
                         },
                       })
                     )}
