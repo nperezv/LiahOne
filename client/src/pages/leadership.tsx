@@ -1,6 +1,14 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useOrganizations, useUsers } from "@/hooks/use-api";
+import { cn } from "@/lib/utils";
 
 interface UserSummary {
   id: string;
@@ -8,6 +16,7 @@ interface UserSummary {
   role: string;
   organizationId?: string | null;
   avatarUrl?: string | null;
+  phone?: string | null;
 }
 
 const roleLabels: Record<string, string> = {
@@ -51,37 +60,159 @@ const getInitials = (name?: string) => {
     .slice(0, 2);
 };
 
-function LeaderItem({ user, fallbackLabel }: { user?: UserSummary | null; fallbackLabel?: string }) {
-  if (!user) {
-    return <p className="text-sm text-muted-foreground">{fallbackLabel ?? "Sin asignar"}</p>;
+function LeaderAvatar({
+  user,
+  sizeClassName = "h-9 w-9",
+}: {
+  user: UserSummary;
+  sizeClassName?: string;
+}) {
+  const roleLabel = roleLabels[user.role] ?? user.role;
+  const phoneDigits = user.phone?.replace(/[^\d]/g, "") ?? "";
+  const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
+  const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Avatar
+            className={cn(
+              sizeClassName,
+              "transition-transform duration-200 ease-out hover:scale-105"
+            )}
+          >
+            {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+          </Avatar>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{user.name}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-2 py-2">
+          <Avatar className="h-24 w-24">
+            {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+          </Avatar>
+          <p className="text-sm font-light">{user.name}</p>
+          <p className="text-xs text-muted-foreground">{roleLabel}</p>
+          <div className="flex gap-2 pt-2">
+            <a
+              href={phoneHref}
+              className={cn(
+                "rounded-md border border-border px-3 py-1 text-sm font-medium",
+                phoneHref
+                  ? "text-foreground hover:bg-muted"
+                  : "pointer-events-none text-muted-foreground"
+              )}
+            >
+              Llamar
+            </a>
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(
+                "rounded-md border border-border px-3 py-1 text-sm font-medium",
+                whatsappHref
+                  ? "text-foreground hover:bg-muted"
+                  : "pointer-events-none text-muted-foreground"
+              )}
+            >
+              WhatsApp
+            </a>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CounselorSlot({ counselor }: { counselor?: UserSummary | null }) {
+  if (!counselor) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
+          ?
+        </div>
+        <span className="text-xs text-muted-foreground">Consejero</span>
+      </div>
+    );
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <Avatar className="h-9 w-9">
-        {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-      </Avatar>
-      <div>
-        <p className="text-sm font-medium">{user.name}</p>
-        <p className="text-xs text-muted-foreground">{roleLabels[user.role] ?? user.role}</p>
-      </div>
+    <div className="flex flex-col items-center gap-2">
+      <LeaderAvatar user={counselor} sizeClassName="h-14 w-14" />
+      <span className="text-sm font-light">{counselor.name}</span>
+      <span className="text-xs text-muted-foreground">
+        {roleLabels[counselor.role] ?? counselor.role}
+      </span>
     </div>
   );
 }
 
-function LeaderGroup({ title, users }: { title: string; users: UserSummary[] }) {
+function LeadershipCluster({
+  title,
+  president,
+  counselors,
+  secretaries,
+}: {
+  title: string;
+  president?: UserSummary | null;
+  counselors: UserSummary[];
+  secretaries: UserSummary[];
+}) {
+  const [firstCounselor, secondCounselor] = counselors;
+
   return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-muted-foreground">{title}</h4>
-      <div className="space-y-2">
-        {users.length > 0 ? (
-          users.map((user) => <LeaderItem key={user.id} user={user} />)
-        ) : (
-          <LeaderItem fallbackLabel="Sin asignar" />
-        )}
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <h2 className="text-lg font-semibold text-center">{title}</h2>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-end justify-center gap-6">
+          <CounselorSlot counselor={firstCounselor} />
+          <div className="flex flex-col items-center gap-2">
+            {president ? (
+              <>
+                <LeaderAvatar user={president} sizeClassName="h-20 w-20" />
+                <span className="text-sm font-light">{president.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {roleLabels[president.role] ?? president.role}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
+                  ?
+                </div>
+                <span className="text-sm text-muted-foreground">Sin asignar</span>
+              </>
+            )}
+          </div>
+          <CounselorSlot counselor={secondCounselor} />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Secretarios
+          </span>
+          {secretaries.length > 0 ? (
+            <div className="flex flex-wrap justify-center gap-2">
+              {secretaries.map((secretary) => (
+                <LeaderAvatar key={secretary.id} user={secretary} sizeClassName="h-8 w-8" />
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">Sin asignar</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -103,37 +234,41 @@ export default function LeadershipPage() {
       (a, b) => organizationOrder.indexOf(a.type) - organizationOrder.indexOf(b.type)
     );
 
+  const getOrganizationPresident = (orgId?: string) =>
+    typedUsers.find((user) => user.id === orgId) ??
+    typedUsers.find(
+      (user) => user.role === "presidente_organizacion" && user.organizationId === orgId
+    );
+
   return (
     <div className="container max-w-5xl mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Estructura del consejo de barrio</h1>
+        <h1 className="text-2xl font-bold">Líderes del barrio:</h1>
         <p className="text-sm text-muted-foreground">
-          Organigrama con los líderes actuales y sus responsabilidades.
+          Organigrama del Obispado y líderes del consejo de barrio.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Obispado</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <LeaderGroup title="Obispo" users={obispo ? [obispo] : []} />
-          <LeaderGroup title="Consejeros" users={consejeros} />
-          <LeaderGroup title="Secretarios" users={secretarios} />
-        </CardContent>
-      </Card>
+      <LeadershipCluster
+        title="Obispado"
+        president={obispo}
+        counselors={consejeros}
+        secretaries={secretarios}
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Organizaciones del consejo de barrio</CardTitle>
+          <h2 className="text-lg font-semibold text-center">Consejo de barrio</h2>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="grid gap-6">
           {organizationItems.length === 0 && (
-            <p className="text-sm text-muted-foreground">No hay organizaciones registradas.</p>
+            <p className="text-sm text-muted-foreground text-center">
+              No hay organizaciones registradas.
+            </p>
           )}
           {organizationItems.map((org) => {
             const president =
-              typedUsers.find((user) => user.id === org.presidentId) ??
+              getOrganizationPresident(org.presidentId) ??
               typedUsers.find(
                 (user) => user.role === "presidente_organizacion" && user.organizationId === org.id
               );
@@ -145,16 +280,13 @@ export default function LeadershipPage() {
             );
 
             return (
-              <div key={org.id} className="rounded-lg border border-border/60 p-4 space-y-4">
-                <h3 className="text-base font-semibold">
-                  {organizationLabels[org.type] ?? org.name}
-                </h3>
-                <div className="space-y-4">
-                  <LeaderGroup title="Presidencia" users={president ? [president] : []} />
-                  <LeaderGroup title="Consejeros" users={counselors} />
-                  <LeaderGroup title="Secretarios" users={secretaries} />
-                </div>
-              </div>
+              <LeadershipCluster
+                key={org.id}
+                title={organizationLabels[org.type] ?? org.name}
+                president={president}
+                counselors={counselors}
+                secretaries={secretaries}
+              />
             );
           })}
         </CardContent>
