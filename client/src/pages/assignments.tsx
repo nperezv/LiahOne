@@ -60,7 +60,9 @@ export default function Assignments() {
   const { data: users = [] } = useUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
@@ -140,6 +142,11 @@ export default function Assignments() {
       status: assignment.status || "pendiente",
     });
     setIsEditOpen(true);
+  };
+
+  const openDetails = (assignment: any) => {
+    setSelectedAssignment(assignment);
+    setIsDetailsOpen(true);
   };
 
   const onEdit = (data: AssignmentFormValues) => {
@@ -437,10 +444,13 @@ export default function Assignments() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => startEdit(assignment)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            startEdit(assignment);
+                          }}
                         >
                           <Edit className="h-3 w-3 mr-1" />
-                          Detalles
+                          Editar
                         </Button>
                         {isObispado &&
                           assignment.status !== "completada" &&
@@ -493,10 +503,72 @@ export default function Assignments() {
         </CardContent>
       </Card>
 
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+      <Dialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) {
+            setSelectedAssignment(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Detalles de la asignación</DialogTitle>
+          </DialogHeader>
+          {selectedAssignment && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <FormLabel>Título</FormLabel>
+                <Input value={selectedAssignment.title || "Sin título"} readOnly />
+              </div>
+              <div className="space-y-2">
+                <FormLabel>Descripción</FormLabel>
+                <Textarea value={selectedAssignment.description || "Sin descripción"} readOnly />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <FormLabel>Asignado a</FormLabel>
+                  <Input value={selectedAssignment.personName || "Sin asignar"} readOnly />
+                </div>
+                <div className="space-y-2">
+                  <FormLabel>Asignado por</FormLabel>
+                  <Input value={selectedAssignment.assignerName || "Desconocido"} readOnly />
+                </div>
+                <div className="space-y-2">
+                  <FormLabel>Vencimiento</FormLabel>
+                  <Input
+                    value={
+                      selectedAssignment.dueDate
+                        ? new Date(selectedAssignment.dueDate).toLocaleDateString("es-ES", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                        : "Sin fecha"
+                    }
+                    readOnly
+                  />
+                </div>
+                <div className="space-y-2">
+                  <FormLabel>Estado</FormLabel>
+                  <div>{getStatusBadge(selectedAssignment.status)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar asignación</DialogTitle>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-4">
