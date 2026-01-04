@@ -60,9 +60,7 @@ export default function Assignments() {
   const { data: users = [] } = useUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
@@ -142,11 +140,6 @@ export default function Assignments() {
       status: assignment.status || "pendiente",
     });
     setIsEditOpen(true);
-  };
-
-  const openDetails = (assignment: any) => {
-    setSelectedAssignment(assignment);
-    setIsDetailsOpen(true);
   };
 
   const onEdit = (data: AssignmentFormValues) => {
@@ -444,13 +437,10 @@ export default function Assignments() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            startEdit(assignment);
-                          }}
+                          onClick={() => startEdit(assignment)}
                         >
                           <Edit className="h-3 w-3 mr-1" />
-                          Editar
+                          Detalles
                         </Button>
                         {isObispado &&
                           assignment.status !== "completada" &&
@@ -503,135 +493,10 @@ export default function Assignments() {
         </CardContent>
       </Card>
 
-      <Dialog
-        open={isDetailsOpen}
-        onOpenChange={(open) => {
-          setIsDetailsOpen(open);
-          if (!open) {
-            setSelectedAssignment(null);
-          }
-        }}
-      >
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Detalles de la asignación</DialogTitle>
-            <DialogDescription>
-              Consulta la información sin editar la asignación.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedAssignment && (
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="font-semibold">Título</p>
-                <p className="text-muted-foreground">{selectedAssignment.title || "Sin título"}</p>
-              </div>
-              <div>
-                <p className="font-semibold">Descripción</p>
-                <p className="text-muted-foreground">
-                  {selectedAssignment.description || "Sin descripción"}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="font-semibold">Asignado a</p>
-                  <p className="text-muted-foreground">
-                    {selectedAssignment.personName || "Sin asignar"}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Asignado por</p>
-                  <p className="text-muted-foreground">
-                    {selectedAssignment.assignerName || "Desconocido"}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Vencimiento</p>
-                  <p className="text-muted-foreground">
-                    {selectedAssignment.dueDate
-                      ? new Date(selectedAssignment.dueDate).toLocaleDateString("es-ES", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
-                      : "Sin fecha"}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Estado</p>
-                  {getStatusBadge(selectedAssignment.status)}
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end">
-            <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
-              Cerrar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Editar asignación</DialogTitle>
-          </DialogHeader>
-          {selectedAssignment && (
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="font-semibold">Título</p>
-                <p className="text-muted-foreground">{selectedAssignment.title || "Sin título"}</p>
-              </div>
-              <div>
-                <p className="font-semibold">Descripción</p>
-                <p className="text-muted-foreground">
-                  {selectedAssignment.description || "Sin descripción"}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="font-semibold">Asignado a</p>
-                  <p className="text-muted-foreground">
-                    {selectedAssignment.personName || "Sin asignar"}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Asignado por</p>
-                  <p className="text-muted-foreground">
-                    {selectedAssignment.assignerName || "Desconocido"}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Vencimiento</p>
-                  <p className="text-muted-foreground">
-                    {selectedAssignment.dueDate
-                      ? new Date(selectedAssignment.dueDate).toLocaleDateString("es-ES", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
-                      : "Sin fecha"}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Estado</p>
-                  {getStatusBadge(selectedAssignment.status)}
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end">
-            <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
-              Cerrar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Editar asignación</DialogTitle>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-4">

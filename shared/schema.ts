@@ -247,6 +247,8 @@ export const wardCouncils = pgTable("ward_councils", {
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
   agenda: text("agenda"),
+  presider: text("presider"),
+  director: text("director"),
   openingPrayer: text("opening_prayer"),
   openingHymn: text("opening_hymn"),
   spiritualThought: text("spiritual_thought"),
