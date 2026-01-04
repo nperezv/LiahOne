@@ -868,9 +868,238 @@ export default function WardCouncilPage() {
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
+                          <FormLabel className="text-sm font-medium">
+                            Pensamiento espiritual
+                          </FormLabel>
                         </FormItem>
                       )}
                     />
+
+                    {createForm.watch("hasSpiritualThought") && (
+                      <>
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThought"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Pensamiento espiritual</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quién comparte</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona un líder" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{createLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtTopic"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tema / Escritura</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    <FormField
+                      control={createForm.control}
+                      name="hasSpiritualThought"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl>
+                            <Checkbox
+                              checked={Boolean(field.value)}
+                              onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                            />
+                          </FormControl>
+                          <FormLabel className="text-sm font-medium">
+                            Pensamiento espiritual
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    {createForm.watch("hasSpiritualThought") && (
+                      <>
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Asignado a:</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{createLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                      </>
+                    )}
+
+                    <FormField
+                      control={createForm.control}
+                      name="closingPrayerBy"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Oración final</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                    />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Revisión de compromisos anteriores</p>
+                          <p className="text-xs text-muted-foreground">
+                            Seguimiento breve y enfocado en acción.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            createAssignments.append({
+                              assignment: "",
+                              responsible: "",
+                              status: "pendiente",
+                              notes: "",
+                            })
+                          }
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Agregar
+                        </Button>
+                      </div>
+
+                      {createAssignments.fields.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No hay asignaciones previas registradas.
+                        </p>
+                      )}
+
+                      {createAssignments.fields.map((field, index) => (
+                        <div key={field.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.assignment`}
+                            render={({ field: inputField }) => (
+                              <FormItem className="md:col-span-2">
+                                <FormLabel>Asignación</FormLabel>
+                                <FormControl>
+                                  <Input {...inputField} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.responsible`}
+                            render={({ field: inputField }) => (
+                              <FormItem>
+                                <FormLabel>Responsable</FormLabel>
+                                <Select value={inputField.value} onValueChange={inputField.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>{createLeaderOptions}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.status`}
+                            render={({ field: inputField }) => (
+                              <FormItem>
+                                <FormLabel>Estado</FormLabel>
+                                <Select value={inputField.value} onValueChange={inputField.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecciona" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {Object.entries(statusLabels).map(([value, label]) => (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.notes`}
+                            render={({ field: inputField }) => (
+                              <FormItem className="md:col-span-3">
+                                <FormLabel>Observaciones clave</FormLabel>
+                                <FormControl>
+                                  <Textarea {...inputField} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className="flex items-end justify-end">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => createAssignments.remove(index)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Quitar
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
 
                     <FormField
                       control={createForm.control}
