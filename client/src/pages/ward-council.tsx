@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Download, Edit, Trash2, Play, CheckCircle2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +18,12 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
+  SelectGroup,
+  SelectLabel,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -34,6 +38,7 @@ import {
   useDeleteWardCouncil,
   useCreateAssignment,
   useUsers,
+  useOrganizations,
 } from "@/hooks/use-api";
 
 import { useAuth } from "@/lib/auth";
@@ -47,8 +52,12 @@ import { useToast } from "@/hooks/use-toast";
 
 const councilSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
+  presider: z.string().optional(),
+  director: z.string().optional(),
   openingPrayer: z.string().optional(),
   openingHymn: z.string().optional(),
+  closingPrayerBy: z.string().optional(),
+  hasSpiritualThought: z.boolean().optional(),
   spiritualThought: z.string().optional(),
   spiritualThoughtBy: z.string().optional(),
   spiritualThoughtTopic: z.string().optional(),
@@ -84,8 +93,6 @@ const councilDetailsSchema = z.object({
     )
     .optional(),
   finalSummaryNotes: z.string().optional(),
-  closingPrayer: z.string().optional(),
-  closingPrayerBy: z.string().optional(),
   bishopNotes: z.string().optional(),
 });
 
@@ -97,20 +104,44 @@ const statusLabels: Record<string, string> = {
   pendiente: "Pendiente",
 };
 
+function renderLeaderOptions(
+  groups: { id: string; name: string; members: any[] }[],
+  useIdValue: boolean
+) {
+  return groups.map((group) => (
+    <SelectGroup key={group.id}>
+      <SelectLabel className="rounded-md bg-muted px-2 py-1 text-xs uppercase tracking-wide text-muted-foreground">
+        {group.name}
+      </SelectLabel>
+      {group.members.map((member: any) => {
+        const label = member.fullName || member.name || member.email;
+        const value = useIdValue ? member.id : label;
+        return (
+          <SelectItem key={member.id} value={value}>
+            {label}
+          </SelectItem>
+        );
+      })}
+    </SelectGroup>
+  ));
+}
+
 function CouncilDetailsForm({
   council,
   canManage,
   onAutoSave,
   onFinalize,
   isUpdating,
-  users,
+  leaderGroups,
+  leaderLookup,
 }: {
   council: any;
   canManage: boolean;
   onAutoSave: (data: CouncilDetailsFormValues) => void;
   onFinalize: () => void;
   isUpdating: boolean;
-  users: any[];
+  leaderGroups: { name: string; members: any[] }[];
+  leaderLookup: Map<string, any>;
 }) {
   const form = useForm<CouncilDetailsFormValues>({
     resolver: zodResolver(councilDetailsSchema),
@@ -121,8 +152,6 @@ function CouncilDetailsForm({
       newAssignmentsNotes: council.newAssignmentsNotes || "",
       newAssignments: council.newAssignments || [],
       finalSummaryNotes: council.finalSummaryNotes || "",
-      closingPrayer: council.closingPrayer || "",
-      closingPrayerBy: council.closingPrayerBy || "",
       bishopNotes: council.bishopNotes || "",
     },
   });
@@ -144,8 +173,6 @@ function CouncilDetailsForm({
       newAssignmentsNotes: council.newAssignmentsNotes || "",
       newAssignments: council.newAssignments || [],
       finalSummaryNotes: council.finalSummaryNotes || "",
-      closingPrayer: council.closingPrayer || "",
-      closingPrayerBy: council.closingPrayerBy || "",
       bishopNotes: council.bishopNotes || "",
     });
     lastSavedRef.current = "";
@@ -164,7 +191,7 @@ function CouncilDetailsForm({
     const timeout = window.setTimeout(() => {
       lastSavedRef.current = payload;
       onAutoSave(watchedValues ?? {});
-    }, 800);
+    }, 60000);
 
     return () => window.clearTimeout(timeout);
   }, [isEditable, onAutoSave, watchedValues]);
@@ -174,6 +201,16 @@ function CouncilDetailsForm({
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>Inicio: {council.startedAt ? new Date(council.startedAt).toLocaleTimeString("es-ES") : "-"}</span>
         <span>Fin: {council.endedAt ? new Date(council.endedAt).toLocaleTimeString("es-ES") : "-"}</span>
+      </div>
+      <div className="rounded-md border bg-muted/30 p-3 text-sm">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <span>Preside: {council.presider || "-"}</span>
+          <span>Dirige: {council.director || "-"}</span>
+          <span>Oración de apertura: {council.openingPrayer || "-"}</span>
+          <span>Oración final: {council.closingPrayerBy || council.closingPrayer || "-"}</span>
+          <span>Pensamiento espiritual: {council.spiritualThoughtBy || "-"}</span>
+          <span>Himno: {council.openingHymn || "-"}</span>
+        </div>
       </div>
 
       <Form {...form}>
@@ -291,7 +328,7 @@ function CouncilDetailsForm({
                         value={inputField.value}
                         onValueChange={(value) => {
                           inputField.onChange(value);
-                          const selected = users.find((user) => user.id === value);
+                          const selected = leaderLookup.get(value);
                           form.setValue(
                             `newAssignments.${index}.assignedToName`,
                             selected?.fullName || selected?.name || selected?.email || ""
@@ -305,11 +342,7 @@ function CouncilDetailsForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.fullName || user.name || user.email}
-                            </SelectItem>
-                          ))}
+                          {renderLeaderOptions(leaderGroups, true)}
                         </SelectContent>
                       </Select>
                     </FormItem>
@@ -374,32 +407,6 @@ function CouncilDetailsForm({
 
           <FormField
             control={form.control}
-            name="closingPrayer"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Oración final</FormLabel>
-                <FormControl>
-                  <Input {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="closingPrayerBy"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Quién ofrece la oración</FormLabel>
-                <FormControl>
-                  <Input {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
             name="bishopNotes"
             render={({ field }) => (
               <FormItem className="md:col-span-2">
@@ -445,6 +452,7 @@ export default function WardCouncilPage() {
 
   const { data: councils = [], isLoading } = useWardCouncils();
   const { data: users = [] } = useUsers();
+  const { data: organizations = [] } = useOrganizations();
   const createMutation = useCreateWardCouncil();
   const updateMutation = useUpdateWardCouncil();
   const deleteMutation = useDeleteWardCouncil();
@@ -455,6 +463,50 @@ export default function WardCouncilPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingCouncil, setEditingCouncil] = useState<any>(null);
+  const [detailsCouncil, setDetailsCouncil] = useState<any>(null);
+  const [leaderOrganizationFilter, setLeaderOrganizationFilter] = useState("all");
+  const [editLeaderOrganizationFilter, setEditLeaderOrganizationFilter] = useState("all");
+
+  const leaderGroups = (() => {
+    const leaderRoles = new Set([
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+      "presidente_organizacion",
+      "consejero_organizacion",
+      "secretario_organizacion",
+    ]);
+    const orgLookup = new Map(
+      organizations.map((org: any) => [org.id, org.name || org.type])
+    );
+    const grouped = new Map<string, { name: string; members: any[] }>();
+
+    users
+      .filter((user: any) => leaderRoles.has(user.role))
+      .forEach((user: any) => {
+        const orgId = user.organizationId ?? "obispado";
+        const orgName = user.organizationId
+          ? orgLookup.get(user.organizationId) || "Organización"
+          : "Obispado";
+        if (!grouped.has(orgId)) {
+          grouped.set(orgId, { name: orgName, members: [] });
+        }
+        grouped.get(orgId)?.members.push(user);
+      });
+
+    return Array.from(grouped.entries()).map(([id, group]) => ({
+      id,
+      name: group.name,
+      members: group.members.sort((a, b) =>
+        (a.fullName || a.name || "").localeCompare(b.fullName || b.name || "")
+      ),
+    }));
+  })();
+  const leaderLookup = new Map(
+    leaderGroups.flatMap((group) => group.members.map((member: any) => [member.id, member]))
+  );
 
   /* =========================
      Forms
@@ -464,8 +516,12 @@ export default function WardCouncilPage() {
     resolver: zodResolver(councilSchema),
     defaultValues: {
       date: "",
+      presider: "",
+      director: "",
       openingPrayer: "",
       openingHymn: "",
+      closingPrayerBy: "",
+      hasSpiritualThought: false,
       spiritualThought: "",
       spiritualThoughtBy: "",
       spiritualThoughtTopic: "",
@@ -491,16 +547,20 @@ export default function WardCouncilPage() {
   ========================= */
 
   const onCreate = (data: CouncilFormValues) => {
+    const { hasSpiritualThought, ...payload } = data;
     createMutation.mutate(
       {
-        ...data,
+        ...payload,
         previousAssignments: data.previousAssignments || [],
         adjustmentsNotes: data.adjustmentsNotes || "",
+        presider: data.presider || "",
+        director: data.director || "",
         openingPrayer: data.openingPrayer || "",
         openingHymn: data.openingHymn || "",
-        spiritualThought: data.spiritualThought || "",
-        spiritualThoughtBy: data.spiritualThoughtBy || "",
-        spiritualThoughtTopic: data.spiritualThoughtTopic || "",
+        closingPrayerBy: data.closingPrayerBy || "",
+        spiritualThought: "",
+        spiritualThoughtBy: hasSpiritualThought ? data.spiritualThoughtBy || "" : "",
+        spiritualThoughtTopic: "",
         attendance: [],
         agreements: [],
       },
@@ -515,19 +575,23 @@ export default function WardCouncilPage() {
 
   const onEdit = (data: CouncilFormValues) => {
     if (!editingCouncil) return;
+    const { hasSpiritualThought, ...payload } = data;
 
     updateMutation.mutate(
       {
         id: editingCouncil.id,
         data: {
-          ...data,
+          ...payload,
           previousAssignments: data.previousAssignments || [],
           adjustmentsNotes: data.adjustmentsNotes || "",
+          presider: data.presider || "",
+          director: data.director || "",
           openingPrayer: data.openingPrayer || "",
           openingHymn: data.openingHymn || "",
-          spiritualThought: data.spiritualThought || "",
-          spiritualThoughtBy: data.spiritualThoughtBy || "",
-          spiritualThoughtTopic: data.spiritualThoughtTopic || "",
+          closingPrayerBy: data.closingPrayerBy || "",
+          spiritualThought: "",
+          spiritualThoughtBy: hasSpiritualThought ? data.spiritualThoughtBy || "" : "",
+          spiritualThoughtTopic: "",
         },
       },
       {
@@ -542,13 +606,18 @@ export default function WardCouncilPage() {
 
   const startEdit = (council: any) => {
     setEditingCouncil(council);
+    setEditLeaderOrganizationFilter("all");
     editForm.reset({
       date: council.date,
+      presider: council.presider || "",
+      director: council.director || "",
       openingPrayer: council.openingPrayer || "",
       openingHymn: council.openingHymn || "",
-      spiritualThought: council.spiritualThought || "",
+      closingPrayerBy: council.closingPrayerBy || "",
+      hasSpiritualThought: Boolean(council.spiritualThoughtBy),
+      spiritualThought: "",
       spiritualThoughtBy: council.spiritualThoughtBy || "",
-      spiritualThoughtTopic: council.spiritualThoughtTopic || "",
+      spiritualThoughtTopic: "",
       previousAssignments: (council.previousAssignments || []).map((assignment: any) => ({
         assignment: assignment?.assignment || "",
         responsible: assignment?.responsible || "",
@@ -613,6 +682,26 @@ export default function WardCouncilPage() {
     }
   };
 
+  const leaderFilterOptions = [
+    { id: "all", name: "Todas las organizaciones" },
+    { id: "obispado", name: "Obispado" },
+    ...organizations.map((org: any) => ({
+      id: org.id,
+      name: org.name || org.type,
+    })),
+  ];
+
+  const filteredLeaderGroups =
+    leaderOrganizationFilter === "all"
+      ? leaderGroups
+      : leaderGroups.filter((group) => group.id === leaderOrganizationFilter);
+  const editFilteredLeaderGroups =
+    editLeaderOrganizationFilter === "all"
+      ? leaderGroups
+      : leaderGroups.filter((group) => group.id === editLeaderOrganizationFilter);
+  const createLeaderOptions = renderLeaderOptions(filteredLeaderGroups, false);
+  const editLeaderOptions = renderLeaderOptions(editFilteredLeaderGroups, false);
+
   const removeCouncil = (id: string) => {
     if (!confirm("¿Eliminar este consejo de barrio?")) return;
     deleteMutation.mutate(id);
@@ -655,7 +744,15 @@ export default function WardCouncilPage() {
           </Button>
 
           {canManage && (
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog
+              open={isCreateOpen}
+              onOpenChange={(open) => {
+                setIsCreateOpen(open);
+                if (!open) {
+                  setLeaderOrganizationFilter("all");
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -663,7 +760,7 @@ export default function WardCouncilPage() {
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Crear Consejo de Barrio</DialogTitle>
                   <DialogDescription>
@@ -687,17 +784,118 @@ export default function WardCouncilPage() {
                       )}
                     />
 
+                    <FormItem>
+                      <FormLabel>Organización para líderes</FormLabel>
+                      <Select
+                        value={leaderOrganizationFilter}
+                        onValueChange={setLeaderOrganizationFilter}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una organización" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {leaderFilterOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+
                     <FormField
                       control={createForm.control}
                       name="openingPrayer"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Oración inicial</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
                           </FormControl>
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="presider"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preside</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona un líder" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>{createLeaderOptions}</SelectContent>
+                          </Select>
                         </FormItem>
                       )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="director"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Dirige</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona un líder" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>{createLeaderOptions}</SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormItem>
+                      <FormLabel>Organización para líderes</FormLabel>
+                      <Select
+                        value={leaderOrganizationFilter}
+                        onValueChange={setLeaderOrganizationFilter}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una organización" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {leaderFilterOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+
+                    <FormField
+                      control={createForm.control}
+                      name="openingPrayer"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Oración inicial</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
                     />
 
                     <FormField
@@ -709,47 +907,118 @@ export default function WardCouncilPage() {
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
+                          <FormLabel className="text-sm font-medium">
+                            Pensamiento espiritual
+                          </FormLabel>
                         </FormItem>
                       )}
                     />
 
+                    {createForm.watch("hasSpiritualThought") && (
+                      <>
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThought"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Pensamiento espiritual</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quién comparte</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona un líder" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{createLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtTopic"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tema / Escritura</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
                     <FormField
                       control={createForm.control}
-                      name="spiritualThought"
+                      name="hasSpiritualThought"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Pensamiento espiritual</FormLabel>
+                        <FormItem className="flex items-center space-x-2">
                           <FormControl>
-                            <Textarea {...field} />
+                            <Checkbox
+                              checked={Boolean(field.value)}
+                              onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                            />
                           </FormControl>
+                          <FormLabel className="text-sm font-medium">
+                            Pensamiento espiritual
+                          </FormLabel>
                         </FormItem>
                       )}
                     />
 
-                    <FormField
-                      control={createForm.control}
-                      name="spiritualThoughtBy"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Quién comparte</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                    {createForm.watch("hasSpiritualThought") && (
+                      <>
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Asignado a:</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{createLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                      </>
+                    )}
 
                     <FormField
                       control={createForm.control}
-                      name="spiritualThoughtTopic"
+                      name="closingPrayerBy"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Tema / Escritura</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
+                          <FormLabel>Oración final</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
                           </FormControl>
-                        </FormItem>
-                      )}
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
                     />
 
                     <div className="space-y-3">
@@ -806,9 +1075,14 @@ export default function WardCouncilPage() {
                             render={({ field: inputField }) => (
                               <FormItem>
                                 <FormLabel>Responsable</FormLabel>
-                                <FormControl>
-                                  <Input {...inputField} />
+                                <Select value={inputField.value} onValueChange={inputField.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
                                 </FormControl>
+                                <SelectContent>{createLeaderOptions}</SelectContent>
+                                </Select>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -926,11 +1200,19 @@ export default function WardCouncilPage() {
                           ? "Finalizado"
                           : "Programado"}
                     </span>
-                    {(c.openingPrayer || c.spiritualThought) && (
+                    {(c.presider || c.director || c.openingPrayer || c.closingPrayerBy) && (
                       <span className="block">
-                        Apertura: {c.openingPrayer || "-"}{" "}
-                        {c.spiritualThought ? `• ${c.spiritualThought}` : ""}
+                        Preside: {c.presider || "-"}
                       </span>
+                    )}
+                    {(c.presider || c.director || c.openingPrayer || c.closingPrayerBy) && (
+                      <span className="block">Dirige: {c.director || "-"}</span>
+                    )}
+                    {c.openingPrayer && (
+                      <span className="block">Oración de apertura: {c.openingPrayer}</span>
+                    )}
+                    {c.closingPrayerBy && (
+                      <span className="block">Oración final: {c.closingPrayerBy}</span>
                     )}
                   {Array.isArray(c.previousAssignments) && c.previousAssignments.length > 0 && (
                     <span className="block">
@@ -987,16 +1269,26 @@ export default function WardCouncilPage() {
                       </Button>
                     </>
                   )}
+                  {councilStatus === "finalizado" && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setDetailsCouncil(c)}
+                    >
+                      Ver detalles
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
 
-            {councilStatus !== "programado" && (
+            {councilStatus === "en_progreso" && (
               <CouncilDetailsForm
                 council={{ ...c, status: councilStatus }}
                 canManage={canManage}
                 isUpdating={updateMutation.isPending}
-                users={users}
+                leaderGroups={leaderGroups}
+                leaderLookup={leaderLookup}
                 onAutoSave={(data) =>
                   updateMutation.mutate({
                     id: c.id,
@@ -1019,8 +1311,16 @@ export default function WardCouncilPage() {
       )}
 
       {/* Edit dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog
+        open={isEditOpen}
+        onOpenChange={(open) => {
+          setIsEditOpen(open);
+          if (!open) {
+            setEditLeaderOrganizationFilter("all");
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Consejo de Barrio</DialogTitle>
           </DialogHeader>
@@ -1040,17 +1340,100 @@ export default function WardCouncilPage() {
                 )}
               />
 
+              <FormItem>
+                <FormLabel>Organización para líderes</FormLabel>
+                <Select
+                  value={editLeaderOrganizationFilter}
+                  onValueChange={setEditLeaderOrganizationFilter}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una organización" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {leaderFilterOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+
+              <FormField
+                control={editForm.control}
+                name="presider"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Preside</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un líder" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>{editLeaderOptions}</SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="director"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dirige</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un líder" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>{editLeaderOptions}</SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+
+              <FormItem>
+                <FormLabel>Organización para líderes</FormLabel>
+                <Select
+                  value={editLeaderOrganizationFilter}
+                  onValueChange={setEditLeaderOrganizationFilter}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una organización" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {leaderFilterOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+
               <FormField
                 control={editForm.control}
                 name="openingPrayer"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Oración inicial</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un líder" />
+                      </SelectTrigger>
                     </FormControl>
-                  </FormItem>
-                )}
+                    <SelectContent>{editLeaderOptions}</SelectContent>
+                  </Select>
+                </FormItem>
+              )}
               />
 
               <FormField
@@ -1068,41 +1451,59 @@ export default function WardCouncilPage() {
 
               <FormField
                 control={editForm.control}
-                name="spiritualThought"
+                name="hasSpiritualThought"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pensamiento espiritual</FormLabel>
+                  <FormItem className="flex items-center space-x-2">
                     <FormControl>
-                      <Textarea {...field} />
+                      <Checkbox
+                        checked={Boolean(field.value)}
+                        onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                      />
                     </FormControl>
+                    <FormLabel className="text-sm font-medium">Pensamiento espiritual</FormLabel>
                   </FormItem>
                 )}
               />
 
-              <FormField
-                control={editForm.control}
-                name="spiritualThoughtBy"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Quién comparte</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
+              {editForm.watch("hasSpiritualThought") && (
+                <>
+                  <FormField
+                    control={editForm.control}
+                    name="spiritualThoughtBy"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Asignado a:</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                      </SelectTrigger>
                     </FormControl>
-                  </FormItem>
-                )}
+                    <SelectContent>{editLeaderOptions}</SelectContent>
+                  </Select>
+                </FormItem>
+              )}
               />
+
+                </>
+              )}
 
               <FormField
                 control={editForm.control}
-                name="spiritualThoughtTopic"
+                name="closingPrayerBy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tema / Escritura</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
+                    <FormLabel>Oración final</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un líder" />
+                      </SelectTrigger>
                     </FormControl>
-                  </FormItem>
-                )}
+                    <SelectContent>{editLeaderOptions}</SelectContent>
+                  </Select>
+                </FormItem>
+              )}
               />
 
               <div className="space-y-3">
@@ -1159,12 +1560,17 @@ export default function WardCouncilPage() {
                       render={({ field: inputField }) => (
                         <FormItem>
                           <FormLabel>Responsable</FormLabel>
-                          <FormControl>
-                            <Input {...inputField} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                          <Select value={inputField.value} onValueChange={inputField.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un líder" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>{editLeaderOptions}</SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
                     />
 
                     <FormField
@@ -1246,6 +1652,25 @@ export default function WardCouncilPage() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailsCouncil} onOpenChange={() => setDetailsCouncil(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalles del Consejo</DialogTitle>
+          </DialogHeader>
+          {detailsCouncil && (
+            <CouncilDetailsForm
+              council={{ ...detailsCouncil, status: detailsCouncil.status || "finalizado" }}
+              canManage={false}
+              isUpdating={false}
+              leaderGroups={leaderGroups}
+              leaderLookup={leaderLookup}
+              onAutoSave={() => undefined}
+              onFinalize={() => undefined}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

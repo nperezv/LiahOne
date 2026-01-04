@@ -905,14 +905,16 @@ export async function generateWardCouncilPDF(council: any) {
   };
 
   const openingParts = [
-    council.openingPrayer ? `Oración inicial: ${council.openingPrayer}` : null,
+    council.presider ? `Preside: ${council.presider}` : null,
+    council.director ? `Dirige: ${council.director}` : null,
+    council.openingPrayer ? `Oración de apertura: ${council.openingPrayer}` : null,
     council.openingHymn ? `Himno: ${council.openingHymn}` : null,
-    council.spiritualThought ? `Pensamiento: ${council.spiritualThought}` : null,
-    council.spiritualThoughtBy ? `Quién comparte: ${council.spiritualThoughtBy}` : null,
-    council.spiritualThoughtTopic ? `Tema/Escritura: ${council.spiritualThoughtTopic}` : null,
+    council.spiritualThoughtBy
+      ? `Pensamiento espiritual asignado a: ${council.spiritualThoughtBy}`
+      : null,
   ].filter(Boolean);
   if (openingParts.length) {
-    writeBlock("Apertura", openingParts.join("\n"));
+    writeBlock("Datos iniciales", openingParts.join("\n"));
   }
 
   if (
@@ -972,11 +974,8 @@ export async function generateWardCouncilPDF(council: any) {
   writeBlock("Resumen final del consejo", council.finalSummaryNotes);
   if (council.closingPrayer || council.closingPrayerBy) {
     writeBlock(
-      "Cierre",
-      [council.closingPrayer ? `Oración final: ${council.closingPrayer}` : null,
-      council.closingPrayerBy ? `Quién: ${council.closingPrayerBy}` : null]
-        .filter(Boolean)
-        .join("\n")
+      "Oración final",
+      council.closingPrayerBy || council.closingPrayer
     );
   }
   writeBlock("Notas del obispo/secretario", council.bishopNotes);
