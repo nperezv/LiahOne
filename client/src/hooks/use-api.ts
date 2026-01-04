@@ -127,15 +127,25 @@ export function useUpdateWardCouncil() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({
+      id,
+      data,
+      silent,
+    }: {
+      id: string;
+      data: any;
+      silent?: boolean;
+    }) => {
       return apiRequest("PUT", `/api/ward-councils/${id}`, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/ward-councils"] });
-      toast({
-        title: "Consejo actualizado",
-        description: "El consejo de barrio ha sido actualizado correctamente.",
-      });
+    onSuccess: (_data, variables) => {
+      if (!variables?.silent) {
+        queryClient.invalidateQueries({ queryKey: ["/api/ward-councils"] });
+        toast({
+          title: "Consejo actualizado",
+          description: "El consejo de barrio ha sido actualizado correctamente.",
+        });
+      }
     },
     onError: () => {
       toast({
@@ -746,13 +756,15 @@ export function useCreateAssignment() {
 
   return useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/assignments", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({
-        title: "Asignación creada",
-        description: "La asignación ha sido creada exitosamente.",
-      });
+    onSuccess: (_data, variables) => {
+      if (!variables?.silent) {
+        queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+        toast({
+          title: "Asignación creada",
+          description: "La asignación ha sido creada exitosamente.",
+        });
+      }
     },
     onError: () => {
       toast({

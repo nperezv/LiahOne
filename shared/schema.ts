@@ -243,10 +243,49 @@ export const sacramentalMeetings = pgTable("sacramental_meetings", {
 export const wardCouncils = pgTable("ward_councils", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   date: timestamp("date").notNull(),
+  status: text("status").default("programado"),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
   agenda: text("agenda"),
+  openingPrayer: text("opening_prayer"),
+  openingHymn: text("opening_hymn"),
+  spiritualThought: text("spiritual_thought"),
+  spiritualThoughtBy: text("spiritual_thought_by"),
+  spiritualThoughtTopic: text("spiritual_thought_topic"),
+  previousAssignments: jsonb("previous_assignments")
+    .$type<
+      {
+        assignment: string;
+        responsible: string;
+        status: "completada" | "en_proceso" | "pendiente";
+        notes?: string;
+      }[]
+    >()
+    .default([]),
+  newAssignments: jsonb("new_assignments")
+    .$type<
+      {
+        title: string;
+        assignedTo?: string;
+        assignedToName?: string;
+        dueDate?: Date | string;
+        notes?: string;
+      }[]
+    >()
+    .default([]),
+  assignmentIds: jsonb("assignment_ids").$type<string[]>().default([]),
+  adjustmentsNotes: text("adjustments_notes"),
   attendance: jsonb("attendance").$type<string[]>().default([]),
   agreements: jsonb("agreements").$type<{description: string, responsible: string}[]>().default([]),
   notes: text("notes"),
+  ministryNotes: text("ministry_notes"),
+  salvationWorkNotes: text("salvation_work_notes"),
+  wardActivitiesNotes: text("ward_activities_notes"),
+  newAssignmentsNotes: text("new_assignments_notes"),
+  finalSummaryNotes: text("final_summary_notes"),
+  closingPrayer: text("closing_prayer"),
+  closingPrayerBy: text("closing_prayer_by"),
+  bishopNotes: text("bishop_notes"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -602,6 +641,8 @@ export const selectSacramentalMeetingSchema = createSelectSchema(sacramentalMeet
 // Ward Councils
 export const insertWardCouncilSchema = createInsertSchema(wardCouncils, {
   date: dateSchema,
+  startedAt: dateSchema.optional(),
+  endedAt: dateSchema.optional(),
 }).omit({
   id: true,
   createdAt: true,
