@@ -517,45 +517,50 @@ export default function Assignments() {
             <DialogTitle>Detalles de la asignación</DialogTitle>
           </DialogHeader>
           {selectedAssignment && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <FormLabel>Título</FormLabel>
-                <Input value={selectedAssignment.title || "Sin título"} readOnly />
-              </div>
-              <div className="space-y-2">
-                <FormLabel>Descripción</FormLabel>
-                <Textarea value={selectedAssignment.description || "Sin descripción"} readOnly />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <FormLabel>Asignado a</FormLabel>
-                  <Input value={selectedAssignment.personName || "Sin asignar"} readOnly />
+            <Card>
+              <CardContent className="space-y-4 pt-6 text-sm">
+                <div>
+                  <p className="font-semibold">Título</p>
+                  <p className="text-muted-foreground">{selectedAssignment.title || "Sin título"}</p>
                 </div>
-                <div className="space-y-2">
-                  <FormLabel>Asignado por</FormLabel>
-                  <Input value={selectedAssignment.assignerName || "Desconocido"} readOnly />
+                <div>
+                  <p className="font-semibold">Descripción</p>
+                  <p className="text-muted-foreground">
+                    {selectedAssignment.description || "Sin descripción"}
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <FormLabel>Vencimiento</FormLabel>
-                  <Input
-                    value={
-                      selectedAssignment.dueDate
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="font-semibold">Asignado a</p>
+                    <p className="text-muted-foreground">
+                      {selectedAssignment.personName || "Sin asignar"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Asignado por</p>
+                    <p className="text-muted-foreground">
+                      {selectedAssignment.assignerName || "Desconocido"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Vencimiento</p>
+                    <p className="text-muted-foreground">
+                      {selectedAssignment.dueDate
                         ? new Date(selectedAssignment.dueDate).toLocaleDateString("es-ES", {
                             year: "numeric",
                             month: "long",
                             day: "numeric",
                           })
-                        : "Sin fecha"
-                    }
-                    readOnly
-                  />
+                        : "Sin fecha"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Estado</p>
+                    {getStatusBadge(selectedAssignment.status)}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <FormLabel>Estado</FormLabel>
-                  <div>{getStatusBadge(selectedAssignment.status)}</div>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
           <div className="flex justify-end">
             <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
