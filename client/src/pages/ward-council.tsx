@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Edit, Trash2 } from "lucide-react";
+import { Plus, Download, Edit, Trash2, Play, CheckCircle2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +18,16 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectLabel,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -24,11 +36,15 @@ import {
   useCreateWardCouncil,
   useUpdateWardCouncil,
   useDeleteWardCouncil,
+  useCreateAssignment,
+  useUsers,
+  useOrganizations,
 } from "@/hooks/use-api";
 
 import { useAuth } from "@/lib/auth";
 import { generateWardCouncilPDF } from "@/lib/pdf-utils";
 import { exportWardCouncils } from "@/lib/export";
+import { useToast } from "@/hooks/use-toast";
 
 /* =========================
    Schema
@@ -36,11 +52,378 @@ import { exportWardCouncils } from "@/lib/export";
 
 const councilSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
-  agenda: z.string().optional(),
-  notes: z.string().optional(),
+  openingPrayer: z.string().optional(),
+  openingHymn: z.string().optional(),
+  closingPrayerBy: z.string().optional(),
+  hasSpiritualThought: z.boolean().optional(),
+  spiritualThought: z.string().optional(),
+  spiritualThoughtBy: z.string().optional(),
+  spiritualThoughtTopic: z.string().optional(),
+  previousAssignments: z
+    .array(
+      z.object({
+        assignment: z.string().min(1, "La asignación es requerida"),
+        responsible: z.string().min(1, "El responsable es requerido"),
+        status: z.enum(["completada", "en_proceso", "pendiente"]),
+        notes: z.string().optional(),
+      })
+    )
+    .optional(),
+  adjustmentsNotes: z.string().optional(),
 });
 
 type CouncilFormValues = z.infer<typeof councilSchema>;
+
+const councilDetailsSchema = z.object({
+  ministryNotes: z.string().optional(),
+  salvationWorkNotes: z.string().optional(),
+  wardActivitiesNotes: z.string().optional(),
+  newAssignmentsNotes: z.string().optional(),
+  newAssignments: z
+    .array(
+      z.object({
+        title: z.string().min(1, "La asignación es requerida"),
+        assignedTo: z.string().optional(),
+        assignedToName: z.string().optional(),
+        dueDate: z.string().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .optional(),
+  finalSummaryNotes: z.string().optional(),
+  bishopNotes: z.string().optional(),
+});
+
+type CouncilDetailsFormValues = z.infer<typeof councilDetailsSchema>;
+
+const statusLabels: Record<string, string> = {
+  completada: "Completada",
+  en_proceso: "En proceso",
+  pendiente: "Pendiente",
+};
+
+function renderLeaderOptions(
+  groups: { id: string; name: string; members: any[] }[],
+  useIdValue: boolean
+) {
+  return groups.map((group) => (
+    <SelectGroup key={group.id}>
+      <SelectLabel className="rounded-md bg-muted px-2 py-1 text-xs uppercase tracking-wide text-muted-foreground">
+        {group.name}
+      </SelectLabel>
+      {group.members.map((member: any) => {
+        const label = member.fullName || member.name || member.email;
+        const value = useIdValue ? member.id : label;
+        return (
+          <SelectItem key={member.id} value={value}>
+            {label}
+          </SelectItem>
+        );
+      })}
+    </SelectGroup>
+  ));
+}
+
+function CouncilDetailsForm({
+  council,
+  canManage,
+  onAutoSave,
+  onFinalize,
+  isUpdating,
+  leaderGroups,
+  leaderLookup,
+}: {
+  council: any;
+  canManage: boolean;
+  onAutoSave: (data: CouncilDetailsFormValues) => void;
+  onFinalize: () => void;
+  isUpdating: boolean;
+  leaderGroups: { name: string; members: any[] }[];
+  leaderLookup: Map<string, any>;
+}) {
+  const form = useForm<CouncilDetailsFormValues>({
+    resolver: zodResolver(councilDetailsSchema),
+    defaultValues: {
+      ministryNotes: council.ministryNotes || "",
+      salvationWorkNotes: council.salvationWorkNotes || "",
+      wardActivitiesNotes: council.wardActivitiesNotes || "",
+      newAssignmentsNotes: council.newAssignmentsNotes || "",
+      newAssignments: council.newAssignments || [],
+      finalSummaryNotes: council.finalSummaryNotes || "",
+      bishopNotes: council.bishopNotes || "",
+    },
+  });
+  const newAssignments = useFieldArray({
+    control: form.control,
+    name: "newAssignments",
+  });
+
+  const watchedValues = useWatch({ control: form.control });
+  const lastSavedRef = useRef<string>("");
+  const initialRenderRef = useRef(true);
+  const isEditable = council.status === "en_progreso" && canManage;
+
+  useEffect(() => {
+    form.reset({
+      ministryNotes: council.ministryNotes || "",
+      salvationWorkNotes: council.salvationWorkNotes || "",
+      wardActivitiesNotes: council.wardActivitiesNotes || "",
+      newAssignmentsNotes: council.newAssignmentsNotes || "",
+      newAssignments: council.newAssignments || [],
+      finalSummaryNotes: council.finalSummaryNotes || "",
+      bishopNotes: council.bishopNotes || "",
+    });
+    lastSavedRef.current = "";
+    initialRenderRef.current = true;
+  }, [council, form]);
+
+  useEffect(() => {
+    if (!isEditable) return;
+    if (initialRenderRef.current) {
+      initialRenderRef.current = false;
+      return;
+    }
+    const payload = JSON.stringify(watchedValues ?? {});
+    if (payload === lastSavedRef.current) return;
+
+    const timeout = window.setTimeout(() => {
+      lastSavedRef.current = payload;
+      onAutoSave(watchedValues ?? {});
+    }, 800);
+
+    return () => window.clearTimeout(timeout);
+  }, [isEditable, onAutoSave, watchedValues]);
+
+  return (
+    <CardContent className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>Inicio: {council.startedAt ? new Date(council.startedAt).toLocaleTimeString("es-ES") : "-"}</span>
+        <span>Fin: {council.endedAt ? new Date(council.endedAt).toLocaleTimeString("es-ES") : "-"}</span>
+      </div>
+
+      <Form {...form}>
+        <div className="grid gap-5 md:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="ministryNotes"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Personas y familias (ministración y necesidades)</FormLabel>
+                <FormControl>
+                  <Textarea {...field} disabled={!isEditable} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="salvationWorkNotes"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Obra de Salvación y Exaltación</FormLabel>
+                <FormControl>
+                  <Textarea {...field} disabled={!isEditable} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="wardActivitiesNotes"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Actividades del barrio</FormLabel>
+                <FormControl>
+                  <Textarea {...field} disabled={!isEditable} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="newAssignmentsNotes"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Nuevas asignaciones</FormLabel>
+                <FormControl>
+                  <Textarea {...field} disabled={!isEditable} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <div className="md:col-span-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Asignaciones del consejo</p>
+                <p className="text-xs text-muted-foreground">
+                  Se crearán como asignaciones reales al finalizar el consejo.
+                </p>
+              </div>
+              {isEditable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    newAssignments.append({
+                      title: "",
+                      assignedTo: "",
+                      assignedToName: "",
+                      dueDate: "",
+                      notes: "",
+                    })
+                  }
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar
+                </Button>
+              )}
+            </div>
+
+            {newAssignments.fields.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No hay nuevas asignaciones registradas.
+              </p>
+            )}
+
+            {newAssignments.fields.map((field, index) => (
+              <div key={field.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
+                <FormField
+                  control={form.control}
+                  name={`newAssignments.${index}.title`}
+                  render={({ field: inputField }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Asignación</FormLabel>
+                      <FormControl>
+                        <Input {...inputField} disabled={!isEditable} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`newAssignments.${index}.assignedTo`}
+                  render={({ field: inputField }) => (
+                    <FormItem>
+                      <FormLabel>Responsable</FormLabel>
+                      <Select
+                        value={inputField.value}
+                        onValueChange={(value) => {
+                          inputField.onChange(value);
+                          const selected = leaderLookup.get(value);
+                          form.setValue(
+                            `newAssignments.${index}.assignedToName`,
+                            selected?.fullName || selected?.name || selected?.email || ""
+                          );
+                        }}
+                        disabled={!isEditable}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {renderLeaderOptions(leaderGroups, true)}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`newAssignments.${index}.dueDate`}
+                  render={({ field: inputField }) => (
+                    <FormItem>
+                      <FormLabel>Fecha límite</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...inputField} disabled={!isEditable} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`newAssignments.${index}.notes`}
+                  render={({ field: inputField }) => (
+                    <FormItem className="md:col-span-3">
+                      <FormLabel>Notas</FormLabel>
+                      <FormControl>
+                        <Textarea {...inputField} disabled={!isEditable} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {isEditable && (
+                  <div className="flex items-end justify-end">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => newAssignments.remove(index)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Quitar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <FormField
+            control={form.control}
+            name="finalSummaryNotes"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Resumen final del consejo</FormLabel>
+                <FormControl>
+                  <Textarea {...field} disabled={!isEditable} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="bishopNotes"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Notas del obispo/secretario</FormLabel>
+                <FormControl>
+                  <Textarea {...field} disabled={!isEditable} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {canManage && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onFinalize}
+              disabled={council.status !== "en_progreso" || isUpdating}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Finalizar consejo de barrio
+            </Button>
+          </div>
+        )}
+      </Form>
+    </CardContent>
+  );
+}
 
 /* =========================
    Component
@@ -56,13 +439,61 @@ export default function WardCouncilPage() {
     user?.role === "secretario_ejecutivo";
 
   const { data: councils = [], isLoading } = useWardCouncils();
+  const { data: users = [] } = useUsers();
+  const { data: organizations = [] } = useOrganizations();
   const createMutation = useCreateWardCouncil();
   const updateMutation = useUpdateWardCouncil();
   const deleteMutation = useDeleteWardCouncil();
+  const createAssignmentMutation = useCreateAssignment();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingCouncil, setEditingCouncil] = useState<any>(null);
+  const [leaderOrganizationFilter, setLeaderOrganizationFilter] = useState("all");
+  const [editLeaderOrganizationFilter, setEditLeaderOrganizationFilter] = useState("all");
+
+  const leaderGroups = (() => {
+    const leaderRoles = new Set([
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+      "presidente_organizacion",
+      "consejero_organizacion",
+      "secretario_organizacion",
+    ]);
+    const orgLookup = new Map(
+      organizations.map((org: any) => [org.id, org.name || org.type])
+    );
+    const grouped = new Map<string, { name: string; members: any[] }>();
+
+    users
+      .filter((user: any) => leaderRoles.has(user.role))
+      .forEach((user: any) => {
+        const orgId = user.organizationId ?? "obispado";
+        const orgName = user.organizationId
+          ? orgLookup.get(user.organizationId) || "Organización"
+          : "Obispado";
+        if (!grouped.has(orgId)) {
+          grouped.set(orgId, { name: orgName, members: [] });
+        }
+        grouped.get(orgId)?.members.push(user);
+      });
+
+    return Array.from(grouped.entries()).map(([id, group]) => ({
+      id,
+      name: group.name,
+      members: group.members.sort((a, b) =>
+        (a.fullName || a.name || "").localeCompare(b.fullName || b.name || "")
+      ),
+    }));
+  })();
+  const leaderLookup = new Map(
+    leaderGroups.flatMap((group) => group.members.map((member: any) => [member.id, member]))
+  );
 
   /* =========================
      Forms
@@ -70,11 +501,30 @@ export default function WardCouncilPage() {
 
   const createForm = useForm<CouncilFormValues>({
     resolver: zodResolver(councilSchema),
-    defaultValues: { date: "", agenda: "", notes: "" },
+    defaultValues: {
+      date: "",
+      openingPrayer: "",
+      openingHymn: "",
+      closingPrayerBy: "",
+      hasSpiritualThought: false,
+      spiritualThought: "",
+      spiritualThoughtBy: "",
+      spiritualThoughtTopic: "",
+      previousAssignments: [],
+      adjustmentsNotes: "",
+    },
   });
 
   const editForm = useForm<CouncilFormValues>({
     resolver: zodResolver(councilSchema),
+  });
+  const createAssignments = useFieldArray({
+    control: createForm.control,
+    name: "previousAssignments",
+  });
+  const editAssignments = useFieldArray({
+    control: editForm.control,
+    name: "previousAssignments",
   });
 
   /* =========================
@@ -82,14 +532,20 @@ export default function WardCouncilPage() {
   ========================= */
 
   const onCreate = (data: CouncilFormValues) => {
+    const { hasSpiritualThought, ...payload } = data;
     createMutation.mutate(
       {
-        ...data,
-        agenda: data.agenda || "",
-        notes: data.notes || "",
+        ...payload,
+        previousAssignments: data.previousAssignments || [],
+        adjustmentsNotes: data.adjustmentsNotes || "",
+        openingPrayer: data.openingPrayer || "",
+        openingHymn: data.openingHymn || "",
+        closingPrayerBy: data.closingPrayerBy || "",
+        spiritualThought: hasSpiritualThought ? data.spiritualThought || "" : "",
+        spiritualThoughtBy: hasSpiritualThought ? data.spiritualThoughtBy || "" : "",
+        spiritualThoughtTopic: hasSpiritualThought ? data.spiritualThoughtTopic || "" : "",
         attendance: [],
         agreements: [],
-        assignments: [],
       },
       {
         onSuccess: () => {
@@ -102,14 +558,21 @@ export default function WardCouncilPage() {
 
   const onEdit = (data: CouncilFormValues) => {
     if (!editingCouncil) return;
+    const { hasSpiritualThought, ...payload } = data;
 
     updateMutation.mutate(
       {
         id: editingCouncil.id,
         data: {
-          ...data,
-          agenda: data.agenda || "",
-          notes: data.notes || "",
+          ...payload,
+          previousAssignments: data.previousAssignments || [],
+          adjustmentsNotes: data.adjustmentsNotes || "",
+          openingPrayer: data.openingPrayer || "",
+          openingHymn: data.openingHymn || "",
+          closingPrayerBy: data.closingPrayerBy || "",
+          spiritualThought: hasSpiritualThought ? data.spiritualThought || "" : "",
+          spiritualThoughtBy: hasSpiritualThought ? data.spiritualThoughtBy || "" : "",
+          spiritualThoughtTopic: hasSpiritualThought ? data.spiritualThoughtTopic || "" : "",
         },
       },
       {
@@ -124,13 +587,99 @@ export default function WardCouncilPage() {
 
   const startEdit = (council: any) => {
     setEditingCouncil(council);
+    setEditLeaderOrganizationFilter("all");
     editForm.reset({
       date: council.date,
-      agenda: council.agenda || "",
-      notes: council.notes || "",
+      openingPrayer: council.openingPrayer || "",
+      openingHymn: council.openingHymn || "",
+      closingPrayerBy: council.closingPrayerBy || "",
+      hasSpiritualThought: Boolean(council.spiritualThought),
+      spiritualThought: council.spiritualThought || "",
+      spiritualThoughtBy: council.spiritualThoughtBy || "",
+      spiritualThoughtTopic: council.spiritualThoughtTopic || "",
+      previousAssignments: (council.previousAssignments || []).map((assignment: any) => ({
+        assignment: assignment?.assignment || "",
+        responsible: assignment?.responsible || "",
+        status: assignment?.status || "pendiente",
+        notes: assignment?.notes || "",
+      })),
+      newAssignments: (council.newAssignments || []).map((assignment: any) => ({
+        title: assignment?.title || "",
+        assignedTo: assignment?.assignedTo || "",
+        assignedToName: assignment?.assignedToName || "",
+        dueDate: assignment?.dueDate ? new Date(assignment.dueDate).toISOString().split("T")[0] : "",
+        notes: assignment?.notes || "",
+      })),
+      adjustmentsNotes: council.adjustmentsNotes || "",
     });
     setIsEditOpen(true);
   };
+
+  const finalizeCouncil = async (council: any) => {
+    if (council.status !== "en_progreso") return;
+
+    const draftAssignments = Array.isArray(council.newAssignments)
+      ? council.newAssignments.filter(
+          (assignment: any) => assignment?.title && assignment?.assignedTo
+        )
+      : [];
+    const existingIds = Array.isArray(council.assignmentIds) ? council.assignmentIds : [];
+
+    try {
+      const createdAssignments = await Promise.all(
+        draftAssignments.map((assignment: any) =>
+          createAssignmentMutation.mutateAsync({
+            title: assignment.title,
+            description: assignment.notes || "",
+            assignedTo: assignment.assignedTo || undefined,
+            dueDate: assignment.dueDate || undefined,
+            status: "pendiente",
+            relatedTo: council.id,
+            silent: true,
+          })
+        )
+      );
+
+      const createdIds = createdAssignments.map((assignment: any) => assignment.id);
+
+      updateMutation.mutate({
+        id: council.id,
+        data: {
+          status: "finalizado",
+          endedAt: new Date(),
+          assignmentIds: [...existingIds, ...createdIds],
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    } catch (error) {
+      toast({
+        title: "Error al finalizar",
+        description: "No se pudieron crear todas las asignaciones. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const leaderFilterOptions = [
+    { id: "all", name: "Todas las organizaciones" },
+    { id: "obispado", name: "Obispado" },
+    ...organizations.map((org: any) => ({
+      id: org.id,
+      name: org.name || org.type,
+    })),
+  ];
+
+  const filteredLeaderGroups =
+    leaderOrganizationFilter === "all"
+      ? leaderGroups
+      : leaderGroups.filter((group) => group.id === leaderOrganizationFilter);
+  const editFilteredLeaderGroups =
+    editLeaderOrganizationFilter === "all"
+      ? leaderGroups
+      : leaderGroups.filter((group) => group.id === editLeaderOrganizationFilter);
+  const createLeaderOptions = renderLeaderOptions(filteredLeaderGroups, false);
+  const editLeaderOptions = renderLeaderOptions(editFilteredLeaderGroups, false);
 
   const removeCouncil = (id: string) => {
     if (!confirm("¿Eliminar este consejo de barrio?")) return;
@@ -163,7 +712,7 @@ export default function WardCouncilPage() {
         <div className="w-full">
           <h1 className="text-2xl font-bold">Consejo de Barrio</h1>
           <p className="text-sm text-muted-foreground">
-            Gestiona las agendas y acuerdos del consejo
+            Gestiona la agenda y el seguimiento del consejo
           </p>
         </div>
 
@@ -174,7 +723,15 @@ export default function WardCouncilPage() {
           </Button>
 
           {canManage && (
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog
+              open={isCreateOpen}
+              onOpenChange={(open) => {
+                setIsCreateOpen(open);
+                if (!open) {
+                  setLeaderOrganizationFilter("all");
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -206,14 +763,53 @@ export default function WardCouncilPage() {
                       )}
                     />
 
+                    <FormItem>
+                      <FormLabel>Organización para líderes</FormLabel>
+                      <Select
+                        value={leaderOrganizationFilter}
+                        onValueChange={setLeaderOrganizationFilter}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una organización" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {leaderFilterOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+
                     <FormField
                       control={createForm.control}
-                      name="agenda"
+                      name="openingPrayer"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Agenda</FormLabel>
+                          <FormLabel>Oración inicial</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="openingHymn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Himno (opcional)</FormLabel>
                           <FormControl>
-                            <Textarea {...field} />
+                            <Input {...field} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -221,10 +817,213 @@ export default function WardCouncilPage() {
 
                     <FormField
                       control={createForm.control}
-                      name="notes"
+                      name="hasSpiritualThought"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl>
+                            <Checkbox
+                              checked={Boolean(field.value)}
+                              onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                            />
+                          </FormControl>
+                          <FormLabel className="text-sm font-medium">
+                            Pensamiento espiritual
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    {createForm.watch("hasSpiritualThought") && (
+                      <>
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThought"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Pensamiento espiritual</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quién comparte</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona un líder" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{createLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtTopic"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tema / Escritura</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
+                    <FormField
+                      control={createForm.control}
+                      name="closingPrayerBy"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Notas</FormLabel>
+                          <FormLabel>Oración final</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                    />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Revisión de compromisos anteriores</p>
+                          <p className="text-xs text-muted-foreground">
+                            Seguimiento breve y enfocado en acción.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            createAssignments.append({
+                              assignment: "",
+                              responsible: "",
+                              status: "pendiente",
+                              notes: "",
+                            })
+                          }
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Agregar
+                        </Button>
+                      </div>
+
+                      {createAssignments.fields.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No hay asignaciones previas registradas.
+                        </p>
+                      )}
+
+                      {createAssignments.fields.map((field, index) => (
+                        <div key={field.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.assignment`}
+                            render={({ field: inputField }) => (
+                              <FormItem className="md:col-span-2">
+                                <FormLabel>Asignación</FormLabel>
+                                <FormControl>
+                                  <Input {...inputField} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.responsible`}
+                            render={({ field: inputField }) => (
+                              <FormItem>
+                                <FormLabel>Responsable</FormLabel>
+                                <Select value={inputField.value} onValueChange={inputField.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>{createLeaderOptions}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.status`}
+                            render={({ field: inputField }) => (
+                              <FormItem>
+                                <FormLabel>Estado</FormLabel>
+                                <Select value={inputField.value} onValueChange={inputField.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecciona" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {Object.entries(statusLabels).map(([value, label]) => (
+                                      <SelectItem key={value} value={value}>
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={createForm.control}
+                            name={`previousAssignments.${index}.notes`}
+                            render={({ field: inputField }) => (
+                              <FormItem className="md:col-span-3">
+                                <FormLabel>Observaciones clave</FormLabel>
+                                <FormControl>
+                                  <Textarea {...inputField} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className="flex items-end justify-end">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => createAssignments.remove(index)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Quitar
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <FormField
+                      control={createForm.control}
+                      name="adjustmentsNotes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ajustes o decisiones necesarias</FormLabel>
                           <FormControl>
                             <Textarea {...field} />
                           </FormControl>
@@ -254,7 +1053,9 @@ export default function WardCouncilPage() {
 
       {/* Councils */}
       {councils.length ? (
-        councils.map((c: any) => (
+        councils.map((c: any) => {
+          const councilStatus = c.status || "programado";
+          return (
           <Card key={c.id}>
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -268,12 +1069,36 @@ export default function WardCouncilPage() {
                     })}
                   </CardTitle>
 
-                  {c.agenda && (
-                    <CardDescription className="mt-2 whitespace-pre-wrap">
-                      {c.agenda}
-                    </CardDescription>
+                  <CardDescription className="mt-2 space-y-1 whitespace-pre-wrap">
+                    <span className="block">
+                      Estado:{" "}
+                      {councilStatus === "en_progreso"
+                        ? "En progreso"
+                        : councilStatus === "finalizado"
+                          ? "Finalizado"
+                          : "Programado"}
+                    </span>
+                    {(c.openingPrayer || c.spiritualThought) && (
+                      <span className="block">
+                        Apertura: {c.openingPrayer || "-"}{" "}
+                        {c.spiritualThought ? `• ${c.spiritualThought}` : ""}
+                      </span>
+                    )}
+                    {(c.closingPrayer || c.closingPrayerBy) && (
+                      <span className="block">
+                        Cierre: {c.closingPrayerBy || c.closingPrayer}
+                      </span>
+                    )}
+                  {Array.isArray(c.previousAssignments) && c.previousAssignments.length > 0 && (
+                    <span className="block">
+                      Compromisos anteriores: {c.previousAssignments.length}
+                    </span>
                   )}
-                </div>
+                  {Array.isArray(c.newAssignments) && c.newAssignments.length > 0 && (
+                    <span className="block">Nuevas asignaciones: {c.newAssignments.length}</span>
+                  )}
+                </CardDescription>
+              </div>
 
                 <div className="flex gap-2">
                   <Button
@@ -286,6 +1111,22 @@ export default function WardCouncilPage() {
 
                   {canManage && (
                     <>
+                      {councilStatus === "programado" && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            updateMutation.mutate({
+                              id: c.id,
+                              data: { status: "en_progreso", startedAt: new Date() },
+                            })
+                          }
+                        >
+                          <Play className="h-4 w-4 mr-1" />
+                          Inicio del consejo de barrio
+                        </Button>
+                      )}
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -307,15 +1148,26 @@ export default function WardCouncilPage() {
               </div>
             </CardHeader>
 
-            {c.notes && (
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {c.notes}
-                </p>
-              </CardContent>
+            {councilStatus !== "programado" && (
+              <CouncilDetailsForm
+                council={{ ...c, status: councilStatus }}
+                canManage={canManage}
+                isUpdating={updateMutation.isPending}
+                leaderGroups={leaderGroups}
+                leaderLookup={leaderLookup}
+                onAutoSave={(data) =>
+                  updateMutation.mutate({
+                    id: c.id,
+                    data,
+                    silent: true,
+                  })
+                }
+                onFinalize={() => finalizeCouncil(c)}
+              />
             )}
           </Card>
-        ))
+        );
+        })
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -325,7 +1177,15 @@ export default function WardCouncilPage() {
       )}
 
       {/* Edit dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+      <Dialog
+        open={isEditOpen}
+        onOpenChange={(open) => {
+          setIsEditOpen(open);
+          if (!open) {
+            setEditLeaderOrganizationFilter("all");
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar Consejo de Barrio</DialogTitle>
@@ -346,14 +1206,53 @@ export default function WardCouncilPage() {
                 )}
               />
 
+              <FormItem>
+                <FormLabel>Organización para líderes</FormLabel>
+                <Select
+                  value={editLeaderOrganizationFilter}
+                  onValueChange={setEditLeaderOrganizationFilter}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una organización" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {leaderFilterOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+
               <FormField
                 control={editForm.control}
-                name="agenda"
+                name="openingPrayer"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Agenda</FormLabel>
+                    <FormLabel>Oración inicial</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un líder" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>{editLeaderOptions}</SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="openingHymn"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Himno (opcional)</FormLabel>
                     <FormControl>
-                      <Textarea {...field} />
+                      <Input {...field} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -361,10 +1260,211 @@ export default function WardCouncilPage() {
 
               <FormField
                 control={editForm.control}
-                name="notes"
+                name="hasSpiritualThought"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Checkbox
+                        checked={Boolean(field.value)}
+                        onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm font-medium">Pensamiento espiritual</FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {editForm.watch("hasSpiritualThought") && (
+                <>
+                  <FormField
+                    control={editForm.control}
+                    name="spiritualThought"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pensamiento espiritual</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="spiritualThoughtBy"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quién comparte</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un líder" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>{editLeaderOptions}</SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+              />
+
+                  <FormField
+                    control={editForm.control}
+                    name="spiritualThoughtTopic"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tema / Escritura</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              <FormField
+                control={editForm.control}
+                name="closingPrayerBy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Notas</FormLabel>
+                    <FormLabel>Oración final</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un líder" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>{editLeaderOptions}</SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+              />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Revisión de compromisos anteriores</p>
+                    <p className="text-xs text-muted-foreground">
+                      Seguimiento breve y enfocado en acción.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      editAssignments.append({
+                        assignment: "",
+                        responsible: "",
+                        status: "pendiente",
+                        notes: "",
+                      })
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar
+                  </Button>
+                </div>
+
+                {editAssignments.fields.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No hay asignaciones previas registradas.
+                  </p>
+                )}
+
+                {editAssignments.fields.map((field, index) => (
+                  <div key={field.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
+                    <FormField
+                      control={editForm.control}
+                      name={`previousAssignments.${index}.assignment`}
+                      render={({ field: inputField }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Asignación</FormLabel>
+                          <FormControl>
+                            <Input {...inputField} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name={`previousAssignments.${index}.responsible`}
+                      render={({ field: inputField }) => (
+                        <FormItem>
+                          <FormLabel>Responsable</FormLabel>
+                          <Select value={inputField.value} onValueChange={inputField.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un líder" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>{editLeaderOptions}</SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name={`previousAssignments.${index}.status`}
+                      render={({ field: inputField }) => (
+                        <FormItem>
+                          <FormLabel>Estado</FormLabel>
+                          <Select value={inputField.value} onValueChange={inputField.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.entries(statusLabels).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name={`previousAssignments.${index}.notes`}
+                      render={({ field: inputField }) => (
+                        <FormItem className="md:col-span-3">
+                          <FormLabel>Observaciones clave</FormLabel>
+                          <FormControl>
+                            <Textarea {...inputField} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex items-end justify-end">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => editAssignments.remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Quitar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <FormField
+                control={editForm.control}
+                name="adjustmentsNotes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ajustes o decisiones necesarias</FormLabel>
                     <FormControl>
                       <Textarea {...field} />
                     </FormControl>
