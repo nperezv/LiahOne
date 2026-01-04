@@ -576,6 +576,63 @@ export default function Assignments() {
           <DialogHeader>
             <DialogTitle>Editar asignación</DialogTitle>
           </DialogHeader>
+          {selectedAssignment && (
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="font-semibold">Título</p>
+                <p className="text-muted-foreground">{selectedAssignment.title || "Sin título"}</p>
+              </div>
+              <div>
+                <p className="font-semibold">Descripción</p>
+                <p className="text-muted-foreground">
+                  {selectedAssignment.description || "Sin descripción"}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="font-semibold">Asignado a</p>
+                  <p className="text-muted-foreground">
+                    {selectedAssignment.personName || "Sin asignar"}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-semibold">Asignado por</p>
+                  <p className="text-muted-foreground">
+                    {selectedAssignment.assignerName || "Desconocido"}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-semibold">Vencimiento</p>
+                  <p className="text-muted-foreground">
+                    {selectedAssignment.dueDate
+                      ? new Date(selectedAssignment.dueDate).toLocaleDateString("es-ES", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      : "Sin fecha"}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-semibold">Estado</p>
+                  {getStatusBadge(selectedAssignment.status)}
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar asignación</DialogTitle>
+          </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-4">
               <FormField

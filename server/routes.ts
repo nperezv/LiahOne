@@ -3131,8 +3131,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Assignment not found" });
       }
 
-      // Check authorization: obispo, consejero_obispo, or assigned/created by user
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
+      // Check authorization: obispo, consejero_obispo, secretario, or assigned/created by user
+      const isObispado =
+        user.role === "obispo" || user.role === "consejero_obispo" || user.role === "secretario";
       const isAssignedTo = assignment.assignedTo === user.id;
       const isCreatedBy = assignment.assignedBy === user.id;
 
