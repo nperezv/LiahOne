@@ -784,6 +784,45 @@ export default function WardCouncilPage() {
                       )}
                     />
 
+                    <FormItem>
+                      <FormLabel>Organización para líderes</FormLabel>
+                      <Select
+                        value={leaderOrganizationFilter}
+                        onValueChange={setLeaderOrganizationFilter}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una organización" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {leaderFilterOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+
+                    <FormField
+                      control={createForm.control}
+                      name="openingPrayer"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Oración inicial</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{createLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                    />
+
                     <FormField
                       control={createForm.control}
                       name="presider"
@@ -868,9 +907,60 @@ export default function WardCouncilPage() {
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
+                          <FormLabel className="text-sm font-medium">
+                            Pensamiento espiritual
+                          </FormLabel>
                         </FormItem>
                       )}
                     />
+
+                    {createForm.watch("hasSpiritualThought") && (
+                      <>
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThought"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Pensamiento espiritual</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quién comparte</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona un líder" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{createLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+
+                        <FormField
+                          control={createForm.control}
+                          name="spiritualThoughtTopic"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Tema / Escritura</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
 
                     <FormField
                       control={createForm.control}
@@ -1249,6 +1339,27 @@ export default function WardCouncilPage() {
                   </FormItem>
                 )}
               />
+
+              <FormItem>
+                <FormLabel>Organización para líderes</FormLabel>
+                <Select
+                  value={editLeaderOrganizationFilter}
+                  onValueChange={setEditLeaderOrganizationFilter}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una organización" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {leaderFilterOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
 
               <FormField
                 control={editForm.control}

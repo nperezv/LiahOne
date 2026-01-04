@@ -414,7 +414,12 @@ export default function Assignments() {
               <TableBody>
                 {filteredAssignments.length > 0 ? (
                   filteredAssignments.map((assignment: any) => (
-                    <TableRow key={assignment.id} data-testid={`row-assignment-${assignment.id}`}>
+                    <TableRow
+                      key={assignment.id}
+                      data-testid={`row-assignment-${assignment.id}`}
+                      className="cursor-pointer"
+                      onClick={() => openDetails(assignment)}
+                    >
                       <TableCell className="font-medium">{assignment.title}</TableCell>
                       <TableCell>{assignment.personName || "Sin asignar"}</TableCell>
                       <TableCell>{assignment.assignerName || "Desconocido"}</TableCell>
@@ -443,9 +448,10 @@ export default function Assignments() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() =>
-                              updateStatus(assignment.id, "completada")
-                            }
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              updateStatus(assignment.id, "completada");
+                            }}
                             data-testid={`button-complete-${assignment.id}`}
                           >
                             <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -461,7 +467,10 @@ export default function Assignments() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleDelete(assignment.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDelete(assignment.id);
+                            }}
                             data-testid={`button-delete-${assignment.id}`}
                             disabled={deleteMutation.isPending}
                           >
