@@ -1125,65 +1125,43 @@ export default function WardCouncilPage() {
         councils.map((c: any) => {
           const councilStatus = c.status || "programado";
           return (
-          <Card key={c.id}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
+          <Card key={c.id} className="overflow-hidden">
+            <CardHeader className="space-y-3">
+                  
+              {/* Título + acciones */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  
+                {/* Título */}
                 <div>
-                  <CardTitle>
+                  <CardTitle className="text-lg sm:text-xl leading-snug">
                     Consejo –{" "}
-                    {new Date(c.date).toLocaleDateString("es-ES", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    <span className="sm:hidden">
+                      {new Date(c.date).toLocaleDateString("es-ES")}
+                    </span>
+                    <span className="hidden sm:inline">
+                      {new Date(c.date).toLocaleDateString("es-ES", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
                   </CardTitle>
-
-                  <CardDescription className="mt-2 space-y-1 whitespace-pre-wrap">
-                    <span className="block">
-                      Estado:{" "}
-                      {councilStatus === "en_progreso"
-                        ? "En progreso"
-                        : councilStatus === "finalizado"
-                          ? "Finalizado"
-                          : "Programado"}
-                    </span>
-                    {(c.presider || c.director || c.openingPrayer || c.closingPrayerBy) && (
-                      <span className="block">
-                        Preside: {c.presider || "-"}
-                      </span>
-                    )}
-                    {(c.presider || c.director || c.openingPrayer || c.closingPrayerBy) && (
-                      <span className="block">Dirige: {c.director || "-"}</span>
-                    )}
-                    {c.openingPrayer && (
-                      <span className="block">Oración de apertura: {c.openingPrayer}</span>
-                    )}
-                    {c.closingPrayerBy && (
-                      <span className="block">Oración final: {c.closingPrayerBy}</span>
-                    )}
-                  {Array.isArray(c.previousAssignments) && c.previousAssignments.length > 0 && (
-                    <span className="block">
-                      Compromisos anteriores: {c.previousAssignments.length}
-                    </span>
-                  )}
-                  {Array.isArray(c.newAssignments) && c.newAssignments.length > 0 && (
-                    <span className="block">Nuevas asignaciones: {c.newAssignments.length}</span>
-                  )}
-                </CardDescription>
-              </div>
-
-                <div className="flex gap-2">
+                </div>
+                  
+                {/* Acciones */}
+                <div className="flex flex-wrap gap-2 justify-end sm:flex-nowrap">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => generateWardCouncilPDF(c)}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">PDF</span>
                   </Button>
-
+                  
                   {canManage && (
                     <>
-                      {councilStatus === "programado" && (
+                      {c.status === "programado" && (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -1194,11 +1172,11 @@ export default function WardCouncilPage() {
                             })
                           }
                         >
-                          <Play className="h-4 w-4 mr-1" />
-                          Inicio del consejo de barrio
+                          <Play className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Iniciar</span>
                         </Button>
                       )}
-
+          
                       <Button
                         variant="outline"
                         size="sm"
@@ -1206,7 +1184,7 @@ export default function WardCouncilPage() {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-
+                  
                       <Button
                         variant="destructive"
                         size="sm"
@@ -1216,7 +1194,8 @@ export default function WardCouncilPage() {
                       </Button>
                     </>
                   )}
-                  {councilStatus === "finalizado" && (
+          
+                  {c.status === "finalizado" && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -1227,11 +1206,57 @@ export default function WardCouncilPage() {
                   )}
                 </div>
               </div>
+              
+              {/* Descripción */}
+              <CardDescription className="text-sm text-muted-foreground">
+                <div className="grid gap-1 sm:grid-cols-2">
+                  <span>
+                    <strong>Estado:</strong>{" "}
+                    {c.status === "en_progreso"
+                      ? "En progreso"
+                      : c.status === "finalizado"
+                      ? "Finalizado"
+                      : "Programado"}
+                  </span>
+                  
+                  <span>
+                    <strong>Preside:</strong> {c.presider || "-"}
+                  </span>
+                  
+                  <span>
+                    <strong>Dirige:</strong> {c.director || "-"}
+                  </span>
+                  
+                  <span>
+                    <strong>Oración inicial:</strong> {c.openingPrayer || "-"}
+                  </span>
+                  
+                  <span>
+                    <strong>Oración final:</strong> {c.closingPrayerBy || "-"}
+                  </span>
+                  
+                  {Array.isArray(c.previousAssignments) && (
+                    <span>
+                      <strong>Compromisos anteriores:</strong>{" "}
+                      {c.previousAssignments.length}
+                    </span>
+                  )}
+          
+                  {Array.isArray(c.newAssignments) && (
+                    <span>
+                      <strong>Nuevas asignaciones:</strong>{" "}
+                      {c.newAssignments.length}
+                    </span>
+                  )}
+                </div>
+              </CardDescription>
+              
             </CardHeader>
-
-            {councilStatus === "en_progreso" && (
+              
+            {/* Detalles en progreso */}
+            {c.status === "en_progreso" && (
               <CouncilDetailsForm
-                council={{ ...c, status: councilStatus }}
+                council={{ ...c, status: c.status }}
                 canManage={canManage}
                 isUpdating={updateMutation.isPending}
                 leaderGroups={leaderGroups}
@@ -1247,6 +1272,7 @@ export default function WardCouncilPage() {
               />
             )}
           </Card>
+
         );
         })
       ) : (
