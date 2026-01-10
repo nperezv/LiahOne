@@ -125,6 +125,14 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
       {/* DERECHA */}
       <div className="flex items-center gap-3">
+        {notificationsOpen && (
+          <button
+            type="button"
+            aria-label="Cerrar notificaciones"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[1px]"
+            onClick={() => setNotificationsOpen(false)}
+          />
+        )}
 
         {/* 🔔 NOTIFICACIONES */}
         <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
@@ -150,9 +158,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           
               /* Móvil: overlay centrado fijo */
               max-md:fixed
-              max-md:left-1/2
-              max-md:top-[4.5rem]
-              max-md:-translate-x-1/2
+              max-md:!left-1/2
+              max-md:!right-auto
+              max-md:!top-[4.5rem]
+              max-md:!translate-x-1/2
               max-md:w-[calc(100vw-2rem)]
             "
           >
