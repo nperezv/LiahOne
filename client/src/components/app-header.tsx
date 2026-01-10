@@ -195,24 +195,19 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
           <DropdownMenuContent
             align="center"
-            className="w-[calc(100vw-2rem)] max-w-sm sm:w-80"
+            sideOffset={8}
+            className="left-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 sm:w-80"
           >
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
                 Notificaciones
               </DropdownMenuLabel>
-              <Button
-                variant="ghost"
-                size="sm"
+              <DropdownMenuItem
                 className="h-auto p-1 text-xs"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setLocation("/notifications");
-                }}
+                onSelect={() => setLocation("/notifications")}
               >
                 Ver todas
-              </Button>
+              </DropdownMenuItem>
             </div>
 
             <DropdownMenuSeparator />
@@ -232,10 +227,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                     notificationTypeIcons[notification.type] || Bell;
 
                   return (
-                    <button
+                    <DropdownMenuItem
                       key={notification.id}
-                      type="button"
-                      onClick={() => handleNotificationClick(notification)}
+                      onSelect={() => handleNotificationClick(notification)}
                       className={`flex w-full items-start gap-3 px-3 py-3 text-left border-b last:border-b-0 transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                         !notification.isRead ? "bg-muted/50" : ""
                       }`}
@@ -263,7 +257,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                           {renderNotificationTime(notification)}
                         </p>
                       </div>
-                    </button>
+                    </DropdownMenuItem>
                   );
                 })}
               </ScrollArea>
