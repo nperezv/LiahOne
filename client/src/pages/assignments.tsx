@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -484,16 +484,96 @@ export default function Assignments() {
                             variant="outline"
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleDelete(assignment.id);
+                              startEdit(assignment);
                             }}
-                            data-testid={`button-delete-${assignment.id}`}
-                            disabled={deleteMutation.isPending}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Edit className="h-3 w-3 mr-1" />
+                            Editar
                           </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                          {isObispado &&
+                            assignment.status !== "completada" &&
+                            !isAutoCompleteAssignment(assignment) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                updateStatus(assignment.id, "completada");
+                              }}
+                              data-testid={`button-complete-${assignment.id}`}
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Completar
+                            </Button>
+                          )}
+                          {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+                            <p className="text-xs text-muted-foreground">
+                              Se completará automáticamente al adjuntar comprobantes.
+                            </p>
+                          )}
+                          {canDeleteAssignment(assignment) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleDelete(assignment.id);
+                              }}
+                              data-testid={`button-delete-${assignment.id}`}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {expandedAssignmentId === assignment.id && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="bg-muted/40">
+                            <Card className="border-muted-foreground/20">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="text-base">Detalles de la asignación</CardTitle>
+                                <CardDescription>
+                                  Información en modo lectura.
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="grid gap-3 text-sm">
+                                <div>
+                                  <span className="font-medium">Título:</span>{" "}
+                                  {assignment.title || "Sin título"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Descripción:</span>{" "}
+                                  {assignment.description || "Sin descripción"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Asignado a:</span>{" "}
+                                  {assignment.personName || "Sin asignar"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Asignado por:</span>{" "}
+                                  {assignment.assignerName || "Desconocido"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Vencimiento:</span>{" "}
+                                  {assignment.dueDate
+                                    ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                      })
+                                    : "Sin fecha"}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Estado:</span>
+                                  {getStatusBadge(assignment.status)}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
                   ))
                 ) : (
                   <TableRow>
