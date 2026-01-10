@@ -181,7 +181,7 @@ export default function Assignments() {
     assignment.status !== "completada" &&
     !isAutoCompleteAssignment(assignment);
   const renderAssignmentActions = (assignment: any) => (
-    <>
+    <div className="flex items-center gap-2">
       <Button
         size="sm"
         variant="outline"
@@ -203,8 +203,8 @@ export default function Assignments() {
           }}
           data-testid={`button-complete-${assignment.id}`}
         >
-          <CheckCircle2 className="h-3 w-3 mr-1" />
-          Completar
+          <CheckCircle2 className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Completar</span>
         </Button>
       ) : null}
       {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
@@ -227,7 +227,7 @@ export default function Assignments() {
           <span className="sr-only lg:not-sr-only">Eliminar</span>
         </Button>
       )}
-    </>
+    </div>
   );
 
   const getStatusBadge = (status: string) => {
@@ -498,7 +498,7 @@ export default function Assignments() {
                           : "Sin fecha"}
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment.status)}</TableCell>
-                      <TableCell className="space-x-2">
+                      <TableCell>
                         {renderAssignmentActions(assignment)}
                       </TableCell>
                     </TableRow>

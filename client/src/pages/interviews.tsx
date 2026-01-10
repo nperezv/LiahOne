@@ -741,23 +741,23 @@ export default function InterviewsPage() {
                       {(canManage || canCancel) && (
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {/* ✅ Check para completar (solo pendientes) */}
+                            {/* ✅ Botón para completar (solo pendientes) */}
                             {isObispado && isPending && (
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={interview.status === "completada"}
-                                  disabled={updateMutation.isPending || interview.status !== "programada"}
-                                  onCheckedChange={(checked) => {
-                                    if (!checked) return;
-
-                                    updateMutation.mutate({
-                                      id: interview.id,
-                                      status: "completada",
-                                    });
-                                  }}
-                                />
-                                <span className="text-xs text-muted-foreground">Completar</span>
-                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  updateMutation.mutate({
+                                    id: interview.id,
+                                    status: "completada",
+                                  })
+                                }
+                                disabled={updateMutation.isPending}
+                                title="Completar"
+                              >
+                                <CheckCircle2 className="h-4 w-4 lg:mr-1" />
+                                <span className="sr-only lg:not-sr-only">Completar</span>
+                              </Button>
                             )}
 
                             {/* ✅ Si está completada: SOLO archivar */}

@@ -546,15 +546,15 @@ export default function OrganizationInterviewsPage() {
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       {interview.status === "programada" && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Checkbox
-                            checked={false}
-                            onCheckedChange={checked =>
-                              handleToggleCompleted(interview, !!checked)
-                            }
-                          />
-                          <span>Completar</span>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="whitespace-nowrap"
+                          onClick={() => handleToggleCompleted(interview, true)}
+                        >
+                          <CheckCircle2 className="h-4 w-4 lg:mr-1" />
+                          <span className="sr-only lg:not-sr-only">Completar</span>
+                        </Button>
                       )}
 
                       {interview.status === "completada" && (
