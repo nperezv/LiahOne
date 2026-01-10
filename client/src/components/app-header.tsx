@@ -196,7 +196,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           <DropdownMenuContent
             align="center"
             sideOffset={8}
-            className="fixed left-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 sm:absolute sm:left-auto sm:translate-x-0 sm:w-80"
+            className="left-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 sm:w-80"
           >
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
