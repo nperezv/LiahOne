@@ -734,8 +734,8 @@ export default function WardCouncilPage() {
 
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           <Button variant="outline" onClick={() => exportWardCouncils(councils)}>
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
 
           {canManage && (
@@ -1127,7 +1127,8 @@ export default function WardCouncilPage() {
                         size="sm"
                         onClick={() => startEdit(c)}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4 lg:mr-1" />
+                        <span className="sr-only lg:not-sr-only">Editar</span>
                       </Button>
                   
                       <Button
@@ -1135,7 +1136,8 @@ export default function WardCouncilPage() {
                         size="sm"
                         onClick={() => removeCouncil(c.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 lg:mr-1" />
+                        <span className="sr-only lg:not-sr-only">Eliminar</span>
                       </Button>
                     </>
                   )}

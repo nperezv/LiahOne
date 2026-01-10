@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2, Upload } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -619,8 +619,8 @@ export default function BudgetPage() {
             onClick={() => exportBudgetRequests(filteredRequests)}
             data-testid="button-export-budget"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
           {isObispado && (
             <Dialog open={isBudgetDialogOpen} onOpenChange={setIsBudgetDialogOpen}>
@@ -1398,7 +1398,8 @@ export default function BudgetPage() {
                               data-testid={`button-delete-budget-${request.id}`}
                               disabled={deleteMutation.isPending}
                             >
-                              Eliminar
+                              <Trash2 className="h-4 w-4 lg:mr-1" />
+                              <span className="sr-only lg:not-sr-only">Eliminar</span>
                             </Button>
                           )}
                         </div>
