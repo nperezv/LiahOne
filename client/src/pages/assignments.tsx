@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Trash2, Download } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Trash2, Download, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -59,6 +59,8 @@ export default function Assignments() {
   const { data: assignments = [], isLoading } = useAssignments();
   const { data: users = [] } = useUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any>(null);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
@@ -101,6 +103,16 @@ export default function Assignments() {
       status: "pendiente",
     },
   });
+  const editForm = useForm<AssignmentFormValues>({
+    resolver: zodResolver(assignmentSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      assignedTo: "",
+      dueDate: "",
+      status: "pendiente",
+    },
+  });
 
   const onSubmit = (data: AssignmentFormValues) => {
     createMutation.mutate(data, {
@@ -116,6 +128,34 @@ export default function Assignments() {
       id,
       status,
     });
+  };
+
+  const startEdit = (assignment: any) => {
+    setEditingAssignment(assignment);
+    editForm.reset({
+      title: assignment.title || "",
+      description: assignment.description || "",
+      assignedTo: assignment.assignedTo || "",
+      dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split("T")[0] : "",
+      status: assignment.status || "pendiente",
+    });
+    setIsEditOpen(true);
+  };
+
+  const onEdit = (data: AssignmentFormValues) => {
+    if (!editingAssignment) return;
+    updateMutation.mutate(
+      {
+        id: editingAssignment.id,
+        ...data,
+      },
+      {
+        onSuccess: () => {
+          setIsEditOpen(false);
+          setEditingAssignment(null);
+        },
+      }
+    );
   };
 
   const pendingAssignments = filteredAssignments.filter((a: any) => a.status === "pendiente");
@@ -374,7 +414,12 @@ export default function Assignments() {
               <TableBody>
                 {filteredAssignments.length > 0 ? (
                   filteredAssignments.map((assignment: any) => (
-                    <TableRow key={assignment.id} data-testid={`row-assignment-${assignment.id}`}>
+                    <TableRow
+                      key={assignment.id}
+                      data-testid={`row-assignment-${assignment.id}`}
+                      className="cursor-pointer"
+                      onClick={() => openDetails(assignment)}
+                    >
                       <TableCell className="font-medium">{assignment.title}</TableCell>
                       <TableCell>{assignment.personName || "Sin asignar"}</TableCell>
                       <TableCell>{assignment.assignerName || "Desconocido"}</TableCell>
@@ -389,15 +434,24 @@ export default function Assignments() {
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment.status)}</TableCell>
                       <TableCell className="space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEdit(assignment)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Detalles
+                        </Button>
                         {isObispado &&
                           assignment.status !== "completada" &&
                           !isAutoCompleteAssignment(assignment) && (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() =>
-                              updateStatus(assignment.id, "completada")
-                            }
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              updateStatus(assignment.id, "completada");
+                            }}
                             data-testid={`button-complete-${assignment.id}`}
                           >
                             <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -413,7 +467,10 @@ export default function Assignments() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleDelete(assignment.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDelete(assignment.id);
+                            }}
                             data-testid={`button-delete-${assignment.id}`}
                             disabled={deleteMutation.isPending}
                           >
@@ -435,6 +492,115 @@ export default function Assignments() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalles de la asignación</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="assignedTo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Asignado a</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {users.map((user: any) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.fullName || user.name || user.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fecha límite</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estado</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="pendiente">Pendiente</SelectItem>
+                        <SelectItem value="en_proceso">En proceso</SelectItem>
+                        <SelectItem value="completada">Completada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                  Cerrar
+                </Button>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  Guardar cambios
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

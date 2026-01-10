@@ -904,6 +904,38 @@ export async function generateWardCouncilPDF(council: any) {
     yPos += 6;
   };
 
+  const openingParts = [
+    council.presider ? `Preside: ${council.presider}` : null,
+    council.director ? `Dirige: ${council.director}` : null,
+    council.openingPrayer ? `Oración de apertura: ${council.openingPrayer}` : null,
+    council.openingHymn ? `Himno: ${council.openingHymn}` : null,
+    council.spiritualThoughtBy
+      ? `Pensamiento espiritual asignado a: ${council.spiritualThoughtBy}`
+      : null,
+  ].filter(Boolean);
+  if (openingParts.length) {
+    writeBlock("Datos iniciales", openingParts.join("\n"));
+  }
+
+  if (
+    council.previousAssignments &&
+    Array.isArray(council.previousAssignments) &&
+    council.previousAssignments.length > 0
+  ) {
+    const assignmentsText = council.previousAssignments
+      .filter((a: any) => a?.assignment)
+      .map((a: any) => {
+        const status = a.status ? ` (${a.status.replace("_", " ")})` : "";
+        const responsible = a.responsible ? ` - ${a.responsible}` : "";
+        const notes = a.notes ? ` — ${a.notes}` : "";
+        return `• ${a.assignment}${responsible}${status}${notes}`;
+      })
+      .join("\n");
+    writeBlock("Revisión de compromisos anteriores", assignmentsText);
+  }
+
+  writeBlock("Ajustes o decisiones necesarias", council.adjustmentsNotes);
+
   writeBlock("Agenda", council.agenda);
 
   if (council.attendance && Array.isArray(council.attendance) && council.attendance.length > 0) {
@@ -919,6 +951,34 @@ export async function generateWardCouncilPDF(council: any) {
   }
 
   writeBlock("Notas", council.notes);
+  writeBlock("Personas y familias", council.ministryNotes);
+  writeBlock("Obra de Salvación y Exaltación", council.salvationWorkNotes);
+  writeBlock("Actividades del barrio", council.wardActivitiesNotes);
+  if (council.newAssignments && Array.isArray(council.newAssignments) && council.newAssignments.length > 0) {
+    const newAssignmentsText = council.newAssignments
+      .filter((assignment: any) => assignment?.title)
+      .map((assignment: any) => {
+        const responsible = assignment.assignedToName
+          ? ` - ${assignment.assignedToName}`
+          : assignment.assignedTo
+            ? ` - ${assignment.assignedTo}`
+            : "";
+        const dueDate = assignment.dueDate ? ` (Fecha: ${assignment.dueDate})` : "";
+        const notes = assignment.notes ? ` — ${assignment.notes}` : "";
+        return `• ${assignment.title}${responsible}${dueDate}${notes}`;
+      })
+      .join("\n");
+    writeBlock("Nuevas asignaciones", newAssignmentsText);
+  }
+  writeBlock("Notas de asignaciones", council.newAssignmentsNotes);
+  writeBlock("Resumen final del consejo", council.finalSummaryNotes);
+  if (council.closingPrayer || council.closingPrayerBy) {
+    writeBlock(
+      "Oración final",
+      council.closingPrayerBy || council.closingPrayer
+    );
+  }
+  writeBlock("Notas del obispo/secretario", council.bishopNotes);
 
   addHeaderFooterAllPages(doc, template, formattedDate);
 
