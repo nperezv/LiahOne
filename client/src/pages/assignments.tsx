@@ -61,7 +61,8 @@ export default function Assignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
-  const [expandedAssignmentId, setExpandedAssignmentId] = useState<string | null>(null);
+  const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
@@ -143,8 +144,14 @@ export default function Assignments() {
     setIsEditOpen(true);
   };
 
-  const toggleDetails = (assignmentId: string) => {
-    setExpandedAssignmentId((current) => (current === assignmentId ? null : assignmentId));
+  const openDetails = (assignment: any) => {
+    setDetailsAssignment(assignment);
+    setIsDetailsOpen(true);
+  };
+
+  const closeDetails = () => {
+    setIsDetailsOpen(false);
+    setDetailsAssignment(null);
   };
 
   const onEdit = (data: AssignmentFormValues) => {
@@ -419,27 +426,59 @@ export default function Assignments() {
               <TableBody>
                 {filteredAssignments.length > 0 ? (
                   filteredAssignments.map((assignment: any) => (
-                    <Fragment key={assignment.id}>
-                      <TableRow
-                        key={assignment.id}
-                        data-testid={`row-assignment-${assignment.id}`}
-                        className="cursor-pointer"
-                        onClick={() => toggleDetails(assignment.id)}
-                      >
-                        <TableCell className="font-medium">{assignment.title}</TableCell>
-                        <TableCell>{assignment.personName || "Sin asignar"}</TableCell>
-                        <TableCell>{assignment.assignerName || "Desconocido"}</TableCell>
-                        <TableCell>
-                          {assignment.dueDate
-                            ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
-                            : "Sin fecha"}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(assignment.status)}</TableCell>
-                        <TableCell className="space-x-2">
+                    <TableRow
+                      key={assignment.id}
+                      data-testid={`row-assignment-${assignment.id}`}
+                      className="cursor-pointer"
+                      onClick={() => openDetails(assignment)}
+                    >
+                      <TableCell className="font-medium">{assignment.title}</TableCell>
+                      <TableCell>{assignment.personName || "Sin asignar"}</TableCell>
+                      <TableCell>{assignment.assignerName || "Desconocido"}</TableCell>
+                      <TableCell>
+                        {assignment.dueDate
+                          ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "Sin fecha"}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(assignment.status)}</TableCell>
+                      <TableCell className="space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            startEdit(assignment);
+                          }}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                        {isObispado &&
+                          assignment.status !== "completada" &&
+                          !isAutoCompleteAssignment(assignment) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              updateStatus(assignment.id, "completada");
+                            }}
+                            data-testid={`button-complete-${assignment.id}`}
+                          >
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Completar
+                          </Button>
+                        )}
+                        {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+                          <p className="text-xs text-muted-foreground">
+                            Se completará automáticamente al adjuntar comprobantes.
+                          </p>
+                        )}
+                        {canDeleteAssignment(assignment) && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -655,6 +694,62 @@ export default function Assignments() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) {
+            setDetailsAssignment(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalles de la asignación</DialogTitle>
+            <DialogDescription>
+              Información en modo lectura.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 text-sm">
+            <div>
+              <span className="font-medium">Título:</span>{" "}
+              {detailsAssignment?.title || "Sin título"}
+            </div>
+            <div>
+              <span className="font-medium">Descripción:</span>{" "}
+              {detailsAssignment?.description || "Sin descripción"}
+            </div>
+            <div>
+              <span className="font-medium">Asignado a:</span>{" "}
+              {detailsAssignment?.personName || "Sin asignar"}
+            </div>
+            <div>
+              <span className="font-medium">Asignado por:</span>{" "}
+              {detailsAssignment?.assignerName || "Desconocido"}
+            </div>
+            <div>
+              <span className="font-medium">Vencimiento:</span>{" "}
+              {detailsAssignment?.dueDate
+                ? new Date(detailsAssignment.dueDate).toLocaleDateString("es-ES", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "Sin fecha"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Estado:</span>
+              {detailsAssignment?.status ? getStatusBadge(detailsAssignment.status) : "Pendiente"}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={closeDetails}>
+              Cerrar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
