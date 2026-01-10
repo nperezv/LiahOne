@@ -3,9 +3,6 @@ import {
   LogOut,
   User,
   Settings,
-  Check,
-  CheckCheck,
-  Trash2,
   Calendar,
   Gift,
   DollarSign,
@@ -83,8 +80,6 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     notifications,
     unreadCount,
     markAsRead,
-    markAllAsRead,
-    deleteNotification,
     isLoading,
   } = useNotifications();
 
@@ -142,6 +137,37 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     );
   };
 
+  const getNotificationRoute = (notification: any) => {
+    switch (notification.type) {
+      case "assignment_created":
+        return "/assignments";
+      case "budget_approved":
+      case "budget_rejected":
+        return "/budget";
+      case "upcoming_interview":
+        return "/interviews";
+      case "upcoming_meeting":
+        return "/calendar";
+      case "birthday_today":
+        return "/birthdays";
+      case "reminder":
+        return "/dashboard";
+      default:
+        return "/dashboard";
+    }
+  };
+
+  const handleNotificationClick = (notification: any) => {
+    if (!notification.isRead) {
+      markAsRead(notification.id);
+    }
+    setLocation(getNotificationRoute(notification));
+  };
+
+  const unreadNotifications = notifications.filter(
+    (notification) => !notification.isRead
+  );
+
   return (
     <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-3">
       {/* IZQUIERDA */}
@@ -167,27 +193,21 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
             </Button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-80">
+          <DropdownMenuContent
+            align="center"
+            sideOffset={8}
+            className="w-[calc(100vw-2rem)] max-w-sm sm:w-80"
+          >
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
                 Notificaciones
               </DropdownMenuLabel>
-
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto p-1 text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    markAllAsRead();
-                  }}
-                >
-                  <CheckCheck className="mr-1 h-3 w-3" />
-                  Marcar todo leído
-                </Button>
-              )}
+              <DropdownMenuItem
+                className="h-auto p-1 text-xs"
+                onSelect={() => setLocation("/notifications")}
+              >
+                Ver todas
+              </DropdownMenuItem>
             </div>
 
             <DropdownMenuSeparator />
@@ -196,20 +216,21 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
               <div className="p-4 text-center text-sm text-muted-foreground">
                 Cargando...
               </div>
-            ) : notifications.length === 0 ? (
+            ) : unreadNotifications.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 No tienes notificaciones
               </div>
             ) : (
               <ScrollArea className="h-[300px]">
-                {notifications.slice(0, 10).map((notification) => {
+                {unreadNotifications.slice(0, 10).map((notification) => {
                   const Icon =
                     notificationTypeIcons[notification.type] || Bell;
 
                   return (
-                    <div
+                    <DropdownMenuItem
                       key={notification.id}
-                      className={`flex gap-3 px-3 py-3 border-b last:border-b-0 ${
+                      onSelect={() => handleNotificationClick(notification)}
+                      className={`flex w-full items-start gap-3 px-3 py-3 text-left border-b last:border-b-0 transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                         !notification.isRead ? "bg-muted/50" : ""
                       }`}
                     >
@@ -236,32 +257,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                           {renderNotificationTime(notification)}
                         </p>
                       </div>
-
-                      <div className="flex gap-1">
-                        {!notification.isRead && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() =>
-                              markAsRead(notification.id)
-                            }
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() =>
-                            deleteNotification(notification.id)
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
+                    </DropdownMenuItem>
                   );
                 })}
               </ScrollArea>
