@@ -26,7 +26,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
 import { apiRequest } from "@/lib/queryClient";
-import { formatNotificationTime, getNotificationDestination } from "@/lib/notifications";
+import {
+  formatNotificationTime,
+  getNotificationDestination,
+} from "@/lib/notifications";
 import type { Notification } from "@shared/schema";
 
 interface AppHeaderProps {
@@ -52,10 +55,6 @@ const notificationTypeIcons: Record<string, typeof Bell> = {
   reminder: Clock,
 };
 
-/**
- * Tipos de notificación que representan
- * un EVENTO con fecha futura
- */
 /* =========================
    Componente
 ========================= */
@@ -63,16 +62,19 @@ const notificationTypeIcons: Record<string, typeof Bell> = {
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const [, setLocation] = useLocation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   const { data: template } = useQuery({
     queryKey: ["/api/pdf-template"],
     queryFn: () => apiRequest("GET", "/api/pdf-template"),
   });
+
   const {
     notifications,
     unreadCount,
     markAsRead,
     isLoading,
   } = useNotifications();
+
   const unreadNotifications = notifications.filter(
     (notification) => !notification.isRead
   );
@@ -89,7 +91,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
   };
 
   const isAdmin =
-    user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
+    user?.role === "obispo" ||
+    user?.role === "consejero_obispo" ||
+    user?.role === "secretario_ejecutivo";
 
   const wardName = template?.wardName?.trim() || "Liahonapp";
 
@@ -121,6 +125,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
       {/* DERECHA */}
       <div className="flex items-center gap-3">
+
         {/* 🔔 NOTIFICACIONES */}
         <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
           <DropdownMenuTrigger asChild>
@@ -135,29 +140,36 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            align="center"
-            className="flex w-80 flex-col max-md:left-1/2 max-md:right-auto max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2 md:left-auto md:right-0 md:translate-x-0"
+            align="end"
+            sideOffset={8}
+            className="
+              w-80
+              max-md:w-[calc(100vw-2rem)]
+              max-md:left-1/2
+              max-md:-translate-x-1/2
+              max-md:right-auto
+            "
           >
+            {/* Header */}
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
                 Notificaciones
               </DropdownMenuLabel>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto p-1 text-xs"
+              <DropdownMenuItem
                 onClick={() => {
                   setNotificationsOpen(false);
                   setLocation("/notifications");
                 }}
+                className="text-xs font-medium"
               >
                 Ver todas
-              </Button>
+              </DropdownMenuItem>
             </div>
 
             <DropdownMenuSeparator />
 
+            {/* Contenido */}
             {isLoading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 Cargando...
@@ -173,18 +185,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                     notificationTypeIcons[notification.type] || Bell;
 
                   return (
-                    <div
+                    <DropdownMenuItem
                       key={notification.id}
-                      className="flex cursor-pointer gap-3 border-b px-3 py-3 last:border-b-0 bg-muted/50 hover:bg-muted"
+                      className="flex gap-3 items-start px-3 py-3 cursor-pointer"
                       onClick={() => handleNotificationClick(notification)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          handleNotificationClick(notification);
-                        }
-                      }}
                     >
                       <Icon className="h-5 w-5 text-muted-foreground mt-1" />
 
@@ -203,12 +207,11 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                           {formatNotificationTime(notification)}
                         </p>
                       </div>
-                    </div>
+                    </DropdownMenuItem>
                   );
                 })}
               </div>
             )}
-
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -217,15 +220,13 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex gap-2">
               <Avatar className="h-8 w-8">
-                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-                <AvatarFallback>
-                  {getInitials(user?.name)}
-                </AvatarFallback>
+                {user?.avatarUrl && (
+                  <AvatarImage src={user.avatarUrl} alt={user.name} />
+                )}
+                <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
               </Avatar>
               <div className="hidden md:flex flex-col items-start">
-                <span className="text-sm font-medium">
-                  {user?.name}
-                </span>
+                <span className="text-sm font-medium">{user?.name}</span>
                 <Badge variant="secondary" className="text-[10px]">
                   {roleLabels[user?.role ?? ""] ?? user?.role}
                 </Badge>
@@ -236,23 +237,22 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
             <DropdownMenuSeparator />
+
             <DropdownMenuItem onClick={() => setLocation("/profile")}>
               <User className="mr-2 h-4 w-4" />
               Mi Perfil
             </DropdownMenuItem>
+
             {isAdmin && (
-              <DropdownMenuItem
-                onClick={() => setLocation("/admin/users")}
-              >
+              <DropdownMenuItem onClick={() => setLocation("/admin/users")}>
                 <Settings className="mr-2 h-4 w-4" />
                 Gestionar Usuarios
               </DropdownMenuItem>
             )}
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onLogout}
-              className="text-destructive"
-            >
+
+            <DropdownMenuItem onClick={onLogout} className="text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               Cerrar Sesión
             </DropdownMenuItem>
