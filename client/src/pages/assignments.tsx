@@ -61,6 +61,8 @@ export default function Assignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
+  const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
@@ -140,6 +142,16 @@ export default function Assignments() {
       status: assignment.status || "pendiente",
     });
     setIsEditOpen(true);
+  };
+
+  const openDetails = (assignment: any) => {
+    setDetailsAssignment(assignment);
+    setIsDetailsOpen(true);
+  };
+
+  const closeDetails = () => {
+    setIsDetailsOpen(false);
+    setDetailsAssignment(null);
   };
 
   const onEdit = (data: AssignmentFormValues) => {
@@ -437,10 +449,13 @@ export default function Assignments() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => startEdit(assignment)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            startEdit(assignment);
+                          }}
                         >
                           <Edit className="h-3 w-3 mr-1" />
-                          Detalles
+                          Editar
                         </Button>
                         {isObispado &&
                           assignment.status !== "completada" &&
@@ -599,6 +614,62 @@ export default function Assignments() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) {
+            setDetailsAssignment(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalles de la asignación</DialogTitle>
+            <DialogDescription>
+              Información en modo lectura.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 text-sm">
+            <div>
+              <span className="font-medium">Título:</span>{" "}
+              {detailsAssignment?.title || "Sin título"}
+            </div>
+            <div>
+              <span className="font-medium">Descripción:</span>{" "}
+              {detailsAssignment?.description || "Sin descripción"}
+            </div>
+            <div>
+              <span className="font-medium">Asignado a:</span>{" "}
+              {detailsAssignment?.personName || "Sin asignar"}
+            </div>
+            <div>
+              <span className="font-medium">Asignado por:</span>{" "}
+              {detailsAssignment?.assignerName || "Desconocido"}
+            </div>
+            <div>
+              <span className="font-medium">Vencimiento:</span>{" "}
+              {detailsAssignment?.dueDate
+                ? new Date(detailsAssignment.dueDate).toLocaleDateString("es-ES", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "Sin fecha"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Estado:</span>
+              {detailsAssignment?.status ? getStatusBadge(detailsAssignment.status) : "Pendiente"}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={closeDetails}>
+              Cerrar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
