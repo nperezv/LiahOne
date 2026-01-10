@@ -10,6 +10,7 @@ import {
   Download,
   Edit,
   Archive,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -296,8 +297,8 @@ export default function OrganizationInterviewsPage() {
             size="sm"
             onClick={() => exportInterviews(interviews)}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
 
           <Button
@@ -580,8 +581,8 @@ export default function OrganizationInterviewsPage() {
                               handleEditClick(interview)
                             }
                           >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Editar
+                            <Edit className="h-4 w-4 lg:mr-1" />
+                            <span className="sr-only lg:not-sr-only">Editar</span>
                           </Button>
                         )}
 
@@ -595,7 +596,8 @@ export default function OrganizationInterviewsPage() {
                               deleteMutation.mutate(interview.id)
                             }
                           >
-                            Eliminar
+                            <Trash2 className="h-4 w-4 lg:mr-1" />
+                            <span className="sr-only lg:not-sr-only">Eliminar</span>
                           </Button>
                         )}
                     </div>
