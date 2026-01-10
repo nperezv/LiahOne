@@ -4,7 +4,6 @@ import {
   User,
   Settings,
   CheckCheck,
-  Trash2,
   Calendar,
   Gift,
   DollarSign,
@@ -27,7 +26,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
 import { formatNotificationTime, getNotificationDestination } from "@/lib/notifications";
 import type { Notification } from "@shared/schema";
@@ -75,7 +73,6 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     unreadCount,
     markAsRead,
     markAllAsRead,
-    deleteNotification,
     isLoading,
   } = useNotifications();
   const unreadNotifications = notifications.filter(
@@ -229,7 +226,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                     </div>
                   );
                 })}
-              </ScrollArea>
+              </div>
             )}
 
             <DropdownMenuSeparator />
