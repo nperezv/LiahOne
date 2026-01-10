@@ -125,6 +125,13 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
       {/* DERECHA */}
       <div className="flex items-center gap-3">
+        {notificationsOpen && (
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px]"
+            onClick={() => setNotificationsOpen(false)}
+          />
+        )}
 
         {/* 🔔 NOTIFICACIONES */}
         <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
@@ -140,21 +147,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            align="end"
+            align="center"
             sideOffset={8}
-            className="
-              w-80
-          
-              /* Desktop: anclado normal a la campana */
-              md:translate-x-0 md:left-auto md:right-0
-          
-              /* Móvil: overlay centrado fijo */
-              max-md:fixed
-              max-md:left-1/2
-              max-md:top-[4.5rem]
-              max-md:-translate-x-1/2
-              max-md:w-[calc(100vw-2rem)]
-            "
+            collisionPadding={16}
+            className="w-[calc(100vw-2rem)] max-w-sm sm:w-80"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2">
