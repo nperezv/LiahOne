@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Calendar, TrendingUp, DollarSign, Users } from "lucide-react";
+import { Calendar, TrendingUp, DollarSign, Users, FileText, FileSpreadsheet, FileDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
@@ -300,13 +300,16 @@ export default function ReportsPage() {
         <CardContent>
           <div className="flex gap-3 flex-wrap">
             <Button variant="outline" data-testid="button-export-pdf">
-              Exportar como PDF
+              <FileText className="h-4 w-4 lg:mr-2" />
+              <span className="sr-only lg:not-sr-only">Exportar como PDF</span>
             </Button>
             <Button variant="outline" data-testid="button-export-excel">
-              Exportar como Excel
+              <FileSpreadsheet className="h-4 w-4 lg:mr-2" />
+              <span className="sr-only lg:not-sr-only">Exportar como Excel</span>
             </Button>
             <Button variant="outline" data-testid="button-export-csv">
-              Descargar CSV
+              <FileDown className="h-4 w-4 lg:mr-2" />
+              <span className="sr-only lg:not-sr-only">Descargar CSV</span>
             </Button>
           </div>
         </CardContent>
