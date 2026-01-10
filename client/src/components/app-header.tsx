@@ -144,10 +144,16 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
             sideOffset={8}
             className="
               w-80
-              max-md:w-[calc(100vw-2rem)]
+          
+              /* Desktop: anclado normal a la campana */
+              md:translate-x-0 md:left-auto md:right-0
+          
+              /* Móvil: overlay centrado fijo */
+              max-md:fixed
               max-md:left-1/2
+              max-md:top-[4.5rem]
               max-md:-translate-x-1/2
-              max-md:right-auto
+              max-md:w-[calc(100vw-2rem)]
             "
           >
             {/* Header */}
