@@ -206,6 +206,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(id: string): Promise<Notification | undefined>;
   deleteNotification(id: string): Promise<void>;
+  deleteNotificationsByRelatedId(relatedId: string): Promise<void>;
   getUnreadNotificationCount(userId: string): Promise<number>;
 
   // Push Subscriptions
@@ -1012,6 +1013,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotification(id: string): Promise<void> {
     await db.delete(notifications).where(eq(notifications.id, id));
+  }
+
+  async deleteNotificationsByRelatedId(relatedId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.relatedId, relatedId));
   }
 
   async getUnreadNotificationCount(userId: string): Promise<number> {

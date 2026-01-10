@@ -1473,6 +1473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.deleteBudgetRequest(id);
+      await storage.deleteNotificationsByRelatedId(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
@@ -1845,8 +1846,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!interview) {
           return res.status(404).json({ error: "Interview not found" });
         }
-    
+
         await storage.deleteInterview(id);
+        await storage.deleteNotificationsByRelatedId(id);
         res.status(204).send();
       } catch {
         res.status(500).json({ error: "Internal server error" });
@@ -2112,6 +2114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
     
         await storage.deleteOrganizationInterview(id);
+        await storage.deleteNotificationsByRelatedId(id);
         res.status(204).send();
       } catch {
         res.status(500).json({ error: "Internal server error" });
@@ -3063,6 +3066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.deleteActivity(id);
+      await storage.deleteNotificationsByRelatedId(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
@@ -3199,6 +3203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       await storage.deleteAssignment(id);
+      await storage.deleteNotificationsByRelatedId(id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
