@@ -181,7 +181,7 @@ export default function Assignments() {
     assignment.status !== "completada" &&
     !isAutoCompleteAssignment(assignment);
   const renderAssignmentActions = (assignment: any) => (
-    <>
+    <div className="flex items-center gap-2">
       <Button
         size="sm"
         variant="outline"
@@ -190,8 +190,8 @@ export default function Assignments() {
           startEdit(assignment);
         }}
       >
-        <Edit className="h-3 w-3 mr-1" />
-        Editar
+        <Edit className="h-3 w-3 lg:mr-1" />
+        <span className="sr-only lg:not-sr-only">Editar</span>
       </Button>
       {canCompleteAssignment(assignment) ? (
         <Button
@@ -203,8 +203,8 @@ export default function Assignments() {
           }}
           data-testid={`button-complete-${assignment.id}`}
         >
-          <CheckCircle2 className="h-3 w-3 mr-1" />
-          Completar
+          <CheckCircle2 className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Completar</span>
         </Button>
       ) : null}
       {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
@@ -215,7 +215,7 @@ export default function Assignments() {
       {canDeleteAssignment(assignment) && (
         <Button
           size="sm"
-          variant="outline"
+          variant="destructive"
           onClick={(event) => {
             event.stopPropagation();
             handleDelete(assignment.id);
@@ -223,10 +223,11 @@ export default function Assignments() {
           data-testid={`button-delete-${assignment.id}`}
           disabled={deleteMutation.isPending}
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Eliminar</span>
         </Button>
       )}
-    </>
+    </div>
   );
 
   const getStatusBadge = (status: string) => {
@@ -269,8 +270,8 @@ export default function Assignments() {
             onClick={() => exportAssignments(assignments)}
             data-testid="button-export-assignments"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -497,7 +498,7 @@ export default function Assignments() {
                           : "Sin fecha"}
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment.status)}</TableCell>
-                      <TableCell className="space-x-2">
+                      <TableCell>
                         {renderAssignmentActions(assignment)}
                       </TableCell>
                     </TableRow>

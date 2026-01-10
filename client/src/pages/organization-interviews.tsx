@@ -10,6 +10,7 @@ import {
   Download,
   Edit,
   Archive,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -293,16 +294,14 @@ export default function OrganizationInterviewsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => exportInterviews(interviews)}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
 
           <Button
             variant="outline"
-            size="sm"
             onClick={() => setShowArchived(v => !v)}
           >
             {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
@@ -311,7 +310,7 @@ export default function OrganizationInterviewsPage() {
           {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button>
                   <Plus className="h-4 w-4 mr-2" />
                   Nueva Entrevista
                 </Button>
@@ -547,15 +546,15 @@ export default function OrganizationInterviewsPage() {
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       {interview.status === "programada" && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Checkbox
-                            checked={false}
-                            onCheckedChange={checked =>
-                              handleToggleCompleted(interview, !!checked)
-                            }
-                          />
-                          <span>Completar</span>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="whitespace-nowrap"
+                          onClick={() => handleToggleCompleted(interview, true)}
+                        >
+                          <CheckCircle2 className="h-4 w-4 lg:mr-1" />
+                          <span className="sr-only lg:not-sr-only">Completar</span>
+                        </Button>
                       )}
 
                       {interview.status === "completada" && (
@@ -580,8 +579,8 @@ export default function OrganizationInterviewsPage() {
                               handleEditClick(interview)
                             }
                           >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Editar
+                            <Edit className="h-4 w-4 lg:mr-1" />
+                            <span className="sr-only lg:not-sr-only">Editar</span>
                           </Button>
                         )}
 
@@ -595,7 +594,8 @@ export default function OrganizationInterviewsPage() {
                               deleteMutation.mutate(interview.id)
                             }
                           >
-                            Eliminar
+                            <Trash2 className="h-4 w-4 lg:mr-1" />
+                            <span className="sr-only lg:not-sr-only">Eliminar</span>
                           </Button>
                         )}
                     </div>

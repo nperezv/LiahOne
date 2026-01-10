@@ -11,6 +11,7 @@ import {
   Download,
   Edit,
   Archive,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -426,8 +427,8 @@ export default function InterviewsPage() {
           <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" data-testid="button-export-interviews">
-                <Download className="h-4 w-4 mr-2" />
-                Exportar PDF
+                <Download className="h-4 w-4 lg:mr-2" />
+                <span className="sr-only lg:not-sr-only">Exportar PDF</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -740,23 +741,23 @@ export default function InterviewsPage() {
                       {(canManage || canCancel) && (
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {/* ✅ Check para completar (solo pendientes) */}
+                            {/* ✅ Botón para completar (solo pendientes) */}
                             {isObispado && isPending && (
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={interview.status === "completada"}
-                                  disabled={updateMutation.isPending || interview.status !== "programada"}
-                                  onCheckedChange={(checked) => {
-                                    if (!checked) return;
-
-                                    updateMutation.mutate({
-                                      id: interview.id,
-                                      status: "completada",
-                                    });
-                                  }}
-                                />
-                                <span className="text-xs text-muted-foreground">Completar</span>
-                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  updateMutation.mutate({
+                                    id: interview.id,
+                                    status: "completada",
+                                  })
+                                }
+                                disabled={updateMutation.isPending}
+                                title="Completar"
+                              >
+                                <CheckCircle2 className="h-4 w-4 lg:mr-1" />
+                                <span className="sr-only lg:not-sr-only">Completar</span>
+                              </Button>
                             )}
 
                             {/* ✅ Si está completada: SOLO archivar */}
@@ -782,8 +783,8 @@ export default function InterviewsPage() {
                                 disabled={updateMutation.isPending}
                                 data-testid={`button-edit-${interview.id}`}
                               >
-                                <Edit className="h-4 w-4 mr-1" />
-                                Editar
+                                <Edit className="h-4 w-4 lg:mr-1" />
+                                <span className="sr-only lg:not-sr-only">Editar</span>
                               </Button>
                             )}
 
@@ -795,7 +796,8 @@ export default function InterviewsPage() {
                                 onClick={() => handleCancelDelete(interview.id)}
                                 disabled={deleteMutation.isPending}
                               >
-                                Eliminar
+                                <Trash2 className="h-4 w-4 lg:mr-1" />
+                                <span className="sr-only lg:not-sr-only">Eliminar</span>
                               </Button>
                             )}
                           </div>

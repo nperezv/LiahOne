@@ -128,8 +128,8 @@ export default function ActivitiesPage() {
             onClick={() => exportActivities(filteredActivities)}
             data-testid="button-export-activities"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
           {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -363,7 +363,8 @@ export default function ActivitiesPage() {
                             data-testid={`button-delete-activity-${activity.id}`}
                             disabled={deleteMutation.isPending}
                           >
-                            Eliminar
+                            <Trash2 className="h-4 w-4 lg:mr-1" />
+                            <span className="sr-only lg:not-sr-only">Eliminar</span>
                           </Button>
                         </TableCell>
                       )}
