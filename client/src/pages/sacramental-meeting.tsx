@@ -357,8 +357,8 @@ export default function SacramentalMeetingPage() {
             onClick={() => exportSacramentalMeetings(meetings)}
             data-testid="button-export-sacramental"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
           {canEdit && (
             <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>

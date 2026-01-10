@@ -190,8 +190,8 @@ export default function Assignments() {
           startEdit(assignment);
         }}
       >
-        <Edit className="h-3 w-3 mr-1" />
-        Editar
+        <Edit className="h-3 w-3 lg:mr-1" />
+        <span className="sr-only lg:not-sr-only">Editar</span>
       </Button>
       {canCompleteAssignment(assignment) ? (
         <Button
@@ -215,7 +215,7 @@ export default function Assignments() {
       {canDeleteAssignment(assignment) && (
         <Button
           size="sm"
-          variant="outline"
+          variant="destructive"
           onClick={(event) => {
             event.stopPropagation();
             handleDelete(assignment.id);
@@ -223,7 +223,8 @@ export default function Assignments() {
           data-testid={`button-delete-${assignment.id}`}
           disabled={deleteMutation.isPending}
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Eliminar</span>
         </Button>
       )}
     </>
@@ -269,8 +270,8 @@ export default function Assignments() {
             onClick={() => exportAssignments(assignments)}
             data-testid="button-export-assignments"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <Download className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">Exportar</span>
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
