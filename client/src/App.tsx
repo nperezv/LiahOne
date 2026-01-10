@@ -27,6 +27,7 @@ import CalendarPage from "@/pages/calendar";
 import ReportsPage from "@/pages/reports";
 import SettingsPage from "@/pages/settings";
 import AssignmentsPage from "@/pages/assignments";
+import NotificationsPage from "@/pages/notifications";
 import ProfilePage from "@/pages/profile";
 import AdminUsersPage from "@/pages/admin-users";
 
@@ -91,6 +92,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/assignments">
           <AssignmentsPage />
+        </Route>
+        <Route path="/notifications">
+          <NotificationsPage />
         </Route>
         <Route path="/profile">
           <ProfilePage />
