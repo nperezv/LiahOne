@@ -3,7 +3,6 @@ import {
   LogOut,
   User,
   Settings,
-  CheckCheck,
   Calendar,
   Gift,
   DollarSign,
@@ -72,7 +71,6 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     notifications,
     unreadCount,
     markAsRead,
-    markAllAsRead,
     isLoading,
   } = useNotifications();
   const unreadNotifications = notifications.filter(
@@ -137,29 +135,25 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            align="end"
-            className="w-80 max-md:left-1/2 max-md:right-auto max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2"
+            align="center"
+            className="flex w-80 flex-col max-md:left-1/2 max-md:right-auto max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2 md:left-auto md:right-0 md:translate-x-0"
           >
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
                 Notificaciones
               </DropdownMenuLabel>
 
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto p-1 text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    markAllAsRead();
-                  }}
-                >
-                  <CheckCheck className="mr-1 h-3 w-3" />
-                  Marcar todo leído
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-1 text-xs"
+                onClick={() => {
+                  setNotificationsOpen(false);
+                  setLocation("/notifications");
+                }}
+              >
+                Ver todas
+              </Button>
             </div>
 
             <DropdownMenuSeparator />
@@ -173,7 +167,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                 No tienes notificaciones
               </div>
             ) : (
-              <ScrollArea className="h-[300px]">
+              <div className="max-h-[300px] overflow-y-auto">
                 {unreadNotifications.slice(0, 10).map((notification) => {
                   const Icon =
                     notificationTypeIcons[notification.type] || Bell;
@@ -209,35 +203,12 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                           {formatNotificationTime(notification)}
                         </p>
                       </div>
-
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
 
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                setNotificationsOpen(false);
-                setLocation("/notifications");
-              }}
-            >
-              Ver todas
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
