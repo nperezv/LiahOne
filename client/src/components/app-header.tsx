@@ -147,22 +147,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            align="end"
+            align="center"
             sideOffset={8}
-            className="
-              w-80
-          
-              /* Desktop: anclado normal a la campana */
-              md:translate-x-0 md:left-auto md:right-0
-          
-              /* Móvil/Tablet: overlay centrado fijo */
-              max-lg:fixed
-              max-lg:!left-1/2
-              max-lg:!right-auto
-              max-lg:!top-[4.5rem]
-              max-lg:!translate-x-1/2
-              max-lg:w-[calc(100vw-2rem)]
-            "
+            collisionPadding={16}
+            className="w-[calc(100vw-2rem)] max-w-sm sm:w-80"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2">
