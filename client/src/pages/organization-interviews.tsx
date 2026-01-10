@@ -294,7 +294,6 @@ export default function OrganizationInterviewsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => exportInterviews(interviews)}
           >
             <Download className="h-4 w-4 lg:mr-2" />
@@ -303,7 +302,6 @@ export default function OrganizationInterviewsPage() {
 
           <Button
             variant="outline"
-            size="sm"
             onClick={() => setShowArchived(v => !v)}
           >
             {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
@@ -312,7 +310,7 @@ export default function OrganizationInterviewsPage() {
           {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button>
                   <Plus className="h-4 w-4 mr-2" />
                   Nueva Entrevista
                 </Button>

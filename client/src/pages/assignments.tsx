@@ -215,7 +215,7 @@ export default function Assignments() {
       {canDeleteAssignment(assignment) && (
         <Button
           size="sm"
-          variant="outline"
+          variant="destructive"
           onClick={(event) => {
             event.stopPropagation();
             handleDelete(assignment.id);
