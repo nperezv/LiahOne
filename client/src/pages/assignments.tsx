@@ -61,6 +61,8 @@ export default function Assignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
+  const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
@@ -142,6 +144,16 @@ export default function Assignments() {
     setIsEditOpen(true);
   };
 
+  const openDetails = (assignment: any) => {
+    setDetailsAssignment(assignment);
+    setIsDetailsOpen(true);
+  };
+
+  const closeDetails = () => {
+    setIsDetailsOpen(false);
+    setDetailsAssignment(null);
+  };
+
   const onEdit = (data: AssignmentFormValues) => {
     if (!editingAssignment) return;
     updateMutation.mutate(
@@ -164,6 +176,58 @@ export default function Assignments() {
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
+  const canCompleteAssignment = (assignment: any) =>
+    isObispado &&
+    assignment.status !== "completada" &&
+    !isAutoCompleteAssignment(assignment);
+  const renderAssignmentActions = (assignment: any) => (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={(event) => {
+          event.stopPropagation();
+          startEdit(assignment);
+        }}
+      >
+        <Edit className="h-3 w-3 mr-1" />
+        Editar
+      </Button>
+      {canCompleteAssignment(assignment) ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation();
+            updateStatus(assignment.id, "completada");
+          }}
+          data-testid={`button-complete-${assignment.id}`}
+        >
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Completar
+        </Button>
+      ) : null}
+      {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+        <p className="text-xs text-muted-foreground">
+          Se completará automáticamente al adjuntar comprobantes.
+        </p>
+      )}
+      {canDeleteAssignment(assignment) && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleDelete(assignment.id);
+          }}
+          data-testid={`button-delete-${assignment.id}`}
+          disabled={deleteMutation.isPending}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      )}
+    </>
+  );
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
@@ -434,49 +498,7 @@ export default function Assignments() {
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment.status)}</TableCell>
                       <TableCell className="space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEdit(assignment)}
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Detalles
-                        </Button>
-                        {isObispado &&
-                          assignment.status !== "completada" &&
-                          !isAutoCompleteAssignment(assignment) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              updateStatus(assignment.id, "completada");
-                            }}
-                            data-testid={`button-complete-${assignment.id}`}
-                          >
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Completar
-                          </Button>
-                        )}
-                        {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
-                          <p className="text-xs text-muted-foreground">
-                            Se completará automáticamente al adjuntar comprobantes.
-                          </p>
-                        )}
-                        {canDeleteAssignment(assignment) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDelete(assignment.id);
-                            }}
-                            data-testid={`button-delete-${assignment.id}`}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
+                        {renderAssignmentActions(assignment)}
                       </TableCell>
                     </TableRow>
                   ))
@@ -599,6 +621,62 @@ export default function Assignments() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) {
+            setDetailsAssignment(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalles de la asignación</DialogTitle>
+            <DialogDescription>
+              Información en modo lectura.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 text-sm">
+            <div>
+              <span className="font-medium">Título:</span>{" "}
+              {detailsAssignment?.title || "Sin título"}
+            </div>
+            <div>
+              <span className="font-medium">Descripción:</span>{" "}
+              {detailsAssignment?.description || "Sin descripción"}
+            </div>
+            <div>
+              <span className="font-medium">Asignado a:</span>{" "}
+              {detailsAssignment?.personName || "Sin asignar"}
+            </div>
+            <div>
+              <span className="font-medium">Asignado por:</span>{" "}
+              {detailsAssignment?.assignerName || "Desconocido"}
+            </div>
+            <div>
+              <span className="font-medium">Vencimiento:</span>{" "}
+              {detailsAssignment?.dueDate
+                ? new Date(detailsAssignment.dueDate).toLocaleDateString("es-ES", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "Sin fecha"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Estado:</span>
+              {detailsAssignment?.status ? getStatusBadge(detailsAssignment.status) : "Pendiente"}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={closeDetails}>
+              Cerrar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
