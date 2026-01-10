@@ -137,8 +137,8 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            align="center"
-            className="flex w-80 flex-col max-md:left-1/2 max-md:right-auto max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2 md:left-auto md:right-0 md:translate-x-0"
+            align="end"
+            className="w-80 max-md:left-1/2 max-md:right-auto max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2"
           >
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
@@ -173,7 +173,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                 No tienes notificaciones
               </div>
             ) : (
-              <div className="max-h-[300px] overflow-y-auto">
+              <ScrollArea className="h-[300px]">
                 {unreadNotifications.slice(0, 10).map((notification) => {
                   const Icon =
                     notificationTypeIcons[notification.type] || Bell;
@@ -208,6 +208,20 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                         <p className="text-xs text-muted-foreground mt-1">
                           {formatNotificationTime(notification)}
                         </p>
+                      </div>
+
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteNotification(notification.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   );
