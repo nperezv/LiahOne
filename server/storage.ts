@@ -206,6 +206,7 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(id: string): Promise<Notification | undefined>;
   deleteNotification(id: string): Promise<void>;
+  deleteNotificationsByRelatedId(relatedId: string): Promise<void>;
   getUnreadNotificationCount(userId: string): Promise<number>;
 
   // Push Subscriptions
@@ -624,6 +625,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteBudgetRequest(id: string): Promise<void> {
+    await this.deleteNotificationsByRelatedId(id);
     await db.delete(budgetRequests).where(eq(budgetRequests.id, id));
   }
 
@@ -655,6 +657,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteInterview(id: string): Promise<void> {
+    await this.deleteNotificationsByRelatedId(id);
     await db.delete(interviews).where(eq(interviews.id, id));
   }
 
@@ -711,6 +714,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOrganizationInterview(id: string): Promise<void> {
+    await this.deleteNotificationsByRelatedId(id);
     await db.delete(organizationInterviews).where(eq(organizationInterviews.id, id));
   }
 
@@ -827,6 +831,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteActivity(id: string): Promise<void> {
+    await this.deleteNotificationsByRelatedId(id);
     await db.delete(activities).where(eq(activities.id, id));
   }
 
@@ -888,6 +893,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteAssignment(id: string): Promise<void> {
+    await this.deleteNotificationsByRelatedId(id);
     await db.delete(assignments).where(eq(assignments.id, id));
   }
 
@@ -1012,6 +1018,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotification(id: string): Promise<void> {
     await db.delete(notifications).where(eq(notifications.id, id));
+  }
+
+  async deleteNotificationsByRelatedId(relatedId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.relatedId, relatedId));
   }
 
   async getUnreadNotificationCount(userId: string): Promise<number> {
