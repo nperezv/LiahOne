@@ -126,10 +126,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* DERECHA */}
       <div className="flex items-center gap-3">
         {notificationsOpen && (
-          <button
-            type="button"
-            aria-label="Cerrar notificaciones"
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[1px]"
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px]"
             onClick={() => setNotificationsOpen(false)}
           />
         )}
@@ -156,13 +155,13 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
               /* Desktop: anclado normal a la campana */
               md:translate-x-0 md:left-auto md:right-0
           
-              /* Móvil: overlay centrado fijo */
-              max-md:fixed
-              max-md:!left-1/2
-              max-md:!right-auto
-              max-md:!top-[4.5rem]
-              max-md:!translate-x-1/2
-              max-md:w-[calc(100vw-2rem)]
+              /* Móvil/Tablet: overlay centrado fijo */
+              max-lg:fixed
+              max-lg:!left-1/2
+              max-lg:!right-auto
+              max-lg:!top-[4.5rem]
+              max-lg:!translate-x-1/2
+              max-lg:w-[calc(100vw-2rem)]
             "
           >
             {/* Header */}
