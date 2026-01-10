@@ -176,6 +176,10 @@ export default function Assignments() {
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
+  const canCompleteAssignment = (assignment: any) =>
+    isObispado &&
+    assignment.status !== "completada" &&
+    !isAutoCompleteAssignment(assignment);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
@@ -457,9 +461,7 @@ export default function Assignments() {
                           <Edit className="h-3 w-3 mr-1" />
                           Editar
                         </Button>
-                        {isObispado &&
-                          assignment.status !== "completada" &&
-                          !isAutoCompleteAssignment(assignment) && (
+                        {canCompleteAssignment(assignment) ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -472,7 +474,7 @@ export default function Assignments() {
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Completar
                           </Button>
-                        )}
+                        ) : null}
                         {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
                           <p className="text-xs text-muted-foreground">
                             Se completará automáticamente al adjuntar comprobantes.
