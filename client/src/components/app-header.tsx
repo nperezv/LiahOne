@@ -3,7 +3,6 @@ import {
   LogOut,
   User,
   Settings,
-  Check,
   CheckCheck,
   Trash2,
   Calendar,
@@ -12,6 +11,7 @@ import {
   UserPlus,
   Clock,
 } from "lucide-react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -29,11 +29,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
-import {
-  formatDistanceToNow,
-  formatDistanceToNowStrict,
-} from "date-fns";
-import { es } from "date-fns/locale";
+import { formatNotificationTime, getNotificationDestination } from "@/lib/notifications";
+import type { Notification } from "@shared/schema";
 
 interface AppHeaderProps {
   user?: {
@@ -62,19 +59,13 @@ const notificationTypeIcons: Record<string, typeof Bell> = {
  * Tipos de notificación que representan
  * un EVENTO con fecha futura
  */
-const EVENT_NOTIFICATION_TYPES = [
-  "upcoming_interview",
-  "assignment_created",
-  "upcoming_meeting",
-  "reminder",
-];
-
 /* =========================
    Componente
 ========================= */
 
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const [, setLocation] = useLocation();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { data: template } = useQuery({
     queryKey: ["/api/pdf-template"],
     queryFn: () => apiRequest("GET", "/api/pdf-template"),
@@ -87,6 +78,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     deleteNotification,
     isLoading,
   } = useNotifications();
+  const unreadNotifications = notifications.filter(
+    (notification) => !notification.isRead
+  );
 
   const roleLabels: Record<string, string> = {
     obispo: "Obispo",
@@ -114,32 +108,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       .slice(0, 2);
   };
 
-  /**
-   * 🕒 Lógica CORRECTA del tiempo mostrado
-   */
-  const renderNotificationTime = (notification: any) => {
-    // Evento futuro → usar eventDate (estricto, sin “alrededor de”)
-    if (
-      EVENT_NOTIFICATION_TYPES.includes(notification.type) &&
-      notification.eventDate
-    ) {
-      return formatDistanceToNowStrict(
-        new Date(notification.eventDate),
-        {
-          addSuffix: true,
-          locale: es,
-        }
-      );
-    }
-
-    // Notificación informativa → usar createdAt
-    return formatDistanceToNow(
-      new Date(notification.createdAt),
-      {
-        addSuffix: true,
-        locale: es,
-      }
-    );
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id);
+    setNotificationsOpen(false);
+    setLocation(getNotificationDestination(notification));
   };
 
   return (
@@ -155,7 +127,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* DERECHA */}
       <div className="flex items-center gap-3">
         {/* 🔔 NOTIFICACIONES */}
-        <DropdownMenu>
+        <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -167,7 +139,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
             </Button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-80">
+          <DropdownMenuContent
+            align="end"
+            className="w-80 max-md:left-1/2 max-md:right-auto max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2"
+          >
             <div className="flex items-center justify-between px-3 py-2">
               <DropdownMenuLabel className="p-0 text-base">
                 Notificaciones
@@ -196,33 +171,34 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
               <div className="p-4 text-center text-sm text-muted-foreground">
                 Cargando...
               </div>
-            ) : notifications.length === 0 ? (
+            ) : unreadNotifications.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 No tienes notificaciones
               </div>
             ) : (
               <ScrollArea className="h-[300px]">
-                {notifications.slice(0, 10).map((notification) => {
+                {unreadNotifications.slice(0, 10).map((notification) => {
                   const Icon =
                     notificationTypeIcons[notification.type] || Bell;
 
                   return (
                     <div
                       key={notification.id}
-                      className={`flex gap-3 px-3 py-3 border-b last:border-b-0 ${
-                        !notification.isRead ? "bg-muted/50" : ""
-                      }`}
+                      className="flex cursor-pointer gap-3 border-b px-3 py-3 last:border-b-0 bg-muted/50 hover:bg-muted"
+                      onClick={() => handleNotificationClick(notification)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleNotificationClick(notification);
+                        }
+                      }}
                     >
                       <Icon className="h-5 w-5 text-muted-foreground mt-1" />
 
                       <div className="flex-1">
-                        <p
-                          className={`text-sm ${
-                            !notification.isRead
-                              ? "font-semibold"
-                              : ""
-                          }`}
-                        >
+                        <p className="text-sm font-semibold">
                           {notification.title}
                         </p>
 
@@ -233,30 +209,19 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                         )}
 
                         <p className="text-xs text-muted-foreground mt-1">
-                          {renderNotificationTime(notification)}
+                          {formatNotificationTime(notification)}
                         </p>
                       </div>
 
                       <div className="flex gap-1">
-                        {!notification.isRead && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() =>
-                              markAsRead(notification.id)
-                            }
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive"
-                          onClick={() =>
-                            deleteNotification(notification.id)
-                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteNotification(notification.id);
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -266,6 +231,16 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
                 })}
               </ScrollArea>
             )}
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                setNotificationsOpen(false);
+                setLocation("/notifications");
+              }}
+            >
+              Ver todas
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
