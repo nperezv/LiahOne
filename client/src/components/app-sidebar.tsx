@@ -27,6 +27,7 @@ interface MenuItem {
   subItems?: { title: string; url: string }[];
   roles?: string[]; // If undefined, visible to all. If defined, only visible to these roles.
   presidentOnly?: boolean; // If true, presidents only see their own sub-item
+  organizationTypes?: string[]; // If defined, only visible to these organization types.
 }
 
 const ALL_MENU_ITEMS: MenuItem[] = [
@@ -94,6 +95,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     url: "/organization-interviews",
     icon: UserCheck,
     roles: ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"],
+    organizationTypes: ["cuorum_elderes", "sociedad_socorro"],
   },
   {
     title: "Metas",
@@ -146,7 +148,10 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     // If no roles specified, visible to everyone
     if (!item.roles) return true;
     // Otherwise, only visible if user's role is in the list
-    return item.roles.includes(userRole);
+    if (!item.roles.includes(userRole)) return false;
+    if (!item.organizationTypes) return true;
+    if (!organizationType) return false;
+    return item.organizationTypes.includes(organizationType);
   }).map(item => {
     // For presidents/counselors/secretaries of organizations, filter sub-items to only show their organization
     if (item.presidentOnly && ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(userRole || "") && item.subItems && organizationType) {
