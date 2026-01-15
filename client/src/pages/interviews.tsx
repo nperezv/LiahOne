@@ -98,6 +98,39 @@ function formatRole(role: string) {
   return map[role] ?? role;
 }
 
+const formatDateTimeForInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
+    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
+  }
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formatDateTimeForApi = (value?: string | Date | null) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
+    return formatDateTimeForInput(trimmed);
+  }
+  return formatDateTimeForInput(value);
+};
+
 export default function InterviewsPage() {
   const { toast } = useToast();
 
@@ -195,6 +228,7 @@ export default function InterviewsPage() {
     createMutation.mutate(
       {
         ...data,
+        date: formatDateTimeForApi(data.date),
         status: "programada", // ✅ en UI la llamamos Pendiente
         notes: data.notes || "",
       },
@@ -228,7 +262,7 @@ export default function InterviewsPage() {
       {
         id: editingInterview.id,
         personName: data.personName,
-        date: data.date,
+        date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
         urgent: data.urgent,
@@ -262,7 +296,7 @@ export default function InterviewsPage() {
     setEditingInterview(interview);
     editForm.reset({
       personName: interview.personName,
-      date: interview.date?.split(".")[0] ?? "",
+      date: formatDateTimeForInput(interview.date),
       type: interview.type,
       interviewerId: interview.interviewerId,
       urgent: !!interview.urgent,

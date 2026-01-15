@@ -99,6 +99,39 @@ function formatInterviewType(type: string) {
   return map[type] ?? type;
 }
 
+const formatDateTimeForInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
+    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
+  }
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const formatDateTimeForApi = (value?: string | Date | null) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
+    return formatDateTimeForInput(trimmed);
+  }
+  return formatDateTimeForInput(value);
+};
+
 const getStatusBadge = (status: string) => {
   const map: Record<
     string,
@@ -245,7 +278,7 @@ export default function OrganizationInterviewsPage() {
     setEditingInterview(interview);
     editForm.reset({
       personName: interview.personName,
-      date: interview.date?.split(".")[0] ?? "",
+      date: formatDateTimeForInput(interview.date),
       type: interview.type,
       interviewerId: interview.interviewerId,
       urgent: !!interview.urgent,
@@ -261,7 +294,7 @@ export default function OrganizationInterviewsPage() {
       {
         id: editingInterview.id,
         personName: data.personName,
-        date: data.date,
+        date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
         urgent: data.urgent,
@@ -352,23 +385,29 @@ export default function OrganizationInterviewsPage() {
                 <Form {...form}>
                   <form
                     onSubmit={form.handleSubmit(data =>
-                      createMutation.mutate(data, {
-                        onSuccess: () => {
-                          toast({ title: "Entrevista creada" });
-                          setIsDialogOpen(false);
-                          form.reset();
+                      createMutation.mutate(
+                        {
+                          ...data,
+                          date: formatDateTimeForApi(data.date),
                         },
-                        onError: (error) => {
-                          toast({
-                            title: "Error",
-                            description: getApiErrorMessage(
-                              error,
-                              "No se pudo crear la entrevista."
-                            ),
-                            variant: "destructive",
-                          });
-                        },
-                      })
+                        {
+                          onSuccess: () => {
+                            toast({ title: "Entrevista creada" });
+                            setIsDialogOpen(false);
+                            form.reset();
+                          },
+                          onError: (error) => {
+                            toast({
+                              title: "Error",
+                              description: getApiErrorMessage(
+                                error,
+                                "No se pudo crear la entrevista."
+                              ),
+                              variant: "destructive",
+                            });
+                          },
+                        }
+                      )
                     )}
                     className="space-y-4"
                   >
