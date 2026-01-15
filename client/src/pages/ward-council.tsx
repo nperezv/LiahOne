@@ -463,6 +463,7 @@ export default function WardCouncilPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingCouncil, setEditingCouncil] = useState<any>(null);
   const [detailsCouncil, setDetailsCouncil] = useState<any>(null);
+  const [, setEditLeaderOrganizationFilter] = useState("all");
   const leaderGroups = (() => {
     const leaderRoles = new Set([
       "obispo",
@@ -1240,6 +1241,9 @@ export default function WardCouncilPage() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Consejo de Barrio</DialogTitle>
+            <DialogDescription>
+              Actualiza la información del consejo programado.
+            </DialogDescription>
           </DialogHeader>
 
           <Form {...editForm}>
@@ -1534,6 +1538,9 @@ export default function WardCouncilPage() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalles del Consejo</DialogTitle>
+            <DialogDescription>
+              Revisa las notas y asignaciones del consejo.
+            </DialogDescription>
           </DialogHeader>
           {detailsCouncil && (
             <CouncilDetailsForm
