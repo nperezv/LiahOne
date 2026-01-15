@@ -103,6 +103,13 @@ const statusLabels: Record<string, string> = {
   pendiente: "Pendiente",
 };
 
+const formatDateForInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().split("T")[0];
+};
+
 function renderLeaderOptions(
   groups: { id: string; name: string; members: any[] }[],
   useIdValue: boolean
@@ -149,7 +156,10 @@ function CouncilDetailsForm({
       salvationWorkNotes: council.salvationWorkNotes || "",
       wardActivitiesNotes: council.wardActivitiesNotes || "",
       newAssignmentsNotes: council.newAssignmentsNotes || "",
-      newAssignments: council.newAssignments || [],
+      newAssignments: (council.newAssignments || []).map((assignment: any) => ({
+        ...assignment,
+        dueDate: formatDateForInput(assignment?.dueDate),
+      })),
       finalSummaryNotes: council.finalSummaryNotes || "",
       bishopNotes: council.bishopNotes || "",
     },
@@ -170,7 +180,10 @@ function CouncilDetailsForm({
       salvationWorkNotes: council.salvationWorkNotes || "",
       wardActivitiesNotes: council.wardActivitiesNotes || "",
       newAssignmentsNotes: council.newAssignmentsNotes || "",
-      newAssignments: council.newAssignments || [],
+      newAssignments: (council.newAssignments || []).map((assignment: any) => ({
+        ...assignment,
+        dueDate: formatDateForInput(assignment?.dueDate),
+      })),
       finalSummaryNotes: council.finalSummaryNotes || "",
       bishopNotes: council.bishopNotes || "",
     });
@@ -621,7 +634,7 @@ export default function WardCouncilPage() {
     setEditingCouncil(council);
     setEditLeaderOrganizationFilter("all");
     editForm.reset({
-      date: council.date,
+      date: formatDateForInput(council.date),
       presider: council.presider || "",
       director: council.director || "",
       openingPrayer: council.openingPrayer || "",
