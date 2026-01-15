@@ -100,21 +100,25 @@ function formatRole(role: string) {
 
 const formatDateTimeForInput = (value?: string | Date | null) => {
   if (!value) return "";
+  const build = (date: Date, useUtc: boolean) => {
+    if (Number.isNaN(date.getTime())) return "";
+    const year = useUtc ? date.getUTCFullYear() : date.getFullYear();
+    const month = String((useUtc ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, "0");
+    const day = String(useUtc ? date.getUTCDate() : date.getDate()).padStart(2, "0");
+    const hours = String(useUtc ? date.getUTCHours() : date.getHours()).padStart(2, "0");
+    const minutes = String(useUtc ? date.getUTCMinutes() : date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return "";
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
       return trimmed.slice(0, 16);
     }
+    const useUtc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
+    return build(new Date(trimmed), useUtc);
   }
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  return build(value, false);
 };
 
 const formatDateTimeForApi = (value?: string | Date | null) => {
@@ -125,12 +129,15 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
     if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)) {
       return trimmed;
     }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
     const asDate = new Date(trimmed);
     if (Number.isNaN(asDate.getTime())) return trimmed;
-    return asDate.toISOString();
+    return formatDateTimeForInput(asDate);
   }
   if (Number.isNaN(value.getTime())) return "";
-  return value.toISOString();
+  return formatDateTimeForInput(value);
 };
 
 export default function InterviewsPage() {
