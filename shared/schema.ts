@@ -35,6 +35,45 @@ const dateSchema = z.union([
   z.string().transform((str) => parseDateString(str)),
 ]);
 
+const parseInterviewDateString = (value: string | Date): Date => {
+  if (value instanceof Date) return value;
+  if (typeof value !== "string") throw new Error("Invalid date");
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error("Invalid date");
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+    return new Date(trimmed);
+  }
+  const dateTimeMatch = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (dateTimeMatch) {
+    const [, year, month, day, hours, minutes, seconds] = dateTimeMatch;
+    return new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hours),
+        Number(minutes),
+        Number(seconds || "0")
+      )
+    );
+  }
+  const dateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateMatch) {
+    const [, year, month, day] = dateMatch;
+    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  }
+  const fallback = new Date(trimmed);
+  if (!Number.isNaN(fallback.getTime())) return fallback;
+  throw new Error("Invalid date format");
+};
+
+const interviewDateSchema = z.union([
+  z.date(),
+  z.string().transform((str) => parseInterviewDateString(str)),
+]);
+
 // ========================================
 // ENUMS
 // ========================================
@@ -677,7 +716,7 @@ export const selectBudgetRequestSchema = createSelectSchema(budgetRequests);
 
 // Interviews
 export const insertInterviewSchema = createInsertSchema(interviews, {
-  date: dateSchema,
+  date: interviewDateSchema,
 }).omit({
   id: true,
   createdAt: true,
@@ -690,7 +729,7 @@ export const selectInterviewSchema = createSelectSchema(interviews);
 export const insertOrganizationInterviewSchema = createInsertSchema(
   organizationInterviews,
   {
-    date: z.coerce.date(),
+    date: interviewDateSchema,
   }
 ).omit({
   id: true,
