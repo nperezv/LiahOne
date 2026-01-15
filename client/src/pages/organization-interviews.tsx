@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -64,6 +65,7 @@ import {
   useUpdateOrganizationInterview,
   useDeleteOrganizationInterview,
   useUsers,
+  useOrganizations,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
@@ -127,6 +129,7 @@ const getPriorityBadge = (urgent: boolean) =>
 export default function OrganizationInterviewsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -136,6 +139,7 @@ export default function OrganizationInterviewsPage() {
   const { data: interviews = [], isLoading } =
     useOrganizationInterviews();
   const { data: users = [] } = useUsers();
+  const { data: organizations = [] } = useOrganizations();
 
   const createMutation = useCreateOrganizationInterview();
   const updateMutation = useUpdateOrganizationInterview();
@@ -146,7 +150,28 @@ export default function OrganizationInterviewsPage() {
     user?.role === "consejero_organizacion" ||
     user?.role === "secretario_organizacion";
 
-  const canDelete = user?.role === "presidente_organizacion";
+  const organizationType = useMemo(() => {
+    if (!user?.organizationId) return undefined;
+    return organizations.find((org) => org.id === user.organizationId)?.type;
+  }, [organizations, user?.organizationId]);
+
+  const allowedOrganizationTypes = useMemo(
+    () => new Set(["cuorum_elderes", "sociedad_socorro"]),
+    []
+  );
+
+  const isOrgTypeReady = !user?.organizationId || organizations.length > 0;
+  const canAccess =
+    canManage && organizationType && allowedOrganizationTypes.has(organizationType);
+  const canManageOrganization = canAccess;
+
+  useEffect(() => {
+    if (user && isOrgTypeReady && !canAccess) {
+      setLocation("/dashboard");
+    }
+  }, [user, isOrgTypeReady, canAccess, setLocation]);
+
+  const canDelete = canAccess && user?.role === "presidente_organizacion";
 
   const interviewers = useMemo(() => {
     if (!user?.organizationId) return [];
@@ -307,7 +332,7 @@ export default function OrganizationInterviewsPage() {
             {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
           </Button>
 
-          {canManage && (
+          {canManageOrganization && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -569,7 +594,7 @@ export default function OrganizationInterviewsPage() {
                         </Button>
                       )}
 
-                      {canManage &&
+                      {canManageOrganization &&
                         interview.status !== "completada" && (
                           <Button
                             size="sm"
