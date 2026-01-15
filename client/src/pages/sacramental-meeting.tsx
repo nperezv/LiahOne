@@ -60,6 +60,20 @@ const meetingSchema = z.object({
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 
+const formatDateForInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+  }
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().split("T")[0];
+};
+
 export default function SacramentalMeetingPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -154,7 +168,10 @@ export default function SacramentalMeetingPage() {
 
   const handleEdit = (meeting: any) => {
     setEditingId(meeting.id);
-    form.reset(meeting);
+    form.reset({
+      ...meeting,
+      date: formatDateForInput(meeting.date),
+    });
     setIsTestimonyMeeting(meeting.isTestimonyMeeting);
     setDiscourses(meeting.discourses || [{ speaker: "", topic: "" }]);
     setReleases(meeting.releases && meeting.releases.length > 0 ? meeting.releases : [{ name: "", oldCalling: "" }]);
