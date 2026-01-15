@@ -105,6 +105,13 @@ const statusLabels: Record<string, string> = {
 
 const formatDateForInput = (value?: string | Date | null) => {
   if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+  }
   const date = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().split("T")[0];
@@ -654,7 +661,7 @@ export default function WardCouncilPage() {
         title: assignment?.title || "",
         assignedTo: assignment?.assignedTo || "",
         assignedToName: assignment?.assignedToName || "",
-        dueDate: assignment?.dueDate ? new Date(assignment.dueDate).toISOString().split("T")[0] : "",
+        dueDate: formatDateForInput(assignment?.dueDate),
         notes: assignment?.notes || "",
       })),
       adjustmentsNotes: council.adjustmentsNotes || "",
