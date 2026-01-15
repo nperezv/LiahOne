@@ -1163,6 +1163,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Council not found" });
       }
 
+      const currentUser = (req as any).user;
+      const updaterName = currentUser?.name || "Un usuario";
+      const allUsers = await storage.getAllUsers();
+      const councilRoles = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+        "presidente_organizacion",
+        "consejero_organizacion",
+        "secretario_organizacion",
+      ];
+      const recipients = new Set<string>(
+        allUsers.filter((user: any) => councilRoles.includes(user.role)).map((user: any) => user.id)
+      );
+      recipients.delete(req.session.userId!);
+
+      const councilDate = new Date(council.date).toLocaleDateString("es-ES");
+
+      for (const userId of recipients) {
+        const notification = await storage.createNotification({
+          userId,
+          type: "reminder",
+          title: "Consejo de barrio actualizado",
+          description: `${updaterName} actualizó el consejo de barrio del ${councilDate}.`,
+          relatedId: council.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(userId, {
+            title: "Consejo de barrio actualizado",
+            body: `${updaterName} actualizó el consejo de barrio del ${councilDate}.`,
+            url: "/ward-council",
+            notificationId: notification.id,
+          });
+        }
+      }
+
       res.json(council);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1374,6 +1414,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
           }
+        }
+      }
+
+      const currentUser = (req as any).user;
+      const updaterName = currentUser?.name || "Un usuario";
+      const allUsers = await storage.getAllUsers();
+      const obispadoMembers = allUsers.filter((member: any) =>
+        ["obispo", "consejero_obispo", "secretario_financiero"].includes(member.role)
+      );
+      const recipients = new Set<string>([
+        ...obispadoMembers.map((member: any) => member.id),
+        budgetRequest.requestedBy,
+      ]);
+      recipients.delete(req.session.userId!);
+
+      for (const userId of recipients) {
+        const notification = await storage.createNotification({
+          userId,
+          type: "reminder",
+          title: "Solicitud de presupuesto actualizada",
+          description: `${updaterName} actualizó la solicitud "${budgetRequest.description}".`,
+          relatedId: budgetRequest.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(userId, {
+            title: "Solicitud de presupuesto actualizada",
+            body: `${updaterName} actualizó la solicitud "${budgetRequest.description}".`,
+            url: "/budget",
+            notificationId: notification.id,
+          });
         }
       }
 
@@ -1825,6 +1897,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      const currentUser = (req as any).user;
+      const updaterName = currentUser?.name || "Un usuario";
+      const recipients = new Set<string>(
+        [interview.interviewerId, interview.assignedToId, interview.assignedBy].filter(Boolean) as string[]
+      );
+      recipients.delete(req.session.userId!);
+
+      const interviewDate = new Date(interview.date).toLocaleDateString("es-ES");
+
+      for (const userId of recipients) {
+        const notification = await storage.createNotification({
+          userId,
+          type: "upcoming_interview",
+          title: "Entrevista actualizada",
+          description: `${updaterName} actualizó la entrevista con ${interview.personName} para el ${interviewDate}.`,
+          relatedId: interview.id,
+          eventDate: interview.date,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(userId, {
+            title: "Entrevista actualizada",
+            body: `${updaterName} actualizó la entrevista con ${interview.personName}.`,
+            url: "/interviews",
+            notificationId: notification.id,
+          });
+        }
+      }
+
       res.json(interview);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2041,9 +2143,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!updated) {
           return res.status(404).json({ error: "No encontrada" });
         }
-    
+
+        if (updateData.date) {
+          await db
+            .update(notifications)
+            .set({ eventDate: updated.date })
+            .where(
+              and(
+                eq(notifications.relatedId, updated.id),
+                eq(notifications.type, "upcoming_interview")
+              )
+            );
+        }
+
         // 🔔 Notificar cambios (estado o fecha)
-        if (updateData.status || updateData.date) {
+        if (Object.keys(updateData).length > 0) {
           const members =
             await storage.getOrganizationMembers(user.organizationId);
       
@@ -2056,7 +2170,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               title: "Entrevista actualizada",
               description: updateData.status
                 ? `La entrevista con ${updated.personName} ahora está ${updated.status}`
-                : `La fecha de la entrevista con ${updated.personName} fue modificada`,
+                : updateData.date
+                  ? `La fecha de la entrevista con ${updated.personName} fue modificada`
+                  : `Se actualizaron los detalles de la entrevista con ${updated.personName}`,
               relatedId: updated.id,
               eventDate: updated.date,
               isRead: false,
@@ -2251,8 +2367,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Notify about goal progress update if currentValue changed
       const oldProgress = goal.targetValue > 0 ? Math.round((goal.currentValue / goal.targetValue) * 100) : 0;
       const newProgress = updatedGoal.targetValue > 0 ? Math.round((updatedGoal.currentValue / updatedGoal.targetValue) * 100) : 0;
+      const hasProgressUpdate = goalData.currentValue !== undefined && oldProgress !== newProgress;
       
-      if (goalData.currentValue !== undefined && oldProgress !== newProgress) {
+      if (hasProgressUpdate) {
         const allUsers = await storage.getAllUsers();
         
         // If org member updates, notify obispado
@@ -2304,6 +2421,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendPushNotification(member.id, {
                 title: "Meta Actualizada",
                 body: `"${updatedGoal.title}" ahora está al ${newProgress}%`,
+                url: "/goals",
+                notificationId: notification.id,
+              });
+            }
+          }
+        }
+      }
+
+      if (!hasProgressUpdate) {
+        const allUsers = await storage.getAllUsers();
+        const updaterName = user?.name || "Un usuario";
+
+        if (updatedGoal.organizationId) {
+          if (isOrgMember) {
+            const obispadoMembers = allUsers.filter((member: any) =>
+              ["obispo", "consejero_obispo"].includes(member.role) &&
+              member.id !== req.session.userId
+            );
+
+            for (const member of obispadoMembers) {
+              const notification = await storage.createNotification({
+                userId: member.id,
+                type: "reminder",
+                title: "Meta actualizada",
+                description: `${updaterName} actualizó la meta "${updatedGoal.title}".`,
+                relatedId: updatedGoal.id,
+                isRead: false,
+              });
+
+              if (isPushConfigured()) {
+                await sendPushNotification(member.id, {
+                  title: "Meta actualizada",
+                  body: `${updaterName} actualizó la meta "${updatedGoal.title}".`,
+                  url: "/goals",
+                  notificationId: notification.id,
+                });
+              }
+            }
+          } else if (isObispado) {
+            const orgMembers = allUsers.filter((member: any) =>
+              member.organizationId === updatedGoal.organizationId &&
+              member.id !== req.session.userId
+            );
+
+            for (const member of orgMembers) {
+              const notification = await storage.createNotification({
+                userId: member.id,
+                type: "reminder",
+                title: "Meta actualizada",
+                description: `${updaterName} actualizó la meta "${updatedGoal.title}".`,
+                relatedId: updatedGoal.id,
+                isRead: false,
+              });
+
+              if (isPushConfigured()) {
+                await sendPushNotification(member.id, {
+                  title: "Meta actualizada",
+                  body: `${updaterName} actualizó la meta "${updatedGoal.title}".`,
+                  url: "/goals",
+                  notificationId: notification.id,
+                });
+              }
+            }
+          }
+        } else {
+          const wardLeaders = allUsers.filter((member: any) =>
+            ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(member.role) &&
+            member.id !== req.session.userId
+          );
+
+          for (const member of wardLeaders) {
+            const notification = await storage.createNotification({
+              userId: member.id,
+              type: "reminder",
+              title: "Meta de barrio actualizada",
+              description: `${updaterName} actualizó la meta "${updatedGoal.title}".`,
+              relatedId: updatedGoal.id,
+              isRead: false,
+            });
+
+            if (isPushConfigured()) {
+              await sendPushNotification(member.id, {
+                title: "Meta de barrio actualizada",
+                body: `${updaterName} actualizó la meta "${updatedGoal.title}".`,
                 url: "/goals",
                 notificationId: notification.id,
               });
@@ -2719,6 +2920,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       payload.amount = quarterAmount;
     }
     const budget = await storage.updateWardBudget(payload);
+
+    const currentUser = (req as any).user;
+    const updaterName = currentUser?.name || "Un usuario";
+    const allUsers = await storage.getAllUsers();
+    const budgetRoles = [
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+      "presidente_organizacion",
+      "consejero_organizacion",
+      "secretario_organizacion",
+    ];
+    const recipients = new Set<string>(
+      allUsers.filter((user: any) => budgetRoles.includes(user.role)).map((user: any) => user.id)
+    );
+    recipients.delete(req.session.userId!);
+
+    for (const userId of recipients) {
+      const notification = await storage.createNotification({
+        userId,
+        type: "reminder",
+        title: "Presupuesto del barrio actualizado",
+        description: `${updaterName} actualizó el presupuesto del barrio para ${payload.year}.`,
+        relatedId: budget.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(userId, {
+          title: "Presupuesto del barrio actualizado",
+          body: `${updaterName} actualizó el presupuesto del barrio para ${payload.year}.`,
+          url: "/budget",
+          notificationId: notification.id,
+        });
+      }
+    }
+
     res.json(budget);
   });
 
@@ -3186,6 +3426,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedAssignment = await storage.updateAssignment(id, assignmentData);
       if (!updatedAssignment) {
         return res.status(404).json({ error: "Assignment not found" });
+      }
+
+      const statusLabels: Record<string, string> = {
+        pendiente: "pendiente",
+        en_proceso: "en proceso",
+        completada: "completada",
+      };
+      const statusText = assignmentData.status
+        ? ` Estado: ${statusLabels[updatedAssignment.status] || updatedAssignment.status}.`
+        : "";
+      const recipients = new Set<string>(
+        [updatedAssignment.assignedTo, updatedAssignment.assignedBy].filter(Boolean) as string[]
+      );
+      recipients.delete(req.session.userId!);
+
+      for (const userId of recipients) {
+        const notification = await storage.createNotification({
+          userId,
+          type: "reminder",
+          title: "Asignación actualizada",
+          description: `La asignación "${updatedAssignment.title}" ha sido actualizada.${statusText}`,
+          relatedId: updatedAssignment.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(userId, {
+            title: "Asignación actualizada",
+            body: `La asignación "${updatedAssignment.title}" ha sido actualizada.${statusText}`,
+            url: "/assignments",
+            notificationId: notification.id,
+          });
+        }
       }
 
       res.json(updatedAssignment);
