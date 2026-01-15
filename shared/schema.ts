@@ -364,7 +364,7 @@ export const budgetRequests = pgTable("budget_requests", {
 // Interviews
 export const interviews = pgTable("interviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  date: timestamp("date").notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
   personName: text("person_name").notNull(),
   interviewerId: varchar("interviewer_id").notNull().references(() => users.id),
   assignedToId: varchar("assigned_to_id").references(() => users.id),
@@ -380,7 +380,7 @@ export const interviews = pgTable("interviews", {
 export const organizationInterviews = pgTable("organization_interviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id),
-  date: timestamp("date").notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
   personName: text("person_name").notNull(),
   interviewerId: varchar("interviewer_id").notNull().references(() => users.id),
   type: organizationInterviewTypeEnum("type").notNull(),
