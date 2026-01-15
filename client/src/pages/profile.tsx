@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { getAuthHeaders } from "@/lib/auth-tokens";
+import { fetchWithAuthRetry, getAuthHeaders } from "@/lib/auth-tokens";
 import { PushNotificationSettings } from "@/components/push-notification-settings";
 
 const profileSchema = z.object({
@@ -81,9 +81,8 @@ export default function ProfilePage() {
       if (avatarFile) {
         const formData = new FormData();
         formData.append("file", avatarFile);
-        const uploadResponse = await fetch("/api/uploads", {
+        const uploadResponse = await fetchWithAuthRetry("/api/uploads", {
           method: "POST",
-          headers: { ...getAuthHeaders() },
           body: formData,
         });
 

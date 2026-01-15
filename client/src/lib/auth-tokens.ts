@@ -24,6 +24,35 @@ export async function refreshAccessToken() {
   return data.accessToken ?? null;
 }
 
+export async function fetchWithAuthRetry(input: RequestInfo, init?: RequestInit) {
+  const headers = new Headers(init?.headers ?? {});
+  const token = getAccessToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  let res = await fetch(input, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const retryHeaders = new Headers(init?.headers ?? {});
+      retryHeaders.set("Authorization", `Bearer ${refreshed}`);
+      res = await fetch(input, {
+        ...init,
+        headers: retryHeaders,
+        credentials: "include",
+      });
+    }
+  }
+
+  return res;
+}
+
 export function getAuthHeaders(): HeadersInit {
   const token = getAccessToken();
   if (!token) return {};
