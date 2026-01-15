@@ -101,21 +101,24 @@ function formatInterviewType(type: string) {
 
 const formatDateTimeForInput = (value?: string | Date | null) => {
   if (!value) return "";
+  const build = (date: Date) => {
+    if (Number.isNaN(date.getTime())) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return "";
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
       return trimmed.slice(0, 16);
     }
+    return build(new Date(trimmed));
   }
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  return build(value);
 };
 
 const formatDateTimeForApi = (value?: string | Date | null) => {
@@ -125,6 +128,9 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
     if (!trimmed) return "";
     if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)) {
       return trimmed;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return new Date(trimmed).toISOString();
     }
     const asDate = new Date(trimmed);
     if (Number.isNaN(asDate.getTime())) return trimmed;
