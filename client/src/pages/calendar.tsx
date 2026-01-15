@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -16,11 +16,14 @@ interface CalendarEvent {
   type: "reunion" | "consejo" | "presidencia" | "entrevista" | "actividad";
   location?: string;
   description?: string;
+  status?: "programada" | "completada" | "cancelada" | "archivada";
 }
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
 
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
@@ -76,7 +79,24 @@ export default function CalendarPage() {
     return events.filter((event) => isSameDay(new Date(event.date), date));
   };
 
-  const upcomingEvents = events
+  const handleEventClick = (event: CalendarEvent) => {
+    setSelectedEvent(event);
+    setIsEventDialogOpen(true);
+  };
+
+  const isUpcomingEvent = (event: CalendarEvent) => {
+    const eventDate = new Date(event.date);
+    if (eventDate < startOfDay(new Date())) {
+      return false;
+    }
+    if (event.type === "entrevista" && event.status === "completada") {
+      return false;
+    }
+    return true;
+  };
+
+  const upcomingEvents = [...events]
+    .filter(isUpcomingEvent)
     .sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     )
@@ -99,9 +119,9 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Calendario</h1>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Calendario</h1>
         <p className="text-muted-foreground">Vista integrada de todas las actividades y eventos</p>
       </div>
 
@@ -110,11 +130,13 @@ export default function CalendarPage() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle>{format(currentDate, "MMMM yyyy", { locale: es })}</CardTitle>
+                  <CardTitle className="text-lg sm:text-xl">
+                    {format(currentDate, "MMMM yyyy", { locale: es })}
+                  </CardTitle>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="icon"
@@ -162,56 +184,60 @@ export default function CalendarPage() {
             </CardHeader>
             <CardContent>
               {viewMode === "month" ? (
-                <div>
-                  {/* Calendar Header */}
-                  <div className="grid grid-cols-7 gap-2 mb-2">
-                    {["L", "M", "X", "J", "V", "S", "D"].map(day => (
-                      <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Calendar Days */}
-                  <div className="grid grid-cols-7 gap-2">
-                    {monthDays.map(day => {
-                      const dayEvents = eventsOnDate(day);
-                      const isCurrentMonth = isSameMonth(day, currentDate);
-                      const isToday = isSameDay(day, new Date());
-
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={`min-h-32 p-2 rounded-md border ${
-                            isToday
-                              ? "bg-blue-100 border-blue-300 dark:bg-blue-900 dark:border-blue-700"
-                              : isCurrentMonth
-                              ? "bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-700"
-                              : "bg-gray-50 border-gray-200 opacity-50 dark:bg-slate-800 dark:border-slate-700 dark:opacity-30"
-                          }`}
-                          data-testid={`calendar-day-${format(day, "dd-MM-yyyy")}`}
-                        >
-                          <div className="text-sm font-semibold mb-1 text-center">{format(day, "d")}</div>
-                          <div className="space-y-1">
-                            {dayEvents.slice(0, 2).map(event => (
-                              <div
-                                key={event.id}
-                                className={`text-xs p-1 rounded border cursor-pointer hover:opacity-80 ${getEventColor(event.type)}`}
-                                title={event.title}
-                                data-testid={`event-${event.id}`}
-                              >
-                                {event.title.length > 12 ? `${event.title.substring(0, 12)}...` : event.title}
-                              </div>
-                            ))}
-                            {dayEvents.length > 2 && (
-                              <div className="text-xs text-muted-foreground text-center">
-                                +{dayEvents.length - 2} más
-                              </div>
-                            )}
-                          </div>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[720px]">
+                    {/* Calendar Header */}
+                    <div className="grid grid-cols-7 gap-2 mb-2">
+                      {["L", "M", "X", "J", "V", "S", "D"].map(day => (
+                        <div key={day} className="text-center font-semibold text-xs sm:text-sm text-muted-foreground py-2">
+                          {day}
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+
+                    {/* Calendar Days */}
+                    <div className="grid grid-cols-7 gap-2">
+                      {monthDays.map(day => {
+                        const dayEvents = eventsOnDate(day);
+                        const isCurrentMonth = isSameMonth(day, currentDate);
+                        const isToday = isSameDay(day, new Date());
+
+                        return (
+                          <div
+                            key={day.toISOString()}
+                            className={`min-h-24 sm:min-h-32 p-2 rounded-md border ${
+                              isToday
+                                ? "bg-blue-100 border-blue-300 dark:bg-blue-900 dark:border-blue-700"
+                                : isCurrentMonth
+                                ? "bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-700"
+                                : "bg-gray-50 border-gray-200 opacity-50 dark:bg-slate-800 dark:border-slate-700 dark:opacity-30"
+                            }`}
+                            data-testid={`calendar-day-${format(day, "dd-MM-yyyy")}`}
+                          >
+                            <div className="text-xs sm:text-sm font-semibold mb-1 text-center">{format(day, "d")}</div>
+                            <div className="space-y-1">
+                              {dayEvents.slice(0, 2).map(event => (
+                                <button
+                                  key={event.id}
+                                  type="button"
+                                  className={`w-full text-left text-xs p-1 rounded border cursor-pointer hover:opacity-80 ${getEventColor(event.type)}`}
+                                  title={event.title}
+                                  data-testid={`event-${event.id}`}
+                                  onClick={() => handleEventClick(event)}
+                                >
+                                  {event.title.length > 12 ? `${event.title.substring(0, 12)}...` : event.title}
+                                </button>
+                              ))}
+                              {dayEvents.length > 2 && (
+                                <div className="text-xs text-muted-foreground text-center">
+                                  +{dayEvents.length - 2} más
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -235,7 +261,13 @@ export default function CalendarPage() {
                           ) : (
                             <div className="space-y-2">
                               {dayEvents.map(event => (
-                                <div key={event.id} className={`p-2 rounded border ${getEventColor(event.type)}`} data-testid={`event-${event.id}`}>
+                                <button
+                                  key={event.id}
+                                  type="button"
+                                  className={`w-full text-left p-2 rounded border ${getEventColor(event.type)}`}
+                                  data-testid={`event-${event.id}`}
+                                  onClick={() => handleEventClick(event)}
+                                >
                                   <div className="font-medium text-sm">{event.title}</div>
                                   <div className="flex gap-2 text-xs mt-1">
                                     {event.location && (
@@ -249,7 +281,7 @@ export default function CalendarPage() {
                                       {format(new Date(event.date), "HH:mm")}
                                     </div>
                                   </div>
-                                </div>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -276,10 +308,12 @@ export default function CalendarPage() {
                   <div className="text-sm text-muted-foreground">No hay eventos próximos</div>
                 ) : (
                   upcomingEvents.map(event => (
-                    <div
+                    <button
                       key={event.id}
-                      className="p-3 rounded-md border border-gray-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                      type="button"
+                      className="w-full text-left p-3 rounded-md border border-gray-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800"
                       data-testid={`upcoming-event-${event.id}`}
+                      onClick={() => handleEventClick(event)}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div className="text-sm font-semibold leading-tight line-clamp-2">{event.title}</div>
@@ -296,7 +330,7 @@ export default function CalendarPage() {
                           {event.location}
                         </div>
                       )}
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
@@ -304,6 +338,32 @@ export default function CalendarPage() {
           </Card>
         </div>
       </div>
+      <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedEvent?.title ?? "Detalle del evento"}</DialogTitle>
+          </DialogHeader>
+          {selectedEvent && (
+            <div className="space-y-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{getEventTypeLabel(selectedEvent.type)}</Badge>
+                <span className="text-muted-foreground">
+                  {format(new Date(selectedEvent.date), "d MMMM yyyy, HH:mm", { locale: es })}
+                </span>
+              </div>
+              {selectedEvent.location && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span>{selectedEvent.location}</span>
+                </div>
+              )}
+              {selectedEvent.description && (
+                <div className="text-muted-foreground">{selectedEvent.description}</div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
