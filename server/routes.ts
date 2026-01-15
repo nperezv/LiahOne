@@ -2876,6 +2876,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           date: i.date,
           type: "entrevista" as const,
           location: "Oficina",
+          status: i.status,
+          description: i.notes ?? undefined,
           organizationId: null,
         })),
         ...filteredActivities.map(a => ({
@@ -2884,6 +2886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           date: a.date,
           type: "actividad" as const,
           location: a.location,
+          description: a.description ?? undefined,
           organizationId: a.organizationId,
         })),
       ];
@@ -2906,6 +2909,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Date is required" });
       }
 
+      const user = (req as any).user;
+      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
+        user.role
+      );
       const eventDate = new Date(date);
       const eventEndTime = new Date(eventDate.getTime() + duration * 60000);
       
@@ -2916,11 +2923,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getAllActivities(),
       ]);
 
+      const visibleInterviews = isOrgMember
+        ? interviews.filter(
+            (interview) =>
+              interview && (interview.personName === user.name || interview.assignedToId === user.id)
+          )
+        : interviews;
+      const visibleActivities = isOrgMember
+        ? activities.filter(
+            (activity) =>
+              activity && (!activity.organizationId || activity.organizationId === user.organizationId)
+          )
+        : activities;
+
       const allEvents = [
         ...sacramentalMeetings.map(m => ({ id: m.id, date: new Date(m.date), title: "Reunión Sacramental", type: "reunion", duration: 90 })),
         ...wardCouncils.map(c => ({ id: c.id, date: new Date(c.date), title: "Consejo de Barrio", type: "consejo", duration: 120 })),
-        ...interviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
-        ...activities.map(a => ({ id: a.id, date: new Date(a.date), title: a.title, type: "actividad", duration: 120 })),
+        ...visibleInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
+        ...visibleActivities.map(a => ({ id: a.id, date: new Date(a.date), title: a.title, type: "actividad", duration: 120 })),
       ];
 
       // Find conflicts (events that overlap in time on the same day)
