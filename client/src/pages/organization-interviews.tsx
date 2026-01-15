@@ -126,12 +126,15 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
     if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)) {
       return trimmed;
     }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
     const asDate = new Date(trimmed);
     if (Number.isNaN(asDate.getTime())) return trimmed;
-    return asDate.toISOString();
+    return formatDateTimeForInput(asDate);
   }
   if (Number.isNaN(value.getTime())) return "";
-  return value.toISOString();
+  return formatDateTimeForInput(value);
 };
 
 const getStatusBadge = (status: string) => {
