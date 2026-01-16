@@ -110,11 +110,11 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
     const minutes = String(date.getMinutes()).padStart(2, "0");
   const build = (date: Date, useUtc: boolean) => {
     if (Number.isNaN(date.getTime())) return "";
-    const year = useUtc ? date.getUTCFullYear() : date.getFullYear();
-    const month = String((useUtc ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, "0");
-    const day = String(useUtc ? date.getUTCDate() : date.getDate()).padStart(2, "0");
-    const hours = String(useUtc ? date.getUTCHours() : date.getHours()).padStart(2, "0");
-    const minutes = String(useUtc ? date.getUTCMinutes() : date.getMinutes()).padStart(2, "0");
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
   if (typeof value === "string") {
@@ -124,6 +124,10 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
       return trimmed.slice(0, 16);
     }
     return build(new Date(trimmed));
+  }
+  const asDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(asDate.getTime())) return "";
+  return build(asDate);
   }
   return build(value);
     const useUtc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
@@ -143,6 +147,9 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
       return trimmed;
     }
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      const asDate = new Date(trimmed);
+      if (Number.isNaN(asDate.getTime())) return trimmed.slice(0, 16);
+      return asDate.toISOString();
       return new Date(trimmed).toISOString();
       return trimmed.slice(0, 16);
     }
@@ -152,6 +159,7 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
   }
   const asDate = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(asDate.getTime())) return "";
+  return asDate.toISOString();
   return formatDateTimeForInput(asDate);
 };
 
