@@ -282,6 +282,7 @@ export const sacramentalMeetings = pgTable("sacramental_meetings", {
 export const wardCouncils = pgTable("ward_councils", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   date: timestamp("date").notNull(),
+  location: text("location"),
   status: text("status").default("programado"),
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),

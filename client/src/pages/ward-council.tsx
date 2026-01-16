@@ -51,6 +51,8 @@ import { useToast } from "@/hooks/use-toast";
 
 const councilSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
+  time: z.string().optional(),
+  location: z.string().optional(),
   presider: z.string().optional(),
   director: z.string().optional(),
   openingPrayer: z.string().optional(),
@@ -115,6 +117,33 @@ const formatDateForInput = (value?: string | Date | null) => {
   const date = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().split("T")[0];
+};
+
+const formatTimeForInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
+
+const formatTimeForDisplay = (value?: string | Date | null) => {
+  if (!value) return "-";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const combineDateTime = (date: string, time?: string) => {
+  if (!date) return "";
+  if (time?.trim()) {
+    return `${date}T${time}`;
+  }
+  return date;
 };
 
 function renderLeaderOptions(
@@ -549,6 +578,8 @@ export default function WardCouncilPage() {
     resolver: zodResolver(councilSchema),
     defaultValues: {
       date: "",
+      time: "",
+      location: "",
       presider: "",
       director: "",
       openingPrayer: "",
@@ -580,12 +611,15 @@ export default function WardCouncilPage() {
   ========================= */
 
   const onCreate = (data: CouncilFormValues) => {
-    const { hasSpiritualThought, ...payload } = data;
+    const { hasSpiritualThought, time, ...payload } = data;
+    const dateTime = combineDateTime(data.date, data.time);
     createMutation.mutate(
       {
         ...payload,
+        date: dateTime,
         previousAssignments: data.previousAssignments || [],
         adjustmentsNotes: data.adjustmentsNotes || "",
+        location: data.location || "",
         presider: data.presider || "",
         director: data.director || "",
         openingPrayer: data.openingPrayer || "",
@@ -608,15 +642,18 @@ export default function WardCouncilPage() {
 
   const onEdit = (data: CouncilFormValues) => {
     if (!editingCouncil) return;
-    const { hasSpiritualThought, ...payload } = data;
+    const { hasSpiritualThought, time, ...payload } = data;
+    const dateTime = combineDateTime(data.date, data.time);
 
     updateMutation.mutate(
       {
         id: editingCouncil.id,
         data: {
           ...payload,
+          date: dateTime,
           previousAssignments: data.previousAssignments || [],
           adjustmentsNotes: data.adjustmentsNotes || "",
+          location: data.location || "",
           presider: data.presider || "",
           director: data.director || "",
           openingPrayer: data.openingPrayer || "",
@@ -642,6 +679,8 @@ export default function WardCouncilPage() {
     setEditLeaderOrganizationFilter("all");
     editForm.reset({
       date: formatDateForInput(council.date),
+      time: formatTimeForInput(council.date),
+      location: council.location || "",
       presider: council.presider || "",
       director: council.director || "",
       openingPrayer: council.openingPrayer || "",
@@ -789,12 +828,39 @@ export default function WardCouncilPage() {
                       control={createForm.control}
                       name="date"
                       render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                    <FormField
+                      control={createForm.control}
+                      name="time"
+                      render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Fecha</FormLabel>
+                          <FormLabel>Hora</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <Input type="time" {...field} />
                           </FormControl>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="location"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Lugar</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Ej. Salón de consejeros" />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -1186,6 +1252,14 @@ export default function WardCouncilPage() {
                       ? "Finalizado"
                       : "Programado"}
                   </span>
+
+                  <span>
+                    <strong>Hora:</strong> {formatTimeForDisplay(c.date)}
+                  </span>
+
+                  <span>
+                    <strong>Lugar:</strong> {c.location || "-"}
+                  </span>
                   
                   <span>
                     <strong>Preside:</strong> {c.presider || "-"}
@@ -1276,6 +1350,32 @@ export default function WardCouncilPage() {
                     <FormLabel>Fecha</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hora</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lugar</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Ej. Salón de consejeros" />
                     </FormControl>
                   </FormItem>
                 )}
