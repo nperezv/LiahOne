@@ -2864,6 +2864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         wardName: "Barrio",
         stakeName: "Estaca",
         country: "País",
+        sacramentMeetingTime: "10:00",
         headerColor: "1F2937",
         accentColor: "3B82F6",
         logoUrl: undefined,
@@ -3071,6 +3072,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
       const isSecretary = user.role === "secretario";
       const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
+
+      const template = await storage.getPdfTemplate();
+      const sacramentMeetingTime = template?.sacramentMeetingTime || "10:00";
+      const applyMeetingTime = (dateValue: string | Date) => {
+        const date = new Date(dateValue);
+        if (Number.isNaN(date.getTime())) return date;
+        const [hours, minutes] = sacramentMeetingTime.split(":").map(Number);
+        if (!Number.isNaN(hours)) {
+          date.setHours(hours, Number.isNaN(minutes) ? 0 : minutes, 0, 0);
+        }
+        return date;
+      };
       
       const [sacramentalMeetings, wardCouncils, interviews, activities] = await Promise.all([
         storage.getAllSacramentalMeetings(),
@@ -3097,7 +3110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...sacramentalMeetings.map(m => ({
           id: m.id,
           title: "Reunión Sacramental",
-          date: m.date,
+          date: applyMeetingTime(m.date),
           type: "reunion" as const,
           location: "Salón sacramental",
           organizationId: null,
@@ -3153,7 +3166,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
         user.role
       );
-      const eventDate = new Date(date);
+      const template = await storage.getPdfTemplate();
+      const sacramentMeetingTime = template?.sacramentMeetingTime || "10:00";
+      let eventDate = new Date(date);
+
+      const applyMeetingTime = (dateValue: string | Date) => {
+        const dateValueInstance = new Date(dateValue);
+        if (Number.isNaN(dateValueInstance.getTime())) return dateValueInstance;
+        const [hours, minutes] = sacramentMeetingTime.split(":").map(Number);
+        if (!Number.isNaN(hours)) {
+          dateValueInstance.setHours(hours, Number.isNaN(minutes) ? 0 : minutes, 0, 0);
+        }
+        return dateValueInstance;
+      };
+
+      if (type === "reunion") {
+        eventDate = applyMeetingTime(eventDate);
+      }
+
       const eventEndTime = new Date(eventDate.getTime() + duration * 60000);
       
       const [sacramentalMeetings, wardCouncils, interviews, activities] = await Promise.all([
@@ -3177,7 +3207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : activities;
 
       const allEvents = [
-        ...sacramentalMeetings.map(m => ({ id: m.id, date: new Date(m.date), title: "Reunión Sacramental", type: "reunion", duration: 90 })),
+        ...sacramentalMeetings.map(m => ({ id: m.id, date: applyMeetingTime(m.date), title: "Reunión Sacramental", type: "reunion", duration: 90 })),
         ...wardCouncils.map(c => ({ id: c.id, date: new Date(c.date), title: "Consejo de Barrio", type: "consejo", duration: 120 })),
         ...visibleInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
         ...visibleActivities.map(a => ({ id: a.id, date: new Date(a.date), title: a.title, type: "actividad", duration: 120 })),
