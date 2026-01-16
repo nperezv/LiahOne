@@ -66,6 +66,7 @@ export default function Settings() {
     onSuccess: async (response) => {
       // Update React Query cache with new data
       queryClient.setQueryData(["/api/pdf-template"], response);
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       
       toast({
         title: "Éxito",
