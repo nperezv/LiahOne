@@ -118,7 +118,9 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
     const useUtc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
     return build(new Date(trimmed), useUtc);
   }
-  return build(value, false);
+  const asDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(asDate.getTime())) return "";
+  return build(asDate, false);
 };
 
 const formatDateTimeForApi = (value?: string | Date | null) => {
@@ -136,8 +138,9 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
     if (Number.isNaN(asDate.getTime())) return trimmed;
     return formatDateTimeForInput(asDate);
   }
-  if (Number.isNaN(value.getTime())) return "";
-  return formatDateTimeForInput(value);
+  const asDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(asDate.getTime())) return "";
+  return formatDateTimeForInput(asDate);
 };
 
 export default function InterviewsPage() {
