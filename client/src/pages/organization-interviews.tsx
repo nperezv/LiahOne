@@ -108,6 +108,13 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
     const day = String(date.getDate()).padStart(2, "0");
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
+  const build = (date: Date, useUtc: boolean) => {
+    if (Number.isNaN(date.getTime())) return "";
+    const year = useUtc ? date.getUTCFullYear() : date.getFullYear();
+    const month = String((useUtc ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, "0");
+    const day = String(useUtc ? date.getUTCDate() : date.getDate()).padStart(2, "0");
+    const hours = String(useUtc ? date.getUTCHours() : date.getHours()).padStart(2, "0");
+    const minutes = String(useUtc ? date.getUTCMinutes() : date.getMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
   if (typeof value === "string") {
@@ -119,6 +126,10 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
     return build(new Date(trimmed));
   }
   return build(value);
+    const useUtc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
+    return build(new Date(trimmed), useUtc);
+  }
+  return build(value, false);
 };
 
 const formatDateTimeForApi = (value?: string | Date | null) => {
@@ -131,13 +142,14 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
     }
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
       return new Date(trimmed).toISOString();
+      return trimmed.slice(0, 16);
     }
     const asDate = new Date(trimmed);
     if (Number.isNaN(asDate.getTime())) return trimmed;
-    return asDate.toISOString();
+    return formatDateTimeForInput(asDate);
   }
   if (Number.isNaN(value.getTime())) return "";
-  return value.toISOString();
+  return formatDateTimeForInput(value);
 };
 
 const getStatusBadge = (status: string) => {
