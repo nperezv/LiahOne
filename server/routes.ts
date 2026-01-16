@@ -3107,7 +3107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: "Consejo de Barrio",
           date: c.date,
           type: "consejo" as const,
-          location: "Salón de consejeros",
+          location: c.location || "Salón de consejeros",
           organizationId: null,
         })),
         ...filteredInterviews.map(i => ({
