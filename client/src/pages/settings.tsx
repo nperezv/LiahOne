@@ -24,6 +24,7 @@ const templateSchema = z.object({
   wardName: z.string().min(1, "El nombre del barrio es requerido"),
   stakeName: z.string().optional(),
   country: z.string().optional(),
+  sacramentMeetingTime: z.string().optional(),
   headerColor: z.string().min(1, "El color de encabezado es requerido"),
   accentColor: z.string().min(1, "El color de acento es requerido"),
   logoUrl: z.string().optional(),
@@ -50,6 +51,7 @@ export default function Settings() {
       wardName: template?.wardName || "Barrio",
       stakeName: template?.stakeName || "Estaca",
       country: template?.country || "País",
+      sacramentMeetingTime: template?.sacramentMeetingTime || "10:00",
       headerColor: template?.headerColor || "1F2937",
       accentColor: template?.accentColor || "3B82F6",
       logoUrl: template?.logoUrl || "",
@@ -111,6 +113,7 @@ export default function Settings() {
         wardName: template.wardName || "Barrio",
         stakeName: template.stakeName || "Estaca",
         country: template.country || "País",
+        sacramentMeetingTime: template.sacramentMeetingTime || "10:00",
         headerColor: template.headerColor || "1F2937",
         accentColor: template.accentColor || "3B82F6",
         logoUrl: template.logoUrl || "",
@@ -208,6 +211,23 @@ export default function Settings() {
                       )}
                     />
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="sacramentMeetingTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hora de la Reunión Sacramental</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} data-testid="input-sacrament-time" />
+                        </FormControl>
+                        <FormDescription>
+                          Define la hora que mostrará el calendario para la reunión sacramental.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField

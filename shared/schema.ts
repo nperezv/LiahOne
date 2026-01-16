@@ -799,6 +799,7 @@ export const pdfTemplates = pgTable("pdf_templates", {
   wardName: text("ward_name").notNull().default("Barrio"),
   stakeName: text("stake_name").default("Estaca"),
   country: text("country").default("País"),
+  sacramentMeetingTime: text("sacrament_meeting_time").default("10:00"),
   headerColor: text("header_color").notNull().default("1F2937"),
   accentColor: text("accent_color").notNull().default("3B82F6"),
   logoUrl: text("logo_url"),
