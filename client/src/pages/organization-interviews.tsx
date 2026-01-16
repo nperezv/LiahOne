@@ -108,15 +108,9 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
     const day = String(date.getDate()).padStart(2, "0");
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
-  const build = (date: Date, useUtc: boolean) => {
-    if (Number.isNaN(date.getTime())) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
+
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return "";
@@ -125,17 +119,10 @@ const formatDateTimeForInput = (value?: string | Date | null) => {
     }
     return build(new Date(trimmed));
   }
+
   const asDate = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(asDate.getTime())) return "";
   return build(asDate);
-  }
-  return build(value);
-    const useUtc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed);
-    return build(new Date(trimmed), useUtc);
-  }
-  const asDate = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(asDate.getTime())) return "";
-  return build(asDate, false);
 };
 
 const formatDateTimeForApi = (value?: string | Date | null) => {
@@ -150,17 +137,14 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
       const asDate = new Date(trimmed);
       if (Number.isNaN(asDate.getTime())) return trimmed.slice(0, 16);
       return asDate.toISOString();
-      return new Date(trimmed).toISOString();
-      return trimmed.slice(0, 16);
     }
     const asDate = new Date(trimmed);
     if (Number.isNaN(asDate.getTime())) return trimmed;
-    return formatDateTimeForInput(asDate);
+    return asDate.toISOString();
   }
   const asDate = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(asDate.getTime())) return "";
   return asDate.toISOString();
-  return formatDateTimeForInput(asDate);
 };
 
 const getStatusBadge = (status: string) => {
