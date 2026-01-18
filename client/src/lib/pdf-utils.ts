@@ -202,12 +202,13 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     ctx.doc.text(`${label}:`, x, y);
 
     const labelW = ctx.doc.getTextWidth(`${label}:`);
-    const valueX = x + labelW + 4;
+    const isRecognition = label === "Reconocimiento";
+    const valueX = isRecognition ? x : x + labelW + 4;
 
     const entries = splitEntries(value);
     const availableW = Math.max(10, maxW - (valueX - x));
 
-    let currentY = y;
+    let currentY = isRecognition ? y + ctx.lineHeight : y;
     entries.forEach((entry, index) => {
       const [namePart, callingPartRaw] = entry.split("|").map((part) => part.trim());
       const callingPart = callingPartRaw ? normalizeCallingLabel(callingPartRaw) : "";
@@ -231,13 +232,13 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
         const lastLine = lines[lines.length - 1] || "";
         setBodyFont(ctx, 11, "normal");
         const lastLineW = ctx.doc.getTextWidth(lastLine);
-        const callingText = ` (${callingPart})`;
-        setBodyFont(ctx, 9, "italic");
+        const callingText = ` ${callingPart}`;
         const callingW = ctx.doc.getTextWidth(callingText);
         const inlineX = valueX + lastLineW + 2;
         const fitsInline = inlineX + callingW <= x + maxW;
 
         ctx.doc.setTextColor(120, 120, 120);
+        setBodyFont(ctx, 9, "italic");
         if (fitsInline) {
           ctx.doc.text(callingText, inlineX, currentY);
         } else {
