@@ -212,10 +212,13 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     }
 
     if (callingPart) {
-      y += ctx.lineHeight;
+      const linePrefix = lines[lines.length - 1] || "";
+      const lineX = lines.length > 1 ? x : valueX;
+      const lineY = lines.length > 1 ? y : y;
+      const prefixWidth = ctx.doc.getTextWidth(linePrefix);
       setBodyFont(ctx, 10, "italic");
       ctx.doc.setTextColor(120, 120, 120);
-      ctx.doc.text(callingPart, x, y);
+      ctx.doc.text(` - ${callingPart}`, lineX + prefixWidth, lineY);
       ctx.doc.setTextColor(0, 0, 0);
       setBodyFont(ctx, 11, "normal");
     }
@@ -355,6 +358,13 @@ function normalizeMeeting(meeting: any) {
   }
 
   return normalizedMeeting;
+}
+
+function formatPersonWithCalling(value?: string) {
+  if (!value) return "";
+  const [namePart, callingPart] = value.split("|").map((part) => part.trim());
+  if (!callingPart) return namePart || "";
+  return `${namePart || ""} - ${callingPart}`;
 }
 
 function groupBy<T>(arr: T[], keyFn: (t: T) => string): Record<string, T[]> {
@@ -851,7 +861,7 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
 
   for (const m of meetings) {
     const d = new Date(m.date);
-    const line = `${formatMeetingDate(d)}  —  Preside: ${m.presider || "-"}  —  Dirige: ${m.director || "-"}`;
+    const line = `${formatMeetingDate(d)}  —  Preside: ${formatPersonWithCalling(m.presider) || "-"}  —  Dirige: ${formatPersonWithCalling(m.director) || "-"}`;
     const lines = doc.splitTextToSize(line, 180);
     lines.forEach((ln: string) => {
       if (y > 275) {
@@ -931,8 +941,8 @@ export async function generateWardCouncilPDF(council: any) {
   };
 
   const openingParts = [
-    council.presider ? `Preside: ${council.presider}` : null,
-    council.director ? `Dirige: ${council.director}` : null,
+    council.presider ? `Preside: ${formatPersonWithCalling(council.presider)}` : null,
+    council.director ? `Dirige: ${formatPersonWithCalling(council.director)}` : null,
     council.openingPrayer ? `Oración de apertura: ${council.openingPrayer}` : null,
     council.openingHymn ? `Himno: ${council.openingHymn}` : null,
     council.spiritualThoughtBy
