@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, FileText, Edit, Trash2, Download } from "lucide-react";
@@ -98,6 +98,12 @@ export default function SacramentalMeetingPage() {
   const [childBlessings, setChildBlessings] = useState<string[]>([""]);
   const [confirmations, setConfirmations] = useState<string[]>([""]);
   const [intermediateHymnType, setIntermediateHymnType] = useState<"congregation" | "choir" | "">("");
+  const [directorSelection, setDirectorSelection] = useState("");
+  const [directorLeaderName, setDirectorLeaderName] = useState("");
+  const [directorLeaderCalling, setDirectorLeaderCalling] = useState("");
+  const [presiderSelection, setPresiderSelection] = useState("");
+  const [presiderAuthorityName, setPresiderAuthorityName] = useState("");
+  const [presiderAuthorityType, setPresiderAuthorityType] = useState("");
 
   // Calling mapping by organization type
   const callingsByOrgType: Record<string, string[]> = {
@@ -135,6 +141,62 @@ export default function SacramentalMeetingPage() {
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
 
+  const bishopricMembers = useMemo(
+    () => users.filter((member: any) => ["obispo", "consejero_obispo"].includes(member.role)),
+    [users]
+  );
+  const getMemberLabel = (member?: any) =>
+    member?.fullName || member?.name || member?.email || "";
+  const parsePersonValue = (value?: string) => {
+    const trimmed = value?.trim() || "";
+    if (!trimmed) return { name: "", calling: "" };
+    const [name, calling] = trimmed.split("|").map((part) => part.trim());
+    return { name: name || "", calling: calling || "" };
+  };
+  const buildPersonValue = (name: string, calling?: string) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return "";
+    const trimmedCalling = calling?.trim();
+    return trimmedCalling ? `${trimmedName} | ${trimmedCalling}` : trimmedName;
+  };
+  const bishopricNames = useMemo(
+    () => bishopricMembers.map((member: any) => getMemberLabel(member)).filter(Boolean),
+    [bishopricMembers]
+  );
+  const bishopricByName = useMemo(() => {
+    const map = new Map<string, any>();
+    bishopricMembers.forEach((member: any) => {
+      const label = getMemberLabel(member);
+      if (label) map.set(label, member);
+    });
+    return map;
+  }, [bishopricMembers]);
+  const bishopricNamesKey = bishopricNames.join("|");
+  const bishopName = bishopricMembers.find((member: any) => member.role === "obispo");
+  const bishopLabel = getMemberLabel(bishopName);
+  const getBishopricCalling = (name: string) => {
+    const member = bishopricByName.get(name);
+    if (!member) return "";
+    return member.role === "obispo" ? "Obispo" : "Consejero del Obispado";
+  };
+  const normalizeAuthorityName = (value?: string) => {
+    if (!value) return "";
+    return value.split("-")[0].split("|")[0].trim();
+  };
+  const authorityOptions = useMemo(
+    () => [
+      { value: "presidente_estaca", label: "Presidente de estaca", calling: "Presidente de Estaca" },
+      { value: "primer_consejero_estaca", label: "1er Consejero de la Presidencia de Estaca", calling: "1er Consejero de la Presidencia de Estaca" },
+      { value: "segundo_consejero_estaca", label: "2do Consejero de la Presidencia de Estaca", calling: "2do Consejero de la Presidencia de Estaca" },
+      { value: "setenta_area", label: "70 de área", calling: "Élder" },
+      { value: "setenta_autoridad_general", label: "70 autoridad general", calling: "Élder" },
+      { value: "apostol", label: "Apóstol", calling: "Élder" },
+    ],
+    []
+  );
+  const authorityCallingByValue = (value: string) =>
+    authorityOptions.find((option) => option.value === value)?.calling || "";
+
   // Log meetings when they load to debug discourses
   console.log("Loaded meetings from API:", meetings);
 
@@ -163,6 +225,12 @@ export default function SacramentalMeetingPage() {
       setHasChildBlessings(false);
       setHasConfirmations(false);
       setHasStakeBusiness(false);
+      setDirectorSelection("");
+      setDirectorLeaderName("");
+      setDirectorLeaderCalling("");
+      setPresiderSelection("");
+      setPresiderAuthorityName("");
+      setPresiderAuthorityType("");
     }
   };
 
@@ -186,6 +254,19 @@ export default function SacramentalMeetingPage() {
     setHasChildBlessings((meeting.childBlessings?.length || 0) > 0);
     setHasConfirmations((meeting.confirmations?.length || 0) > 0);
     setHasStakeBusiness(!!meeting.stakeBusiness);
+    const parsedDirector = parsePersonValue(meeting.director);
+    const directorName = parsedDirector.name;
+    const isBishopricDirector = bishopricNames.includes(directorName);
+    setDirectorSelection(isBishopricDirector ? directorName : directorName ? "lider_asignado" : "");
+    setDirectorLeaderName(isBishopricDirector ? "" : directorName);
+    setDirectorLeaderCalling(isBishopricDirector ? "" : parsedDirector.calling);
+    const parsedPresider = parsePersonValue(meeting.presider);
+    const presiderName = parsedPresider.name;
+    const isBishopricPresider = bishopricNames.includes(presiderName);
+    setPresiderSelection(isBishopricPresider ? presiderName : presiderName ? "autoridad_presidente" : "");
+    setPresiderAuthorityName(isBishopricPresider ? "" : presiderName);
+    const authorityValue = authorityOptions.find((option) => option.calling === parsedPresider.calling)?.value || "";
+    setPresiderAuthorityType(isBishopricPresider ? "" : authorityValue);
     setIsDialogOpen(true);
   };
 
@@ -222,6 +303,89 @@ export default function SacramentalMeetingPage() {
       isTestimonyMeeting: false,
     },
   });
+
+  const directorValue = useWatch({ control: form.control, name: "director" });
+  const presiderValue = useWatch({ control: form.control, name: "presider" });
+  const visitingAuthorityValue = useWatch({ control: form.control, name: "visitingAuthority" });
+
+  useEffect(() => {
+    if (!isDialogOpen || editingId) return;
+    const currentPresider = form.getValues("presider")?.trim();
+    if (!currentPresider && bishopLabel) {
+      const calling = getBishopricCalling(bishopLabel);
+      form.setValue("presider", buildPersonValue(bishopLabel, calling));
+      setPresiderSelection(bishopLabel);
+    }
+  }, [bishopLabel, editingId, form, isDialogOpen]);
+
+  useEffect(() => {
+    if (!directorValue) return;
+    const parsedDirector = parsePersonValue(directorValue);
+    const trimmedDirector = parsedDirector.name.trim();
+    if (!trimmedDirector || !bishopricNames.includes(trimmedDirector)) return;
+    const otherBishopric = bishopricNames.filter((name) => name !== trimmedDirector);
+    if (!otherBishopric.length) return;
+    const currentNames = (visitingAuthorityValue || "")
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const manualNames = currentNames.filter(
+      (name) => !bishopricNames.includes(normalizeAuthorityName(name))
+    );
+    const otherBishopricNames = otherBishopric.map(
+      (name) => `${name} - ${getBishopricCalling(name)}`
+    );
+    const nextNames = [...manualNames, ...otherBishopricNames];
+    const nextValue = nextNames.join(", ");
+    if (nextValue && nextValue !== visitingAuthorityValue) {
+      form.setValue("visitingAuthority", nextValue, { shouldDirty: true });
+    }
+  }, [bishopricNamesKey, directorValue, form, visitingAuthorityValue]);
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    const parsedDirector = parsePersonValue(form.getValues("director"));
+    const currentDirector = parsedDirector.name.trim();
+    if (!currentDirector) {
+      if (directorSelection) setDirectorSelection("");
+      if (directorLeaderName) setDirectorLeaderName("");
+      if (directorLeaderCalling) setDirectorLeaderCalling("");
+      return;
+    }
+    if (bishopricNames.includes(currentDirector)) {
+      if (directorSelection !== currentDirector) setDirectorSelection(currentDirector);
+      if (directorLeaderName) setDirectorLeaderName("");
+      if (directorLeaderCalling) setDirectorLeaderCalling("");
+      return;
+    }
+    if (directorSelection !== "lider_asignado") setDirectorSelection("lider_asignado");
+    if (!directorLeaderName) setDirectorLeaderName(currentDirector);
+    if (!directorLeaderCalling && parsedDirector.calling) setDirectorLeaderCalling(parsedDirector.calling);
+  }, [bishopricNamesKey, directorLeaderCalling, directorLeaderName, directorSelection, form, isDialogOpen]);
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    const parsedPresider = parsePersonValue(presiderValue);
+    const presiderName = parsedPresider.name.trim();
+    if (!presiderName) {
+      if (presiderSelection) setPresiderSelection("");
+      if (presiderAuthorityName) setPresiderAuthorityName("");
+      if (presiderAuthorityType) setPresiderAuthorityType("");
+      return;
+    }
+    if (bishopricNames.includes(presiderName)) {
+      if (presiderSelection !== presiderName) setPresiderSelection(presiderName);
+      if (presiderAuthorityName) setPresiderAuthorityName("");
+      if (presiderAuthorityType) setPresiderAuthorityType("");
+      return;
+    }
+    if (presiderSelection !== "autoridad_presidente") setPresiderSelection("autoridad_presidente");
+    if (!presiderAuthorityName) setPresiderAuthorityName(presiderName);
+    if (!presiderAuthorityType && parsedPresider.calling) {
+      const matchedAuthority = authorityOptions.find((option) => option.calling === parsedPresider.calling)?.value || "";
+      if (matchedAuthority) setPresiderAuthorityType(matchedAuthority);
+    }
+  }, [authorityOptions, bishopricNamesKey, presiderAuthorityName, presiderAuthorityType, presiderSelection, presiderValue, isDialogOpen]);
 
   const onSubmit = (data: MeetingFormValues) => {
     if (!data.date) {
@@ -456,7 +620,72 @@ export default function SacramentalMeetingPage() {
                           <FormItem>
                             <FormLabel>Preside</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nombre completo" {...field} data-testid="input-presider" />
+                              <div className="space-y-2">
+                                <Select
+                                  value={presiderSelection}
+                                  onValueChange={(value) => {
+                                    setPresiderSelection(value);
+                                    if (value === "autoridad_presidente") {
+                                      setPresiderAuthorityName("");
+                                      setPresiderAuthorityType("");
+                                      field.onChange("");
+                                      return;
+                                    }
+                                    setPresiderAuthorityName("");
+                                    setPresiderAuthorityType("");
+                                    const calling = getBishopricCalling(value);
+                                    field.onChange(buildPersonValue(value, calling));
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona al obispado" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {bishopricNames.map((name) => (
+                                      <SelectItem key={name} value={name}>
+                                        {name}
+                                      </SelectItem>
+                                    ))}
+                                    <SelectItem value="autoridad_presidente">Autoridad presidente</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {presiderSelection === "autoridad_presidente" && (
+                                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                    <Select
+                                      value={presiderAuthorityType}
+                                      onValueChange={(value) => {
+                                        setPresiderAuthorityType(value);
+                                        const calling = authorityCallingByValue(value);
+                                        if (presiderAuthorityName) {
+                                          field.onChange(buildPersonValue(presiderAuthorityName, calling));
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Autoridad visitante" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {authorityOptions.map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      placeholder="Nombre completo"
+                                      value={presiderAuthorityName}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setPresiderAuthorityName(value);
+                                        const calling = authorityCallingByValue(presiderAuthorityType);
+                                        field.onChange(buildPersonValue(value, calling));
+                                      }}
+                                      data-testid="input-presider"
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -469,7 +698,62 @@ export default function SacramentalMeetingPage() {
                           <FormItem>
                             <FormLabel>Dirige</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nombre completo" {...field} data-testid="input-director" />
+                              <div className="space-y-2">
+                                <Select
+                                  value={directorSelection}
+                                  onValueChange={(value) => {
+                                    setDirectorSelection(value);
+                                    if (value === "lider_asignado") {
+                                      setDirectorLeaderName("");
+                                      setDirectorLeaderCalling("");
+                                      field.onChange("");
+                                      return;
+                                    }
+                                    setDirectorLeaderName("");
+                                    setDirectorLeaderCalling("");
+                                    const calling = getBishopricCalling(value);
+                                    field.onChange(buildPersonValue(value, calling));
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona al obispado" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {bishopricNames.map((name) => (
+                                      <SelectItem key={name} value={name}>
+                                        {name}
+                                      </SelectItem>
+                                    ))}
+                                    <SelectItem value="lider_asignado">Líder asignado</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {directorSelection === "lider_asignado" && (
+                                  <>
+                                    <Input
+                                      placeholder="Nombre completo"
+                                      value={directorLeaderName}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setDirectorLeaderName(value);
+                                        const calling = directorLeaderCalling || "";
+                                        field.onChange(buildPersonValue(value, calling));
+                                      }}
+                                      data-testid="input-director"
+                                    />
+                                    <Input
+                                      placeholder="Llamamiento de quien dirige"
+                                      value={directorLeaderCalling}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setDirectorLeaderCalling(value);
+                                        if (directorLeaderName) {
+                                          field.onChange(buildPersonValue(directorLeaderName, value));
+                                        }
+                                      }}
+                                    />
+                                  </>
+                                )}
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

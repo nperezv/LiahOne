@@ -197,8 +197,10 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     const labelW = ctx.doc.getTextWidth(`${label}:`);
     const valueX = x + labelW + 4;
 
+    const [namePart, callingPart] = value.split("|").map((part) => part.trim());
     setBodyFont(ctx, 11, "normal");
-    const lines = wrapLines(ctx, value, Math.max(10, maxW - (valueX - x)));
+    const displayValue = callingPart ? `${namePart} - ${callingPart}` : namePart || value;
+    const lines = wrapLines(ctx, displayValue, Math.max(10, maxW - (valueX - x)));
     if (lines.length === 0) return y + ctx.lineHeight;
 
     ctx.doc.text(lines[0], valueX, y);
@@ -305,6 +307,11 @@ function drawBulletList(ctx: PdfCtx, items: string[], opts?: { indent?: number; 
 
 function normalizeMeeting(meeting: any) {
   const normalizedMeeting = { ...meeting };
+  const parsePersonName = (value?: string) => {
+    if (!value) return "";
+    const [namePart] = value.split("|").map((part) => part.trim());
+    return namePart?.split("-")[0].trim() || "";
+  };
 
   if (typeof normalizedMeeting.isTestimonyMeeting === "string") {
     normalizedMeeting.isTestimonyMeeting = normalizedMeeting.isTestimonyMeeting === "true";
@@ -327,6 +334,17 @@ function normalizeMeeting(meeting: any) {
   maybeParse("aaronicOrderings");
   maybeParse("childBlessings");
   maybeParse("confirmations");
+
+  if (typeof normalizedMeeting.visitingAuthority === "string") {
+    const directorName = parsePersonName(String(normalizedMeeting.director || ""));
+    if (directorName) {
+      const filteredAuthorities = normalizedMeeting.visitingAuthority
+        .split(",")
+        .map((name: string) => name.trim())
+        .filter((name: string) => name && parsePersonName(name) !== directorName);
+      normalizedMeeting.visitingAuthority = filteredAuthorities.join(", ");
+    }
+  }
 
   return normalizedMeeting;
 }
