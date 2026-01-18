@@ -340,9 +340,11 @@ export default function SacramentalMeetingPage() {
     const parsedDirector = parsePersonValue(form.getValues("director"));
     const currentDirector = parsedDirector.name.trim();
     if (!currentDirector) {
-      if (directorSelection) setDirectorSelection("");
-      if (directorCustom) setDirectorCustom("");
-      if (directorCustomCalling) setDirectorCustomCalling("");
+      if (directorSelection !== directorAssignedSelection) {
+        if (directorSelection) setDirectorSelection("");
+        if (directorCustom) setDirectorCustom("");
+        if (directorCustomCalling) setDirectorCustomCalling("");
+      }
       return;
     }
     if (bishopricNames.includes(currentDirector)) {
@@ -361,9 +363,11 @@ export default function SacramentalMeetingPage() {
     const parsedPresider = parsePersonValue(presiderValue);
     const presiderName = parsedPresider.name.trim();
     if (!presiderName) {
-      if (presiderSelection) setPresiderSelection("");
-      if (presiderCustomName) setPresiderCustomName("");
-      if (presiderAuthorityType) setPresiderAuthorityType("");
+      if (presiderSelection !== presiderAuthoritySelection) {
+        if (presiderSelection) setPresiderSelection("");
+        if (presiderCustomName) setPresiderCustomName("");
+        if (presiderAuthorityType) setPresiderAuthorityType("");
+      }
       return;
     }
     if (bishopricNames.includes(presiderName)) {
@@ -1513,8 +1517,8 @@ export default function SacramentalMeetingPage() {
                     day: "numeric",
                   })}
                 </TableCell>
-                <TableCell>{meeting.presider || "-"}</TableCell>
-                <TableCell>{meeting.director || "-"}</TableCell>
+                <TableCell>{parsePersonValue(meeting.presider).name || "-"}</TableCell>
+                <TableCell>{parsePersonValue(meeting.director).name || "-"}</TableCell>
                 <TableCell>
                   {(() => {
                     // Handle both boolean and string values from database
