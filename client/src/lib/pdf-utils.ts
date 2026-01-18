@@ -189,6 +189,11 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
   setBodyFont(ctx, 11, "normal");
 
   const normalizeCallingLabel = (value: string) => (value === "Consejero" ? "Consejero del Obispado" : value);
+  const splitEntries = (value: string) =>
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
 
   const drawOne = (x: number, y: number, label: string, value: string, maxW: number) => {
     if (!value) return y;
@@ -199,32 +204,57 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     const labelW = ctx.doc.getTextWidth(`${label}:`);
     const valueX = x + labelW + 4;
 
-    const [namePart, callingPartRaw] = value.split("|").map((part) => part.trim());
-    const callingPart = callingPartRaw ? normalizeCallingLabel(callingPartRaw) : "";
-    setBodyFont(ctx, 11, "normal");
-    const lines = wrapLines(ctx, namePart || value, Math.max(10, maxW - (valueX - x)));
-    if (lines.length === 0) return y + ctx.lineHeight;
+    const entries = splitEntries(value);
+    const availableW = Math.max(10, maxW - (valueX - x));
 
     let currentY = y;
-    ctx.doc.text(lines[0], valueX, currentY);
+    entries.forEach((entry, index) => {
+      const [namePart, callingPartRaw] = entry.split("|").map((part) => part.trim());
+      const callingPart = callingPartRaw ? normalizeCallingLabel(callingPartRaw) : "";
+      const nameText = namePart || entry;
 
-    if (lines.length > 1) {
-      for (let i = 1; i < lines.length; i++) {
-        currentY += ctx.lineHeight;
-        ctx.doc.text(lines[i], x, currentY);
-      }
-    }
-
-    if (callingPart) {
-      currentY += ctx.lineHeight;
-      setBodyFont(ctx, 10, "italic");
-      ctx.doc.setTextColor(120, 120, 120);
-      ctx.doc.text(callingPart, valueX, currentY);
-      ctx.doc.setTextColor(0, 0, 0);
       setBodyFont(ctx, 11, "normal");
-    }
+      const lines = wrapLines(ctx, nameText, availableW);
+      if (lines.length === 0) {
+        currentY += ctx.lineHeight;
+        return;
+      }
 
-    return currentY + ctx.lineHeight;
+      lines.forEach((line, lineIndex) => {
+        ctx.doc.text(line, valueX, currentY);
+        if (lineIndex < lines.length - 1) {
+          currentY += ctx.lineHeight;
+        }
+      });
+
+      if (callingPart) {
+        const lastLine = lines[lines.length - 1] || "";
+        setBodyFont(ctx, 11, "normal");
+        const lastLineW = ctx.doc.getTextWidth(lastLine);
+        const callingText = ` (${callingPart})`;
+        setBodyFont(ctx, 9, "italic");
+        const callingW = ctx.doc.getTextWidth(callingText);
+        const inlineX = valueX + lastLineW + 2;
+        const fitsInline = inlineX + callingW <= x + maxW;
+
+        ctx.doc.setTextColor(120, 120, 120);
+        if (fitsInline) {
+          ctx.doc.text(callingText, inlineX, currentY);
+        } else {
+          currentY += ctx.lineHeight;
+          ctx.doc.text(callingText.trim(), valueX, currentY);
+        }
+        ctx.doc.setTextColor(0, 0, 0);
+        setBodyFont(ctx, 11, "normal");
+      }
+
+      currentY += ctx.lineHeight;
+      if (index < entries.length - 1) {
+        currentY += 1;
+      }
+    });
+
+    return currentY;
   };
 
   itemsLeft.forEach(([k, v]) => {
