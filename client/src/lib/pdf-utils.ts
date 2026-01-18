@@ -197,8 +197,9 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     const labelW = ctx.doc.getTextWidth(`${label}:`);
     const valueX = x + labelW + 4;
 
+    const [namePart, callingPart] = value.split("|").map((part) => part.trim());
     setBodyFont(ctx, 11, "normal");
-    const lines = wrapLines(ctx, value, Math.max(10, maxW - (valueX - x)));
+    const lines = wrapLines(ctx, namePart || value, Math.max(10, maxW - (valueX - x)));
     if (lines.length === 0) return y + ctx.lineHeight;
 
     ctx.doc.text(lines[0], valueX, y);
@@ -208,6 +209,15 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
         y += ctx.lineHeight;
         ctx.doc.text(lines[i], x, y);
       }
+    }
+
+    if (callingPart) {
+      y += ctx.lineHeight;
+      setBodyFont(ctx, 10, "italic");
+      ctx.doc.setTextColor(120, 120, 120);
+      ctx.doc.text(callingPart, x, y);
+      ctx.doc.setTextColor(0, 0, 0);
+      setBodyFont(ctx, 11, "normal");
     }
 
     return y + ctx.lineHeight;
@@ -305,6 +315,11 @@ function drawBulletList(ctx: PdfCtx, items: string[], opts?: { indent?: number; 
 
 function normalizeMeeting(meeting: any) {
   const normalizedMeeting = { ...meeting };
+  const parsePersonName = (value?: string) => {
+    if (!value) return "";
+    const [namePart] = value.split("|").map((part) => part.trim());
+    return namePart || "";
+  };
 
   if (typeof normalizedMeeting.isTestimonyMeeting === "string") {
     normalizedMeeting.isTestimonyMeeting = normalizedMeeting.isTestimonyMeeting === "true";
@@ -327,6 +342,17 @@ function normalizeMeeting(meeting: any) {
   maybeParse("aaronicOrderings");
   maybeParse("childBlessings");
   maybeParse("confirmations");
+
+  if (typeof normalizedMeeting.visitingAuthority === "string") {
+    const directorName = parsePersonName(String(normalizedMeeting.director || ""));
+    if (directorName) {
+      const filteredAuthorities = normalizedMeeting.visitingAuthority
+        .split(",")
+        .map((name: string) => name.trim())
+        .filter((name: string) => name && name !== directorName);
+      normalizedMeeting.visitingAuthority = filteredAuthorities.join(", ");
+    }
+  }
 
   return normalizedMeeting;
 }
