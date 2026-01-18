@@ -188,6 +188,8 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
 
   setBodyFont(ctx, 11, "normal");
 
+  const normalizeCallingLabel = (value: string) => (value === "Consejero" ? "Consejero del Obispado" : value);
+
   const drawOne = (x: number, y: number, label: string, value: string, maxW: number) => {
     if (!value) return y;
 
@@ -197,33 +199,32 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     const labelW = ctx.doc.getTextWidth(`${label}:`);
     const valueX = x + labelW + 4;
 
-    const [namePart, callingPart] = value.split("|").map((part) => part.trim());
+    const [namePart, callingPartRaw] = value.split("|").map((part) => part.trim());
+    const callingPart = callingPartRaw ? normalizeCallingLabel(callingPartRaw) : "";
     setBodyFont(ctx, 11, "normal");
     const lines = wrapLines(ctx, namePart || value, Math.max(10, maxW - (valueX - x)));
     if (lines.length === 0) return y + ctx.lineHeight;
 
-    ctx.doc.text(lines[0], valueX, y);
+    let currentY = y;
+    ctx.doc.text(lines[0], valueX, currentY);
 
     if (lines.length > 1) {
       for (let i = 1; i < lines.length; i++) {
-        y += ctx.lineHeight;
-        ctx.doc.text(lines[i], x, y);
+        currentY += ctx.lineHeight;
+        ctx.doc.text(lines[i], x, currentY);
       }
     }
 
     if (callingPart) {
-      const linePrefix = lines[lines.length - 1] || "";
-      const lineX = lines.length > 1 ? x : valueX;
-      const lineY = lines.length > 1 ? y : y;
-      const prefixWidth = ctx.doc.getTextWidth(linePrefix);
+      currentY += ctx.lineHeight;
       setBodyFont(ctx, 10, "italic");
       ctx.doc.setTextColor(120, 120, 120);
-      ctx.doc.text(` - ${callingPart}`, lineX + prefixWidth, lineY);
+      ctx.doc.text(callingPart, valueX, currentY);
       ctx.doc.setTextColor(0, 0, 0);
       setBodyFont(ctx, 11, "normal");
     }
 
-    return y + ctx.lineHeight;
+    return currentY + ctx.lineHeight;
   };
 
   itemsLeft.forEach(([k, v]) => {
@@ -364,7 +365,8 @@ function formatPersonWithCalling(value?: string) {
   if (!value) return "";
   const [namePart, callingPart] = value.split("|").map((part) => part.trim());
   if (!callingPart) return namePart || "";
-  return `${namePart || ""} - ${callingPart}`;
+  const normalizedCalling = callingPart === "Consejero" ? "Consejero del Obispado" : callingPart;
+  return `${namePart || ""} - ${normalizedCalling}`;
 }
 
 function groupBy<T>(arr: T[], keyFn: (t: T) => string): Record<string, T[]> {
