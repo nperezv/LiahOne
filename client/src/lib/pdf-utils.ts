@@ -231,21 +231,17 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
         const lastLine = lines[lines.length - 1] || "";
         setBodyFont(ctx, 11, "normal");
         const lastLineW = ctx.doc.getTextWidth(lastLine);
-        const callingText = ` (${callingPart})`;
-        setBodyFont(ctx, 9, "italic");
+        const callingText = ` ${callingPart}`;
         const callingW = ctx.doc.getTextWidth(callingText);
         const inlineX = valueX + lastLineW + 2;
         const fitsInline = inlineX + callingW <= x + maxW;
 
-        ctx.doc.setTextColor(120, 120, 120);
         if (fitsInline) {
           ctx.doc.text(callingText, inlineX, currentY);
         } else {
           currentY += ctx.lineHeight;
           ctx.doc.text(callingText.trim(), valueX, currentY);
         }
-        ctx.doc.setTextColor(0, 0, 0);
-        setBodyFont(ctx, 11, "normal");
       }
 
       currentY += ctx.lineHeight;
