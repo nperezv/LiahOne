@@ -104,6 +104,8 @@ export default function SacramentalMeetingPage() {
   const [presiderSelection, setPresiderSelection] = useState("");
   const [presiderCustomName, setPresiderCustomName] = useState("");
   const [presiderAuthorityType, setPresiderAuthorityType] = useState("");
+  const presiderAuthoritySelection = "autoridad_presidente";
+  const directorAssignedSelection = "lider_asignado";
 
   // Calling mapping by organization type
   const callingsByOrgType: Record<string, string[]> = {
@@ -177,15 +179,16 @@ export default function SacramentalMeetingPage() {
   const getBishopricCalling = (name: string) => {
     const member = bishopricByName.get(name);
     if (!member) return "";
-    return member.role === "obispo" ? "Obispo" : "Consejero";
+    return member.role === "obispo" ? "Obispo" : "Consejero del Obispado";
   };
   const authorityOptions = useMemo(
     () => [
-      { value: "presidente_estaca", label: "Presidente de estaca", calling: "Presidente" },
-      { value: "consejero_presidencia_estaca", label: "Consejero de la presidencia de estaca", calling: "Presidente" },
-      { value: "setenta_area", label: "70 de área", calling: "Élder" },
-      { value: "setenta_autoridad_general", label: "70 autoridad general", calling: "Élder" },
-      { value: "apostol", label: "Apóstol", calling: "Élder" },
+      { value: "presidente_estaca", label: "Presidente de estaca", calling: "Presidente de Estaca" },
+      { value: "primer_consejero_estaca", label: "1er consejero de la presidencia de estaca", calling: "1er Consejero de la Presidencia de Estaca" },
+      { value: "segundo_consejero_estaca", label: "2do consejero de la presidencia de estaca", calling: "2do Consejero de la Presidencia de Estaca" },
+      { value: "setenta_area", label: "Setenta de área", calling: "Setenta de Área" },
+      { value: "setenta_autoridad_general", label: "Setenta autoridad general", calling: "Setenta Autoridad General" },
+      { value: "apostol", label: "Apóstol", calling: "Apóstol" },
     ],
     []
   );
@@ -252,13 +255,13 @@ export default function SacramentalMeetingPage() {
     const parsedDirector = parsePersonValue(meeting.director);
     const directorName = parsedDirector.name;
     const isBishopricDirector = bishopricNames.includes(directorName);
-    setDirectorSelection(isBishopricDirector ? directorName : "");
+    setDirectorSelection(isBishopricDirector ? directorName : directorName ? directorAssignedSelection : "");
     setDirectorCustom(isBishopricDirector ? "" : directorName);
     setDirectorCustomCalling(isBishopricDirector ? "" : parsedDirector.calling);
     const parsedPresider = parsePersonValue(meeting.presider);
     const presiderName = parsedPresider.name;
     const isBishopricPresider = bishopricNames.includes(presiderName);
-    setPresiderSelection(isBishopricPresider ? presiderName : "");
+    setPresiderSelection(isBishopricPresider ? presiderName : presiderName ? presiderAuthoritySelection : "");
     setPresiderCustomName(isBishopricPresider ? "" : presiderName);
     const authorityValue = authorityOptions.find((option) => option.calling === parsedPresider.calling)?.value || "";
     setPresiderAuthorityType(isBishopricPresider ? "" : authorityValue);
@@ -348,9 +351,9 @@ export default function SacramentalMeetingPage() {
       if (directorCustomCalling) setDirectorCustomCalling("");
       return;
     }
+    if (directorSelection !== directorAssignedSelection) setDirectorSelection(directorAssignedSelection);
     if (!directorCustom) setDirectorCustom(currentDirector);
     if (!directorCustomCalling && parsedDirector.calling) setDirectorCustomCalling(parsedDirector.calling);
-    if (directorSelection) setDirectorSelection("");
   }, [bishopricNamesKey, directorCustom, directorCustomCalling, directorSelection, form, isDialogOpen]);
 
   useEffect(() => {
@@ -369,12 +372,12 @@ export default function SacramentalMeetingPage() {
       if (presiderAuthorityType) setPresiderAuthorityType("");
       return;
     }
+    if (presiderSelection !== presiderAuthoritySelection) setPresiderSelection(presiderAuthoritySelection);
     if (!presiderCustomName) setPresiderCustomName(presiderName);
     if (!presiderAuthorityType && parsedPresider.calling) {
       const matchedAuthority = authorityOptions.find((option) => option.calling === parsedPresider.calling)?.value || "";
       if (matchedAuthority) setPresiderAuthorityType(matchedAuthority);
     }
-    if (presiderSelection) setPresiderSelection("");
   }, [authorityOptions, bishopricNamesKey, presiderAuthorityType, presiderCustomName, presiderSelection, presiderValue, isDialogOpen]);
 
   const onSubmit = (data: MeetingFormValues) => {
@@ -614,6 +617,13 @@ export default function SacramentalMeetingPage() {
                                 <Select
                                   value={presiderSelection}
                                   onValueChange={(value) => {
+                                    if (value === presiderAuthoritySelection) {
+                                      setPresiderSelection(value);
+                                      setPresiderCustomName("");
+                                      setPresiderAuthorityType("");
+                                      field.onChange("");
+                                      return;
+                                    }
                                     setPresiderSelection(value);
                                     setPresiderCustomName("");
                                     setPresiderAuthorityType("");
@@ -622,7 +632,7 @@ export default function SacramentalMeetingPage() {
                                   }}
                                 >
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona al obispado" />
+                                    <SelectValue placeholder="Selecciona al obispado o autoridad" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {bishopricNames.map((name) => (
@@ -630,44 +640,45 @@ export default function SacramentalMeetingPage() {
                                         {name}
                                       </SelectItem>
                                     ))}
+                                    <SelectItem value={presiderAuthoritySelection}>Autoridad presidente</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                                  <Select
-                                    value={presiderAuthorityType}
-                                    onValueChange={(value) => {
-                                      setPresiderAuthorityType(value);
-                                      setPresiderSelection("");
-                                      const calling = authorityCallingByValue(value);
-                                      if (presiderCustomName) {
-                                        field.onChange(buildPersonValue(presiderCustomName, calling));
-                                      }
-                                    }}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Autoridad visitante" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {authorityOptions.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Input
-                                    placeholder="Nombre completo (si no es del obispado)"
-                                    value={presiderCustomName}
-                                    onChange={(event) => {
-                                      const value = event.target.value;
-                                      setPresiderCustomName(value);
-                                      setPresiderSelection("");
-                                      const calling = authorityCallingByValue(presiderAuthorityType);
-                                      field.onChange(buildPersonValue(value, calling));
-                                    }}
-                                    data-testid="input-presider"
-                                  />
-                                </div>
+                                {presiderSelection === presiderAuthoritySelection && (
+                                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                    <Select
+                                      value={presiderAuthorityType}
+                                      onValueChange={(value) => {
+                                        setPresiderAuthorityType(value);
+                                        const calling = authorityCallingByValue(value);
+                                        if (presiderCustomName) {
+                                          field.onChange(buildPersonValue(presiderCustomName, calling));
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Autoridad presidente" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {authorityOptions.map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      placeholder="Nombre completo"
+                                      value={presiderCustomName}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setPresiderCustomName(value);
+                                        const calling = authorityCallingByValue(presiderAuthorityType);
+                                        field.onChange(buildPersonValue(value, calling));
+                                      }}
+                                      data-testid="input-presider"
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </FormControl>
                             <FormMessage />
@@ -685,6 +696,13 @@ export default function SacramentalMeetingPage() {
                                 <Select
                                   value={directorSelection}
                                   onValueChange={(value) => {
+                                    if (value === directorAssignedSelection) {
+                                      setDirectorSelection(value);
+                                      setDirectorCustom("");
+                                      setDirectorCustomCalling("");
+                                      field.onChange("");
+                                      return;
+                                    }
                                     setDirectorSelection(value);
                                     setDirectorCustom("");
                                     setDirectorCustomCalling("");
@@ -693,7 +711,7 @@ export default function SacramentalMeetingPage() {
                                   }}
                                 >
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona al obispado" />
+                                    <SelectValue placeholder="Selecciona al obispado o líder" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {bishopricNames.map((name) => (
@@ -701,38 +719,35 @@ export default function SacramentalMeetingPage() {
                                         {name}
                                       </SelectItem>
                                     ))}
+                                    <SelectItem value={directorAssignedSelection}>Líder asignado</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Input
-                                  placeholder="Nombre completo (si no es del obispado)"
-                                  value={directorCustom}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    setDirectorCustom(value);
-                                    if (value) {
-                                      setDirectorSelection("");
-                                      const calling = directorCustomCalling || "";
-                                      field.onChange(buildPersonValue(value, calling));
-                                    } else if (directorSelection) {
-                                      const calling = getBishopricCalling(directorSelection);
-                                      field.onChange(buildPersonValue(directorSelection, calling));
-                                    } else {
-                                      field.onChange("");
-                                    }
-                                  }}
-                                  data-testid="input-director"
-                                />
-                                <Input
-                                  placeholder="Llamamiento de quien dirige (opcional)"
-                                  value={directorCustomCalling}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    setDirectorCustomCalling(value);
-                                    if (directorCustom) {
-                                      field.onChange(buildPersonValue(directorCustom, value));
-                                    }
-                                  }}
-                                />
+                                {directorSelection === directorAssignedSelection && (
+                                  <>
+                                    <Input
+                                      placeholder="Nombre completo"
+                                      value={directorCustom}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setDirectorCustom(value);
+                                        const calling = directorCustomCalling || "";
+                                        field.onChange(buildPersonValue(value, calling));
+                                      }}
+                                      data-testid="input-director"
+                                    />
+                                    <Input
+                                      placeholder="Llamamiento de quien dirige (opcional)"
+                                      value={directorCustomCalling}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        setDirectorCustomCalling(value);
+                                        if (directorCustom) {
+                                          field.onChange(buildPersonValue(directorCustom, value));
+                                        }
+                                      }}
+                                    />
+                                  </>
+                                )}
                               </div>
                             </FormControl>
                             <FormMessage />
