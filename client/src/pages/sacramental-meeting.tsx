@@ -152,6 +152,14 @@ export default function SacramentalMeetingPage() {
   const parsePersonValue = (value?: string) => {
     const trimmed = value?.trim() || "";
     if (!trimmed) return { name: "", calling: "" };
+    if (trimmed.includes("|")) {
+      const [name, calling] = trimmed.split("|").map((part) => part.trim());
+      return { name: name || "", calling: calling || "" };
+    }
+    if (trimmed.includes(",")) {
+      const [name, ...callingParts] = trimmed.split(",").map((part) => part.trim());
+      return { name: name || "", calling: callingParts.join(", ").trim() };
+    }
     const [name, calling] = trimmed.split("|").map((part) => part.trim());
     return { name: name || "", calling: calling || "" };
   };
