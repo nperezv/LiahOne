@@ -335,8 +335,12 @@ export default function SacramentalMeetingPage() {
       .split(",")
       .map((name) => name.trim())
       .filter(Boolean);
-    const manualNames = currentNames.filter((name) => !bishopricNames.includes(name));
-    const nextNames = [...manualNames, ...otherBishopric];
+    const manualNames = currentNames.filter((entry) => {
+      const parsed = parsePersonValue(entry);
+      return parsed.name && !bishopricNames.includes(parsed.name);
+    });
+    const bishopricWithCalling = otherBishopric.map((name) => buildPersonValue(name, getBishopricCalling(name)));
+    const nextNames = [...manualNames, ...bishopricWithCalling];
     const nextValue = nextNames.join(", ");
     if (nextValue && nextValue !== visitingAuthorityValue) {
       form.setValue("visitingAuthority", nextValue, { shouldDirty: true });
