@@ -232,7 +232,7 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
         const lastLine = lines[lines.length - 1] || "";
         setBodyFont(ctx, 11, "normal");
         const lastLineW = ctx.doc.getTextWidth(lastLine);
-        const callingText = ` ${callingPart}`;
+        const callingText = ` - ${callingPart}`;
         setBodyFont(ctx, 9, "italic");
         ctx.doc.setTextColor(80, 80, 80);
         const callingW = ctx.doc.getTextWidth(callingText);
@@ -380,12 +380,28 @@ function normalizeMeeting(meeting: any) {
   maybeParse("confirmations");
 
   if (typeof normalizedMeeting.visitingAuthority === "string") {
+    const authorityText = normalizedMeeting.visitingAuthority;
+    const callingHintRegex = /(obispo|consejero|presidente|presidenta|secretario|secretaria|obispado|estaca|barrio)/i;
+    const authorityParts = authorityText
+      .split(",")
+      .map((part: string) => part.trim())
+      .filter(Boolean);
+    if (!authorityText.includes("|") && authorityParts.length >= 2 && authorityParts.length % 2 === 0) {
+      const hasCallingHints = authorityParts.some((part: string) => callingHintRegex.test(part));
+      if (hasCallingHints) {
+        const rebuilt: string[] = [];
+        for (let i = 0; i < authorityParts.length; i += 2) {
+          rebuilt.push(`${authorityParts[i]} | ${authorityParts[i + 1]}`);
+        }
+        normalizedMeeting.visitingAuthority = rebuilt.join(", ");
+      }
+    }
     const directorName = parsePersonName(String(normalizedMeeting.director || ""));
     if (directorName) {
       const filteredAuthorities = normalizedMeeting.visitingAuthority
         .split(",")
         .map((name: string) => name.trim())
-        .filter((name: string) => name && name !== directorName);
+        .filter((name: string) => name && parsePersonName(name) !== directorName);
       normalizedMeeting.visitingAuthority = filteredAuthorities.join(", ");
     }
   }
