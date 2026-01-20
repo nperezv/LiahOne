@@ -349,13 +349,20 @@ function drawBulletList(ctx: PdfCtx, items: string[], opts?: { indent?: number; 
   ctx.y += 4;
 }
 
+type BishopricMember = {
+  name: string;
+  role?: string;
+  calling?: string;
+};
+
+function parsePersonName(value?: string) {
+  if (!value) return "";
+  const [namePart] = value.split("|").map((part) => part.trim());
+  return namePart || "";
+}
+
 function normalizeMeeting(meeting: any) {
   const normalizedMeeting = { ...meeting };
-  const parsePersonName = (value?: string) => {
-    if (!value) return "";
-    const [namePart] = value.split("|").map((part) => part.trim());
-    return namePart || "";
-  };
 
   if (typeof normalizedMeeting.isTestimonyMeeting === "string") {
     normalizedMeeting.isTestimonyMeeting = normalizedMeeting.isTestimonyMeeting === "true";
@@ -384,8 +391,11 @@ function normalizeMeeting(meeting: any) {
     if (directorName) {
       const filteredAuthorities = normalizedMeeting.visitingAuthority
         .split(",")
-        .map((name: string) => name.trim())
-        .filter((name: string) => name && name !== directorName);
+        .map((entry: string) => entry.trim())
+        .filter((entry: string) => {
+          const entryName = parsePersonName(entry);
+          return entryName && entryName !== directorName;
+        });
       normalizedMeeting.visitingAuthority = filteredAuthorities.join(", ");
     }
   }
@@ -555,7 +565,11 @@ export async function generateInterviewAgendaPDF(
 /**
  * ✅ PDF - Reunión Sacramental
  */
-export async function generateSacramentalMeetingPDF(meeting: any, organizations: any[] = []) {
+export async function generateSacramentalMeetingPDF(
+  meeting: any,
+  organizations: any[] = [],
+  bishopricMembers: BishopricMember[] = []
+) {
   const template = await getTemplate();
   const doc = new jsPDF();
 
@@ -592,7 +606,41 @@ export async function generateSacramentalMeetingPDF(meeting: any, organizations:
   const rightItems: Array<[string, string]> = [];
 
   if (normalizedMeeting.presider) leftItems.push(["Preside", String(normalizedMeeting.presider)]);
-  if (normalizedMeeting.visitingAuthority) leftItems.push(["Reconocimiento", String(normalizedMeeting.visitingAuthority)]);
+
+  const manualRecognitionEntries = typeof normalizedMeeting.visitingAuthority === "string"
+    ? normalizedMeeting.visitingAuthority
+      .split(",")
+      .map((entry: string) => entry.trim())
+      .filter(Boolean)
+    : [];
+  const directorName = parsePersonName(String(normalizedMeeting.director || ""));
+  const autoRecognitionEntries: string[] = [];
+  const directorIsBishopric = directorName
+    ? bishopricMembers.some((member) => parsePersonName(member.name) === directorName)
+    : false;
+
+  if (directorIsBishopric) {
+    bishopricMembers.forEach((member) => {
+      const memberName = member.name?.trim();
+      if (!memberName) return;
+      if (parsePersonName(memberName) === directorName) return;
+      const calling = member.calling?.trim()
+        || (member.role === "obispo" ? "Obispo" : "Consejero del Obispado");
+      autoRecognitionEntries.push(calling ? `${memberName} | ${calling}` : memberName);
+    });
+  }
+
+  const recognitionEntries = [...manualRecognitionEntries, ...autoRecognitionEntries].filter(Boolean);
+  if (recognitionEntries.length) {
+    const seen = new Set<string>();
+    const deduped = recognitionEntries.filter((entry) => {
+      const name = parsePersonName(entry).toLowerCase();
+      if (!name || seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+    if (deduped.length) leftItems.push(["Reconocimiento", deduped.join(", ")]);
+  }
   if (normalizedMeeting.musicDirector) leftItems.push(["Dirección de la música", String(normalizedMeeting.musicDirector)]);
 
   if (normalizedMeeting.director) rightItems.push(["Dirige", String(normalizedMeeting.director)]);

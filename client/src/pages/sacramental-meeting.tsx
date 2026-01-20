@@ -283,7 +283,13 @@ export default function SacramentalMeetingPage() {
   };
 
   const handleGeneratePDF = async (meeting: any) => {
-    const doc = await generateSacramentalMeetingPDF(meeting, organizations as any[]);
+    const recognitionMembers = bishopricMembers
+      .map((member: any) => ({
+        name: getMemberLabel(member),
+        role: member.role,
+      }))
+      .filter((member: any) => member.name);
+    const doc = await generateSacramentalMeetingPDF(meeting, organizations as any[], recognitionMembers);
     const date = new Date(meeting.date).toISOString().split('T')[0];
     doc.save(`programa-sacramental-${date}.pdf`);
   };
@@ -329,16 +335,13 @@ export default function SacramentalMeetingPage() {
     const parsedDirector = parsePersonValue(directorValue);
     const trimmedDirector = parsedDirector.name.trim();
     if (!trimmedDirector || !bishopricNames.includes(trimmedDirector)) return;
-    const otherBishopric = bishopricNames.filter((name) => name !== trimmedDirector);
-    if (!otherBishopric.length) return;
     const currentNames = (visitingAuthorityValue || "")
       .split(",")
       .map((name) => name.trim())
       .filter(Boolean);
     const manualNames = currentNames.filter((name) => !bishopricNames.includes(name));
-    const nextNames = [...manualNames, ...otherBishopric];
-    const nextValue = nextNames.join(", ");
-    if (nextValue && nextValue !== visitingAuthorityValue) {
+    const nextValue = manualNames.join(", ");
+    if (nextValue !== visitingAuthorityValue) {
       form.setValue("visitingAuthority", nextValue, { shouldDirty: true });
     }
   }, [bishopricNamesKey, directorValue, form, visitingAuthorityValue]);
@@ -771,10 +774,17 @@ export default function SacramentalMeetingPage() {
                         name="visitingAuthority"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Autoridades Visitantes</FormLabel>
+                            <FormLabel>Autoridades Visitantes (manual)</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nombres" {...field} data-testid="input-visiting-authority" />
+                              <Input
+                                placeholder="Nombre|Cargo (separa varios con comas)"
+                                {...field}
+                                data-testid="input-visiting-authority"
+                              />
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Solo para autoridades adicionales fuera del obispado. Ejemplo: Juan Pérez|Presidente de Estaca.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
