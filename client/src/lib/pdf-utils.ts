@@ -209,6 +209,8 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     const availableW = Math.max(10, maxW - (valueX - x));
 
     let currentY = isRecognition ? y + ctx.lineHeight : y;
+    const stackCalling = label === "Preside" || label === "Dirige";
+
     entries.forEach((entry, index) => {
       const [namePart, callingPartRaw] = entry.split("|").map((part) => part.trim());
       const callingPart = callingPartRaw ? normalizeCallingLabel(callingPartRaw) : "";
@@ -235,15 +237,20 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
         const callingText = ` ${callingPart}`;
         setBodyFont(ctx, 9, "italic");
         ctx.doc.setTextColor(80, 80, 80);
-        const callingW = ctx.doc.getTextWidth(callingText);
-        const inlineX = valueX + lastLineW + 2;
-        const fitsInline = inlineX + callingW <= x + maxW;
-
-        if (fitsInline) {
-          ctx.doc.text(callingText, inlineX, currentY);
-        } else {
+        if (stackCalling) {
           currentY += ctx.lineHeight;
           ctx.doc.text(callingText.trim(), valueX, currentY);
+        } else {
+          const callingW = ctx.doc.getTextWidth(callingText);
+          const inlineX = valueX + lastLineW + 2;
+          const fitsInline = inlineX + callingW <= x + maxW;
+
+          if (fitsInline) {
+            ctx.doc.text(callingText, inlineX, currentY);
+          } else {
+            currentY += ctx.lineHeight;
+            ctx.doc.text(callingText.trim(), valueX, currentY);
+          }
         }
 
         ctx.doc.setTextColor(0, 0, 0);
@@ -388,16 +395,18 @@ function normalizeMeeting(meeting: any) {
 
   if (typeof normalizedMeeting.visitingAuthority === "string") {
     const directorName = parsePersonName(String(normalizedMeeting.director || ""));
-    if (directorName) {
-      const filteredAuthorities = normalizedMeeting.visitingAuthority
-        .split(",")
-        .map((entry: string) => entry.trim())
-        .filter((entry: string) => {
-          const entryName = parsePersonName(entry);
-          return entryName && entryName !== directorName;
-        });
-      normalizedMeeting.visitingAuthority = filteredAuthorities.join(", ");
-    }
+    const presiderName = parsePersonName(String(normalizedMeeting.presider || ""));
+    const filteredAuthorities = normalizedMeeting.visitingAuthority
+      .split(",")
+      .map((entry: string) => entry.trim())
+      .filter((entry: string) => {
+        const entryName = parsePersonName(entry);
+        if (!entryName) return false;
+        if (directorName && entryName === directorName) return false;
+        if (presiderName && entryName === presiderName) return false;
+        return true;
+      });
+    normalizedMeeting.visitingAuthority = filteredAuthorities.join(", ");
   }
 
   return normalizedMeeting;
@@ -614,6 +623,7 @@ export async function generateSacramentalMeetingPDF(
       .filter(Boolean)
     : [];
   const directorName = parsePersonName(String(normalizedMeeting.director || ""));
+  const presiderName = parsePersonName(String(normalizedMeeting.presider || ""));
   const autoRecognitionEntries: string[] = [];
   const directorIsBishopric = directorName
     ? bishopricMembers.some((member) => parsePersonName(member.name) === directorName)
@@ -624,6 +634,7 @@ export async function generateSacramentalMeetingPDF(
       const memberName = member.name?.trim();
       if (!memberName) return;
       if (parsePersonName(memberName) === directorName) return;
+      if (presiderName && parsePersonName(memberName) === presiderName) return;
       const calling = member.calling?.trim()
         || (member.role === "obispo" ? "Obispo" : "Consejero del Obispado");
       autoRecognitionEntries.push(calling ? `${memberName} | ${calling}` : memberName);
