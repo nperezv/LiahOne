@@ -157,6 +157,8 @@ export default function InterviewsPage() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportRange, setExportRange] = useState<"week" | "month" | "quarter">("week");
   const [exportInterviewerId, setExportInterviewerId] = useState("all");
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsInterview, setDetailsInterview] = useState<any>(null);
 
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
@@ -319,6 +321,11 @@ export default function InterviewsPage() {
       notes: interview.notes || "",
     });
     setIsEditDialogOpen(true);
+  };
+
+  const handleOpenDetails = (interview: any) => {
+    setDetailsInterview(interview);
+    setIsDetailsOpen(true);
   };
 
   // ✅ Estado badge (SOLO estado, sin urgent)
@@ -770,7 +777,12 @@ export default function InterviewsPage() {
                   const isPending = interview.status === "programada";
 
                   return (
-                    <TableRow key={interview.id} data-testid={`row-interview-${interview.id}`}>
+                    <TableRow
+                      key={interview.id}
+                      data-testid={`row-interview-${interview.id}`}
+                      className="cursor-pointer"
+                      onClick={() => handleOpenDetails(interview)}
+                    >
                       <TableCell className="font-medium">{interview.personName}</TableCell>
                       <TableCell className="text-sm">{formatInterviewType(interview.type)}</TableCell>
                       <TableCell className="text-sm">
@@ -796,12 +808,13 @@ export default function InterviewsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() =>
+                                onClick={(event) => {
+                                  event.stopPropagation();
                                   updateMutation.mutate({
                                     id: interview.id,
                                     status: "completada",
-                                  })
-                                }
+                                  });
+                                }}
                                 disabled={updateMutation.isPending}
                                 title="Completar"
                               >
@@ -815,7 +828,10 @@ export default function InterviewsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleArchive(interview.id)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleArchive(interview.id);
+                                }}
                                 disabled={updateMutation.isPending}
                                 title="Archivar (ocultar de la lista)"
                               >
@@ -829,7 +845,10 @@ export default function InterviewsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleEditClick(interview)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleEditClick(interview);
+                                }}
                                 disabled={updateMutation.isPending}
                                 data-testid={`button-edit-${interview.id}`}
                               >
@@ -843,7 +862,10 @@ export default function InterviewsPage() {
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => handleCancelDelete(interview.id)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleCancelDelete(interview.id);
+                                }}
                                 disabled={deleteMutation.isPending}
                               >
                                 <Trash2 className="h-4 w-4 lg:mr-1" />
@@ -867,6 +889,68 @@ export default function InterviewsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) {
+            setDetailsInterview(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalles de la entrevista</DialogTitle>
+            <DialogDescription>Información en modo lectura.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 text-sm">
+            <div>
+              <span className="font-medium">Persona:</span>{" "}
+              {detailsInterview?.personName || "Sin nombre"}
+            </div>
+            <div>
+              <span className="font-medium">Tipo:</span>{" "}
+              {detailsInterview?.type ? formatInterviewType(detailsInterview.type) : "Sin tipo"}
+            </div>
+            <div>
+              <span className="font-medium">Entrevistador:</span>{" "}
+              {detailsInterview?.interviewerId
+                ? userById.get(detailsInterview.interviewerId)?.name ?? "Sin entrevistador"
+                : "Sin entrevistador"}
+            </div>
+            <div>
+              <span className="font-medium">Fecha:</span>{" "}
+              {detailsInterview?.date
+                ? new Date(detailsInterview.date).toLocaleDateString("es-ES", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "Sin fecha"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Prioridad:</span>
+              {detailsInterview ? getPriorityBadge(!!detailsInterview.urgent) : "Normal"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Estado:</span>
+              {detailsInterview?.status ? getStatusBadge(detailsInterview.status) : "Pendiente"}
+            </div>
+            <div>
+              <span className="font-medium">Notas:</span>{" "}
+              {detailsInterview?.notes?.trim() || "Sin notas"}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Interview Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
