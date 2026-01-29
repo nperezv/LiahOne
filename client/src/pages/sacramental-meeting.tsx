@@ -77,6 +77,8 @@ const formatDateForInput = (value?: string | Date | null) => {
 export default function SacramentalMeetingPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsMeeting, setDetailsMeeting] = useState<any>(null);
   const [isTestimonyMeeting, setIsTestimonyMeeting] = useState(false);
   const [hasReleasesAndSustainments, setHasReleasesAndSustainments] = useState(false);
   const [hasNewMembers, setHasNewMembers] = useState(false);
@@ -189,6 +191,8 @@ export default function SacramentalMeetingPage() {
     if (!member) return "";
     return member.role === "obispo" ? "Obispo" : "Consejero del Obispado";
   };
+  const isTestimonyValue = (value: any) =>
+    typeof value === "string" ? value === "true" : Boolean(value);
   const authorityOptions = useMemo(
     () => [
       { value: "presidente_estaca", label: "Presidente de estaca", calling: "Presidente de Estaca" },
@@ -238,6 +242,11 @@ export default function SacramentalMeetingPage() {
       setPresiderCustomName("");
       setPresiderAuthorityType("");
     }
+  };
+
+  const handleOpenDetails = (meeting: any) => {
+    setDetailsMeeting(meeting);
+    setIsDetailsOpen(true);
   };
 
   const handleEdit = (meeting: any) => {
@@ -1527,7 +1536,11 @@ export default function SacramentalMeetingPage() {
           </TableHeader>
           <TableBody>
             {meetings.map((meeting: any) => (
-              <TableRow key={meeting.id}>
+              <TableRow
+                key={meeting.id}
+                className="cursor-pointer"
+                onClick={() => handleOpenDetails(meeting)}
+              >
                 <TableCell>
                   {new Date(meeting.date).toLocaleDateString("es-ES", {
                     year: "numeric",
@@ -1540,9 +1553,7 @@ export default function SacramentalMeetingPage() {
                 <TableCell>
                   {(() => {
                     // Handle both boolean and string values from database
-                    const isTestimony = typeof meeting.isTestimonyMeeting === 'string'
-                      ? meeting.isTestimonyMeeting === 'true'
-                      : meeting.isTestimonyMeeting;
+                    const isTestimony = isTestimonyValue(meeting.isTestimonyMeeting);
                     return (
                       <Badge variant={isTestimony ? "secondary" : "outline"}>
                         {isTestimony ? "Testimonio" : "Regular"}
@@ -1554,7 +1565,10 @@ export default function SacramentalMeetingPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleGeneratePDF(meeting)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleGeneratePDF(meeting);
+                    }}
                     data-testid={`button-generate-pdf-${meeting.id}`}
                   >
                     <FileText className="h-4 w-4" />
@@ -1564,7 +1578,10 @@ export default function SacramentalMeetingPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleEdit(meeting)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEdit(meeting);
+                        }}
                         data-testid={`button-edit-${meeting.id}`}
                       >
                         <Edit className="h-4 w-4" />
@@ -1572,7 +1589,10 @@ export default function SacramentalMeetingPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(meeting.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDelete(meeting.id);
+                        }}
                         data-testid={`button-delete-${meeting.id}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1585,6 +1605,184 @@ export default function SacramentalMeetingPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) {
+            setDetailsMeeting(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalles del programa sacramental</DialogTitle>
+            <DialogDescription>Información en modo lectura.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 text-sm">
+            <div className="grid gap-2">
+              <div>
+                <span className="font-medium">Fecha:</span>{" "}
+                {detailsMeeting?.date
+                  ? new Date(detailsMeeting.date).toLocaleDateString("es-ES", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                  : "Sin fecha"}
+              </div>
+              <div>
+                <span className="font-medium">Tipo:</span>{" "}
+                {detailsMeeting
+                  ? isTestimonyValue(detailsMeeting.isTestimonyMeeting)
+                    ? "Testimonio"
+                    : "Regular"
+                  : "Regular"}
+              </div>
+              <div>
+                <span className="font-medium">Preside:</span>{" "}
+                {parsePersonValue(detailsMeeting?.presider).name || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Dirige:</span>{" "}
+                {parsePersonValue(detailsMeeting?.director).name || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Dirige la música:</span>{" "}
+                {detailsMeeting?.musicDirector || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Acompaña al piano:</span>{" "}
+                {detailsMeeting?.pianist || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Autoridad visitante:</span>{" "}
+                {detailsMeeting?.visitingAuthority || "Sin definir"}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <div>
+                <span className="font-medium">Anuncios:</span>{" "}
+                {detailsMeeting?.announcements?.trim() || "Sin anuncios"}
+              </div>
+              <div>
+                <span className="font-medium">Himno de apertura:</span>{" "}
+                {detailsMeeting?.openingHymn || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Oración inicial:</span>{" "}
+                {detailsMeeting?.openingPrayer || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Himno intermedio:</span>{" "}
+                {detailsMeeting?.intermediateHymn || "Sin definir"}
+                {detailsMeeting?.intermediateHymnType
+                  ? ` (${detailsMeeting.intermediateHymnType === "choir" ? "Coro" : "Congregación"})`
+                  : ""}
+              </div>
+              <div>
+                <span className="font-medium">Himno sacramental:</span>{" "}
+                {detailsMeeting?.sacramentHymn || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Himno final:</span>{" "}
+                {detailsMeeting?.closingHymn || "Sin definir"}
+              </div>
+              <div>
+                <span className="font-medium">Oración final:</span>{" "}
+                {detailsMeeting?.closingPrayer || "Sin definir"}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <span className="font-medium">Discursos:</span>
+              {detailsMeeting?.discourses?.length ? (
+                <ul className="list-disc pl-5 space-y-1">
+                  {detailsMeeting.discourses.map((discourse: any, index: number) => (
+                    <li key={`discourse-${index}`}>
+                      {discourse.speaker || "Sin nombre"}{discourse.topic ? ` — ${discourse.topic}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span>Sin discursos</span>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <span className="font-medium">Relevos y sostenimientos:</span>
+              {(detailsMeeting?.releases?.length || detailsMeeting?.sustainments?.length) ? (
+                <div className="grid gap-2">
+                  {detailsMeeting?.releases?.length ? (
+                    <div>
+                      <div className="text-xs uppercase text-muted-foreground">Relevos</div>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {detailsMeeting.releases.map((release: any, index: number) => (
+                          <li key={`release-${index}`}>
+                            {release.name || "Sin nombre"}{release.oldCalling ? ` — ${release.oldCalling}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {detailsMeeting?.sustainments?.length ? (
+                    <div>
+                      <div className="text-xs uppercase text-muted-foreground">Sostenimientos</div>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {detailsMeeting.sustainments.map((sustainment: any, index: number) => (
+                          <li key={`sustainment-${index}`}>
+                            {sustainment.name || "Sin nombre"}{sustainment.calling ? ` — ${sustainment.calling}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <span>Sin relevos ni sostenimientos</span>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <div>
+                <span className="font-medium">Confirmaciones:</span>{" "}
+                {detailsMeeting?.confirmations?.length
+                  ? detailsMeeting.confirmations.join(", ")
+                  : "Sin confirmaciones"}
+              </div>
+              <div>
+                <span className="font-medium">Nuevos miembros:</span>{" "}
+                {detailsMeeting?.newMembers?.length
+                  ? detailsMeeting.newMembers.join(", ")
+                  : "Sin nuevos miembros"}
+              </div>
+              <div>
+                <span className="font-medium">Ordenaciones Aarónicas:</span>{" "}
+                {detailsMeeting?.aaronicOrderings?.length
+                  ? detailsMeeting.aaronicOrderings.join(", ")
+                  : "Sin ordenaciones"}
+              </div>
+              <div>
+                <span className="font-medium">Bendiciones de niños:</span>{" "}
+                {detailsMeeting?.childBlessings?.length
+                  ? detailsMeeting.childBlessings.join(", ")
+                  : "Sin bendiciones"}
+              </div>
+              <div>
+                <span className="font-medium">Asuntos de estaca:</span>{" "}
+                {detailsMeeting?.stakeBusiness?.trim() || "Sin asuntos"}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
