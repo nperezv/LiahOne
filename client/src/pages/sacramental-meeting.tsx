@@ -210,9 +210,34 @@ export default function SacramentalMeetingPage() {
       hymns.map((hymn: any) => ({
         value: `${hymn.number} - ${hymn.title}`,
         number: hymn.number,
+        title: hymn.title,
       })),
     [hymns]
   );
+  const hymnsByNumber = useMemo(() => {
+    const map = new Map<number, { number: number; title: string }>();
+    hymnOptions.forEach((option) => {
+      map.set(option.number, { number: option.number, title: option.title });
+    });
+    return map;
+  }, [hymnOptions]);
+  const normalizeHymnInput = (value?: string) => {
+    const trimmed = value?.trim() || "";
+    if (!trimmed) return "";
+    const match = trimmed.match(/^(\d{1,4})/);
+    if (!match) return trimmed;
+    const number = Number.parseInt(match[1], 10);
+    if (Number.isNaN(number)) return trimmed;
+    const hymn = hymnsByNumber.get(number);
+    if (!hymn) return trimmed;
+    return `${hymn.number} - ${hymn.title}`;
+  };
+  const applyHymnNormalization = (fieldName: keyof MeetingFormValues, value: string) => {
+    const normalized = normalizeHymnInput(value);
+    if (normalized && normalized !== value) {
+      form.setValue(fieldName, normalized, { shouldDirty: true });
+    }
+  };
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
 
@@ -847,6 +872,10 @@ export default function SacramentalMeetingPage() {
                               placeholder="Ej: 1012 - En cualquier ocasión"
                               list="hymn-options"
                               {...field}
+                              onBlur={(event) => {
+                                field.onBlur();
+                                applyHymnNormalization("openingHymn", event.target.value);
+                              }}
                               data-testid="input-opening-hymn"
                             />
                           </FormControl>
@@ -1329,6 +1358,10 @@ export default function SacramentalMeetingPage() {
                               placeholder="Ej: 108 - Mansos, reverentes hoy"
                               list="hymn-options"
                               {...field}
+                              onBlur={(event) => {
+                                field.onBlur();
+                                applyHymnNormalization("sacramentHymn", event.target.value);
+                              }}
                               data-testid="input-sacrament-hymn"
                             />
                           </FormControl>
@@ -1406,6 +1439,10 @@ export default function SacramentalMeetingPage() {
                                       placeholder="Ej: 196"
                                       list="hymn-options"
                                       {...field}
+                                      onBlur={(event) => {
+                                        field.onBlur();
+                                        applyHymnNormalization("intermediateHymn", event.target.value);
+                                      }}
                                       data-testid="input-intermediate-hymn"
                                       className="text-sm"
                                     />
@@ -1511,6 +1548,10 @@ export default function SacramentalMeetingPage() {
                               placeholder="Ej: 1005"
                               list="hymn-options"
                               {...field}
+                              onBlur={(event) => {
+                                field.onBlur();
+                                applyHymnNormalization("closingHymn", event.target.value);
+                              }}
                               data-testid="input-closing-hymn"
                             />
                           </FormControl>
