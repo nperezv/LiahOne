@@ -3542,6 +3542,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // HYMNS
+  // ========================================
+
+  app.get("/api/hymns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const hymns = await storage.getAllHymns();
+      res.json(hymns);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
   // REPORTS
   // ========================================
 

@@ -34,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSacramentalMeetings, useCreateSacramentalMeeting, useUpdateSacramentalMeeting, useDeleteSacramentalMeeting, useOrganizations, useUsers } from "@/hooks/use-api";
+import { useSacramentalMeetings, useCreateSacramentalMeeting, useUpdateSacramentalMeeting, useDeleteSacramentalMeeting, useOrganizations, useUsers, useHymns } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
 import { exportSacramentalMeetings } from "@/lib/export";
@@ -141,6 +141,7 @@ export default function SacramentalMeetingPage() {
   const { data: meetings = [] as any[], isLoading = false } = useSacramentalMeetings();
   const { data: organizations = [] as any[] } = useOrganizations();
   const { data: users = [] as any[] } = useUsers();
+  const { data: hymns = [] as any[] } = useHymns();
   const createMutation = useCreateSacramentalMeeting();
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
@@ -203,6 +204,14 @@ export default function SacramentalMeetingPage() {
       { value: "apostol", label: "Apóstol", calling: "Apóstol" },
     ],
     []
+  );
+  const hymnOptions = useMemo(
+    () =>
+      hymns.map((hymn: any) => ({
+        value: `${hymn.number} - ${hymn.title}`,
+        number: hymn.number,
+      })),
+    [hymns]
   );
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
@@ -542,6 +551,11 @@ export default function SacramentalMeetingPage() {
 
   return (
     <div className="p-8">
+      <datalist id="hymn-options">
+        {hymnOptions.map((option) => (
+          <option key={option.number} value={option.value} />
+        ))}
+      </datalist>
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Reunión Sacramental</h1>
@@ -829,7 +843,12 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Número o Nombre del Himno</FormLabel>
                           <FormControl>
-                            <Input placeholder="Ej: 1012 - En cualquier ocasión" {...field} data-testid="input-opening-hymn" />
+                            <Input
+                              placeholder="Ej: 1012 - En cualquier ocasión"
+                              list="hymn-options"
+                              {...field}
+                              data-testid="input-opening-hymn"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1306,7 +1325,12 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Himno Sacramental</FormLabel>
                           <FormControl>
-                            <Input placeholder="Ej: 108 - Mansos, reverentes hoy" {...field} data-testid="input-sacrament-hymn" />
+                            <Input
+                              placeholder="Ej: 108 - Mansos, reverentes hoy"
+                              list="hymn-options"
+                              {...field}
+                              data-testid="input-sacrament-hymn"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1378,7 +1402,13 @@ export default function SacramentalMeetingPage() {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Input placeholder="Ej: 196" {...field} data-testid="input-intermediate-hymn" className="text-sm" />
+                                    <Input
+                                      placeholder="Ej: 196"
+                                      list="hymn-options"
+                                      {...field}
+                                      data-testid="input-intermediate-hymn"
+                                      className="text-sm"
+                                    />
                                   </FormControl>
                                 </FormItem>
                               )}
@@ -1477,7 +1507,12 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Número o Nombre del Himno</FormLabel>
                           <FormControl>
-                            <Input placeholder="Ej: 1005" {...field} data-testid="input-closing-hymn" />
+                            <Input
+                              placeholder="Ej: 1005"
+                              list="hymn-options"
+                              {...field}
+                              data-testid="input-closing-hymn"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
