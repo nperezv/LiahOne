@@ -34,7 +34,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSacramentalMeetings, useCreateSacramentalMeeting, useUpdateSacramentalMeeting, useDeleteSacramentalMeeting, useOrganizations, useUsers } from "@/hooks/use-api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useSacramentalMeetings, useCreateSacramentalMeeting, useUpdateSacramentalMeeting, useDeleteSacramentalMeeting, useOrganizations, useUsers, useHymns } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
 import { exportSacramentalMeetings } from "@/lib/export";
@@ -59,6 +61,91 @@ const meetingSchema = z.object({
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+
+type HymnOption = {
+  number: number;
+  value: string;
+};
+
+const HymnCombobox = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  testId,
+}: {
+  options: HymnOption[];
+  value?: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  testId?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const trimmedQuery = query.trim();
+  const showCustomOption = trimmedQuery.length > 0 && !options.some((option) => option.value === trimmedQuery);
+
+  return (
+    <Popover open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) {
+        setQuery("");
+      }
+    }}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-10 w-full justify-between"
+          data-testid={testId}
+        >
+          <span className="truncate text-left">
+            {value?.trim() ? value : placeholder}
+          </span>
+          <span aria-hidden="true">▾</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command shouldFilter>
+          <CommandInput
+            placeholder="Buscar himno por número o nombre..."
+            value={query}
+            onValueChange={setQuery}
+          />
+          <CommandList>
+            <CommandEmpty>No se encontraron himnos.</CommandEmpty>
+            <CommandGroup>
+              {showCustomOption && (
+                <CommandItem
+                  value={trimmedQuery}
+                  onSelect={() => {
+                    onChange(trimmedQuery);
+                    setOpen(false);
+                  }}
+                >
+                  Usar: {trimmedQuery}
+                </CommandItem>
+              )}
+              {options.map((option) => (
+                <CommandItem
+                  key={option.number}
+                  value={option.value}
+                  onSelect={(selectedValue) => {
+                    onChange(selectedValue);
+                    setOpen(false);
+                  }}
+                >
+                  {option.value}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const formatDateForInput = (value?: string | Date | null) => {
   if (!value) return "";
@@ -141,6 +228,7 @@ export default function SacramentalMeetingPage() {
   const { data: meetings = [] as any[], isLoading = false } = useSacramentalMeetings();
   const { data: organizations = [] as any[] } = useOrganizations();
   const { data: users = [] as any[] } = useUsers();
+  const { data: hymns = [] as any[] } = useHymns();
   const createMutation = useCreateSacramentalMeeting();
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
@@ -203,6 +291,14 @@ export default function SacramentalMeetingPage() {
       { value: "apostol", label: "Apóstol", calling: "Apóstol" },
     ],
     []
+  );
+  const hymnOptions = useMemo(
+    () =>
+      hymns.map((hymn: any) => ({
+        value: `${hymn.number} - ${hymn.title}`,
+        number: hymn.number,
+      })),
+    [hymns]
   );
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
@@ -829,7 +925,13 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Número o Nombre del Himno</FormLabel>
                           <FormControl>
-                            <Input placeholder="Ej: 1012 - En cualquier ocasión" {...field} data-testid="input-opening-hymn" />
+                            <HymnCombobox
+                              options={hymnOptions}
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Ej: 1012 - En cualquier ocasión"
+                              testId="input-opening-hymn"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1306,7 +1408,13 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Himno Sacramental</FormLabel>
                           <FormControl>
-                            <Input placeholder="Ej: 108 - Mansos, reverentes hoy" {...field} data-testid="input-sacrament-hymn" />
+                            <HymnCombobox
+                              options={hymnOptions}
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Ej: 108 - Mansos, reverentes hoy"
+                              testId="input-sacrament-hymn"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1378,7 +1486,13 @@ export default function SacramentalMeetingPage() {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Input placeholder="Ej: 196" {...field} data-testid="input-intermediate-hymn" className="text-sm" />
+                                    <HymnCombobox
+                                      options={hymnOptions}
+                                      value={field.value}
+                                      onChange={field.onChange}
+                                      placeholder="Ej: 196"
+                                      testId="input-intermediate-hymn"
+                                    />
                                   </FormControl>
                                 </FormItem>
                               )}
@@ -1477,7 +1591,13 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Número o Nombre del Himno</FormLabel>
                           <FormControl>
-                            <Input placeholder="Ej: 1005" {...field} data-testid="input-closing-hymn" />
+                            <HymnCombobox
+                              options={hymnOptions}
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Ej: 1005"
+                              testId="input-closing-hymn"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

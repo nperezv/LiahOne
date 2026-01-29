@@ -1,10 +1,11 @@
 // Reference: javascript_database blueprint
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   users,
   organizations,
+  hymns,
   sacramentalMeetings,
   wardCouncils,
   presidencyMeetings,
@@ -29,6 +30,7 @@ import {
   type InsertUser,
   type Organization,
   type InsertOrganization,
+  type Hymn,
   type SacramentalMeeting,
   type InsertSacramentalMeeting,
   type WardCouncil,
@@ -106,6 +108,9 @@ export interface IStorage {
   getAllOrganizations(): Promise<Organization[]>;
   getOrganization(id: string): Promise<Organization | undefined>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
+
+  // Hymns
+  getAllHymns(): Promise<Hymn[]>;
 
   // Sacramental Meetings
   getAllSacramentalMeetings(): Promise<SacramentalMeeting[]>;
@@ -467,6 +472,14 @@ export class DatabaseStorage implements IStorage {
   async createOrganization(insertOrg: InsertOrganization): Promise<Organization> {
     const [org] = await db.insert(organizations).values(insertOrg).returning();
     return org;
+  }
+
+  // ========================================
+  // HYMNS
+  // ========================================
+
+  async getAllHymns(): Promise<Hymn[]> {
+    return await db.select().from(hymns).orderBy(asc(hymns.number));
   }
 
   // ========================================
