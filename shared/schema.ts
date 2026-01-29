@@ -239,6 +239,12 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const hymns = pgTable("hymns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  number: integer("number").notNull(),
+  title: text("title").notNull(),
+});
+
 // Sacramental Meetings
 export const sacramentalMeetings = pgTable("sacramental_meetings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -887,6 +893,8 @@ export type AccessRequest = typeof accessRequests.$inferSelect;
 
 export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+
+export type Hymn = typeof hymns.$inferSelect;
 
 export type SacramentalMeeting = typeof sacramentalMeetings.$inferSelect;
 export type InsertSacramentalMeeting = z.infer<typeof insertSacramentalMeetingSchema>;

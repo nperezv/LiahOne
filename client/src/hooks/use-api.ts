@@ -89,6 +89,18 @@ export function useCreateSacramentalMeeting() {
 }
 
 // ========================================
+// HYMNS
+// ========================================
+
+export function useHymns() {
+  return useQuery<any>({
+    queryKey: ["/api/hymns"],
+    staleTime: 1000 * 60 * 60,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// ========================================
 // WARD COUNCILS
 // ========================================
 
