@@ -64,6 +64,18 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
+    title: "Directorio",
+    url: "/directory",
+    icon: Users,
+    roles: [
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+    ],
+  },
+  {
     title: "Presidencias",
     icon: FileText,
     roles: ["obispo", "consejero_obispo", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"],

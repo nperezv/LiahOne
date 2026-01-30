@@ -37,6 +37,7 @@ import AssignmentsPage from "@/pages/assignments";
 import ProfilePage from "@/pages/profile";
 import AdminUsersPage from "@/pages/admin-users";
 import NotificationsPage from "@/pages/notifications";
+import DirectoryPage from "@/pages/directory";
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
@@ -105,6 +106,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/notifications">
           <NotificationsPage />
+        </Route>
+        <Route path="/directory">
+          <DirectoryPage />
         </Route>
         <Route path="/admin/users">
           <AdminUsersPage />

@@ -2704,12 +2704,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/stats", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
-      const isObispadoSecretary = user.role === "secretario"; // Secretarios generales del Obispado
-      const isOrgMember = user.role === "presidente_organizacion" || user.role === "consejero_organizacion" || user.role === "secretario_organizacion";
+      const isObispadoLeadership = ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(user.role);
+      const isObispadoSecretary = ["secretario", "secretario_financiero"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(user.role);
 
       const assignments = await storage.getAllAssignments();
       const interviews = await storage.getAllInterviews();
+      const organizationInterviews = isOrgMember && user.organizationId
+        ? await storage.getOrganizationInterviewsByOrganization(user.organizationId)
+        : [];
       const budgetRequests = await storage.getAllBudgetRequests();
       const goals = await storage.getAllGoals();
       const birthdays = await storage.getAllBirthdays();
@@ -2745,7 +2748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : activities;
 
       // For organization health, filter based on role
-      const visibleOrganizations = isObispado
+      const visibleOrganizations = isObispadoLeadership
         ? organizations.filter(o => o.type !== "obispado") // Obispo ve todas las organizaciones excepto Obispado
         : isObispadoSecretary
         ? [] // Secretarios del Obispado no ven salud de organizaciones
@@ -2762,14 +2765,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [];
 
       // For org members: show all upcoming interviews; for obispado: show only next 7 days
-      const upcomingInterviews = filteredInterviews.filter(i => {
+      const organizationType = organizations.find(o => o.id === user.organizationId)?.type;
+      const obispadoAssigned = interviews.filter(i => {
         if (!i || i.status !== "programada") return false;
-        if (isOrgMember) {
-          return true; // Show all programmed interviews for org members
-        } else {
-          return new Date(i.date) <= weekFromNow; // Show only next 7 days for obispado
-        }
-      }).length;
+        return i.assignedToId === user.id;
+      });
+
+      const organizationInterviewCount = organizationInterviews.filter(i => i && i.status === "programada").length;
+
+      const upcomingInterviews = isObispadoSecretary
+        ? 0
+        : isObispadoLeadership
+        ? filteredInterviews.filter(i => i && i.status === "programada" && new Date(i.date) <= weekFromNow).length
+        : isOrgMember
+        ? (["sociedad_socorro", "cuorum_elderes"].includes(organizationType || "")
+            ? organizationInterviewCount + obispadoAssigned.length
+            : obispadoAssigned.length)
+        : 0;
 
       const stats = {
         pendingAssignments: filteredAssignments.filter(a => a && a.status === "pendiente").length,

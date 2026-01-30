@@ -239,6 +239,17 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const members = pgTable("members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nameSurename: text("name_surename").notNull(),
+  sex: text("sex").notNull(),
+  birthday: timestamp("birthday").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const hymns = pgTable("hymns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   number: integer("number").notNull(),
@@ -502,11 +513,19 @@ export const organizationsRelations = relations(organizations, ({ one, many }) =
     references: [users.id],
   }),
   members: many(users),
+  directoryMembers: many(members),
   presidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
   goals: many(goals),
   activities: many(activities),
   birthdays: many(birthdays),
+}));
+
+export const membersRelations = relations(members, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [members.organizationId],
+    references: [organizations.id],
+  }),
 }));
 
 export const sacramentalMeetingsRelations = relations(sacramentalMeetings, ({ one }) => ({
@@ -775,6 +794,12 @@ export const insertBirthdaySchema = createInsertSchema(birthdays, {
 
 export const selectBirthdaySchema = createSelectSchema(birthdays);
 export type Birthday = typeof birthdays.$inferSelect;
+
+export const insertMemberSchema = createInsertSchema(members, {
+  birthday: dateSchema,
+});
+export const selectMemberSchema = createSelectSchema(members);
+export type Member = typeof members.$inferSelect;
 export type InsertBirthdayType = z.infer<typeof insertBirthdaySchema>;
 export type InsertBirthday = z.infer<typeof insertBirthdaySchema>;
 
