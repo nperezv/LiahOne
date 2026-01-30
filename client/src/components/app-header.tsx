@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { apiRequest } from "@/lib/queryClient";
 import {
   formatNotificationTime,
@@ -62,6 +63,7 @@ const notificationTypeIcons: Record<string, typeof Bell> = {
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const [, setLocation] = useLocation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const { data: template } = useQuery({
     queryKey: ["/api/pdf-template"],
@@ -114,10 +116,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-3">
+    <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
-        <SidebarTrigger />
+        {!isMobile && <SidebarTrigger />}
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold">{wardName}</h1>
         </div>

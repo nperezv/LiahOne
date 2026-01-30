@@ -1,9 +1,9 @@
 # LiahOne Design Guidelines
 
 ## Design Approach
-**System-Based Design**: Material Design principles adapted for administrative productivity, prioritizing usability, clarity, and efficient data management over aesthetic experimentation.
+**iOS Clean System**: iOS-inspired, minimal, and highly legible UI tuned for administrative productivity. The goal is clarity first, with gentle depth and soft surfaces.
 
-**Core Principle**: LiahOne is a utility-first administrative dashboard. Every design decision prioritizes efficiency, learnability, and role-based clarity.
+**Core Principle**: LiahOne is an iOS-clean administrative dashboard. Every design decision emphasizes clarity, speed, and role-based simplicity while keeping a calm, polished aesthetic.
 
 ---
 
@@ -16,8 +16,8 @@
 
 **Sidebar specifications**:
 - Width: 256px (w-64) desktop, collapsible to icon-only on tablet
-- Module icons from Heroicons (outline style)
-- Active state: filled background, semibold text
+- Module icons: soft-outline with rounded shapes
+- Active state: pill background, medium weight text
 - Nested menus for sub-modules (Presidencias expand to 5 organizations)
 
 ### Page Layout Pattern
@@ -60,7 +60,7 @@ Fallback: system-ui, sans-serif
 
 ### Dashboard Cards
 - Grid layout: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6`
-- Card structure: Rounded corners `rounded-lg`, subtle border, padding `p-6`
+- Card structure: Rounded corners `rounded-2xl`, soft border, gentle shadow, padding `p-6`
 - Card header: Icon + Title (horizontal flex)
 - Card body: Metric/chart/list
 - Card footer: Action link or timestamp
@@ -82,7 +82,7 @@ Fallback: system-ui, sans-serif
 
 ### Modals & Dialogs
 - Max width: `max-w-2xl` for forms, `max-w-4xl` for complex views
-- Backdrop: Semi-transparent overlay
+- Backdrop: Soft blur or semi-transparent overlay
 - Header: Title + close button
 - Body: Scrollable content area with padding
 - Footer: Action buttons right-aligned
@@ -93,7 +93,7 @@ Fallback: system-ui, sans-serif
   - Aprobado: Success
   - En Proceso: Warning
   - Completado: Success with checkmark
-- Organization health: Traffic light indicators (circles with icons)
+- Organization health: Soft traffic light indicators (circles with icons)
 
 ### Calendar Components
 - Week view for interview scheduling
