@@ -6,6 +6,7 @@ import { Plus, FileText, Edit, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,98 @@ import { useSacramentalMeetings, useCreateSacramentalMeeting, useUpdateSacrament
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
 import { exportSacramentalMeetings } from "@/lib/export";
+
+type HymnOption = {
+  value: string;
+  number: number;
+  title: string;
+};
+
+type HymnAutocompleteProps = {
+  value: string;
+  options: HymnOption[];
+  placeholder?: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  onNormalize: (value: string) => void;
+  testId?: string;
+  className?: string;
+};
+
+const filterHymnOptions = (options: HymnOption[], query: string) => {
+  const trimmed = query.trim();
+  if (!trimmed) return options;
+  const lowerQuery = trimmed.toLowerCase();
+  return options.filter((option) => {
+    const numberMatch = String(option.number).startsWith(trimmed);
+    const textMatch = option.value.toLowerCase().includes(lowerQuery);
+    return numberMatch || textMatch;
+  });
+};
+
+const HymnAutocomplete = ({
+  value,
+  options,
+  placeholder,
+  onChange,
+  onBlur,
+  onNormalize,
+  testId,
+  className,
+}: HymnAutocompleteProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const filteredOptions = useMemo(() => filterHymnOptions(options, value), [options, value]);
+
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => {
+          onBlur();
+          onNormalize(value);
+          setTimeout(() => setIsOpen(false), 150);
+        }}
+        data-testid={testId}
+        className={className}
+        autoComplete="off"
+      />
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-input bg-popover text-popover-foreground shadow-md">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.number}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+                    option.value === value && "bg-accent text-accent-foreground"
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onChange(option.value);
+                    onNormalize(option.value);
+                    setIsOpen(false);
+                  }}
+                >
+                  {option.value}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const meetingSchema = z.object({
   date: z.string().optional(),
@@ -205,14 +298,39 @@ export default function SacramentalMeetingPage() {
     ],
     []
   );
-  const hymnOptions = useMemo(
+  const hymnOptions = useMemo<HymnOption[]>(
     () =>
       hymns.map((hymn: any) => ({
         value: `${hymn.number} - ${hymn.title}`,
         number: hymn.number,
+        title: hymn.title,
       })),
     [hymns]
   );
+  const hymnsByNumber = useMemo(() => {
+    const map = new Map<number, { number: number; title: string }>();
+    hymnOptions.forEach((option) => {
+      map.set(option.number, { number: option.number, title: option.title });
+    });
+    return map;
+  }, [hymnOptions]);
+  const normalizeHymnInput = (value?: string) => {
+    const trimmed = value?.trim() || "";
+    if (!trimmed) return "";
+    const match = trimmed.match(/^(\d{1,4})/);
+    if (!match) return trimmed;
+    const number = Number.parseInt(match[1], 10);
+    if (Number.isNaN(number)) return trimmed;
+    const hymn = hymnsByNumber.get(number);
+    if (!hymn) return trimmed;
+    return `${hymn.number} - ${hymn.title}`;
+  };
+  const applyHymnNormalization = (fieldName: keyof MeetingFormValues, value: string) => {
+    const normalized = normalizeHymnInput(value);
+    if (normalized && normalized !== value) {
+      form.setValue(fieldName, normalized, { shouldDirty: true });
+    }
+  };
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
 
@@ -551,11 +669,6 @@ export default function SacramentalMeetingPage() {
 
   return (
     <div className="p-8">
-      <datalist id="hymn-options">
-        {hymnOptions.map((option) => (
-          <option key={option.number} value={option.value} />
-        ))}
-      </datalist>
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Reunión Sacramental</h1>
@@ -843,11 +956,14 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Número o Nombre del Himno</FormLabel>
                           <FormControl>
-                            <Input
+                            <HymnAutocomplete
+                              value={field.value || ""}
+                              options={hymnOptions}
                               placeholder="Ej: 1012 - En cualquier ocasión"
-                              list="hymn-options"
-                              {...field}
-                              data-testid="input-opening-hymn"
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              onNormalize={(value) => applyHymnNormalization("openingHymn", value)}
+                              testId="input-opening-hymn"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1325,11 +1441,14 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Himno Sacramental</FormLabel>
                           <FormControl>
-                            <Input
+                            <HymnAutocomplete
+                              value={field.value || ""}
+                              options={hymnOptions}
                               placeholder="Ej: 108 - Mansos, reverentes hoy"
-                              list="hymn-options"
-                              {...field}
-                              data-testid="input-sacrament-hymn"
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              onNormalize={(value) => applyHymnNormalization("sacramentHymn", value)}
+                              testId="input-sacrament-hymn"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1402,11 +1521,14 @@ export default function SacramentalMeetingPage() {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Input
+                                    <HymnAutocomplete
+                                      value={field.value || ""}
+                                      options={hymnOptions}
                                       placeholder="Ej: 196"
-                                      list="hymn-options"
-                                      {...field}
-                                      data-testid="input-intermediate-hymn"
+                                      onChange={field.onChange}
+                                      onBlur={field.onBlur}
+                                      onNormalize={(value) => applyHymnNormalization("intermediateHymn", value)}
+                                      testId="input-intermediate-hymn"
                                       className="text-sm"
                                     />
                                   </FormControl>
@@ -1507,11 +1629,14 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Número o Nombre del Himno</FormLabel>
                           <FormControl>
-                            <Input
+                            <HymnAutocomplete
+                              value={field.value || ""}
+                              options={hymnOptions}
                               placeholder="Ej: 1005"
-                              list="hymn-options"
-                              {...field}
-                              data-testid="input-closing-hymn"
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              onNormalize={(value) => applyHymnNormalization("closingHymn", value)}
+                              testId="input-closing-hymn"
                             />
                           </FormControl>
                           <FormMessage />
