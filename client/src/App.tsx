@@ -7,6 +7,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import logoImage from "@assets/liahonapplogo2.svg";
+import {
+  applyTheme,
+  getStoredTheme,
+  listenThemeChange,
+  watchSystemTheme,
+  type ThemePreference,
+} from "@/lib/theme";
 
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
@@ -126,10 +133,21 @@ function Router() {
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() =>
+    getStoredTheme()
+  );
 
   useEffect(() => {
-    // Apply dark mode globally
-    document.documentElement.classList.add("dark");
+    applyTheme(themePreference);
+    if (themePreference !== "system") return;
+    return watchSystemTheme(() => applyTheme("system"));
+  }, [themePreference]);
+
+  useEffect(() => {
+    const stopListening = listenThemeChange((preference) =>
+      setThemePreference(preference)
+    );
+    return () => stopListening();
   }, []);
 
   useEffect(() => {
