@@ -535,17 +535,21 @@ export default function DirectoryPage() {
                 const hasPhone = Boolean(member.phone);
                 const contactDisabled = !hasPhone;
                 const actionWidth = ACTIONS_WIDTH;
+                const basePadding = 16;
+                const leftPadding = isLeftSwipe
+                  ? basePadding + Math.min(Math.abs(translateX), actionWidth)
+                  : basePadding;
                 return (
                   <div
                     key={member.id}
-                    className="relative overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
+                    className="relative isolate overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
                   >
                     <div
-                      className={`absolute inset-0 m-0 flex h-full items-center justify-start border-0 text-white shadow-none transition-opacity duration-150 ${
+                      className={`absolute inset-0 m-0 flex h-full items-center justify-start rounded-[14px] border-0 text-white shadow-none transition-opacity duration-150 ${
                         isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       } ${contactDisabled ? "bg-[#2c2c2e]" : "bg-gradient-to-r from-[#1f3b2d] to-[#34C759]"}`}
                     >
-                      <div className="grid h-full grid-cols-2" style={{ width: actionWidth }}>
+                      <div className="grid h-full grid-cols-2 overflow-hidden" style={{ width: actionWidth }}>
                         {hasPhone ? (
                           <a
                             href={`tel:${member.phone}`}
@@ -587,11 +591,11 @@ export default function DirectoryPage() {
                       </div>
                     </div>
                     <div
-                      className={`absolute inset-0 m-0 flex h-full items-center justify-end border-0 bg-[#2c2c2e] text-white shadow-none transition-opacity duration-150 ${
+                      className={`absolute inset-0 m-0 flex h-full items-center justify-end rounded-[14px] border-0 bg-[#2c2c2e] text-white shadow-none transition-opacity duration-150 ${
                         isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
-                      <div className="grid h-full grid-cols-2" style={{ width: actionWidth }}>
+                      <div className="grid h-full grid-cols-2 overflow-hidden" style={{ width: actionWidth }}>
                         <button
                           type="button"
                           className="flex h-full flex-col items-center justify-center gap-1 bg-[#2c2c2e] text-[11px] font-medium"
@@ -619,11 +623,12 @@ export default function DirectoryPage() {
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 will-change-transform ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] pr-4 will-change-transform ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
                       style={{
                         transform: `translateX(${translateX}px)`,
+                        paddingLeft: leftPadding,
                         touchAction: "pan-y",
                         transition: pointerDragging.current
                           ? "none"
