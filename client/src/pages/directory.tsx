@@ -72,15 +72,18 @@ export default function DirectoryPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
+  const [currentRevealWidth, setCurrentRevealWidth] = useState(120);
   const [contextMember, setContextMember] = useState<any>(null);
   const pointerStartX = useRef(0);
   const pointerDragging = useRef(false);
   const longPressTimer = useRef<number | null>(null);
   const swipeStartOffset = useRef(0);
   const cardWidthRef = useRef(0);
+  const maxRevealRef = useRef(120);
   const rafRef = useRef<number | null>(null);
   const pendingOffset = useRef(0);
   const actionReveal = 120;
+  const minContentVisible = 220;
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
@@ -201,6 +204,7 @@ export default function DirectoryPage() {
   const resetSwipe = () => {
     setSwipeOffset(0);
     setActiveSwipeId(null);
+    setCurrentRevealWidth(actionReveal);
     swipeStartOffset.current = 0;
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
@@ -212,6 +216,13 @@ export default function DirectoryPage() {
     pointerStartX.current = event.clientX;
     pointerDragging.current = true;
     cardWidthRef.current = event.currentTarget.getBoundingClientRect().width;
+    const nextMaxReveal = Math.min(
+      actionReveal,
+      cardWidthRef.current * 0.35,
+      cardWidthRef.current - minContentVisible
+    );
+    maxRevealRef.current = Math.max(0, nextMaxReveal);
+    setCurrentRevealWidth(maxRevealRef.current);
     if (memberId !== activeSwipeId) {
       setSwipeOffset(0);
     }
@@ -237,7 +248,7 @@ export default function DirectoryPage() {
       longPressTimer.current = null;
     }
     const swipeDistance = swipeStartOffset.current + delta;
-    const maxTranslate = Math.min(Math.abs(swipeDistance), cardWidthRef.current * 0.4);
+    const maxTranslate = Math.min(Math.abs(swipeDistance), maxRevealRef.current);
     const nextOffset = Math.sign(swipeDistance || 1) * maxTranslate;
     pendingOffset.current = nextOffset;
     if (!rafRef.current) {
@@ -266,7 +277,7 @@ export default function DirectoryPage() {
       resetSwipe();
       return;
     }
-    const maxSnap = Math.min(actionReveal, cardWidthRef.current * 0.4);
+    const maxSnap = maxRevealRef.current;
     const snapped = swipeOffset > 0 ? maxSnap : -maxSnap;
     setSwipeOffset(snapped);
   };
@@ -471,6 +482,7 @@ export default function DirectoryPage() {
                 const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
                 const hasPhone = Boolean(member.phone);
                 const contactDisabled = !hasPhone;
+                const actionWidth = isActive ? currentRevealWidth : actionReveal;
                 return (
                   <div
                     key={member.id}
@@ -481,7 +493,7 @@ export default function DirectoryPage() {
                         isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       } ${contactDisabled ? "bg-[#2c2c2e]" : "bg-gradient-to-r from-[#1f3b2d] to-[#34C759]"}`}
                     >
-                      <div className="grid h-full w-[120px] grid-cols-2">
+                      <div className="grid h-full grid-cols-2" style={{ width: actionWidth }}>
                         {hasPhone ? (
                           <a
                             href={`tel:${member.phone}`}
@@ -527,7 +539,7 @@ export default function DirectoryPage() {
                         isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
-                      <div className="grid h-full w-[120px] grid-cols-2">
+                      <div className="grid h-full grid-cols-2" style={{ width: actionWidth }}>
                         <button
                           type="button"
                           className="flex h-full flex-col items-center justify-center gap-1 bg-[#2c2c2e] text-[11px] font-medium"
@@ -580,9 +592,11 @@ export default function DirectoryPage() {
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0B0B0F] text-sm font-semibold text-white">
                         {initials}
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col justify-center px-1">
-                        <p className="text-sm font-semibold text-white">{member.nameSurename}</p>
-                        <p className="text-xs text-[#9AA0A6]">
+                      <div className="flex min-w-0 flex-1 flex-col justify-center px-1 text-left">
+                        <p className="text-left text-sm font-semibold text-white">
+                          {member.nameSurename}
+                        </p>
+                        <p className="text-left text-xs text-[#9AA0A6]">
                           {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
                         </p>
                       </div>
