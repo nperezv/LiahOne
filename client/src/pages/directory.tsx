@@ -4,14 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import {
   useCreateMember,
   useDeleteMember,
@@ -35,7 +29,7 @@ import {
   useOrganizations,
   useUpdateMember,
 } from "@/hooks/use-api";
-import { CalendarPlus, Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
+import { Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
 
 const memberSchema = z.object({
   nameSurename: z.string().min(1, "El nombre es requerido"),
@@ -65,6 +59,7 @@ export default function DirectoryPage() {
   const createMemberMutation = useCreateMember();
   const updateMemberMutation = useUpdateMember();
   const deleteMemberMutation = useDeleteMember();
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
@@ -73,17 +68,23 @@ export default function DirectoryPage() {
   const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [currentRevealWidth, setCurrentRevealWidth] = useState(120);
-  const [contextMember, setContextMember] = useState<any>(null);
+  const [sheetMember, setSheetMember] = useState<any>(null);
+  const [sheetOffset, setSheetOffset] = useState(0);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const pointerStartX = useRef(0);
   const pointerDragging = useRef(false);
   const longPressTimer = useRef<number | null>(null);
+  const longPressTriggered = useRef(false);
+  const lastLongPressAt = useRef(0);
   const swipeStartOffset = useRef(0);
   const cardWidthRef = useRef(0);
   const maxRevealRef = useRef(120);
   const rafRef = useRef<number | null>(null);
   const pendingOffset = useRef(0);
   const actionReveal = 120;
-  const minContentVisible = 220;
+  const sheetStartY = useRef(0);
+  const sheetDragging = useRef(false);
+  const sheetCloseTimer = useRef<number | null>(null);
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
@@ -212,15 +213,43 @@ export default function DirectoryPage() {
     }
   };
 
+  const handleCopyMember = (member: any) => {
+    const phone = member.phone?.trim();
+    const text = phone ? `${member.nameSurename} — ${phone}` : member.nameSurename;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    toast({ title: "Copiado al portapapeles", duration: 1800 });
+  };
+
+  const handleOpenSheet = (member: any) => {
+    resetSwipe();
+    setSheetMember(member);
+    setSheetOffset(0);
+    if (sheetCloseTimer.current) {
+      window.clearTimeout(sheetCloseTimer.current);
+      sheetCloseTimer.current = null;
+    }
+    requestAnimationFrame(() => setSheetOpen(true));
+  };
+
+  const handleCloseSheet = () => {
+    setSheetOpen(false);
+    if (sheetCloseTimer.current) {
+      window.clearTimeout(sheetCloseTimer.current);
+    }
+    sheetCloseTimer.current = window.setTimeout(() => {
+      setSheetMember(null);
+      setSheetOffset(0);
+    }, 280);
+  };
+
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>, memberId: string, member: any) => {
     pointerStartX.current = event.clientX;
     pointerDragging.current = true;
+    longPressTriggered.current = false;
     cardWidthRef.current = event.currentTarget.getBoundingClientRect().width;
-    const nextMaxReveal = Math.min(
-      actionReveal,
-      cardWidthRef.current * 0.35,
-      cardWidthRef.current - minContentVisible
-    );
+    const nextMaxReveal = cardWidthRef.current * 0.35;
     maxRevealRef.current = Math.max(0, nextMaxReveal);
     setCurrentRevealWidth(maxRevealRef.current);
     if (memberId !== activeSwipeId) {
@@ -234,14 +263,16 @@ export default function DirectoryPage() {
       window.clearTimeout(longPressTimer.current);
     }
     longPressTimer.current = window.setTimeout(() => {
-      setContextMember(member);
+      longPressTriggered.current = true;
+      lastLongPressAt.current = Date.now();
+      resetSwipe();
       pointerDragging.current = false;
-      setSwipeOffset(0);
+      handleCopyMember(member);
     }, 500);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (!pointerDragging.current) return;
+    if (!pointerDragging.current || longPressTriggered.current) return;
     const delta = event.clientX - pointerStartX.current;
     if (Math.abs(delta) > 8 && longPressTimer.current) {
       window.clearTimeout(longPressTimer.current);
@@ -264,6 +295,10 @@ export default function DirectoryPage() {
       window.clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
     if (!pointerDragging.current) return;
     pointerDragging.current = false;
     if (event) {
@@ -280,6 +315,33 @@ export default function DirectoryPage() {
     const maxSnap = maxRevealRef.current;
     const snapped = swipeOffset > 0 ? maxSnap : -maxSnap;
     setSwipeOffset(snapped);
+  };
+
+  const handleSheetPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    sheetStartY.current = event.clientY;
+    sheetDragging.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleSheetPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!sheetDragging.current) return;
+    const delta = event.clientY - sheetStartY.current;
+    if (delta < 0) {
+      setSheetOffset(0);
+      return;
+    }
+    setSheetOffset(Math.min(delta, 220));
+  };
+
+  const handleSheetPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    if (!sheetDragging.current) return;
+    sheetDragging.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (sheetOffset > 90) {
+      handleCloseSheet();
+      return;
+    }
+    setSheetOffset(0);
   };
 
   return (
@@ -578,9 +640,12 @@ export default function DirectoryPage() {
                           : "transform 280ms cubic-bezier(0.22,1,0.36,1)",
                       }}
                       onClick={() => {
+                        if (Date.now() - lastLongPressAt.current < 800) return;
                         if (isActive && (isLeftSwipe || isRightSwipe)) {
                           resetSwipe();
+                          return;
                         }
+                        handleOpenSheet(member);
                       }}
                       onPointerDown={(event) => handlePointerDown(event, member.id, member)}
                       onPointerMove={handlePointerMove}
@@ -613,68 +678,50 @@ export default function DirectoryPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(contextMember)} onOpenChange={(open) => !open && setContextMember(null)}>
-        <DialogContent className="bottom-0 left-0 right-0 top-auto w-full max-w-none translate-x-0 translate-y-0 rounded-t-[20px] border-0 bg-[#151820] p-0 text-white shadow-2xl">
-          <div className="flex flex-col divide-y divide-white/10">
-            {contextMember?.phone && (
-              <a
-                className="flex items-center gap-3 px-6 py-4 text-sm text-white"
-                href={`tel:${contextMember.phone}`}
+      {sheetMember && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+            style={{
+              opacity: sheetOpen ? 1 : 0,
+              transition: "opacity 280ms cubic-bezier(0.22,1,0.36,1)",
+            }}
+            onClick={handleCloseSheet}
+          />
+          <div
+            className="relative w-full max-w-2xl rounded-t-[20px] border border-white/10 bg-[#151820] px-6 pb-8 pt-4 text-white shadow-2xl"
+            style={{
+              transform: `translateY(${sheetOpen ? sheetOffset : 32}px)`,
+              opacity: sheetOpen ? 1 : 0,
+              transition: sheetDragging.current
+                ? "none"
+                : "transform 280ms cubic-bezier(0.22,1,0.36,1), opacity 280ms cubic-bezier(0.22,1,0.36,1)",
+            }}
+            onPointerDown={handleSheetPointerDown}
+            onPointerMove={handleSheetPointerMove}
+            onPointerUp={handleSheetPointerEnd}
+            onPointerCancel={handleSheetPointerEnd}
+          >
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[#9AA0A6]">Miembro</p>
+                <p className="mt-1 text-lg font-semibold text-white">{sheetMember.nameSurename}</p>
+              </div>
+              <Button
+                className="w-full bg-[#0A84FF] text-white hover:bg-[#0A84FF]/90"
+                onClick={() => {
+                  setLocation(`/interviews?memberId=${sheetMember.id}`);
+                  handleCloseSheet();
+                }}
               >
-                <Phone className="h-4 w-4 text-[#0A84FF]" />
-                Llamar
-              </a>
-            )}
-            {contextMember?.phone && buildWhatsappLink(contextMember.phone) && (
-              <a
-                className="flex items-center gap-3 px-6 py-4 text-sm text-white"
-                href={buildWhatsappLink(contextMember.phone)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Send className="h-4 w-4 text-[#0A84FF]" />
-                WhatsApp
-              </a>
-            )}
-            <button
-              type="button"
-              className="flex items-center gap-3 px-6 py-4 text-sm text-white"
-              onClick={() => {
-                if (!contextMember) return;
-                setLocation(`/interviews?memberId=${contextMember.id}`);
-                setContextMember(null);
-              }}
-            >
-              <CalendarPlus className="h-4 w-4 text-[#0A84FF]" />
-              Agendar entrevista
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-3 px-6 py-4 text-sm text-white"
-              onClick={() => {
-                if (!contextMember) return;
-                handleEditMember(contextMember);
-                setContextMember(null);
-              }}
-            >
-              <Pencil className="h-4 w-4 text-[#0A84FF]" />
-              Editar
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-3 px-6 py-4 text-sm text-[#FF453A]"
-              onClick={() => {
-                if (!contextMember) return;
-                handleRequestDelete(contextMember);
-                setContextMember(null);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              Eliminar
-            </button>
+                Agendar entrevista
+              </Button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       <Button
         type="button"
