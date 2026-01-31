@@ -223,30 +223,43 @@ export async function sendInterviewScheduledEmail(payload: {
   });
 
   const interviewerLine = payload.interviewerName
-    ? `Entrevistador: ${payload.interviewerName}`
-    : "Entrevistador: Obispado";
+    ? `con el ${payload.interviewerName}`
+    : "con el obispado";
   const typeLine = payload.interviewType
     ? `Tipo de entrevista: ${payload.interviewType}`
     : "Tipo de entrevista: (sin especificar)";
   const notesLine = payload.notes?.trim()
-    ? `Notas: ${payload.notes.trim()}`
-    : "Notas: (sin notas)";
+    ? `Notas adicionales: ${payload.notes.trim()}`
+    : "Notas adicionales: (sin notas)";
+  const hourMatch = payload.interviewTime.match(/(\d{1,2})/);
+  const hour = hourMatch ? Number(hourMatch[1]) : null;
+  const greeting =
+    hour === null
+      ? "Estimado(a)"
+      : hour < 12
+        ? "Buenos días"
+        : hour < 19
+          ? "Buenas tardes"
+          : "Buenas noches";
 
   await transporter.sendMail({
     from,
     to: payload.toEmail,
     subject: "Entrevista programada",
     text: [
-      `Hola ${payload.recipientName},`,
+      `${greeting} apreciado(a) hermano(a) ${payload.recipientName},`,
       "",
-      "Tu entrevista ha sido programada.",
+      `Se ha programado una entrevista ${interviewerLine}.`,
       `Fecha: ${payload.interviewDate}`,
-      `Hora: ${payload.interviewTime}`,
-      interviewerLine,
+      `Hora: ${payload.interviewTime} hrs.`,
+      "Lugar: oficina del obispado.",
       typeLine,
       notesLine,
       "",
+      "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
       "Si necesitas reprogramar, responde a este correo o comunícate con el obispado.",
+      "",
+      "Con aprecio y gratitud.",
     ].join("\n"),
   });
 }

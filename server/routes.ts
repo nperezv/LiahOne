@@ -118,7 +118,7 @@ function requireRole(...roles: string[]) {
 
 const interviewCollisionRoles = new Map<string, string>([
   ["obispo", "Obispo"],
-  ["consejero_obispo", "Consejero del Obispo"],
+  ["consejero_obispo", "Consejero del Obispado"],
   ["presidente_organizacion", "Presidente de organización"],
 ]);
 
@@ -1560,8 +1560,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/interviews", requireAuth, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
+      const isObispado =
+        user.role === "obispo" ||
+        user.role === "consejero_obispo" ||
+        user.role === "secretario_ejecutivo";
       const interviews = await storage.getAllInterviews();
-      res.json(interviews);
+      const visibleInterviews = isObispado
+        ? interviews
+        : interviews.filter(
+            (interview) => interview && interview.assignedToId === user.id
+          );
+      res.json(visibleInterviews);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
@@ -1586,6 +1596,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resolvedPersonName = member.nameSurename;
         memberName = member.nameSurename;
         memberEmail = member.email;
+        if (memberEmail) {
+          const users = await storage.getAllUsers();
+          const matchedUser = users.find(
+            (u) => u.email && u.email.toLowerCase() === memberEmail.toLowerCase()
+          );
+          if (matchedUser) {
+            assignedToId = matchedUser.id;
+            assignedUser = matchedUser;
+          }
+        }
       } else if (personName) {
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
@@ -1624,7 +1644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...rest,
         ...(resolvedMemberId && { memberId: resolvedMemberId }),
         assignedBy: req.session.userId,
-        ...(assignedToId && !shouldCreateAssignment && { assignedToId }),
+        ...(assignedToId && { assignedToId }),
       });
 
       const interviewer = await storage.getUser(interviewData.interviewerId);
@@ -1658,7 +1678,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hour12: false,
       });
       const interviewTypeLabel = interview.type;
-      const interviewerName = interviewer?.name || "Obispado";
+      const interviewerTitle = interviewerRoleLabel
+        ? interviewer?.name
+          ? `${interviewerRoleLabel}; ${interviewer.name}`
+          : interviewerRoleLabel
+        : interviewer?.name
+          ? `líder; ${interviewer.name}`
+          : "Obispado";
 
       const recipientMap = new Map<string, string>();
       if (memberEmail) {
@@ -1672,7 +1698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendInterviewScheduledEmail({
           toEmail: email,
           recipientName: name,
-          interviewerName,
+          interviewerName: interviewerTitle,
           interviewDate,
           interviewTime,
           interviewType: interviewTypeLabel,
@@ -2406,8 +2432,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const user = (req as any).user;
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
-      const isSecretary = user.role === "secretario";
+      const isObispado =
+        user.role === "obispo" ||
+        user.role === "consejero_obispo" ||
+        user.role === "secretario_ejecutivo";
       const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
       
       const goal = await storage.getGoal(id);
@@ -2904,10 +2932,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? assignments.filter(a => a && (a.assignedTo === user.id || a.assignedBy === user.id))
         : assignments;
 
-      // For organization members: show their interview requests AND interviews assigned to them
+      // For organization members: show only interviews assigned to them
       // For obispado/secretarios: show all interviews
       const filteredInterviews = isOrgMember
-        ? interviews.filter(i => i && (i.assignedBy === user.id || i.assignedToId === user.id))
+        ? interviews.filter(i => i && i.assignedToId === user.id)
         : interviews;
 
       const filteredBudgetRequests = isOrgMember
@@ -3258,8 +3286,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/events", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
-      const isSecretary = user.role === "secretario";
+      const isObispado =
+        user.role === "obispo" ||
+        user.role === "consejero_obispo" ||
+        user.role === "secretario_ejecutivo";
       const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
 
       const template = await storage.getPdfTemplate();
@@ -3274,19 +3304,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return date;
       };
       
-      const [sacramentalMeetings, wardCouncils, interviews, activities] = await Promise.all([
+      const [sacramentalMeetings, wardCouncils, interviews, activities, organizations] = await Promise.all([
         storage.getAllSacramentalMeetings(),
         storage.getAllWardCouncils(),
         storage.getAllInterviews(),
         storage.getAllActivities(),
+        storage.getAllOrganizations(),
       ]);
 
       // Filter interviews based on role
-      // For organization members: show only interviews where personName matches their name or they requested
-      // For obispado/secretarios: show all interviews
-      const filteredInterviews = isOrgMember
-        ? interviews.filter(i => i && (i.personName === user.name || i.assignedToId === user.id))
-        : interviews;
+      // For obispado: show all interviews
+      // For others: show only interviews assigned to them
+      const filteredInterviews = isObispado
+        ? interviews
+        : interviews.filter(i => i && i.assignedToId === user.id);
 
       // Filter activities based on role
       // For organization members: show only activities for their organization OR ward-wide activities (no organizationId)
@@ -3294,6 +3325,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filteredActivities = isOrgMember
         ? activities.filter(a => a && (!a.organizationId || a.organizationId === user.organizationId))
         : activities;
+
+      const organizationType = organizations.find(o => o.id === user.organizationId)?.type;
+      const includeOrganizationInterviews = isOrgMember && ["sociedad_socorro", "cuorum_elderes"].includes(organizationType || "");
+      const organizationInterviews = includeOrganizationInterviews && user.organizationId
+        ? await storage.getOrganizationInterviewsByOrganization(user.organizationId)
+        : [];
 
       const events = [
         ...sacramentalMeetings.map(m => ({
@@ -3321,6 +3358,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: i.status,
           description: i.notes ?? undefined,
           organizationId: null,
+        })),
+        ...organizationInterviews.map(i => ({
+          id: i.id,
+          title: `Entrevista con ${i.personName}`,
+          date: i.date,
+          type: "entrevista" as const,
+          location: "Oficina",
+          status: i.status,
+          description: i.notes ?? undefined,
+          organizationId: i.organizationId,
         })),
         ...filteredActivities.map(a => ({
           id: a.id,
@@ -3352,6 +3399,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = (req as any).user;
+      const isObispado =
+        user.role === "obispo" ||
+        user.role === "consejero_obispo" ||
+        user.role === "secretario_ejecutivo";
       const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
         user.role
       );
@@ -3375,30 +3426,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const eventEndTime = new Date(eventDate.getTime() + duration * 60000);
       
-      const [sacramentalMeetings, wardCouncils, interviews, activities] = await Promise.all([
+      const [sacramentalMeetings, wardCouncils, interviews, activities, organizations] = await Promise.all([
         storage.getAllSacramentalMeetings(),
         storage.getAllWardCouncils(),
         storage.getAllInterviews(),
         storage.getAllActivities(),
+        storage.getAllOrganizations(),
       ]);
 
-      const visibleInterviews = isOrgMember
-        ? interviews.filter(
-            (interview) =>
-              interview && (interview.personName === user.name || interview.assignedToId === user.id)
-          )
-        : interviews;
+      const visibleInterviews = isObispado
+        ? interviews
+        : interviews.filter((interview) => interview && interview.assignedToId === user.id);
       const visibleActivities = isOrgMember
         ? activities.filter(
             (activity) =>
               activity && (!activity.organizationId || activity.organizationId === user.organizationId)
           )
         : activities;
+      const organizationType = organizations.find(o => o.id === user.organizationId)?.type;
+      const includeOrganizationInterviews = isOrgMember && ["sociedad_socorro", "cuorum_elderes"].includes(organizationType || "");
+      const organizationInterviews = includeOrganizationInterviews && user.organizationId
+        ? await storage.getOrganizationInterviewsByOrganization(user.organizationId)
+        : [];
 
       const allEvents = [
         ...sacramentalMeetings.map(m => ({ id: m.id, date: applyMeetingTime(m.date), title: "Reunión Sacramental", type: "reunion", duration: 90 })),
         ...wardCouncils.map(c => ({ id: c.id, date: new Date(c.date), title: "Consejo de Barrio", type: "consejo", duration: 120 })),
         ...visibleInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
+        ...organizationInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
         ...visibleActivities.map(a => ({ id: a.id, date: new Date(a.date), title: a.title, type: "actividad", duration: 120 })),
       ];
 

@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek, startOfDay } from "date-fns";
+import {
+  addDays,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isTomorrow,
+  isToday,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -21,7 +34,8 @@ interface CalendarEvent {
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<"month" | "week">("month");
+  const [viewMode, setViewMode] = useState<"agenda" | "month" | "day">("agenda");
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
 
@@ -31,30 +45,28 @@ export default function CalendarPage() {
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const monthGridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const monthGridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const monthDays = eachDayOfInterval({ start: monthGridStart, end: monthGridEnd });
 
-  const weekStart = startOfWeek(currentDate);
-  const weekEnd = endOfWeek(currentDate);
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const calendarDays = viewMode === "month" 
-    ? monthDays 
-    : weekDays;
-
-  const getEventColor = (type: string) => {
+  const getEventDotClass = (type: string) => {
     switch (type) {
       case "reunion":
-        return "bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:text-white dark:border-blue-700";
+        return "bg-blue-500";
       case "consejo":
-        return "bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:text-white dark:border-purple-700";
+        return "bg-purple-500";
       case "presidencia":
-        return "bg-green-500 text-white border-green-600 dark:bg-green-600 dark:text-white dark:border-green-700";
+        return "bg-green-500";
       case "entrevista":
-        return "bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:text-white dark:border-orange-700";
+        return "bg-orange-500";
       case "actividad":
-        return "bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:text-white dark:border-pink-700";
+        return "bg-pink-500";
       default:
-        return "bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:text-white dark:border-gray-700";
+        return "bg-gray-500";
     }
   };
 
@@ -102,6 +114,65 @@ export default function CalendarPage() {
     )
     .slice(0, 10);
 
+  const agendaSections = useMemo(() => {
+    const upcoming = [...events]
+      .filter(isUpcomingEvent)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const groups = new Map<string, CalendarEvent[]>();
+    upcoming.forEach((event) => {
+      const key = format(new Date(event.date), "yyyy-MM-dd");
+      const existing = groups.get(key) ?? [];
+      existing.push(event);
+      groups.set(key, existing);
+    });
+
+    return Array.from(groups.entries()).map(([key, groupEvents]) => {
+      const date = new Date(`${key}T00:00:00`);
+      const label = isToday(date)
+        ? `Hoy · ${format(date, "d MMM", { locale: es })}`
+        : isTomorrow(date)
+          ? `Mañana · ${format(date, "d MMM", { locale: es })}`
+          : format(date, "EEEE d MMMM", { locale: es });
+      return {
+        key,
+        date,
+        label,
+        events: groupEvents,
+      };
+    });
+  }, [events]);
+
+  const selectedDayEvents = useMemo(() => {
+    return eventsOnDate(selectedDate).sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  }, [events, selectedDate]);
+
+  const headerDate = viewMode === "day" ? selectedDate : currentDate;
+
+  const handlePrev = () => {
+    if (viewMode === "day") {
+      setSelectedDate((prev) => addDays(prev, -1));
+    } else {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+    }
+  };
+
+  const handleNext = () => {
+    if (viewMode === "day") {
+      setSelectedDate((prev) => addDays(prev, 1));
+    } else {
+      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+    }
+  };
+
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentDate(today);
+    setSelectedDate(today);
+  };
+
   if (isLoading) {
     return (
       <div className="p-8">
@@ -133,14 +204,21 @@ export default function CalendarPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-lg sm:text-xl">
-                    {format(currentDate, "MMMM yyyy", { locale: es })}
+                    {viewMode === "day"
+                      ? format(headerDate, "EEEE d MMMM", { locale: es })
+                      : format(headerDate, "MMMM yyyy", { locale: es })}
                   </CardTitle>
+                  {viewMode === "day" && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {isToday(headerDate) ? "Hoy" : format(headerDate, "dd MMM yyyy", { locale: es })}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+                    onClick={handlePrev}
                     data-testid="button-prev-month"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -148,7 +226,7 @@ export default function CalendarPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentDate(new Date())}
+                    onClick={handleToday}
                     data-testid="button-today"
                   >
                     Hoy
@@ -156,14 +234,22 @@ export default function CalendarPage() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+                    onClick={handleNext}
                     data-testid="button-next-month"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-              <div className="flex gap-2 mt-4">
+              <div className="flex gap-2 mt-4 flex-wrap">
+                <Button
+                  variant={viewMode === "agenda" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setViewMode("agenda")}
+                  data-testid="button-agenda-view"
+                >
+                  Agenda
+                </Button>
                 <Button
                   variant={viewMode === "month" ? "default" : "outline"}
                   size="sm"
@@ -173,17 +259,59 @@ export default function CalendarPage() {
                   Mes
                 </Button>
                 <Button
-                  variant={viewMode === "week" ? "default" : "outline"}
+                  variant={viewMode === "day" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setViewMode("week")}
-                  data-testid="button-week-view"
+                  onClick={() => setViewMode("day")}
+                  data-testid="button-day-view"
                 >
-                  Semana
+                  Día
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              {viewMode === "month" ? (
+              {viewMode === "agenda" ? (
+                <div className="space-y-6">
+                  {agendaSections.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">No hay eventos próximos</div>
+                  ) : (
+                    agendaSections.map((section) => (
+                      <div key={section.key} className="space-y-3">
+                        <div className="text-sm font-semibold text-muted-foreground">{section.label}</div>
+                        <div className="space-y-2">
+                          {section.events.map((event) => (
+                            <button
+                              key={event.id}
+                              type="button"
+                              className="w-full text-left p-3 sm:p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800"
+                              data-testid={`agenda-event-${event.id}`}
+                              onClick={() => handleEventClick(event)}
+                            >
+                              <div className="flex gap-4">
+                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                  {format(new Date(event.date), "HH:mm")}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="text-sm font-semibold leading-tight">{event.title}</div>
+                                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                    <span className={`h-2 w-2 rounded-full ${getEventDotClass(event.type)}`} />
+                                    <span>{getEventTypeLabel(event.type)}</span>
+                                    {event.location && (
+                                      <span className="flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {event.location}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : viewMode === "month" ? (
                 <div className="overflow-x-auto">
                   <div className="min-w-[720px]">
                     {/* Calendar Header */}
@@ -201,40 +329,40 @@ export default function CalendarPage() {
                         const dayEvents = eventsOnDate(day);
                         const isCurrentMonth = isSameMonth(day, currentDate);
                         const isToday = isSameDay(day, new Date());
+                        const uniqueTypes = Array.from(new Set(dayEvents.map((event) => event.type)));
 
                         return (
-                          <div
+                          <button
                             key={day.toISOString()}
-                            className={`min-h-24 sm:min-h-32 p-2 rounded-md border ${
+                            type="button"
+                            onClick={() => {
+                              setSelectedDate(day);
+                              setViewMode("day");
+                            }}
+                            className={`min-h-24 sm:min-h-32 p-2 rounded-xl border text-left transition ${
                               isToday
                                 ? "bg-blue-100 border-blue-300 dark:bg-blue-900 dark:border-blue-700"
                                 : isCurrentMonth
-                                ? "bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-700"
+                                ? "bg-white border-gray-200 hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800"
                                 : "bg-gray-50 border-gray-200 opacity-50 dark:bg-slate-800 dark:border-slate-700 dark:opacity-30"
                             }`}
                             data-testid={`calendar-day-${format(day, "dd-MM-yyyy")}`}
                           >
                             <div className="text-xs sm:text-sm font-semibold mb-1 text-center">{format(day, "d")}</div>
-                            <div className="space-y-1">
-                              {dayEvents.slice(0, 2).map(event => (
-                                <button
-                                  key={event.id}
-                                  type="button"
-                                  className={`w-full text-left text-xs p-1 rounded border cursor-pointer hover:opacity-80 ${getEventColor(event.type)}`}
-                                  title={event.title}
-                                  data-testid={`event-${event.id}`}
-                                  onClick={() => handleEventClick(event)}
-                                >
-                                  {event.title.length > 12 ? `${event.title.substring(0, 12)}...` : event.title}
-                                </button>
+                            <div className="flex flex-wrap justify-center gap-1 mt-2">
+                              {uniqueTypes.slice(0, 3).map((type) => (
+                                <span
+                                  key={type}
+                                  className={`h-2 w-2 rounded-full ${getEventDotClass(type)}`}
+                                />
                               ))}
-                              {dayEvents.length > 2 && (
-                                <div className="text-xs text-muted-foreground text-center">
-                                  +{dayEvents.length - 2} más
-                                </div>
-                              )}
                             </div>
-                          </div>
+                            {dayEvents.length > 3 && (
+                              <div className="text-[10px] text-muted-foreground text-center mt-2">
+                                +{dayEvents.length - 3}
+                              </div>
+                            )}
+                          </button>
                         );
                       })}
                     </div>
@@ -242,52 +370,67 @@ export default function CalendarPage() {
                 </div>
               ) : (
                 <div>
-                  {/* Week View */}
+                  {/* Day View */}
                   <div className="space-y-4">
-                    {weekDays.map(day => {
-                      const dayEvents = eventsOnDate(day);
-                      const isToday = isSameDay(day, new Date());
+                    <div className="flex items-center justify-between gap-2 overflow-x-auto">
+                      {weekDays.map((day) => {
+                        const isSelected = isSameDay(day, selectedDate);
+                        return (
+                          <button
+                            key={day.toISOString()}
+                            type="button"
+                            className={`flex flex-col items-center px-3 py-2 rounded-xl border text-xs sm:text-sm min-w-[72px] ${
+                              isSelected
+                                ? "bg-blue-500 text-white border-blue-500"
+                                : "bg-white border-gray-200 text-muted-foreground dark:bg-slate-900 dark:border-slate-700"
+                            }`}
+                            onClick={() => setSelectedDate(day)}
+                          >
+                            <span className="uppercase text-[10px]">{format(day, "EEE", { locale: es })}</span>
+                            <span className="font-semibold">{format(day, "d")}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={`p-4 rounded-md border ${isToday ? "bg-blue-100 border-blue-300 dark:bg-blue-900 dark:border-blue-700" : "bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-700"}`}
-                        >
-                          <div className="font-semibold mb-2">
-                            {format(day, "EEEE, d MMMM", { locale: es })}
-                          </div>
-                          {dayEvents.length === 0 ? (
-                            <div className="text-sm text-muted-foreground">Sin eventos</div>
-                          ) : (
-                            <div className="space-y-2">
-                              {dayEvents.map(event => (
-                                <button
-                                  key={event.id}
-                                  type="button"
-                                  className={`w-full text-left p-2 rounded border ${getEventColor(event.type)}`}
-                                  data-testid={`event-${event.id}`}
-                                  onClick={() => handleEventClick(event)}
-                                >
-                                  <div className="font-medium text-sm">{event.title}</div>
-                                  <div className="flex gap-2 text-xs mt-1">
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Eventos del día</h3>
+                      {selectedDayEvents.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">Sin eventos</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {selectedDayEvents.map((event) => (
+                            <button
+                              key={event.id}
+                              type="button"
+                              className="w-full text-left p-3 sm:p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800"
+                              data-testid={`day-event-${event.id}`}
+                              onClick={() => handleEventClick(event)}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold">{event.title}</div>
+                                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                    <span className={`h-2 w-2 rounded-full ${getEventDotClass(event.type)}`} />
+                                    <span>{getEventTypeLabel(event.type)}</span>
                                     {event.location && (
-                                      <div className="flex items-center gap-1">
+                                      <span className="flex items-center gap-1">
                                         <MapPin className="h-3 w-3" />
                                         {event.location}
-                                      </div>
+                                      </span>
                                     )}
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3" />
-                                      {format(new Date(event.date), "HH:mm")}
-                                    </div>
                                   </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                                  <Clock className="h-3 w-3" />
+                                  {format(new Date(event.date), "HH:mm")}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
