@@ -33,10 +33,11 @@ export function MobileNav() {
     "secretario_financiero",
   ].includes(user?.role ?? "");
 
-  const organizationHref =
-    organizationType && organizationSlugMap[organizationType]
-      ? `/presidency/${organizationSlugMap[organizationType]}`
-      : "/leadership";
+  const organizationSlug = organizationType
+    ? organizationSlugMap[organizationType] ?? organizationType.replace(/_/g, "-")
+    : undefined;
+
+  const organizationHref = organizationSlug ? `/presidency/${organizationSlug}` : "/leadership";
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: Home },

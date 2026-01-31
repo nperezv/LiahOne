@@ -79,6 +79,76 @@ export function useMembers(options?: { enabled?: boolean }) {
   });
 }
 
+export function useCreateMember() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/members", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+      toast({
+        title: "Miembro agregado",
+        description: "El miembro ha sido agregado exitosamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el miembro. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useUpdateMember() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: { id: string; payload: any }) =>
+      apiRequest("PUT", `/api/members/${data.id}`, data.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+      toast({
+        title: "Miembro actualizado",
+        description: "El miembro ha sido actualizado exitosamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el miembro. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteMember() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/members/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+      toast({
+        title: "Miembro eliminado",
+        description: "El miembro ha sido eliminado exitosamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el miembro. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 // ========================================
 // SACRAMENTAL MEETINGS
 // ========================================
