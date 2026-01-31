@@ -18,6 +18,7 @@ import {
   insertOrganizationInterviewSchema,
   insertGoalSchema,
   insertBirthdaySchema,
+  insertMemberSchema,
   insertActivitySchema,
   insertAssignmentSchema,
   insertPdfTemplateSchema,
@@ -47,6 +48,8 @@ import {
   sendAccessRequestEmail,
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
+  sendInterviewScheduledEmail,
+  sendBirthdayGreetingEmail,
   verifyAccessToken,
 } from "./auth";
 
@@ -1570,6 +1573,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let assignedToId: string | undefined;
       let assignedUser: any | undefined;
+      let memberEmail: string | null | undefined;
+      let memberName: string | undefined;
       let resolvedPersonName = personName;
       let resolvedMemberId = memberId;
 
@@ -1579,6 +1584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Member not found" });
         }
         resolvedPersonName = member.nameSurename;
+        memberName = member.nameSurename;
+        memberEmail = member.email;
       } else if (personName) {
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
@@ -1639,6 +1646,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
   
       const interview = await storage.createInterview(interviewData);
+      const interviewDateValue = new Date(interview.date);
+      const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+        year: "numeric",
+        month: "long",
+        day: "2-digit",
+      });
+      const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const interviewTypeLabel = interview.type;
+      const interviewerName = interviewer?.name || "Obispado";
+
+      const recipientMap = new Map<string, string>();
+      if (memberEmail) {
+        recipientMap.set(memberEmail, memberName || resolvedPersonName);
+      }
+      if (assignedUser?.email) {
+        recipientMap.set(assignedUser.email, assignedUser.name);
+      }
+
+      for (const [email, name] of recipientMap.entries()) {
+        await sendInterviewScheduledEmail({
+          toEmail: email,
+          recipientName: name,
+          interviewerName,
+          interviewDate,
+          interviewTime,
+          interviewType: interviewTypeLabel,
+          notes: rest.notes,
+        });
+      }
   
       // 🔔 Notificar entrevistador
       await storage.createNotification({
@@ -2595,6 +2635,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(members);
     } catch (error) {
       console.error("Error fetching members:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/members", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const memberData = insertMemberSchema.parse(req.body);
+      const member = await storage.createMember(memberData);
+      res.status(201).json(member);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating member:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/members/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { id } = req.params;
+      const memberData = insertMemberSchema.partial().parse(req.body);
+      const member = await storage.updateMember(id, memberData);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      res.json(member);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating member:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/members/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { id } = req.params;
+      const member = await storage.getMemberById(id);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+
+      await storage.deleteMember(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting member:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -3949,12 +4076,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ========================================
+  // AUTOMATIC BIRTHDAY EMAILS
+  // ========================================
+  let lastBirthdayEmailDate: string | null = null;
+
+  async function sendAutomaticBirthdayEmails() {
+    try {
+      const todayKey = new Date().toDateString();
+      if (lastBirthdayEmailDate === todayKey) {
+        return;
+      }
+
+      const todayBirthdays = await storage.getTodayBirthdays();
+      if (todayBirthdays.length === 0) {
+        lastBirthdayEmailDate = todayKey;
+        console.log("[Birthday Emails] No birthdays today");
+        return;
+      }
+
+      let emailsSent = 0;
+      for (const birthday of todayBirthdays) {
+        if (!birthday.email) continue;
+        const age = new Date().getFullYear() - new Date(birthday.birthDate).getFullYear();
+        await sendBirthdayGreetingEmail({
+          toEmail: birthday.email,
+          name: birthday.name,
+          age,
+        });
+        emailsSent += 1;
+      }
+
+      lastBirthdayEmailDate = todayKey;
+      console.log(`[Birthday Emails] Sent ${emailsSent} birthday email(s)`);
+    } catch (error) {
+      console.error("[Birthday Emails] Error:", error);
+    }
+  }
+
   // Schedule birthday notifications check every hour
   // This ensures notifications are sent even if server restarts
   setInterval(sendAutomaticBirthdayNotifications, 60 * 60 * 1000); // Every hour
   
   // Also run once on startup (with a small delay to ensure DB is ready)
   setTimeout(sendAutomaticBirthdayNotifications, 10000); // 10 seconds after startup
+
+  // Schedule birthday emails once per day (24 hours)
+  setInterval(sendAutomaticBirthdayEmails, 24 * 60 * 60 * 1000);
+  setTimeout(sendAutomaticBirthdayEmails, 15000);
 
   return httpServer;
 }

@@ -194,3 +194,104 @@ export async function sendNewUserCredentialsEmail(payload: {
     ].join("\n"),
   });
 }
+
+export async function sendInterviewScheduledEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  interviewerName?: string | null;
+  interviewDate: string;
+  interviewTime: string;
+  interviewType?: string | null;
+  notes?: string | null;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. Interview scheduled:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  const interviewerLine = payload.interviewerName
+    ? `Entrevistador: ${payload.interviewerName}`
+    : "Entrevistador: Obispado";
+  const typeLine = payload.interviewType
+    ? `Tipo de entrevista: ${payload.interviewType}`
+    : "Tipo de entrevista: (sin especificar)";
+  const notesLine = payload.notes?.trim()
+    ? `Notas: ${payload.notes.trim()}`
+    : "Notas: (sin notas)";
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "Entrevista programada",
+    text: [
+      `Hola ${payload.recipientName},`,
+      "",
+      "Tu entrevista ha sido programada.",
+      `Fecha: ${payload.interviewDate}`,
+      `Hora: ${payload.interviewTime}`,
+      interviewerLine,
+      typeLine,
+      notesLine,
+      "",
+      "Si necesitas reprogramar, responde a este correo o comunícate con el obispado.",
+    ].join("\n"),
+  });
+}
+
+export async function sendBirthdayGreetingEmail(payload: {
+  toEmail: string;
+  name: string;
+  age?: number | null;
+  message?: string | null;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. Birthday greeting:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  const ageLine = payload.age ? `¡Felices ${payload.age} años!` : "¡Feliz cumpleaños!";
+  const messageLine = payload.message?.trim()
+    ? payload.message.trim()
+    : "Que tengas un día lleno de alegría y bendiciones.";
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "¡Feliz cumpleaños!",
+    text: [
+      `Hola ${payload.name},`,
+      "",
+      ageLine,
+      messageLine,
+      "",
+      "Con cariño,",
+      "Tu barrio",
+    ].join("\n"),
+  });
+}

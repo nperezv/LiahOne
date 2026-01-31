@@ -49,6 +49,7 @@ import {
   type Birthday,
   type InsertBirthday,
   type Member,
+  type InsertMember,
   type Activity,
   type InsertActivity,
   type Assignment,
@@ -171,6 +172,9 @@ export interface IStorage {
   // Directory Members
   getAllMembers(): Promise<DirectoryMember[]>;
   getMemberById(id: string): Promise<Member | undefined>;
+  createMember(member: InsertMember): Promise<Member>;
+  updateMember(id: string, data: Partial<InsertMember>): Promise<Member | undefined>;
+  deleteMember(id: string): Promise<void>;
 
   // Goals
   getAllGoals(): Promise<Goal[]>;
@@ -779,6 +783,24 @@ export class DatabaseStorage implements IStorage {
   async getMemberById(id: string): Promise<Member | undefined> {
     const [member] = await db.select().from(members).where(eq(members.id, id));
     return member || undefined;
+  }
+
+  async createMember(insertMember: InsertMember): Promise<Member> {
+    const [member] = await db.insert(members).values(insertMember).returning();
+    return member;
+  }
+
+  async updateMember(id: string, data: Partial<InsertMember>): Promise<Member | undefined> {
+    const [member] = await db
+      .update(members)
+      .set(data)
+      .where(eq(members.id, id))
+      .returning();
+    return member || undefined;
+  }
+
+  async deleteMember(id: string): Promise<void> {
+    await db.delete(members).where(eq(members.id, id));
   }
 
   // ========================================

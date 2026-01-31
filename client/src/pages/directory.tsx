@@ -1,17 +1,87 @@
 import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
-import { useMembers } from "@/hooks/use-api";
-import { CalendarPlus, Mail, Phone, Search, Send, Users } from "lucide-react";
+import {
+  useCreateMember,
+  useDeleteMember,
+  useMembers,
+  useOrganizations,
+  useUpdateMember,
+} from "@/hooks/use-api";
+import { CalendarPlus, Mail, Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
+
+const memberSchema = z.object({
+  nameSurename: z.string().min(1, "El nombre es requerido"),
+  sex: z.string().min(1, "El sexo es requerido"),
+  birthday: z.string().min(1, "La fecha de nacimiento es requerida"),
+  phone: z.string().optional().or(z.literal("")),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  organizationId: z.string().optional().or(z.literal("")),
+});
+
+type MemberFormValues = z.infer<typeof memberSchema>;
+
+const formatDateForInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 export default function DirectoryPage() {
   const [, setLocation] = useLocation();
   const { data: members = [], isLoading } = useMembers();
+  const { data: organizations = [] } = useOrganizations();
+  const createMemberMutation = useCreateMember();
+  const updateMemberMutation = useUpdateMember();
+  const deleteMemberMutation = useDeleteMember();
   const [query, setQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<any>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const form = useForm<MemberFormValues>({
+    resolver: zodResolver(memberSchema),
+    defaultValues: {
+      nameSurename: "",
+      sex: "",
+      birthday: "",
+      phone: "",
+      email: "",
+      organizationId: "none",
+    },
+  });
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -46,6 +116,77 @@ export default function DirectoryPage() {
     return digits ? `https://wa.me/${digits}` : "";
   };
 
+  const handleOpenCreate = () => {
+    setEditingMember(null);
+    form.reset({
+      nameSurename: "",
+      sex: "",
+      birthday: "",
+      phone: "",
+      email: "",
+      organizationId: "none",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleEditMember = (member: any) => {
+    setEditingMember(member);
+    form.reset({
+      nameSurename: member.nameSurename,
+      sex: member.sex,
+      birthday: formatDateForInput(member.birthday),
+      phone: member.phone ?? "",
+      email: member.email ?? "",
+      organizationId: member.organizationId ?? "none",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmitMember = (data: MemberFormValues) => {
+    const payload = {
+      ...data,
+      birthday: new Date(data.birthday).toISOString(),
+      phone: data.phone?.trim() || null,
+      email: data.email?.trim() || null,
+      organizationId: data.organizationId === "none" ? null : data.organizationId || null,
+    };
+
+    if (editingMember) {
+      updateMemberMutation.mutate(
+        { id: editingMember.id, payload },
+        {
+          onSuccess: () => {
+            setIsDialogOpen(false);
+            setEditingMember(null);
+            form.reset();
+          },
+        }
+      );
+    } else {
+      createMemberMutation.mutate(payload, {
+        onSuccess: () => {
+          setIsDialogOpen(false);
+          form.reset();
+        },
+      });
+    }
+  };
+
+  const handleRequestDelete = (member: any) => {
+    setDeleteCandidate(member);
+    setDeleteConfirmText("");
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteCandidate) return;
+    deleteMemberMutation.mutate(deleteCandidate.id, {
+      onSuccess: () => {
+        setDeleteCandidate(null);
+        setDeleteConfirmText("");
+      },
+    });
+  };
+
   return (
     <div className="container max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -55,7 +196,140 @@ export default function DirectoryPage() {
             Gestiona los miembros del barrio y sus datos de contacto.
           </p>
         </div>
-        <Button onClick={() => setLocation("/birthdays")}>Ver cumpleaños</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setLocation("/birthdays")}>
+            Ver cumpleaños
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleOpenCreate}>Agregar miembro</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{editingMember ? "Editar miembro" : "Agregar miembro"}</DialogTitle>
+                <DialogDescription>
+                  {editingMember
+                    ? "Actualiza los datos del miembro del barrio."
+                    : "Registra un nuevo miembro del barrio en el directorio."}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmitMember)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="nameSurename"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre y Apellido</FormLabel>
+                        <FormControl>
+                          <Input placeholder="María López" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="sex"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sexo</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="masculino">Masculino</SelectItem>
+                              <SelectItem value="femenino">Femenino</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="birthday"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha de nacimiento</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono (opcional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+56 9 1111 2222" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email (opcional)</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="correo@ejemplo.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                      name="organizationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organización (opcional)</FormLabel>
+                        <Select value={field.value || "none"} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona una organización" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Sin organización</SelectItem>
+                            {organizations.map((org: any) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={createMemberMutation.isPending || updateMemberMutation.isPending}>
+                      {editingMember ? "Guardar cambios" : "Agregar miembro"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -141,9 +415,17 @@ export default function DirectoryPage() {
                           </a>
                         </Button>
                       )}
-                      <Button size="sm" onClick={() => setLocation("/interviews")}>
+                      <Button size="sm" onClick={() => setLocation(`/interviews?memberId=${member.id}`)}>
                         <CalendarPlus className="mr-1 h-4 w-4" />
                         Agendar entrevista
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleEditMember(member)}>
+                        <Pencil className="mr-1 h-4 w-4" />
+                        Editar
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleRequestDelete(member)}>
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        Eliminar
                       </Button>
                     </div>
                   </div>
@@ -157,6 +439,34 @@ export default function DirectoryPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={Boolean(deleteCandidate)} onOpenChange={(open) => !open && setDeleteCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás por eliminar a <strong>{deleteCandidate?.nameSurename}</strong>. Esta acción no se puede
+              deshacer. Escribe <strong>ELIMINAR</strong> para confirmar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="mt-3">
+            <Input
+              value={deleteConfirmText}
+              onChange={(event) => setDeleteConfirmText(event.target.value)}
+              placeholder="Escribe ELIMINAR"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteCandidate(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteConfirmText.trim().toUpperCase() !== "ELIMINAR"}
+              onClick={handleConfirmDelete}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
