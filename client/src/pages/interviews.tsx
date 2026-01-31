@@ -52,6 +52,7 @@ import {
   useInterviews,
   useCreateInterview,
   useCompleteInterview,
+  useMembers,
   useUsers,
   useDeleteInterview,
   useUpdateInterview,
@@ -69,6 +70,7 @@ import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
  */
 const interviewSchema = z.object({
   personName: z.string().min(1, "El nombre es requerido"),
+  memberId: z.string().optional().or(z.literal("")),
   date: z.string().min(1, "La fecha es requerida"),
   type: z.string().min(1, "El tipo es requerido"),
   interviewerId: z.string().min(1, "El entrevistador es requerido"),
@@ -163,6 +165,20 @@ export default function InterviewsPage() {
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
   const { data: users = [] } = useUsers();
+  const canUseDirectory = [
+    "obispo",
+    "consejero_obispo",
+    "secretario",
+    "secretario_ejecutivo",
+    "secretario_financiero",
+  ].includes(user?.role || "");
+  const { data: members = [], isLoading: isMembersLoading } = useMembers({
+    enabled: canUseDirectory,
+  });
+  const [personSource, setPersonSource] = useState<"directory" | "leader" | "manual">(
+    canUseDirectory ? "directory" : "leader"
+  );
+  const [memberQuery, setMemberQuery] = useState("");
 
   const createMutation = useCreateInterview();
   const updateMutation = useUpdateInterview();
@@ -195,6 +211,22 @@ export default function InterviewsPage() {
       ),
     [users]
   );
+
+  const filteredMembers = useMemo(() => {
+    const normalized = memberQuery.trim().toLowerCase();
+    if (!normalized) return members;
+    return members.filter((member) => {
+      const haystack = [
+        member.nameSurename,
+        member.phone ?? "",
+        member.email ?? "",
+        member.organizationName ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalized);
+    });
+  }, [memberQuery, members]);
 
   const userById = useMemo(() => {
     const m = new Map<string, any>();
@@ -229,6 +261,7 @@ export default function InterviewsPage() {
     resolver: zodResolver(interviewSchema),
     defaultValues: {
       personName: isOrgMember ? user?.name || "" : "",
+      memberId: "",
       date: "",
       type: "",
       interviewerId: "",
@@ -242,6 +275,13 @@ export default function InterviewsPage() {
     resolver: zodResolver(interviewSchema),
   });
 
+  const selectedMemberId = form.watch("memberId");
+  const selectedMember = useMemo(
+    () => members.find((member) => member.id === selectedMemberId),
+    [members, selectedMemberId]
+  );
+  const editMemberId = editForm.watch("memberId");
+
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
       {
@@ -249,6 +289,7 @@ export default function InterviewsPage() {
         date: formatDateTimeForApi(data.date),
         status: "programada", // ✅ en UI la llamamos Pendiente
         notes: data.notes || "",
+        memberId: data.memberId || undefined,
       },
       {
         onSuccess: () => {
@@ -285,6 +326,7 @@ export default function InterviewsPage() {
         interviewerId: data.interviewerId,
         urgent: data.urgent,
         notes: data.notes || "",
+        memberId: data.memberId || null,
       },
       {
         onSuccess: () => {
@@ -314,6 +356,7 @@ export default function InterviewsPage() {
     setEditingInterview(interview);
     editForm.reset({
       personName: interview.personName,
+      memberId: interview.memberId ?? "",
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
       interviewerId: interview.interviewerId,
@@ -575,34 +618,127 @@ export default function InterviewsPage() {
                               <Input placeholder="Nombre Apllido" {...field} disabled={true} data-testid="input-person-name" />
                             </FormControl>
                           ) : (
-                            <div className="space-y-2">
-                              <FormControl>
-                                <Input
-                                  placeholder="Escribe un nombre o selecciona de la lista"
-                                  {...field}
-                                  data-testid="input-person-name"
-                                />
-                              </FormControl>
-                              <div className="border rounded-md max-h-40 overflow-y-auto">
-                                {organizationMembers
-                                  .filter((u: any) =>
-                                    u.name.toLowerCase().includes(field.value.toLowerCase())
-                                  )
-                                  .map((u: any) => (
-                                    <div
-                                      key={u.id}
-                                      onClick={() => field.onChange(u.name)}
-                                      className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
-                                      data-testid={`option-person-${u.id}`}
-                                    >
-                                      <div className="font-medium">{u.name}</div>
-                                      <div className="text-xs text-muted-foreground capitalize">{formatRole(u.role)}</div>
-                                    </div>
-                                  ))}
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Fuente de la persona</Label>
+                                <Select
+                                  value={personSource}
+                                  onValueChange={(value) => {
+                                    const nextValue = value as "directory" | "leader" | "manual";
+                                    setPersonSource(nextValue);
+                                    form.setValue("memberId", "");
+                                    form.setValue("personName", "");
+                                    if (nextValue !== "directory") {
+                                      setMemberQuery("");
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger data-testid="select-person-source">
+                                    <SelectValue placeholder="Selecciona el origen" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {canUseDirectory && (
+                                      <SelectItem value="directory">Directorio</SelectItem>
+                                    )}
+                                    <SelectItem value="leader">Líderes con cuenta</SelectItem>
+                                    <SelectItem value="manual">Manual</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </div>
+
+                              {personSource === "directory" && canUseDirectory ? (
+                                <div className="space-y-3">
+                                  <Input
+                                    placeholder="Buscar en el directorio"
+                                    value={memberQuery}
+                                    onChange={(event) => setMemberQuery(event.target.value)}
+                                    data-testid="input-member-search"
+                                  />
+                                  {selectedMember && (
+                                    <div className="rounded-md border border-dashed border-border/60 p-2 text-sm">
+                                      Seleccionado: <strong>{selectedMember.nameSurename}</strong>
+                                    </div>
+                                  )}
+                                  <div className="border rounded-md max-h-48 overflow-y-auto">
+                                  {isMembersLoading ? (
+                                    <div className="p-3 text-sm text-muted-foreground">Cargando miembros...</div>
+                                  ) : filteredMembers.length > 0 ? (
+                                    filteredMembers.map((member) => (
+                                      <div
+                                        key={member.id}
+                                        onClick={() => {
+                                          form.setValue("memberId", member.id, {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          });
+                                          field.onChange(member.nameSurename);
+                                        }}
+                                        className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
+                                        data-testid={`option-member-${member.id}`}
+                                      >
+                                          <div className="font-medium">{member.nameSurename}</div>
+                                          <div className="text-xs text-muted-foreground">
+                                            {member.organizationName ?? "Sin organización"}
+                                          </div>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="p-3 text-sm text-muted-foreground">
+                                        No hay miembros con ese filtro.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : personSource === "leader" ? (
+                                <div className="space-y-2">
+                                  <FormControl>
+                                    <Input
+                                      placeholder="Escribe un nombre o selecciona de la lista"
+                                      {...field}
+                                      data-testid="input-person-name"
+                                    />
+                                  </FormControl>
+                                  <div className="border rounded-md max-h-40 overflow-y-auto">
+                                    {organizationMembers
+                                      .filter((u: any) =>
+                                        u.name.toLowerCase().includes(field.value.toLowerCase())
+                                      )
+                                      .map((u: any) => (
+                                        <div
+                                          key={u.id}
+                                          onClick={() => field.onChange(u.name)}
+                                          className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
+                                          data-testid={`option-person-${u.id}`}
+                                        >
+                                          <div className="font-medium">{u.name}</div>
+                                          <div className="text-xs text-muted-foreground capitalize">{formatRole(u.role)}</div>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <FormControl>
+                                  <Input
+                                    placeholder="Escribe el nombre manualmente"
+                                    {...field}
+                                    data-testid="input-person-name"
+                                  />
+                                </FormControl>
+                              )}
                             </div>
                           )}
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="memberId"
+                      render={({ field }) => (
+                        <FormItem className="hidden">
+                          <FormControl>
+                            <Input type="hidden" {...field} />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -968,10 +1104,37 @@ export default function InterviewsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Nombre de la Persona</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nombre" {...field} data-testid="input-edit-person-name" />
-                    </FormControl>
+                    {editMemberId ? (
+                      <div className="space-y-2">
+                        <FormControl>
+                          <Input placeholder="Nombre" {...field} disabled data-testid="input-edit-person-name" />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => editForm.setValue("memberId", "")}
+                        >
+                          Desvincular y editar manualmente
+                        </Button>
+                      </div>
+                    ) : (
+                      <FormControl>
+                        <Input placeholder="Nombre" {...field} data-testid="input-edit-person-name" />
+                      </FormControl>
+                    )}
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="memberId"
+                render={({ field }) => (
+                  <FormItem className="hidden">
+                    <FormControl>
+                      <Input type="hidden" {...field} />
+                    </FormControl>
                   </FormItem>
                 )}
               />

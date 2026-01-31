@@ -55,6 +55,31 @@ export function useDashboardStats() {
 }
 
 // ========================================
+// DIRECTORY MEMBERS
+// ========================================
+
+export interface DirectoryMember {
+  id: string;
+  nameSurename: string;
+  sex: string;
+  birthday: string;
+  phone?: string | null;
+  email?: string | null;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  organizationType?: string | null;
+  createdAt: string;
+}
+
+export function useMembers(options?: { enabled?: boolean }) {
+  return useQuery<DirectoryMember[]>({
+    queryKey: ["/api/members"],
+    staleTime: 1000 * 60,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+// ========================================
 // SACRAMENTAL MEETINGS
 // ========================================
 
@@ -324,8 +349,9 @@ export function useApproveBudgetRequest() {
 export function useInterviews() {
   return useQuery<any>({
     queryKey: ["/api/interviews"],
-    ...REALTIME_QUERY_OPTIONS,
-    refetchOnMount: true,    
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
   });
 }
 
