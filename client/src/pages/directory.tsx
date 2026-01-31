@@ -67,7 +67,6 @@ export default function DirectoryPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
-  const [currentRevealWidth, setCurrentRevealWidth] = useState(120);
   const [sheetMember, setSheetMember] = useState<any>(null);
   const [sheetOffset, setSheetOffset] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -77,11 +76,9 @@ export default function DirectoryPage() {
   const longPressTriggered = useRef(false);
   const lastLongPressAt = useRef(0);
   const swipeStartOffset = useRef(0);
-  const cardWidthRef = useRef(0);
-  const maxRevealRef = useRef(120);
   const rafRef = useRef<number | null>(null);
   const pendingOffset = useRef(0);
-  const actionReveal = 120;
+  const ACTIONS_WIDTH = 112;
   const sheetStartY = useRef(0);
   const sheetDragging = useRef(false);
   const sheetCloseTimer = useRef<number | null>(null);
@@ -205,7 +202,6 @@ export default function DirectoryPage() {
   const resetSwipe = () => {
     setSwipeOffset(0);
     setActiveSwipeId(null);
-    setCurrentRevealWidth(actionReveal);
     swipeStartOffset.current = 0;
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
@@ -248,10 +244,6 @@ export default function DirectoryPage() {
     pointerStartX.current = event.clientX;
     pointerDragging.current = true;
     longPressTriggered.current = false;
-    cardWidthRef.current = event.currentTarget.getBoundingClientRect().width;
-    const nextMaxReveal = cardWidthRef.current * 0.35;
-    maxRevealRef.current = Math.max(0, nextMaxReveal);
-    setCurrentRevealWidth(maxRevealRef.current);
     if (memberId !== activeSwipeId) {
       setSwipeOffset(0);
     }
@@ -279,8 +271,7 @@ export default function DirectoryPage() {
       longPressTimer.current = null;
     }
     const swipeDistance = swipeStartOffset.current + delta;
-    const maxTranslate = Math.min(Math.abs(swipeDistance), maxRevealRef.current);
-    const nextOffset = Math.sign(swipeDistance || 1) * maxTranslate;
+    const nextOffset = Math.min(Math.max(swipeDistance, -ACTIONS_WIDTH), ACTIONS_WIDTH);
     pendingOffset.current = nextOffset;
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -312,8 +303,7 @@ export default function DirectoryPage() {
       resetSwipe();
       return;
     }
-    const maxSnap = maxRevealRef.current;
-    const snapped = swipeOffset > 0 ? maxSnap : -maxSnap;
+    const snapped = swipeOffset > 0 ? ACTIONS_WIDTH : -ACTIONS_WIDTH;
     setSwipeOffset(snapped);
   };
 
@@ -544,14 +534,14 @@ export default function DirectoryPage() {
                 const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
                 const hasPhone = Boolean(member.phone);
                 const contactDisabled = !hasPhone;
-                const actionWidth = isActive ? currentRevealWidth : actionReveal;
+                const actionWidth = ACTIONS_WIDTH;
                 return (
                   <div
                     key={member.id}
                     className="relative overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
                   >
                     <div
-                      className={`absolute inset-0 flex items-center justify-start rounded-[14px] text-white transition-opacity duration-150 ${
+                      className={`absolute inset-0 m-0 flex h-full items-center justify-start border-0 text-white shadow-none transition-opacity duration-150 ${
                         isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       } ${contactDisabled ? "bg-[#2c2c2e]" : "bg-gradient-to-r from-[#1f3b2d] to-[#34C759]"}`}
                     >
@@ -597,7 +587,7 @@ export default function DirectoryPage() {
                       </div>
                     </div>
                     <div
-                      className={`absolute inset-0 flex items-center justify-end rounded-[14px] bg-[#2c2c2e] text-white transition-opacity duration-150 ${
+                      className={`absolute inset-0 m-0 flex h-full items-center justify-end border-0 bg-[#2c2c2e] text-white shadow-none transition-opacity duration-150 ${
                         isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
