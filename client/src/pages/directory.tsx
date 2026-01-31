@@ -458,13 +458,18 @@ export default function DirectoryPage() {
                 const whatsappLink = buildWhatsappLink(member.phone);
                 const isActive = activeSwipeId === member.id;
                 const translateX = isActive ? swipeOffset : 0;
+                const isRevealed = isActive && Math.abs(swipeOffset) > 6;
                 const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
                 return (
                   <div
                     key={member.id}
                     className="relative overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
                   >
-                    <div className="absolute inset-y-0 left-0 flex items-center gap-3 px-4 text-sm">
+                    <div
+                      className={`absolute inset-y-0 left-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
+                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      }`}
+                    >
                       {member.phone && (
                         <a
                           href={`tel:${member.phone}`}
@@ -488,7 +493,11 @@ export default function DirectoryPage() {
                         </a>
                       )}
                     </div>
-                    <div className="absolute inset-y-0 right-0 flex items-center gap-3 px-4 text-sm">
+                    <div
+                      className={`absolute inset-y-0 right-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
+                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      }`}
+                    >
                       <button
                         type="button"
                         className="flex items-center gap-2 text-[#0A84FF]"
@@ -515,7 +524,7 @@ export default function DirectoryPage() {
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] items-center gap-3 px-4 transition-transform duration-200 ease-out will-change-transform ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 transition-transform duration-200 ease-out will-change-transform ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
                       style={{ transform: `translateX(${translateX}px)`, touchAction: "pan-y" }}
