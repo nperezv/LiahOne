@@ -79,7 +79,7 @@ export default function DirectoryPage() {
   const swipeStartOffset = useRef(0);
   const rafRef = useRef<number | null>(null);
   const pendingOffset = useRef(0);
-  const actionReveal = 132;
+  const actionReveal = 120;
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
@@ -210,6 +210,9 @@ export default function DirectoryPage() {
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>, memberId: string, member: any) => {
     pointerStartX.current = event.clientX;
     pointerDragging.current = true;
+    if (memberId !== activeSwipeId) {
+      setSwipeOffset(0);
+    }
     setActiveSwipeId(memberId);
     swipeStartOffset.current = memberId === activeSwipeId ? swipeOffset : 0;
     pendingOffset.current = swipeStartOffset.current;
@@ -255,7 +258,7 @@ export default function DirectoryPage() {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    if (Math.abs(swipeOffset) < 40) {
+    if (Math.abs(swipeOffset) < 60) {
       resetSwipe();
       return;
     }
@@ -458,7 +461,8 @@ export default function DirectoryPage() {
                 const whatsappLink = buildWhatsappLink(member.phone);
                 const isActive = activeSwipeId === member.id;
                 const translateX = isActive ? swipeOffset : 0;
-                const isRevealed = isActive && Math.abs(swipeOffset) > 6;
+                const isRightSwipe = isActive && swipeOffset > 6;
+                const isLeftSwipe = isActive && swipeOffset < -6;
                 const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
                 return (
                   <div
@@ -466,68 +470,81 @@ export default function DirectoryPage() {
                     className="relative overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
                   >
                     <div
-                      className={`absolute inset-y-0 left-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
-                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      className={`absolute inset-y-0 left-0 flex w-[120px] items-center justify-center bg-gradient-to-r from-[#1f3b2d] to-[#34C759] text-white transition-opacity duration-150 ${
+                        isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
-                      <button
-                        type="button"
-                        className="flex items-center gap-2 text-[#0A84FF]"
-                        onClick={() => {
-                          resetSwipe();
-                          handleEditMember(member);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="flex items-center gap-2 text-[#FF453A]"
-                        onClick={() => {
-                          resetSwipe();
-                          handleRequestDelete(member);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Eliminar
-                      </button>
+                      <div className="grid h-full w-full grid-cols-2">
+                        {member.phone && (
+                          <a
+                            href={`tel:${member.phone}`}
+                            className="flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium"
+                            onClick={resetSwipe}
+                          >
+                            <Phone className="h-5 w-5" />
+                            Llamar
+                          </a>
+                        )}
+                        {whatsappLink && (
+                          <a
+                            href={whatsappLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium"
+                            onClick={resetSwipe}
+                          >
+                            <Send className="h-5 w-5" />
+                            WhatsApp
+                          </a>
+                        )}
+                      </div>
                     </div>
                     <div
-                      className={`absolute inset-y-0 right-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
-                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      className={`absolute inset-y-0 right-0 flex w-[120px] items-center justify-center text-white transition-opacity duration-150 ${
+                        isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
-                      {member.phone && (
-                        <a
-                          href={`tel:${member.phone}`}
-                          className="flex items-center gap-2 text-[#0A84FF]"
-                          onClick={resetSwipe}
+                      <div className="grid h-full w-full grid-cols-2">
+                        <button
+                          type="button"
+                          className="flex h-full flex-col items-center justify-center gap-1 bg-[#2c2c2e] text-[11px] font-medium"
+                          onClick={() => {
+                            resetSwipe();
+                            handleEditMember(member);
+                          }}
                         >
-                          <Phone className="h-4 w-4" />
-                          Llamar
-                        </a>
-                      )}
-                      {whatsappLink && (
-                        <a
-                          href={whatsappLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 text-[#0A84FF]"
-                          onClick={resetSwipe}
+                          <Pencil className="h-5 w-5" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="flex h-full flex-col items-center justify-center gap-1 bg-[#FF453A] text-[11px] font-medium"
+                          onClick={() => {
+                            resetSwipe();
+                            handleRequestDelete(member);
+                          }}
                         >
-                          <Send className="h-4 w-4" />
-                          WhatsApp
-                        </a>
-                      )}
+                          <Trash2 className="h-5 w-5" />
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 transition-transform duration-200 ease-out will-change-transform ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 transition-transform ease-out will-change-transform ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
-                      style={{ transform: `translateX(${translateX}px)`, touchAction: "pan-y" }}
+                      style={{
+                        transform: `translateX(${translateX}px)`,
+                        touchAction: "pan-y",
+                        transition: pointerDragging.current ? "none" : "transform 220ms ease-out",
+                      }}
+                      onClick={() => {
+                        if (isActive && (isLeftSwipe || isRightSwipe)) {
+                          resetSwipe();
+                        }
+                      }}
                       onPointerDown={(event) => handlePointerDown(event, member.id, member)}
                       onPointerMove={handlePointerMove}
                       onPointerUp={handlePointerEnd}
