@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Check, Users, Target, Wallet } from "lucide-react";
+import { Cake, CalendarDays, Check, Target, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats } from "@/hooks/use-api";
 import { useLocation } from "wouter";
@@ -100,6 +100,7 @@ export default function DashboardPage() {
   };
 
   const data = stats || defaultStats;
+  const birthdaysPreview = data.upcomingBirthdays.slice(0, 3);
 
   return (
     <div className="space-y-6 px-4 py-6 sm:px-8">
@@ -144,16 +145,16 @@ export default function DashboardPage() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/leadership")}>
+        <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/goals")}>
           <CardContent className="flex items-center justify-between gap-4 pt-6">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                <Users className="h-5 w-5 text-primary" />
-                Personas
+                <Target className="h-5 w-5 text-primary" />
+                Progreso de metas de barrio
               </div>
               <div className="space-y-1 text-sm">
-                <p>{data.upcomingInterviews} entrevistas</p>
-                <p>{data.upcomingBirthdays.length} cumpleaños</p>
+                <p>{data.goals.completed} de {data.goals.total} metas</p>
+                <p>{data.goals.percentage}% de avance</p>
               </div>
             </div>
             <ProgressRing value={data.goals.percentage} />
@@ -190,30 +191,30 @@ export default function DashboardPage() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Próximas actividades</h2>
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/activities")}>
-            Ver todas
+          <h2 className="text-base font-semibold">Cumpleaños</h2>
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/birthdays")}>
+            Ver todo
           </Button>
         </div>
         <Card>
           <CardContent className="space-y-3 pt-6">
-            {data.upcomingActivities.length > 0 ? (
-              data.upcomingActivities.map((activity, idx) => (
+            {birthdaysPreview.length > 0 ? (
+              birthdaysPreview.map((birthday, idx) => (
                 <div
-                  key={idx}
+                  key={`${birthday.name}-${idx}`}
                   className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-sm"
-                  data-testid={`activity-item-${idx}`}
+                  data-testid={`birthday-item-${idx}`}
                 >
-                  <div className="space-y-1">
-                    <p className="font-medium">{activity.title}</p>
-                    <p className="text-xs text-muted-foreground">{activity.location}</p>
+                  <div className="flex items-center gap-2">
+                    <Cake className="h-4 w-4 text-primary" />
+                    <p className="font-medium">{birthday.name}</p>
                   </div>
-                  <Badge variant="outline">{activity.date}</Badge>
+                  <Badge variant="outline">{birthday.date}</Badge>
                 </div>
               ))
             ) : (
               <p className="text-sm text-muted-foreground">
-                No hay actividades programadas
+                No hay cumpleaños registrados
               </p>
             )}
           </CardContent>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Cake, Send, Mail, Pencil, Trash2 } from "lucide-react";
+import { Plus, Cake, Send, Mail, Pencil, Trash2, Phone } from "lucide-react";
 
 // Random birthday greetings and images
 const BIRTHDAY_PHRASES = [
@@ -603,6 +603,19 @@ export default function BirthdaysPage() {
                                 Email
                               </>
                             )}
+                          </Button>
+                        )}
+                        {birthday.phone && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            asChild
+                            data-testid={`button-call-${birthday.id}`}
+                          >
+                            <a href={`tel:${birthday.phone}`}>
+                              <Phone className="mr-1 h-4 w-4" />
+                              Llamar
+                            </a>
                           </Button>
                         )}
                       </div>

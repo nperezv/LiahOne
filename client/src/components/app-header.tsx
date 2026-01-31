@@ -31,6 +31,7 @@ import {
   formatNotificationTime,
   getNotificationDestination,
 } from "@/lib/notifications";
+const LOGO_SRC = "/favicon.svg";
 import type { Notification } from "@shared/schema";
 
 interface AppHeaderProps {
@@ -120,7 +121,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
         {!isMobile && <SidebarTrigger />}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/60">
+            <img src={LOGO_SRC} alt="LiahonApp" className="h-6 w-6" />
+          </div>
           <h1 className="text-lg font-semibold">{wardName}</h1>
         </div>
       </div>
