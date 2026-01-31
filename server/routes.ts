@@ -1566,19 +1566,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/interviews", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { personName, ...rest } = req.body;
-  
-      let assignedToId: string | undefined;
-      let assignedUser: any | undefined; 
+      const { personName, memberId, ...rest } = req.body;
 
-      if (personName) {
+      let assignedToId: string | undefined;
+      let assignedUser: any | undefined;
+      let resolvedPersonName = personName;
+      let resolvedMemberId = memberId;
+
+      if (memberId) {
+        const member = await storage.getMemberById(memberId);
+        if (!member) {
+          return res.status(404).json({ error: "Member not found" });
+        }
+        resolvedPersonName = member.nameSurename;
+      } else if (personName) {
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
-      
+
         let foundUser = users.find(
           (u) => u.name.toLowerCase() === normalizedInput
         );
-    
+
         if (!foundUser) {
           foundUser = users.find(
             (u) =>
@@ -1590,7 +1598,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (foundUser) {
           assignedToId = foundUser.id;
           assignedUser = foundUser;
-        }    	
+        }
+      } else {
+        resolvedMemberId = undefined;
       }
       const requestingUser = await storage.getUser(req.session.userId!);
       const isRequestFromObispado = ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(
@@ -1603,10 +1613,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isRequestFromObispado && assignedToId && isAssignedOrgMember
       );  
       const interviewData = insertInterviewSchema.parse({
-        personName,
+        personName: resolvedPersonName,
         ...rest,
+        ...(resolvedMemberId && { memberId: resolvedMemberId }),
         assignedBy: req.session.userId,
-        ...(assignedToId && !shouldCreateAssignment && { assignedToId }),	
+        ...(assignedToId && !shouldCreateAssignment && { assignedToId }),
       });
 
       const interviewer = await storage.getUser(interviewData.interviewerId);
@@ -1774,20 +1785,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentInterview) {
         return res.status(404).json({ error: "Interview not found" });
       }
-      const { personName, ...rest } = req.body;
-  
+      const { personName, memberId, ...rest } = req.body;
+
       let updateData: any = rest;
-  
-      if (personName) {
+
+      if (memberId !== undefined) {
+        if (memberId) {
+          const member = await storage.getMemberById(memberId);
+          if (!member) {
+            return res.status(404).json({ error: "Member not found" });
+          }
+          updateData.memberId = memberId;
+          updateData.personName = member.nameSurename;
+          updateData.assignedToId = null;
+        } else {
+          updateData.memberId = null;
+        }
+      }
+
+      if (memberId === undefined && personName) {
         updateData.personName = personName;
-      
+
         const users = await storage.getAllUsers();
         const normalizedInput = personName.toLowerCase().trim();
-      
+
         let foundUser = users.find(
           (u) => u.name.toLowerCase() === normalizedInput
         );
-    
+
         if (!foundUser) {
           foundUser = users.find(
             (u) =>
@@ -1795,7 +1820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               normalizedInput.includes(u.name.toLowerCase())
           );
         }
-    
+
         updateData.assignedToId = foundUser ? foundUser.id : null;
       }
   

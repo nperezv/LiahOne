@@ -71,10 +71,11 @@ export interface DirectoryMember {
   createdAt: string;
 }
 
-export function useMembers() {
+export function useMembers(options?: { enabled?: boolean }) {
   return useQuery<DirectoryMember[]>({
     queryKey: ["/api/members"],
     staleTime: 1000 * 60,
+    enabled: options?.enabled ?? true,
   });
 }
 

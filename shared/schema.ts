@@ -384,6 +384,7 @@ export const interviews = pgTable("interviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   date: timestamp("date", { withTimezone: true }).notNull(),
   personName: text("person_name").notNull(),
+  memberId: varchar("member_id").references(() => members.id),
   interviewerId: varchar("interviewer_id").notNull().references(() => users.id),
   assignedToId: varchar("assigned_to_id").references(() => users.id),
   type: text("type").notNull(), // Regular, Temple Recommend, etc.
@@ -572,6 +573,10 @@ export const interviewsRelations = relations(interviews, ({ one }) => ({
   interviewer: one(users, {
     fields: [interviews.interviewerId],
     references: [users.id],
+  }),
+  member: one(members, {
+    fields: [interviews.memberId],
+    references: [members.id],
   }),
   assigner: one(users, {
     fields: [interviews.assignedBy],

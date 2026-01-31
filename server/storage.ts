@@ -170,6 +170,7 @@ export interface IStorage {
 
   // Directory Members
   getAllMembers(): Promise<DirectoryMember[]>;
+  getMemberById(id: string): Promise<Member | undefined>;
 
   // Goals
   getAllGoals(): Promise<Goal[]>;
@@ -773,6 +774,11 @@ export class DatabaseStorage implements IStorage {
       .from(members)
       .leftJoin(organizations, eq(members.organizationId, organizations.id))
       .orderBy(asc(members.nameSurename));
+  }
+
+  async getMemberById(id: string): Promise<Member | undefined> {
+    const [member] = await db.select().from(members).where(eq(members.id, id));
+    return member || undefined;
   }
 
   // ========================================
