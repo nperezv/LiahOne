@@ -408,15 +408,15 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <Card className="border-0 bg-[#0B0B0F] text-white shadow-none">
-        <CardHeader>
+      <Card className="border-0 bg-transparent text-white shadow-none">
+        <CardHeader className="px-0">
           <CardTitle className="flex items-center gap-2 text-white">
             <Users className="h-5 w-5 text-[#0A84FF]" />
             Miembros del barrio
           </CardTitle>
         </CardHeader>
         <CardContent
-          className="space-y-4 text-white"
+          className="space-y-4 px-0 text-white"
           style={{ fontFamily: "system-ui, -apple-system" }}
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -438,7 +438,7 @@ export default function DirectoryPage() {
           </div>
 
           {isLoading ? (
-            <div className="space-y-3">
+            <div className="space-y-3 -mx-3 sm:mx-0">
               {Array.from({ length: 5 }).map((_, idx) => (
                 <div
                   key={idx}
@@ -453,7 +453,7 @@ export default function DirectoryPage() {
               ))}
             </div>
           ) : filteredMembers.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-3 -mx-3 sm:mx-0">
               {filteredMembers.map((member) => {
                 const whatsappLink = buildWhatsappLink(member.phone);
                 const isActive = activeSwipeId === member.id;
@@ -467,34 +467,6 @@ export default function DirectoryPage() {
                   >
                     <div
                       className={`absolute inset-y-0 left-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
-                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
-                      }`}
-                    >
-                      {member.phone && (
-                        <a
-                          href={`tel:${member.phone}`}
-                          className="flex items-center gap-2 text-[#0A84FF]"
-                          onClick={resetSwipe}
-                        >
-                          <Phone className="h-4 w-4" />
-                          Llamar
-                        </a>
-                      )}
-                      {whatsappLink && (
-                        <a
-                          href={whatsappLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 text-[#0A84FF]"
-                          onClick={resetSwipe}
-                        >
-                          <Send className="h-4 w-4" />
-                          WhatsApp
-                        </a>
-                      )}
-                    </div>
-                    <div
-                      className={`absolute inset-y-0 right-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
                         isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
@@ -520,6 +492,34 @@ export default function DirectoryPage() {
                         <Trash2 className="h-4 w-4" />
                         Eliminar
                       </button>
+                    </div>
+                    <div
+                      className={`absolute inset-y-0 right-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
+                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      }`}
+                    >
+                      {member.phone && (
+                        <a
+                          href={`tel:${member.phone}`}
+                          className="flex items-center gap-2 text-[#0A84FF]"
+                          onClick={resetSwipe}
+                        >
+                          <Phone className="h-4 w-4" />
+                          Llamar
+                        </a>
+                      )}
+                      {whatsappLink && (
+                        <a
+                          href={whatsappLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 text-[#0A84FF]"
+                          onClick={resetSwipe}
+                        >
+                          <Send className="h-4 w-4" />
+                          WhatsApp
+                        </a>
+                      )}
                     </div>
                     <div
                       role="button"
