@@ -660,19 +660,22 @@ export default function InterviewsPage() {
                                     </div>
                                   )}
                                   <div className="border rounded-md max-h-48 overflow-y-auto">
-                                    {isMembersLoading ? (
-                                      <div className="p-3 text-sm text-muted-foreground">Cargando miembros...</div>
-                                    ) : filteredMembers.length > 0 ? (
-                                      filteredMembers.slice(0, 50).map((member) => (
-                                        <div
-                                          key={member.id}
-                                          onClick={() => {
-                                            form.setValue("memberId", member.id);
-                                            field.onChange(member.nameSurename);
-                                          }}
-                                          className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
-                                          data-testid={`option-member-${member.id}`}
-                                        >
+                                  {isMembersLoading ? (
+                                    <div className="p-3 text-sm text-muted-foreground">Cargando miembros...</div>
+                                  ) : filteredMembers.length > 0 ? (
+                                    filteredMembers.map((member) => (
+                                      <div
+                                        key={member.id}
+                                        onClick={() => {
+                                          form.setValue("memberId", member.id, {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          });
+                                          field.onChange(member.nameSurename);
+                                        }}
+                                        className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
+                                        data-testid={`option-member-${member.id}`}
+                                      >
                                           <div className="font-medium">{member.nameSurename}</div>
                                           <div className="text-xs text-muted-foreground">
                                             {member.organizationName ?? "Sin organización"}
@@ -725,6 +728,17 @@ export default function InterviewsPage() {
                             </div>
                           )}
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="memberId"
+                      render={({ field }) => (
+                        <FormItem className="hidden">
+                          <FormControl>
+                            <Input type="hidden" {...field} />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -1110,6 +1124,17 @@ export default function InterviewsPage() {
                       </FormControl>
                     )}
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="memberId"
+                render={({ field }) => (
+                  <FormItem className="hidden">
+                    <FormControl>
+                      <Input type="hidden" {...field} />
+                    </FormControl>
                   </FormItem>
                 )}
               />
