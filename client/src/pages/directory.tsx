@@ -234,7 +234,10 @@ export default function DirectoryPage() {
       window.clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    const nextOffset = Math.max(-actionReveal, Math.min(actionReveal, swipeStartOffset.current + delta));
+    const nextOffset = Math.max(
+      -actionReveal,
+      Math.min(actionReveal, swipeStartOffset.current + delta)
+    );
     pendingOffset.current = nextOffset;
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -441,7 +444,7 @@ export default function DirectoryPage() {
           </div>
 
           {isLoading ? (
-            <div className="space-y-3 -mx-3 sm:mx-0">
+            <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, idx) => (
                 <div
                   key={idx}
@@ -456,7 +459,7 @@ export default function DirectoryPage() {
               ))}
             </div>
           ) : filteredMembers.length > 0 ? (
-            <div className="space-y-3 -mx-3 sm:mx-0">
+            <div className="space-y-3">
               {filteredMembers.map((member) => {
                 const whatsappLink = buildWhatsappLink(member.phone);
                 const isActive = activeSwipeId === member.id;
@@ -464,18 +467,20 @@ export default function DirectoryPage() {
                 const isRightSwipe = isActive && swipeOffset > 6;
                 const isLeftSwipe = isActive && swipeOffset < -6;
                 const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
+                const hasPhone = Boolean(member.phone);
+                const contactDisabled = !hasPhone;
                 return (
                   <div
                     key={member.id}
                     className="relative overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
                   >
                     <div
-                      className={`absolute inset-y-0 left-0 flex w-[120px] items-center justify-center bg-gradient-to-r from-[#1f3b2d] to-[#34C759] text-white transition-opacity duration-150 ${
+                      className={`absolute inset-0 flex items-center justify-start rounded-[14px] text-white transition-opacity duration-150 ${
                         isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
-                      }`}
+                      } ${contactDisabled ? "bg-[#2c2c2e]" : "bg-gradient-to-r from-[#1f3b2d] to-[#34C759]"}`}
                     >
-                      <div className="grid h-full w-full grid-cols-2">
-                        {member.phone && (
+                      <div className="grid h-full w-[120px] grid-cols-2">
+                        {hasPhone ? (
                           <a
                             href={`tel:${member.phone}`}
                             className="flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium"
@@ -484,8 +489,16 @@ export default function DirectoryPage() {
                             <Phone className="h-5 w-5" />
                             Llamar
                           </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium opacity-40 grayscale pointer-events-none cursor-default"
+                          >
+                            <Phone className="h-5 w-5" />
+                            Llamar
+                          </button>
                         )}
-                        {whatsappLink && (
+                        {hasPhone ? (
                           <a
                             href={whatsappLink}
                             target="_blank"
@@ -496,15 +509,23 @@ export default function DirectoryPage() {
                             <Send className="h-5 w-5" />
                             WhatsApp
                           </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium opacity-40 grayscale pointer-events-none cursor-default"
+                          >
+                            <Send className="h-5 w-5" />
+                            WhatsApp
+                          </button>
                         )}
                       </div>
                     </div>
                     <div
-                      className={`absolute inset-y-0 right-0 flex w-[120px] items-center justify-center text-white transition-opacity duration-150 ${
+                      className={`absolute inset-0 flex items-center justify-end rounded-[14px] bg-[#2c2c2e] text-white transition-opacity duration-150 ${
                         isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
-                      <div className="grid h-full w-full grid-cols-2">
+                      <div className="grid h-full w-[120px] grid-cols-2">
                         <button
                           type="button"
                           className="flex h-full flex-col items-center justify-center gap-1 bg-[#2c2c2e] text-[11px] font-medium"
@@ -538,7 +559,9 @@ export default function DirectoryPage() {
                       style={{
                         transform: `translateX(${translateX}px)`,
                         touchAction: "pan-y",
-                        transition: pointerDragging.current ? "none" : "transform 220ms ease-out",
+                        transition: pointerDragging.current
+                          ? "none"
+                          : "transform 260ms cubic-bezier(0.22,1,0.36,1)",
                       }}
                       onClick={() => {
                         if (isActive && (isLeftSwipe || isRightSwipe)) {
