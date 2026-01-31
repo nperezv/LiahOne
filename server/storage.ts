@@ -14,6 +14,7 @@ import {
   organizationInterviews,
   goals,
   birthdays,
+  members,
   activities,
   assignments,
   pdfTemplates,
@@ -47,6 +48,7 @@ import {
   type InsertGoal,
   type Birthday,
   type InsertBirthday,
+  type Member,
   type Activity,
   type InsertActivity,
   type Assignment,
@@ -68,6 +70,11 @@ import {
   type AccessRequest,
   type InsertAccessRequest,
 } from "@shared/schema";
+
+export type DirectoryMember = Member & {
+  organizationName: string | null;
+  organizationType: Organization["type"] | null;
+};
 
 export interface UserDeletionSummary {
   activitiesCreated: number;
@@ -160,6 +167,9 @@ export interface IStorage {
 
   // Organization Members
   getOrganizationMembers(organizationId: string): Promise<User[]>;
+
+  // Directory Members
+  getAllMembers(): Promise<DirectoryMember[]>;
 
   // Goals
   getAllGoals(): Promise<Goal[]>;
@@ -740,6 +750,29 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(users)
       .where(eq(users.organizationId, organizationId));
+  }
+
+  // ========================================
+  // DIRECTORY MEMBERS
+  // ========================================
+
+  async getAllMembers(): Promise<DirectoryMember[]> {
+    return await db
+      .select({
+        id: members.id,
+        nameSurename: members.nameSurename,
+        sex: members.sex,
+        birthday: members.birthday,
+        phone: members.phone,
+        email: members.email,
+        organizationId: members.organizationId,
+        createdAt: members.createdAt,
+        organizationName: organizations.name,
+        organizationType: organizations.type,
+      })
+      .from(members)
+      .leftJoin(organizations, eq(members.organizationId, organizations.id))
+      .orderBy(asc(members.nameSurename));
   }
 
   // ========================================
