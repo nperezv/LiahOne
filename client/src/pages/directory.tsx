@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,7 +35,7 @@ import {
   useOrganizations,
   useUpdateMember,
 } from "@/hooks/use-api";
-import { CalendarPlus, Mail, Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
+import { CalendarPlus, Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
 
 const memberSchema = z.object({
   nameSurename: z.string().min(1, "El nombre es requerido"),
@@ -70,6 +70,16 @@ export default function DirectoryPage() {
   const [editingMember, setEditingMember] = useState<any>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<any>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [contextMember, setContextMember] = useState<any>(null);
+  const pointerStartX = useRef(0);
+  const pointerDragging = useRef(false);
+  const longPressTimer = useRef<number | null>(null);
+  const swipeStartOffset = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const pendingOffset = useRef(0);
+  const actionReveal = 132;
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
@@ -185,6 +195,72 @@ export default function DirectoryPage() {
         setDeleteConfirmText("");
       },
     });
+  };
+
+  const resetSwipe = () => {
+    setSwipeOffset(0);
+    setActiveSwipeId(null);
+    swipeStartOffset.current = 0;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>, memberId: string, member: any) => {
+    pointerStartX.current = event.clientX;
+    pointerDragging.current = true;
+    setActiveSwipeId(memberId);
+    swipeStartOffset.current = memberId === activeSwipeId ? swipeOffset : 0;
+    pendingOffset.current = swipeStartOffset.current;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+    }
+    longPressTimer.current = window.setTimeout(() => {
+      setContextMember(member);
+      pointerDragging.current = false;
+      setSwipeOffset(0);
+    }, 500);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!pointerDragging.current) return;
+    const delta = event.clientX - pointerStartX.current;
+    if (Math.abs(delta) > 8 && longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    const nextOffset = Math.max(-actionReveal, Math.min(actionReveal, swipeStartOffset.current + delta));
+    pendingOffset.current = nextOffset;
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        setSwipeOffset(pendingOffset.current);
+        rafRef.current = null;
+      });
+    }
+  };
+
+  const handlePointerEnd = (event?: PointerEvent<HTMLDivElement>) => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (!pointerDragging.current) return;
+    pointerDragging.current = false;
+    if (event) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (Math.abs(swipeOffset) < 40) {
+      resetSwipe();
+      return;
+    }
+    const snapped = swipeOffset > 0 ? actionReveal : -actionReveal;
+    setSwipeOffset(snapped);
   };
 
   return (
@@ -332,14 +408,17 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
+      <Card className="border-0 bg-transparent text-white shadow-none">
+        <CardHeader className="px-0">
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Users className="h-5 w-5 text-[#0A84FF]" />
             Miembros del barrio
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent
+          className="space-y-4 px-0 text-white"
+          style={{ fontFamily: "system-ui, -apple-system" }}
+        >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -347,18 +426,24 @@ export default function DirectoryPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nombre, teléfono o correo"
-                className="pl-9"
+                className="border-white/10 bg-[#151820] pl-9 text-white placeholder:text-[#9AA0A6]"
               />
             </div>
-            <Badge variant="outline" className="self-start sm:self-auto">
+            <Badge
+              variant="outline"
+              className="self-start border-white/10 text-[#9AA0A6] sm:self-auto"
+            >
               {filteredMembers.length} miembros
             </Badge>
           </div>
 
           {isLoading ? (
-            <div className="space-y-3">
+            <div className="space-y-3 -mx-3 sm:mx-0">
               {Array.from({ length: 5 }).map((_, idx) => (
-                <div key={idx} className="flex items-center justify-between rounded-xl border border-border/60 p-3">
+                <div
+                  key={idx}
+                  className="flex items-center justify-between rounded-[14px] border border-white/10 bg-[#151820] p-3"
+                >
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-40" />
                     <Skeleton className="h-3 w-24" />
@@ -368,77 +453,180 @@ export default function DirectoryPage() {
               ))}
             </div>
           ) : filteredMembers.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-3 -mx-3 sm:mx-0">
               {filteredMembers.map((member) => {
                 const whatsappLink = buildWhatsappLink(member.phone);
+                const isActive = activeSwipeId === member.id;
+                const translateX = isActive ? swipeOffset : 0;
+                const isRevealed = isActive && Math.abs(swipeOffset) > 6;
+                const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
                 return (
                   <div
                     key={member.id}
-                    className="flex flex-col gap-3 rounded-xl border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    className="relative overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
                   >
-                    <div>
-                      <p className="text-sm font-semibold">{member.nameSurename}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{formatAge(member.birthday)} años</span>
-                        <span>•</span>
-                        <span>{member.organizationName ?? "Sin organización"}</span>
-                        {member.email && (
-                          <>
-                            <span>•</span>
-                            <span>{member.email}</span>
-                          </>
-                        )}
-                      </div>
+                    <div
+                      className={`absolute inset-y-0 left-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
+                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 text-[#0A84FF]"
+                        onClick={() => {
+                          resetSwipe();
+                          handleEditMember(member);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 text-[#FF453A]"
+                        onClick={() => {
+                          resetSwipe();
+                          handleRequestDelete(member);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </button>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div
+                      className={`absolute inset-y-0 right-0 flex items-center gap-3 px-4 text-sm transition-opacity duration-150 ${
+                        isRevealed ? "opacity-100" : "pointer-events-none opacity-0"
+                      }`}
+                    >
                       {member.phone && (
-                        <Button asChild size="sm" variant="outline">
-                          <a href={`tel:${member.phone}`}>
-                            <Phone className="mr-1 h-4 w-4" />
-                            Llamar
-                          </a>
-                        </Button>
+                        <a
+                          href={`tel:${member.phone}`}
+                          className="flex items-center gap-2 text-[#0A84FF]"
+                          onClick={resetSwipe}
+                        >
+                          <Phone className="h-4 w-4" />
+                          Llamar
+                        </a>
                       )}
                       {whatsappLink && (
-                        <Button asChild size="sm" variant="outline">
-                          <a href={whatsappLink} target="_blank" rel="noreferrer">
-                            <Send className="mr-1 h-4 w-4" />
-                            WhatsApp
-                          </a>
-                        </Button>
+                        <a
+                          href={whatsappLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 text-[#0A84FF]"
+                          onClick={resetSwipe}
+                        >
+                          <Send className="h-4 w-4" />
+                          WhatsApp
+                        </a>
                       )}
-                      {member.email && (
-                        <Button asChild size="sm" variant="outline">
-                          <a href={`mailto:${member.email}`}>
-                            <Mail className="mr-1 h-4 w-4" />
-                            Email
-                          </a>
-                        </Button>
-                      )}
-                      <Button size="sm" onClick={() => setLocation(`/interviews?memberId=${member.id}`)}>
-                        <CalendarPlus className="mr-1 h-4 w-4" />
-                        Agendar entrevista
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleEditMember(member)}>
-                        <Pencil className="mr-1 h-4 w-4" />
-                        Editar
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleRequestDelete(member)}>
-                        <Trash2 className="mr-1 h-4 w-4" />
-                        Eliminar
-                      </Button>
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 transition-transform duration-200 ease-out will-change-transform ${
+                        isActive && pointerDragging.current ? "transition-none" : ""
+                      }`}
+                      style={{ transform: `translateX(${translateX}px)`, touchAction: "pan-y" }}
+                      onPointerDown={(event) => handlePointerDown(event, member.id, member)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerEnd}
+                      onPointerCancel={handlePointerEnd}
+                      onPointerLeave={handlePointerEnd}
+                      onPointerCapture={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0B0B0F] text-sm font-semibold text-white">
+                        {initials}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-white">{member.nameSurename}</p>
+                        <p className="text-xs text-[#9AA0A6]">
+                          {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-border/60 p-6 text-sm text-muted-foreground">
+            <div className="rounded-[14px] border border-dashed border-white/10 bg-[#151820] p-6 text-sm text-[#9AA0A6]">
               No hay miembros para mostrar con ese filtro.
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(contextMember)} onOpenChange={(open) => !open && setContextMember(null)}>
+        <DialogContent className="bottom-0 left-0 right-0 top-auto w-full max-w-none translate-x-0 translate-y-0 rounded-t-[20px] border-0 bg-[#151820] p-0 text-white shadow-2xl">
+          <div className="flex flex-col divide-y divide-white/10">
+            {contextMember?.phone && (
+              <a
+                className="flex items-center gap-3 px-6 py-4 text-sm text-white"
+                href={`tel:${contextMember.phone}`}
+              >
+                <Phone className="h-4 w-4 text-[#0A84FF]" />
+                Llamar
+              </a>
+            )}
+            {contextMember?.phone && buildWhatsappLink(contextMember.phone) && (
+              <a
+                className="flex items-center gap-3 px-6 py-4 text-sm text-white"
+                href={buildWhatsappLink(contextMember.phone)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Send className="h-4 w-4 text-[#0A84FF]" />
+                WhatsApp
+              </a>
+            )}
+            <button
+              type="button"
+              className="flex items-center gap-3 px-6 py-4 text-sm text-white"
+              onClick={() => {
+                if (!contextMember) return;
+                setLocation(`/interviews?memberId=${contextMember.id}`);
+                setContextMember(null);
+              }}
+            >
+              <CalendarPlus className="h-4 w-4 text-[#0A84FF]" />
+              Agendar entrevista
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-3 px-6 py-4 text-sm text-white"
+              onClick={() => {
+                if (!contextMember) return;
+                handleEditMember(contextMember);
+                setContextMember(null);
+              }}
+            >
+              <Pencil className="h-4 w-4 text-[#0A84FF]" />
+              Editar
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-3 px-6 py-4 text-sm text-[#FF453A]"
+              onClick={() => {
+                if (!contextMember) return;
+                handleRequestDelete(contextMember);
+                setContextMember(null);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Eliminar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Button
+        type="button"
+        onClick={handleOpenCreate}
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#0A84FF] text-2xl text-white shadow-lg"
+      >
+        +
+      </Button>
 
       <AlertDialog open={Boolean(deleteCandidate)} onOpenChange={(open) => !open && setDeleteCandidate(null)}>
         <AlertDialogContent>
