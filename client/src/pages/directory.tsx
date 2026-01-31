@@ -79,7 +79,7 @@ export default function DirectoryPage() {
       birthday: "",
       phone: "",
       email: "",
-      organizationId: "",
+      organizationId: "none",
     },
   });
 
@@ -124,7 +124,7 @@ export default function DirectoryPage() {
       birthday: "",
       phone: "",
       email: "",
-      organizationId: "",
+      organizationId: "none",
     });
     setIsDialogOpen(true);
   };
@@ -137,7 +137,7 @@ export default function DirectoryPage() {
       birthday: formatDateForInput(member.birthday),
       phone: member.phone ?? "",
       email: member.email ?? "",
-      organizationId: member.organizationId ?? "",
+      organizationId: member.organizationId ?? "none",
     });
     setIsDialogOpen(true);
   };
@@ -148,7 +148,7 @@ export default function DirectoryPage() {
       birthday: new Date(data.birthday).toISOString(),
       phone: data.phone?.trim() || null,
       email: data.email?.trim() || null,
-      organizationId: data.organizationId || null,
+      organizationId: data.organizationId === "none" ? null : data.organizationId || null,
     };
 
     if (editingMember) {
@@ -294,18 +294,18 @@ export default function DirectoryPage() {
                   </div>
                   <FormField
                     control={form.control}
-                    name="organizationId"
+                      name="organizationId"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Organización (opcional)</FormLabel>
-                        <Select value={field.value || ""} onValueChange={field.onChange}>
+                        <Select value={field.value || "none"} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecciona una organización" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Sin organización</SelectItem>
+                            <SelectItem value="none">Sin organización</SelectItem>
                             {organizations.map((org: any) => (
                               <SelectItem key={org.id} value={org.id}>
                                 {org.name}
