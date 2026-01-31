@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { endOfMonth, endOfQuarter, endOfWeek, startOfMonth, startOfQuarter, startOfWeek } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +12,9 @@ import {
   Edit,
   Archive,
   Trash2,
+  Copy,
+  Send,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -47,6 +50,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 import {
   useInterviews,
@@ -99,6 +103,54 @@ function formatRole(role: string) {
   };
   return map[role] ?? role;
 }
+
+const interviewMessageTemplates = [
+  {
+    id: "confirmacion",
+    label: "Confirmación de entrevista",
+    build: (data: {
+      name: string;
+      interviewerName?: string;
+      dateLabel: string;
+      timeLabel: string;
+    }) =>
+      [
+        `Hola ${data.name},`,
+        `Tu entrevista con ${data.interviewerName ?? "el obispado"} está programada para el ${data.dateLabel} a las ${data.timeLabel}.`,
+        "Si necesitas cambiar la hora, por favor avísanos con anticipación.",
+      ].join("\n"),
+  },
+  {
+    id: "recordatorio",
+    label: "Recordatorio",
+    build: (data: {
+      name: string;
+      interviewerName?: string;
+      dateLabel: string;
+      timeLabel: string;
+    }) =>
+      [
+        `Hola ${data.name},`,
+        `Este es un recordatorio de tu entrevista con ${data.interviewerName ?? "el obispado"} el ${data.dateLabel} a las ${data.timeLabel}.`,
+        "¡Te esperamos!",
+      ].join("\n"),
+  },
+  {
+    id: "seguimiento",
+    label: "Seguimiento",
+    build: (data: {
+      name: string;
+      interviewerName?: string;
+      dateLabel: string;
+      timeLabel: string;
+    }) =>
+      [
+        `Hola ${data.name},`,
+        `Gracias por coordinar tu entrevista con ${data.interviewerName ?? "el obispado"} para el ${data.dateLabel} a las ${data.timeLabel}.`,
+        "Si hay algo que debamos preparar, háznoslo saber.",
+      ].join("\n"),
+  },
+];
 
 const formatDateTimeForInput = (value?: string | Date | null) => {
   if (!value) return "";
@@ -161,6 +213,20 @@ export default function InterviewsPage() {
   const [exportInterviewerId, setExportInterviewerId] = useState("all");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsInterview, setDetailsInterview] = useState<any>(null);
+  const [location, setLocation] = useLocation();
+  const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
+  const [messageTemplateId, setMessageTemplateId] = useState("confirmacion");
+  const [messageText, setMessageText] = useState("");
+  const [messageContact, setMessageContact] = useState<{
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    interviewerName?: string;
+    dateLabel: string;
+    timeLabel: string;
+  } | null>(null);
+  const [selectedLeader, setSelectedLeader] = useState<any>(null);
+  const [prefillHandled, setPrefillHandled] = useState(false);
 
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
@@ -234,6 +300,42 @@ export default function InterviewsPage() {
     return m;
   }, [users]);
 
+  const buildInterviewMessage = (payload: {
+    name: string;
+    interviewerName?: string;
+    dateLabel: string;
+    timeLabel: string;
+  }) => {
+    const template = interviewMessageTemplates.find((item) => item.id === messageTemplateId)
+      ?? interviewMessageTemplates[0];
+    return template.build(payload);
+  };
+
+  const formatInterviewDateLabels = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return { dateLabel: value, timeLabel: "" };
+    }
+    return {
+      dateLabel: date.toLocaleDateString("es-ES", {
+        year: "numeric",
+        month: "long",
+        day: "2-digit",
+      }),
+      timeLabel: date.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+    };
+  };
+
+  useEffect(() => {
+    if (!messageContact) return;
+    const nextMessage = buildInterviewMessage(messageContact);
+    setMessageText(nextMessage);
+  }, [messageContact, messageTemplateId]);
+
   // ✅ Filtrado por rol (si es org member)
   const filteredInterviewsRaw = isOrgMember
     ? interviews.filter((i: any) => i.assignedBy === user?.id || i.assignedToId === user?.id)
@@ -281,6 +383,26 @@ export default function InterviewsPage() {
     [members, selectedMemberId]
   );
   const editMemberId = editForm.watch("memberId");
+  const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
+
+  useEffect(() => {
+    if (prefillHandled || !location.includes("memberId=")) return;
+    const query = location.split("?")[1] ?? "";
+    const params = new URLSearchParams(query);
+    const memberIdParam = params.get("memberId");
+    if (!memberIdParam || members.length === 0) return;
+
+    const member = members.find((item) => item.id === memberIdParam);
+    if (!member) return;
+
+    setPersonSource("directory");
+    form.setValue("memberId", member.id, { shouldDirty: true });
+    form.setValue("personName", member.nameSurename, { shouldDirty: true });
+    setMemberQuery("");
+    setIsDialogOpen(true);
+    setPrefillHandled(true);
+    setLocation("/interviews");
+  }, [prefillHandled, location, members, form, setLocation]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
@@ -293,12 +415,51 @@ export default function InterviewsPage() {
       },
       {
         onSuccess: () => {
+          const interviewerName = userById.get(data.interviewerId)?.name ?? "Obispado";
+          const { dateLabel, timeLabel } = formatInterviewDateLabels(data.date);
+          const contact =
+            selectedMember
+              ? {
+                  name: selectedMember.nameSurename,
+                  phone: selectedMember.phone,
+                  email: selectedMember.email,
+                }
+              : selectedLeader
+                ? {
+                    name: selectedLeader.name,
+                    phone: selectedLeader.phone,
+                    email: selectedLeader.email,
+                  }
+                : {
+                    name: data.personName,
+                    phone: undefined,
+                    email: undefined,
+                  };
+
+          if (contact.phone || contact.email) {
+            const nextMessage = interviewMessageTemplates[0].build({
+              name: contact.name,
+              interviewerName,
+              dateLabel,
+              timeLabel,
+            });
+            setMessageTemplateId(interviewMessageTemplates[0].id);
+            setMessageText(nextMessage);
+            setMessageContact({
+              ...contact,
+              interviewerName,
+              dateLabel,
+              timeLabel,
+            });
+            setIsMessageDialogOpen(true);
+          }
           toast({
             title: "Entrevista creada",
             description: "Se ha registrado la entrevista correctamente.",
           });
           setIsDialogOpen(false);
           form.reset();
+          setSelectedLeader(null);
         },
         onError: (error) => {
           toast({
@@ -628,6 +789,7 @@ export default function InterviewsPage() {
                                     setPersonSource(nextValue);
                                     form.setValue("memberId", "");
                                     form.setValue("personName", "");
+                                    setSelectedLeader(null);
                                     if (nextValue !== "directory") {
                                       setMemberQuery("");
                                     }
@@ -672,6 +834,7 @@ export default function InterviewsPage() {
                                             shouldValidate: true,
                                           });
                                           field.onChange(member.nameSurename);
+                                          setSelectedLeader(null);
                                         }}
                                         className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
                                         data-testid={`option-member-${member.id}`}
@@ -706,7 +869,11 @@ export default function InterviewsPage() {
                                       .map((u: any) => (
                                         <div
                                           key={u.id}
-                                          onClick={() => field.onChange(u.name)}
+                                          onClick={() => {
+                                            field.onChange(u.name);
+                                            setSelectedLeader(u);
+                                            form.setValue("memberId", "");
+                                          }}
                                           className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
                                           data-testid={`option-person-${u.id}`}
                                         >
@@ -852,6 +1019,104 @@ export default function InterviewsPage() {
               </DialogContent>
             </Dialog>
           )}
+
+          <Dialog
+            open={isMessageDialogOpen}
+            onOpenChange={(open) => {
+              setIsMessageDialogOpen(open);
+              if (!open) {
+                setMessageContact(null);
+                setMessageText("");
+                setMessageTemplateId("confirmacion");
+              }
+            }}
+          >
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Enviar mensaje por WhatsApp</DialogTitle>
+                <DialogDescription>
+                  Selecciona una plantilla y envía el mensaje al entrevistado.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Plantilla</Label>
+                  <Select value={messageTemplateId} onValueChange={setMessageTemplateId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una plantilla" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {interviewMessageTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Mensaje</Label>
+                  <Textarea
+                    value={messageText}
+                    onChange={(event) => setMessageText(event.target.value)}
+                    rows={6}
+                  />
+                </div>
+                {messageContact && (
+                  <div className="rounded-md border border-dashed border-border/60 p-3 text-sm">
+                    <strong>{messageContact.name}</strong>
+                    <div className="text-xs text-muted-foreground">
+                      {messageContact.phone ? `WhatsApp: ${messageContact.phone}` : "Sin teléfono"}
+                      {messageContact.email ? ` · Email: ${messageContact.email}` : ""}
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsMessageDialogOpen(false)}>
+                    Cerrar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!messageText) return;
+                      await navigator.clipboard.writeText(messageText);
+                      toast({ title: "Mensaje copiado" });
+                    }}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar
+                  </Button>
+                  {messageContact?.email && (
+                    <Button
+                      variant="outline"
+                      asChild
+                    >
+                      <a
+                        href={`mailto:${messageContact.email}?subject=${encodeURIComponent("Entrevista programada")}&body=${encodeURIComponent(messageText)}`}
+                      >
+                        <Mail className="mr-2 h-4 w-4" />
+                        Email
+                      </a>
+                    </Button>
+                  )}
+                  {messageContact?.phone && whatsappDigits && (
+                    <Button
+                      asChild
+                    >
+                      <a
+                        href={`https://wa.me/${whatsappDigits}?text=${encodeURIComponent(messageText)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Send className="mr-2 h-4 w-4" />
+                        WhatsApp
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
