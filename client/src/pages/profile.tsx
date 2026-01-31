@@ -10,10 +10,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { fetchWithAuthRetry, getAuthHeaders } from "@/lib/auth-tokens";
 import { PushNotificationSettings } from "@/components/push-notification-settings";
+import { getStoredTheme, setStoredTheme, type ThemePreference } from "@/lib/theme";
 
 const profileSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -42,6 +44,7 @@ export default function ProfilePage() {
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => getStoredTheme());
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
@@ -192,6 +195,13 @@ export default function ProfilePage() {
     }
   };
 
+  const handleThemeChange = (value: string) => {
+    if (!value) return;
+    const nextTheme = value as ThemePreference;
+    setThemePreference(nextTheme);
+    setStoredTheme(nextTheme);
+  };
+
   return (
     <div className="container max-w-2xl mx-auto py-8 px-4">
       <Button
@@ -259,6 +269,33 @@ export default function ProfilePage() {
               Por seguridad, debes actualizar tu contraseña temporal antes de continuar.
             </div>
           )}
+
+          <div className="rounded-lg border border-border/80 bg-card/40 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 className="text-sm font-semibold">Tema</h4>
+                <p className="text-xs text-muted-foreground">
+                  Elige cómo quieres ver la app en tu dispositivo.
+                </p>
+              </div>
+              <ToggleGroup
+                type="single"
+                value={themePreference}
+                onValueChange={handleThemeChange}
+                className="w-full justify-start rounded-full bg-muted/40 p-1 sm:w-auto"
+              >
+                <ToggleGroupItem value="light" aria-label="Tema claro">
+                  Claro
+                </ToggleGroupItem>
+                <ToggleGroupItem value="dark" aria-label="Tema oscuro">
+                  Oscuro
+                </ToggleGroupItem>
+                <ToggleGroupItem value="system" aria-label="Tema del sistema">
+                  Sistema
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
 
           {!isEditing && !isChangingPassword && !user?.requirePasswordChange ? (
             <div className="space-y-4">
