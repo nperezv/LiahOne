@@ -77,6 +77,7 @@ export default function DirectoryPage() {
   const pointerDragging = useRef(false);
   const longPressTimer = useRef<number | null>(null);
   const swipeStartOffset = useRef(0);
+  const cardWidthRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const pendingOffset = useRef(0);
   const actionReveal = 120;
@@ -210,6 +211,7 @@ export default function DirectoryPage() {
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>, memberId: string, member: any) => {
     pointerStartX.current = event.clientX;
     pointerDragging.current = true;
+    cardWidthRef.current = event.currentTarget.getBoundingClientRect().width;
     if (memberId !== activeSwipeId) {
       setSwipeOffset(0);
     }
@@ -234,10 +236,9 @@ export default function DirectoryPage() {
       window.clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    const nextOffset = Math.max(
-      -actionReveal,
-      Math.min(actionReveal, swipeStartOffset.current + delta)
-    );
+    const swipeDistance = swipeStartOffset.current + delta;
+    const maxTranslate = Math.min(Math.abs(swipeDistance), cardWidthRef.current * 0.4);
+    const nextOffset = Math.sign(swipeDistance || 1) * maxTranslate;
     pendingOffset.current = nextOffset;
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -265,7 +266,8 @@ export default function DirectoryPage() {
       resetSwipe();
       return;
     }
-    const snapped = swipeOffset > 0 ? actionReveal : -actionReveal;
+    const maxSnap = Math.min(actionReveal, cardWidthRef.current * 0.4);
+    const snapped = swipeOffset > 0 ? maxSnap : -maxSnap;
     setSwipeOffset(snapped);
   };
 
@@ -553,7 +555,7 @@ export default function DirectoryPage() {
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 transition-transform ease-out will-change-transform ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] px-4 will-change-transform ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
                       style={{
@@ -561,7 +563,7 @@ export default function DirectoryPage() {
                         touchAction: "pan-y",
                         transition: pointerDragging.current
                           ? "none"
-                          : "transform 260ms cubic-bezier(0.22,1,0.36,1)",
+                          : "transform 280ms cubic-bezier(0.22,1,0.36,1)",
                       }}
                       onClick={() => {
                         if (isActive && (isLeftSwipe || isRightSwipe)) {
@@ -578,7 +580,7 @@ export default function DirectoryPage() {
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0B0B0F] text-sm font-semibold text-white">
                         {initials}
                       </div>
-                      <div className="flex-1">
+                      <div className="flex min-w-0 flex-1 flex-col justify-center px-1">
                         <p className="text-sm font-semibold text-white">{member.nameSurename}</p>
                         <p className="text-xs text-[#9AA0A6]">
                           {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
