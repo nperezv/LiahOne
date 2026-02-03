@@ -12,8 +12,16 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const isMobile = useIsMobile();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-muted-foreground">
+        Cargando...
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     const next = `${window.location.pathname}${window.location.search}`;
