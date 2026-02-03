@@ -50,7 +50,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 
 import {
   useInterviews,
@@ -213,7 +213,8 @@ export default function InterviewsPage() {
   const [exportInterviewerId, setExportInterviewerId] = useState("all");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsInterview, setDetailsInterview] = useState<any>(null);
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [messageTemplateId, setMessageTemplateId] = useState("confirmacion");
   const [messageText, setMessageText] = useState("");
@@ -386,9 +387,8 @@ export default function InterviewsPage() {
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
 
   useEffect(() => {
-    if (prefillHandled || !location.includes("memberId=")) return;
-    const query = location.split("?")[1] ?? "";
-    const params = new URLSearchParams(query);
+    if (prefillHandled || !search) return;
+    const params = new URLSearchParams(search);
     const memberIdParam = params.get("memberId");
     if (!memberIdParam || members.length === 0) return;
 
@@ -402,7 +402,7 @@ export default function InterviewsPage() {
     setIsDialogOpen(true);
     setPrefillHandled(true);
     setLocation("/interviews");
-  }, [prefillHandled, location, members, form, setLocation]);
+  }, [prefillHandled, search, members, form, setLocation]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
@@ -767,7 +767,7 @@ export default function InterviewsPage() {
                 </DialogHeader>
 
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <FormField
                       control={form.control}
                       name="personName"
@@ -776,10 +776,15 @@ export default function InterviewsPage() {
                           <FormLabel>Nombre de la Persona</FormLabel>
                           {isOrgMember ? (
                             <FormControl>
-                              <Input placeholder="Nombre Apllido" {...field} disabled={true} data-testid="input-person-name" />
+                              <Input
+                                placeholder="Nombre Apllido"
+                                {...field}
+                                disabled={true}
+                                data-testid="input-person-name"
+                              />
                             </FormControl>
                           ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
                               <div className="space-y-2">
                                 <Label>Fuente de la persona</Label>
                                 <Select
@@ -817,36 +822,39 @@ export default function InterviewsPage() {
                                     data-testid="input-member-search"
                                   />
                                   {selectedMember && (
-                                    <div className="rounded-md border border-dashed border-border/60 p-2 text-sm">
+                                    <div className="rounded-lg border border-dashed border-border/60 bg-background/60 px-3 py-2 text-sm">
                                       Seleccionado: <strong>{selectedMember.nameSurename}</strong>
                                     </div>
                                   )}
-                                  <div className="border rounded-md max-h-48 overflow-y-auto">
-                                  {isMembersLoading ? (
-                                    <div className="p-3 text-sm text-muted-foreground">Cargando miembros...</div>
-                                  ) : filteredMembers.length > 0 ? (
-                                    filteredMembers.map((member) => (
-                                      <div
-                                        key={member.id}
-                                        onClick={() => {
-                                          form.setValue("memberId", member.id, {
-                                            shouldDirty: true,
-                                            shouldValidate: true,
-                                          });
-                                          field.onChange(member.nameSurename);
-                                          setSelectedLeader(null);
-                                        }}
-                                        className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
-                                        data-testid={`option-member-${member.id}`}
-                                      >
-                                          <div className="font-medium">{member.nameSurename}</div>
-                                          <div className="text-xs text-muted-foreground">
-                                            {member.organizationName ?? "Sin organización"}
+                                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
+                                    {isMembersLoading ? (
+                                      <div className="px-3 py-2 text-sm text-muted-foreground">Cargando miembros...</div>
+                                    ) : filteredMembers.length > 0 ? (
+                                      filteredMembers.map((member) => (
+                                        <div
+                                          key={member.id}
+                                          onClick={() => {
+                                            form.setValue("memberId", member.id, {
+                                              shouldDirty: true,
+                                              shouldValidate: true,
+                                            });
+                                            field.onChange(member.nameSurename);
+                                            setSelectedLeader(null);
+                                          }}
+                                          className="flex cursor-pointer items-center justify-between rounded-lg border border-transparent px-3 py-2 transition-colors hover:border-border/60 hover:bg-muted"
+                                          data-testid={`option-member-${member.id}`}
+                                        >
+                                          <div>
+                                            <div className="font-medium">{member.nameSurename}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                              {member.organizationName ?? "Sin organización"}
+                                            </div>
                                           </div>
+                                          <span className="text-xs text-muted-foreground">›</span>
                                         </div>
                                       ))
                                     ) : (
-                                      <div className="p-3 text-sm text-muted-foreground">
+                                      <div className="px-3 py-2 text-sm text-muted-foreground">
                                         No hay miembros con ese filtro.
                                       </div>
                                     )}
@@ -861,7 +869,7 @@ export default function InterviewsPage() {
                                       data-testid="input-person-name"
                                     />
                                   </FormControl>
-                                  <div className="border rounded-md max-h-40 overflow-y-auto">
+                                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
                                     {organizationMembers
                                       .filter((u: any) =>
                                         u.name.toLowerCase().includes(field.value.toLowerCase())
@@ -874,11 +882,16 @@ export default function InterviewsPage() {
                                             setSelectedLeader(u);
                                             form.setValue("memberId", "");
                                           }}
-                                          className="px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
+                                          className="flex cursor-pointer items-center justify-between rounded-lg border border-transparent px-3 py-2 transition-colors hover:border-border/60 hover:bg-muted"
                                           data-testid={`option-person-${u.id}`}
                                         >
-                                          <div className="font-medium">{u.name}</div>
-                                          <div className="text-xs text-muted-foreground capitalize">{formatRole(u.role)}</div>
+                                          <div>
+                                            <div className="font-medium">{u.name}</div>
+                                            <div className="text-xs text-muted-foreground capitalize">
+                                              {formatRole(u.role)}
+                                            </div>
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">›</span>
                                         </div>
                                       ))}
                                   </div>
@@ -910,7 +923,7 @@ export default function InterviewsPage() {
                       )}
                     />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <FormField
                         control={form.control}
                         name="date"
@@ -951,46 +964,52 @@ export default function InterviewsPage() {
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="interviewerId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Entrevistador</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-interviewer">
-                                <SelectValue placeholder="Seleccionar entrevistador" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {interviewers.map((i: any) => (
-                                <SelectItem key={i.id} value={i.id}>
-                                  {i.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
+                      <FormField
+                        control={form.control}
+                        name="interviewerId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Entrevistador</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-interviewer">
+                                  <SelectValue placeholder="Seleccionar entrevistador" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {interviewers.map((i: any) => (
+                                  <SelectItem key={i.id} value={i.id}>
+                                    {i.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="urgent"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                          <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} data-testid="checkbox-urgent" />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>Marcar como urgente</FormLabel>
-                            <p className="text-sm text-muted-foreground">La prioridad es independiente del estado.</p>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="urgent"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 p-3">
+                            <div className="space-y-1">
+                              <FormLabel>Urgente</FormLabel>
+                              <p className="text-xs text-muted-foreground">Se muestra con prioridad.</p>
+                            </div>
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid="checkbox-urgent"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     <FormField
                       control={form.control}
@@ -1006,8 +1025,13 @@ export default function InterviewsPage() {
                       )}
                     />
 
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel">
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                        data-testid="button-cancel"
+                      >
                         Cancelar
                       </Button>
                       <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
