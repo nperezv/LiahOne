@@ -50,7 +50,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 
 import {
   useInterviews,
@@ -213,7 +213,8 @@ export default function InterviewsPage() {
   const [exportInterviewerId, setExportInterviewerId] = useState("all");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsInterview, setDetailsInterview] = useState<any>(null);
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [messageTemplateId, setMessageTemplateId] = useState("confirmacion");
   const [messageText, setMessageText] = useState("");
@@ -386,9 +387,8 @@ export default function InterviewsPage() {
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
 
   useEffect(() => {
-    if (prefillHandled || !location.includes("memberId=")) return;
-    const query = location.split("?")[1] ?? "";
-    const params = new URLSearchParams(query);
+    if (prefillHandled || !search) return;
+    const params = new URLSearchParams(search);
     const memberIdParam = params.get("memberId");
     if (!memberIdParam || members.length === 0) return;
 
@@ -402,7 +402,7 @@ export default function InterviewsPage() {
     setIsDialogOpen(true);
     setPrefillHandled(true);
     setLocation("/interviews");
-  }, [prefillHandled, location, members, form, setLocation]);
+  }, [prefillHandled, search, members, form, setLocation]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
