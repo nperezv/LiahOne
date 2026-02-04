@@ -403,7 +403,6 @@ export default function AdminUsersPage() {
   const selectedRole = createForm.watch("role");
   const selectedEditRole = editUserForm.watch("role");
   const selectedMemberId = createForm.watch("memberId");
-  const selectedUsername = createForm.watch("username");
   const linkedMemberIds = useMemo(
     () => new Set(users.map((u) => u.memberId).filter(Boolean)),
     [users]
@@ -776,7 +775,7 @@ export default function AdminUsersPage() {
 
                   <FormField
                     control={createForm.control}
-                    name="memberId"
+                    name="name"
                     render={({ field }) => (
                       <FormItem className="hidden">
                         <FormControl>
@@ -847,7 +846,7 @@ export default function AdminUsersPage() {
 
                   <FormField
                     control={createForm.control}
-                    name="phone"
+                    name="role"
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Rol</FormLabel>
@@ -884,74 +883,22 @@ export default function AdminUsersPage() {
                           <FormLabel>Organización</FormLabel>
                           <Select value={field.value ?? ""} onValueChange={field.onChange}>
                             <FormControl>
-                              <Switch
-                                checked={field.value ?? true}
-                                onCheckedChange={field.onChange}
-                                data-testid="switch-create-active"
-                                className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
-                              />
+                              <SelectTrigger data-testid="select-create-organization">
+                                <SelectValue placeholder="Selecciona una organización" />
+                              </SelectTrigger>
                             </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={createForm.control}
-                        name="role"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel>Rol</FormLabel>
-                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-create-role">
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="obispo">Obispo</SelectItem>
-                                <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
-                                <SelectItem value="secretario">Secretario</SelectItem>
-                                <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                                <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
-                                <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
-                                <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
-                                <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
-                        selectedRole
-                      ) && (
-                        <FormField
-                          control={createForm.control}
-                          name="organizationId"
-                          render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>Organización</FormLabel>
-                              <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                                <FormControl>
-                                  <SelectTrigger data-testid="select-create-organization">
-                                    <SelectValue placeholder="Selecciona una organización" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {organizations.map((org) => (
-                                    <SelectItem key={org.id} value={org.id}>
-                                      {org.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                            <SelectContent>
+                              {organizations.map((org) => (
+                                <SelectItem key={org.id} value={org.id}>
+                                  {org.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    </>
+                    />
                   )}
                 </div>
 
