@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Edit, Trash2, Key, Check } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Key, Check, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,10 +44,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { cn } from "@/lib/utils";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
@@ -214,6 +216,7 @@ export default function AdminUsersPage() {
   const [deleteReason, setDeleteReason] = useState("");
   const [approveRequest, setApproveRequest] = useState<UserDeletionRequest | null>(null);
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false);
 
   // Verificar que solo obispo/secretarios puedan acceder
   const isAdmin =
@@ -681,6 +684,7 @@ export default function AdminUsersPage() {
             setIsCreateDialogOpen(open);
             if (!open) {
               createForm.reset(createFormDefaults);
+              setMemberPickerOpen(false);
             }
           }}
         >
@@ -719,91 +723,60 @@ export default function AdminUsersPage() {
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Miembros</FormLabel>
-                        <FormControl>
-                          <Command className="rounded-lg border">
-                            <CommandInput placeholder="Buscar miembro..." />
-                            <CommandList>
-                              <CommandEmpty>No se encontraron miembros.</CommandEmpty>
-                              <CommandGroup>
-                                {getAvailableMembers().map((member) => (
-                                  <CommandItem
-                                    key={member.id}
-                                    value={formatMemberLabel(member)}
-                                    onSelect={() => field.onChange(member.id)}
-                                    className="flex items-center justify-between"
-                                  >
-                                    <span>{formatMemberLabel(member)}</span>
-                                    {field.value === member.id && (
-                                      <Check className="h-4 w-4 text-emerald-500" />
-                                    )}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </FormControl>
+                        <Popover open={memberPickerOpen} onOpenChange={setMemberPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "h-12 w-full justify-between rounded-2xl",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                                data-testid="select-create-member"
+                              >
+                                {selectedMember
+                                  ? formatMemberLabel(selectedMember)
+                                  : "Buscar miembro..."}
+                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Buscar miembro..." />
+                              <CommandList>
+                                <CommandEmpty>No se encontraron miembros.</CommandEmpty>
+                                <CommandGroup>
+                                  {getAvailableMembers().map((member) => (
+                                    <CommandItem
+                                      key={member.id}
+                                      value={formatMemberLabel(member)}
+                                      onSelect={() => {
+                                        field.onChange(member.id);
+                                        setMemberPickerOpen(false);
+                                      }}
+                                      className="flex items-center justify-between"
+                                    >
+                                      <span>{formatMemberLabel(member)}</span>
+                                      {field.value === member.id && (
+                                        <Check className="h-4 w-4 text-emerald-500" />
+                                      )}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  {selectedMember && (
-                    <>
-                      <div className="md:col-span-2 rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm">
-                        <div className="font-medium">Datos del miembro</div>
-                        <div className="text-muted-foreground">
-                          {selectedMember.nameSurename}
-                          {selectedMember.organizationName ? ` · ${selectedMember.organizationName}` : ""}
-                        </div>
-                      </div>
-
-                      <FormItem>
-                        <FormLabel>Nombre</FormLabel>
-                        <FormControl>
-                          <Input value={selectedMember.nameSurename} readOnly data-testid="input-create-name" />
-                        </FormControl>
-                      </FormItem>
-
-                      <FormItem>
-                        <FormLabel>Usuario</FormLabel>
-                        <FormControl>
-                          <Input
-                            value={selectedUsername ?? ""}
-                            readOnly
-                            data-testid="input-create-username"
-                          />
-                        </FormControl>
-                      </FormItem>
-
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            value={selectedMember.email ?? ""}
-                            readOnly
-                            data-testid="input-create-email"
-                          />
-                        </FormControl>
-                      </FormItem>
-
-                      <FormItem>
-                        <FormLabel>Teléfono (Opcional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="tel"
-                            value={selectedMember.phone ?? ""}
-                            readOnly
-                            data-testid="input-create-phone"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    </>
-                  )}
-
                   <FormField
                     control={createForm.control}
-                    name="name"
+                    name="memberId"
                     render={({ field }) => (
                       <FormItem className="hidden">
                         <FormControl>
@@ -849,19 +822,67 @@ export default function AdminUsersPage() {
                     )}
                   />
 
-                  {selectedMember && (
-                    <>
-                      <FormField
-                        control={createForm.control}
-                        name="isActive"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2 flex items-center justify-between rounded-3xl bg-muted/30 p-4">
-                            <div className="space-y-1">
-                              <FormLabel className="text-base">Acceso activo</FormLabel>
-                              <p className="text-xs text-muted-foreground">
-                                Si se desactiva, no podrá iniciar sesión.
-                              </p>
-                            </div>
+                  <FormField
+                    control={createForm.control}
+                    name="isActive"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2 flex items-center justify-between rounded-3xl bg-muted/30 p-4">
+                        <div className="space-y-1">
+                          <FormLabel className="text-base">Acceso activo</FormLabel>
+                          <p className="text-xs text-muted-foreground">
+                            Si se desactiva, no podrá iniciar sesión.
+                          </p>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value ?? true}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-create-active"
+                            className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Rol</FormLabel>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-create-role">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="obispo">Obispo</SelectItem>
+                            <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
+                            <SelectItem value="secretario">Secretario</SelectItem>
+                            <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
+                            <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
+                            <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
+                            <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
+                            <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
+                    selectedRole
+                  ) && (
+                    <FormField
+                      control={createForm.control}
+                      name="organizationId"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Organización</FormLabel>
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                             <FormControl>
                               <Switch
                                 checked={field.value ?? true}
@@ -934,13 +955,15 @@ export default function AdminUsersPage() {
                   )}
                 </div>
 
-                {selectedMember && (
-                  <div className="flex gap-2 justify-end">
-                    <Button type="submit" data-testid="button-submit-create-user">
-                      Crear Usuario
-                    </Button>
-                  </div>
-                )}
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="submit"
+                    disabled={!selectedMember}
+                    data-testid="button-submit-create-user"
+                  >
+                    Crear Usuario
+                  </Button>
+                </div>
               </form>
             </Form>
           </DialogContent>
