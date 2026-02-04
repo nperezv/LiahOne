@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -211,6 +211,7 @@ export default function OrganizationInterviewsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const search = useSearch();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -351,6 +352,18 @@ export default function OrganizationInterviewsPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const memberNameParam = params.get("memberName")?.trim() ?? "";
+    if (!memberNameParam) return;
+
+    form.setValue("personName", memberNameParam, { shouldDirty: true });
+    setStep(2);
+    setIsDialogOpen(true);
+    setLocation("/organization-interviews");
+  }, [form, search, setLocation]);
 
   const advanceWizardStep = async () => {
     if (step === 1) {
