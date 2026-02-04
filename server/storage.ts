@@ -15,6 +15,7 @@ import {
   goals,
   birthdays,
   members,
+  memberCallings,
   activities,
   assignments,
   pdfTemplates,
@@ -51,6 +52,8 @@ import {
   type InsertBirthday,
   type Member,
   type InsertMember,
+  type MemberCalling,
+  type InsertMemberCalling,
   type Activity,
   type InsertActivity,
   type Assignment,
@@ -78,6 +81,10 @@ import {
 export type DirectoryMember = Member & {
   organizationName: string | null;
   organizationType: Organization["type"] | null;
+};
+
+export type DirectoryMemberCalling = MemberCalling & {
+  organizationName: string | null;
 };
 
 export interface UserDeletionSummary {
@@ -185,6 +192,13 @@ export interface IStorage {
   createMember(member: InsertMember): Promise<Member>;
   updateMember(id: string, data: Partial<InsertMember>): Promise<Member | undefined>;
   deleteMember(id: string): Promise<void>;
+
+  // Member Callings
+  getMemberCallings(memberId: string): Promise<DirectoryMemberCalling[]>;
+  getMemberCallingById(id: string): Promise<MemberCalling | undefined>;
+  createMemberCalling(data: InsertMemberCalling): Promise<MemberCalling>;
+  updateMemberCalling(id: string, data: Partial<InsertMemberCalling>): Promise<MemberCalling | undefined>;
+  deleteMemberCalling(id: string): Promise<void>;
 
   // Goals
   getAllGoals(): Promise<Goal[]>;
@@ -844,6 +858,56 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMember(id: string): Promise<void> {
     await db.delete(members).where(eq(members.id, id));
+  }
+
+  // ========================================
+  // MEMBER CALLINGS
+  // ========================================
+
+  async getMemberCallings(memberId: string): Promise<DirectoryMemberCalling[]> {
+    return await db
+      .select({
+        id: memberCallings.id,
+        memberId: memberCallings.memberId,
+        organizationId: memberCallings.organizationId,
+        callingName: memberCallings.callingName,
+        callingType: memberCallings.callingType,
+        isActive: memberCallings.isActive,
+        startDate: memberCallings.startDate,
+        endDate: memberCallings.endDate,
+        createdAt: memberCallings.createdAt,
+        organizationName: organizations.name,
+      })
+      .from(memberCallings)
+      .leftJoin(organizations, eq(memberCallings.organizationId, organizations.id))
+      .where(eq(memberCallings.memberId, memberId))
+      .orderBy(asc(memberCallings.callingName));
+  }
+
+  async getMemberCallingById(id: string): Promise<MemberCalling | undefined> {
+    const [calling] = await db.select().from(memberCallings).where(eq(memberCallings.id, id));
+    return calling || undefined;
+  }
+
+  async createMemberCalling(data: InsertMemberCalling): Promise<MemberCalling> {
+    const [calling] = await db.insert(memberCallings).values(data).returning();
+    return calling;
+  }
+
+  async updateMemberCalling(
+    id: string,
+    data: Partial<InsertMemberCalling>
+  ): Promise<MemberCalling | undefined> {
+    const [calling] = await db
+      .update(memberCallings)
+      .set(data)
+      .where(eq(memberCallings.id, id))
+      .returning();
+    return calling || undefined;
+  }
+
+  async deleteMemberCalling(id: string): Promise<void> {
+    await db.delete(memberCallings).where(eq(memberCallings.id, id));
   }
 
   // ========================================
