@@ -667,6 +667,17 @@ export default function AdminUsersPage() {
         if (data?.summary) {
           setDeleteSummary(data.summary);
         }
+        if (data?.error === "Deletion request already resolved") {
+          toast({
+            title: "Solicitud ya resuelta",
+            description: "La solicitud de baja ya fue procesada. Actualizando la lista.",
+          });
+          setApproveRequest(null);
+          setDeleteSummary(null);
+          refetch();
+          refetchDeletionRequests();
+          return;
+        }
         throw new Error(data.error || "El usuario tiene registros asociados.");
       }
 

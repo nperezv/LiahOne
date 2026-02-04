@@ -1102,7 +1102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/user-deletion-requests",
     requireAuth,
-    requireRole("secretario", "secretario_ejecutivo"),
+    requireRole("obispo", "secretario", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const { userId, reason } = req.body;
