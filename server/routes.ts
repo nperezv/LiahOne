@@ -3519,7 +3519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: i.type,
             sendAt: buildFollowUpSendAt(interviewDate).toISOString(),
           };
-        })),
+        }),
         assignments: pendingAssignments.map((a: any) => ({
           title: a.title,
           assignedTo: a.assignedTo,
