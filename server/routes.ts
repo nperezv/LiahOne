@@ -19,6 +19,7 @@ import {
   insertGoalSchema,
   insertBirthdaySchema,
   insertMemberSchema,
+  insertMemberCallingSchema,
   insertActivitySchema,
   insertAssignmentSchema,
   insertPdfTemplateSchema,
@@ -118,6 +119,67 @@ function requireRole(...roles: string[]) {
     next();
   };
 }
+
+const CALLING_ROLE_LABELS: Record<string, { neutral: string; male?: string; female?: string }> = {
+  obispo: { neutral: "Obispo" },
+  consejero_obispo: { neutral: "Consejero del obispo" },
+  secretario_ejecutivo: { neutral: "Secretario ejecutivo" },
+  secretario: { neutral: "Secretario del barrio" },
+  secretario_financiero: { neutral: "Secretario financiero" },
+  presidente_organizacion: { neutral: "Presidente/Presidenta", male: "Presidente", female: "Presidenta" },
+  consejero_organizacion: { neutral: "Consejero/Consejera", male: "Consejero", female: "Consejera" },
+  secretario_organizacion: { neutral: "Secretario/Secretaria", male: "Secretario", female: "Secretaria" },
+};
+
+const OBISPADO_ROLES = new Set([
+  "obispo",
+  "consejero_obispo",
+  "secretario",
+  "secretario_ejecutivo",
+  "secretario_financiero",
+]);
+
+const normalizeSexValue = (value?: string | null) => {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "M") return "M";
+  if (normalized === "F") return "F";
+  return undefined;
+};
+
+const getCallingLabel = (role: string, sex?: string | null) => {
+  const labels = CALLING_ROLE_LABELS[role];
+  if (!labels) return null;
+  const normalized = normalizeSexValue(sex);
+  if (normalized === "M" && labels.male) return labels.male;
+  if (normalized === "F" && labels.female) return labels.female;
+  return labels.neutral;
+};
+
+const getObispadoOrganizationId = async () => {
+  const organizations = await storage.getAllOrganizations();
+  return organizations.find((org) => org.type === "obispado")?.id ?? null;
+};
+
+const removeAutoCallingForUser = async (user: any) => {
+  if (!user?.memberId) return;
+  const member = await storage.getMemberById(user.memberId);
+  if (!member) return;
+  const callingName = getCallingLabel(user.role, member.sex);
+  if (!callingName) return;
+  const obispadoOrganizationId = await getObispadoOrganizationId();
+  const callingOrganizationId = OBISPADO_ROLES.has(user.role)
+    ? obispadoOrganizationId ?? user.organizationId ?? null
+    : user.organizationId ?? null;
+  const callings = await storage.getMemberCallings(user.memberId);
+  const match = callings.find(
+    (calling) =>
+      calling.callingName === callingName &&
+      (calling.organizationId ?? null) === (callingOrganizationId ?? null)
+  );
+  if (match) {
+    await storage.deleteMemberCalling(match.id);
+  }
+};
 
 const interviewCollisionRoles = new Map<string, string>([
   ["obispo", "Obispo"],
@@ -793,6 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "organizationId is required for this role" });
       }
 
+      let memberForCalling: any = null;
       if (memberId) {
         const member = await storage.getMemberById(memberId);
         if (!member) {
@@ -802,6 +865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (memberAlreadyLinked) {
           return res.status(400).json({ error: "Member is already linked to another user" });
         }
+        memberForCalling = member;
       }
 
       // Bishop-level roles automatically get the Obispado organizationId
@@ -823,6 +887,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         organizationId: finalOrganizationId,
         memberId: memberId || null,
       });
+
+      if (memberId && memberForCalling) {
+        const callingName = getCallingLabel(role, memberForCalling.sex);
+        if (callingName) {
+          const obispadoOrganizationId = await getObispadoOrganizationId();
+          const callingOrganizationId = OBISPADO_ROLES.has(role)
+            ? obispadoOrganizationId ?? finalOrganizationId
+            : finalOrganizationId;
+          const existingCallings = await storage.getMemberCallings(memberId);
+          const alreadyExists = existingCallings.some(
+            (calling) =>
+              calling.callingName === callingName &&
+              (calling.organizationId ?? null) === (callingOrganizationId ?? null)
+          );
+          if (!alreadyExists) {
+            const callingPayload = insertMemberCallingSchema.parse({
+              memberId,
+              organizationId: callingOrganizationId,
+              callingName,
+            });
+            await storage.createMemberCalling(callingPayload);
+          }
+        }
+      }
 
       if (accessRequestId) {
         await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
@@ -1187,6 +1275,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reviewedAt: new Date(),
         });
 
+        const user = await storage.getUser(request.userId);
+        if (user) {
+          await removeAutoCallingForUser(user);
+        }
+
         if (cleanAll) {
           await storage.deleteUserWithCleanup(request.userId);
         } else {
@@ -1227,6 +1320,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           summary,
         });
       }
+
+      await removeAutoCallingForUser(user);
 
       if (cleanAll) {
         await storage.deleteUserWithCleanup(id);
@@ -2988,6 +3083,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting member:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
+  // MEMBER CALLINGS
+  // ========================================
+  app.get("/api/members/:id/callings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const callings = await storage.getMemberCallings(req.params.id);
+      res.json(callings);
+    } catch (error) {
+      console.error("Error fetching member callings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/members/:id/callings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const member = await storage.getMemberById(req.params.id);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+
+      const callingData = insertMemberCallingSchema.parse({
+        ...req.body,
+        memberId: req.params.id,
+      });
+      const calling = await storage.createMemberCalling(callingData);
+      res.status(201).json(calling);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating member calling:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/members/:memberId/callings/:callingId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const existing = await storage.getMemberCallingById(req.params.callingId);
+      if (!existing || existing.memberId !== req.params.memberId) {
+        return res.status(404).json({ error: "Calling not found" });
+      }
+
+      const callingData = insertMemberCallingSchema.partial().parse(req.body);
+      const updated = await storage.updateMemberCalling(req.params.callingId, callingData);
+      if (!updated) {
+        return res.status(404).json({ error: "Calling not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating member calling:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/members/:memberId/callings/:callingId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const existing = await storage.getMemberCallingById(req.params.callingId);
+      if (!existing || existing.memberId !== req.params.memberId) {
+        return res.status(404).json({ error: "Calling not found" });
+      }
+
+      await storage.deleteMemberCalling(req.params.callingId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting member calling:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

@@ -71,6 +71,19 @@ export interface DirectoryMember {
   createdAt: string;
 }
 
+export interface MemberCalling {
+  id: string;
+  memberId: string;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  callingName: string;
+  callingType?: string | null;
+  isActive: boolean;
+  startDate?: string | null;
+  endDate?: string | null;
+  createdAt: string;
+}
+
 export function useMembers(options?: { enabled?: boolean }) {
   return useQuery<DirectoryMember[]>({
     queryKey: ["/api/members"],
@@ -143,6 +156,66 @@ export function useDeleteMember() {
       toast({
         title: "Error",
         description: "No se pudo eliminar el miembro. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useMemberCallings(memberId?: string, options?: { enabled?: boolean }) {
+  return useQuery<MemberCalling[]>({
+    queryKey: ["/api/members", memberId, "callings"],
+    enabled: options?.enabled ?? Boolean(memberId),
+    queryFn: async () => {
+      if (!memberId) {
+        return [];
+      }
+      return apiRequest("GET", `/api/members/${memberId}/callings`);
+    },
+  });
+}
+
+export function useCreateMemberCalling(memberId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: any) => apiRequest("POST", `/api/members/${memberId}/callings`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members", memberId, "callings"] });
+      toast({
+        title: "Llamamiento agregado",
+        description: "El llamamiento ha sido agregado exitosamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el llamamiento. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteMemberCalling(memberId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (callingId: string) =>
+      apiRequest("DELETE", `/api/members/${memberId}/callings/${callingId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members", memberId, "callings"] });
+      toast({
+        title: "Llamamiento eliminado",
+        description: "El llamamiento ha sido eliminado exitosamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el llamamiento. Intenta nuevamente.",
         variant: "destructive",
       });
     },
