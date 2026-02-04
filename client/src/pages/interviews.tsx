@@ -666,21 +666,23 @@ export default function InterviewsPage() {
     if (prefillHandled || !search) return;
     const params = new URLSearchParams(search);
     const memberIdParam = params.get("memberId");
-    if (!memberIdParam || members.length === 0) return;
+    const memberNameParam = params.get("memberName")?.trim() ?? "";
+    if (!memberIdParam) return;
 
     const member = members.find((item) => item.id === memberIdParam);
-    if (!member) return;
+    const resolvedName = member?.nameSurename ?? memberNameParam;
+    if (!resolvedName) return;
 
-    setPersonSource("directory");
-    form.setValue("memberId", member.id, { shouldDirty: true });
-    form.setValue("personName", member.nameSurename, { shouldDirty: true });
+    setPersonSource(canUseDirectory ? "directory" : "manual");
+    form.setValue("memberId", memberIdParam, { shouldDirty: true });
+    form.setValue("personName", resolvedName, { shouldDirty: true });
     setMemberQuery("");
     setSelectedLeader(null);
     setStep(2);
     setIsDialogOpen(true);
     setPrefillHandled(true);
     setLocation("/interviews");
-  }, [prefillHandled, search, members, form, setLocation]);
+  }, [prefillHandled, search, members, form, setLocation, canUseDirectory]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(

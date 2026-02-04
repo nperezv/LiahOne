@@ -308,6 +308,10 @@ export default function DirectoryPage() {
   };
 
   const handleSheetPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("button, a, input, select, textarea, [role='button']")) {
+      return;
+    }
     sheetStartY.current = event.clientY;
     sheetDragging.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -707,7 +711,8 @@ export default function DirectoryPage() {
               <Button
                 className="w-full bg-[#0A84FF] text-white hover:bg-[#0A84FF]/90"
                 onClick={() => {
-                  setLocation(`/interviews?memberId=${sheetMember.id}`);
+                  const memberName = encodeURIComponent(sheetMember.nameSurename ?? "");
+                  setLocation(`/interviews?memberId=${sheetMember.id}&memberName=${memberName}`);
                   handleCloseSheet();
                 }}
               >
