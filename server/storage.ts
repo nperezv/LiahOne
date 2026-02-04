@@ -27,6 +27,7 @@ import {
   loginEvents,
   emailOtps,
   accessRequests,
+  userDeletionRequests,
   type User,
   type InsertUser,
   type Organization,
@@ -70,6 +71,8 @@ import {
   type EmailOtp,
   type AccessRequest,
   type InsertAccessRequest,
+  type UserDeletionRequest,
+  type InsertUserDeletionRequest,
 } from "@shared/schema";
 
 export type DirectoryMember = Member & {
@@ -111,6 +114,13 @@ export interface IStorage {
   deleteUser(id: string): Promise<void>;
   getUserDeletionSummary(id: string): Promise<UserDeletionSummary>;
   deleteUserWithCleanup(id: string): Promise<void>;
+  createUserDeletionRequest(data: InsertUserDeletionRequest): Promise<UserDeletionRequest>;
+  getUserDeletionRequest(id: string): Promise<UserDeletionRequest | undefined>;
+  getPendingUserDeletionRequests(): Promise<UserDeletionRequest[]>;
+  updateUserDeletionRequest(
+    id: string,
+    data: Partial<InsertUserDeletionRequest>
+  ): Promise<UserDeletionRequest | undefined>;
 
   // Organizations
   getAllOrganizations(): Promise<Organization[]>;
@@ -469,6 +479,36 @@ export class DatabaseStorage implements IStorage {
 
       await tx.delete(users).where(eq(users.id, id));
     });
+  }
+
+  async createUserDeletionRequest(data: InsertUserDeletionRequest): Promise<UserDeletionRequest> {
+    const [request] = await db.insert(userDeletionRequests).values(data).returning();
+    return request;
+  }
+
+  async getUserDeletionRequest(id: string): Promise<UserDeletionRequest | undefined> {
+    const [request] = await db.select().from(userDeletionRequests).where(eq(userDeletionRequests.id, id));
+    return request || undefined;
+  }
+
+  async getPendingUserDeletionRequests(): Promise<UserDeletionRequest[]> {
+    return await db
+      .select()
+      .from(userDeletionRequests)
+      .where(eq(userDeletionRequests.status, "pendiente"))
+      .orderBy(desc(userDeletionRequests.createdAt));
+  }
+
+  async updateUserDeletionRequest(
+    id: string,
+    data: Partial<InsertUserDeletionRequest>
+  ): Promise<UserDeletionRequest | undefined> {
+    const [request] = await db
+      .update(userDeletionRequests)
+      .set({ ...data })
+      .where(eq(userDeletionRequests.id, id))
+      .returning();
+    return request || undefined;
   }
 
   // ========================================

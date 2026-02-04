@@ -171,12 +171,12 @@ export default function GoalsPage() {
     if (!org) return "Organización";
     
     const nameMap: Record<string, string> = {
-      "hombres_jovenes": "Hombres Jóvenes",
+      "hombres_jovenes": "Cuórum del Sacerdocio Aarónico",
       "mujeres_jovenes": "Mujeres Jóvenes",
       "sociedad_socorro": "Sociedad de Socorro",
       "primaria": "Primaria",
       "escuela_dominical": "Escuela Dominical",
-      "jas": "JAS",
+      "jas": "Liderazgo JAS",
       "cuorum_elderes": "Cuórum de Élderes",
     };
     

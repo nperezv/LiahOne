@@ -124,6 +124,12 @@ export const budgetStatusEnum = pgEnum("budget_status", [
   "completado",
 ]);
 
+export const userDeletionRequestStatusEnum = pgEnum("user_deletion_request_status", [
+  "pendiente",
+  "aprobada",
+  "rechazada",
+]);
+
 export const interviewStatusEnum = pgEnum("interview_status", [
   "programada",
   "completada",
@@ -166,8 +172,10 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   requireEmailOtp: boolean("require_email_otp").notNull().default(false),
   requirePasswordChange: boolean("require_password_change").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
   role: roleEnum("role").notNull(),
   organizationId: varchar("organization_id").references(() => organizations.id),
+  memberId: varchar("member_id").references(() => members.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -216,6 +224,17 @@ export const emailOtps = pgTable("email_otps", {
   country: text("country"),
   expiresAt: timestamp("expires_at").notNull(),
   consumedAt: timestamp("consumed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userDeletionRequests = pgTable("user_deletion_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  reason: text("reason"),
+  status: userDeletionRequestStatusEnum("status").notNull().default("pendiente"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -496,6 +515,13 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.organizationId],
     references: [organizations.id],
   }),
+  member: one(members, {
+    fields: [users.memberId],
+    references: [members.id],
+  }),
+  deletionRequestsReceived: many(userDeletionRequests, { relationName: "deletionTarget" }),
+  deletionRequestsSent: many(userDeletionRequests, { relationName: "deletionRequester" }),
+  deletionRequestsReviewed: many(userDeletionRequests, { relationName: "deletionReviewer" }),
   createdSacramentalMeetings: many(sacramentalMeetings),
   createdWardCouncils: many(wardCouncils),
   createdPresidencyMeetings: many(presidencyMeetings),
@@ -526,6 +552,28 @@ export const membersRelations = relations(members, ({ one }) => ({
   organization: one(organizations, {
     fields: [members.organizationId],
     references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [members.id],
+    references: [users.memberId],
+  }),
+}));
+
+export const userDeletionRequestsRelations = relations(userDeletionRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [userDeletionRequests.userId],
+    references: [users.id],
+    relationName: "deletionTarget",
+  }),
+  requester: one(users, {
+    fields: [userDeletionRequests.requestedBy],
+    references: [users.id],
+    relationName: "deletionRequester",
+  }),
+  reviewer: one(users, {
+    fields: [userDeletionRequests.reviewedBy],
+    references: [users.id],
+    relationName: "deletionReviewer",
   }),
 }));
 
@@ -668,6 +716,7 @@ export const insertUserSchema = createInsertSchema(users, {
   avatarUrl: z.string().optional().or(z.literal("")),
   requireEmailOtp: z.boolean().optional(),
   requirePasswordChange: z.boolean().optional(),
+  isActive: z.boolean().optional(),
 }).omit({ id: true, createdAt: true });
 
 export const selectUserSchema = createSelectSchema(users);
@@ -920,6 +969,7 @@ export type RefreshToken = typeof refreshTokens.$inferSelect;
 export type LoginEvent = typeof loginEvents.$inferSelect;
 export type EmailOtp = typeof emailOtps.$inferSelect;
 export type AccessRequest = typeof accessRequests.$inferSelect;
+export type UserDeletionRequest = typeof userDeletionRequests.$inferSelect;
 
 export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -956,6 +1006,7 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type PdfTemplate = typeof pdfTemplates.$inferSelect;
 export type InsertPdfTemplate = z.infer<typeof insertPdfTemplateSchema>;
 export type InsertAccessRequest = z.infer<typeof insertAccessRequestSchema>;
+export type InsertUserDeletionRequest = typeof userDeletionRequests.$inferInsert;
 
 // Notification Schemas
 export const insertNotificationSchema = createInsertSchema(notifications).omit({
