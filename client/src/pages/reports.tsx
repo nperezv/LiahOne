@@ -112,12 +112,12 @@ export default function ReportsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="hombres-jovenes">Hombres Jóvenes</SelectItem>
+                  <SelectItem value="hombres-jovenes">Cuórum del Sacerdocio Aarónico</SelectItem>
                   <SelectItem value="mujeres-jovenes">Mujeres Jóvenes</SelectItem>
                   <SelectItem value="sociedad-socorro">Sociedad de Socorro</SelectItem>
                   <SelectItem value="primaria">Primaria</SelectItem>
                   <SelectItem value="escuela-dominical">Escuela Dominical</SelectItem>
-                  <SelectItem value="jas">JAS</SelectItem>
+                  <SelectItem value="jas">Liderazgo JAS</SelectItem>
                   <SelectItem value="cuorum-elderes">Cuórum de Élderes</SelectItem>
                 </SelectContent>
               </Select>

@@ -81,23 +81,26 @@ function getUserIdFromRequest(req: Request): string | null {
 }
 
 // Auth middleware
-async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const userId = getUserIdFromRequest(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  try {
-    const user = await storage.getUser(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+  async function requireAuth(req: Request, res: Response, next: NextFunction) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-    (req as any).user = user;
-    next();
-  } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({ error: "Account inactive" });
+      }
+      (req as any).user = user;
+      next();
+    } catch (error) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
   }
-}
 
 // Role-based auth middleware
 function requireRole(...roles: string[]) {
@@ -108,7 +111,7 @@ function requireRole(...roles: string[]) {
     }
 
     const user = await storage.getUser(userId);
-    if (!user || !roles.includes(user.role)) {
+    if (!user || !user.isActive || !roles.includes(user.role)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -356,6 +359,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(includeDebug ? { detail: "user_not_found" } : {}),
         });
       }
+      if (!user.isActive) {
+        await storage.createLoginEvent({
+          userId: user.id,
+          deviceHash,
+          ipAddress,
+          country,
+          userAgent,
+          success: false,
+          reason: "inactive_account",
+        });
+        return res.status(403).json({ error: "Account inactive" });
+      }
 
       const isLegacyPassword = !isBcryptHash(user.password);
       const isValidPassword = isLegacyPassword
@@ -486,6 +501,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
+      if (!user.isActive) {
+        return res.status(403).json({ error: "Account inactive" });
+      }
 
       if (deviceHash) {
         await storage.upsertUserDevice({
@@ -531,6 +549,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(storedToken.userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({ error: "Account inactive" });
       }
 
       const { accessToken: newAccessToken, refreshTokenId } = await issueTokens(
@@ -624,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accessRequest = await storage.createAccessRequest(parsed.data);
 
       const users = await storage.getAllUsers();
-      const notificationRoles = ["obispo", "consejero_obispo", "secretario_financiero"];
+      const notificationRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
       const roleRecipients = users
         .filter((user) => notificationRoles.includes(user.role) && user.email)
         .map((user) => user.email!)
@@ -664,7 +685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/access-requests/:id",
     requireAuth,
-    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    requireRole("obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const accessRequest = await storage.getAccessRequest(req.params.id);
@@ -694,10 +715,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/users",
     requireAuth,
-    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    requireRole("secretario", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
     try {
-      const { username, name, email, role, organizationId, accessRequestId, phone } = req.body;
+      const {
+        username,
+        name,
+        email,
+        role,
+        organizationId,
+        accessRequestId,
+        phone,
+        memberId,
+        isActive,
+      } = req.body;
 
       if (!username || !name || !role) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -720,6 +751,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "organizationId is required for this role" });
       }
 
+      if (memberId) {
+        const member = await storage.getMemberById(memberId);
+        if (!member) {
+          return res.status(400).json({ error: "Member not found" });
+        }
+        const memberAlreadyLinked = existingUsers.some((user) => user.memberId === memberId);
+        if (memberAlreadyLinked) {
+          return res.status(400).json({ error: "Member is already linked to another user" });
+        }
+      }
+
       // Bishop-level roles automatically get the Obispado organizationId
       const bishopRoles = ["consejero_obispo", "secretario"];
       const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
@@ -734,8 +776,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         phone: phone || null,
         requirePasswordChange: true,
+        isActive: typeof isActive === "boolean" ? isActive : true,
         role,
         organizationId: finalOrganizationId,
+        memberId: memberId || null,
       });
 
       if (accessRequestId) {
@@ -768,7 +812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { username, name, email, role, organizationId, phone } = req.body;
+      const { username, name, email, role, organizationId, phone, memberId, isActive } = req.body;
 
       if (role) {
         const rolesRequireOrg = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
@@ -787,6 +831,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      const hasMemberId = Object.prototype.hasOwnProperty.call(req.body ?? {}, "memberId");
+      const normalizedMemberId =
+        memberId === "" || memberId === null ? null : (memberId as string | undefined);
+
+      if (hasMemberId && normalizedMemberId) {
+        const member = await storage.getMemberById(normalizedMemberId);
+        if (!member) {
+          return res.status(400).json({ error: "Member not found" });
+        }
+        const existingUsers = await storage.getAllUsers();
+        const memberAlreadyLinked = existingUsers.some(
+          (user) => user.memberId === normalizedMemberId && user.id !== id
+        );
+        if (memberAlreadyLinked) {
+          return res.status(400).json({ error: "Member is already linked to another user" });
+        }
+      }
+
       const updatedUser = await storage.updateUser(id, {
         username: username || undefined,
         name: name || undefined,
@@ -794,6 +856,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role || undefined,
         organizationId: organizationId ?? undefined,
         phone: phone || undefined,
+        memberId: hasMemberId ? normalizedMemberId : undefined,
+        isActive: typeof isActive === "boolean" ? isActive : undefined,
       });
 
       if (!updatedUser) {
@@ -997,14 +1061,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post(
+    "/api/user-deletion-requests",
+    requireAuth,
+    requireRole("secretario", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
+      try {
+        const { userId, reason } = req.body;
+        if (!userId) {
+          return res.status(400).json({ error: "userId is required" });
+        }
+
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        const pendingRequests = await storage.getPendingUserDeletionRequests();
+        const alreadyPending = pendingRequests.some((request) => request.userId === userId);
+        if (alreadyPending) {
+          return res.status(409).json({ error: "Deletion request already pending" });
+        }
+
+        const requesterId = req.session.userId!;
+        const request = await storage.createUserDeletionRequest({
+          userId,
+          requestedBy: requesterId,
+          reason: reason || null,
+        });
+
+        res.status(201).json(request);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to create deletion request" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/user-deletion-requests",
+    requireAuth,
+    requireRole("obispo"),
+    async (req: Request, res: Response) => {
+      try {
+        const requests = await storage.getPendingUserDeletionRequests();
+        res.json(requests);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to load deletion requests" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/user-deletion-requests/:id/approve",
+    requireAuth,
+    requireRole("obispo"),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const { cleanAll } = req.body ?? {};
+        const request = await storage.getUserDeletionRequest(id);
+        if (!request) {
+          return res.status(404).json({ error: "Deletion request not found" });
+        }
+        if (request.status !== "pendiente") {
+          return res.status(409).json({ error: "Deletion request already resolved" });
+        }
+
+        const summary = await storage.getUserDeletionSummary(request.userId);
+        const hasDependencies = Object.values(summary).some((count) => count > 0);
+        if (hasDependencies && !cleanAll) {
+          return res.status(409).json({ error: "User has related records", summary });
+        }
+
+        await storage.updateUserDeletionRequest(id, {
+          status: "aprobada",
+          reviewedBy: req.session.userId!,
+          reviewedAt: new Date(),
+        });
+
+        if (cleanAll) {
+          await storage.deleteUserWithCleanup(request.userId);
+        } else {
+          await storage.deleteUser(request.userId);
+        }
+
+        res.status(200).json({ message: "User deleted" });
+      } catch (error) {
+        res.status(500).json({ error: "Failed to approve deletion request" });
+      }
+    }
+  );
+
   app.delete(
     "/api/users/:id",
     requireAuth,
-    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    requireRole("obispo"),
     async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const cleanAll = req.query.cleanAll === "true";
+      const pendingRequests = await storage.getPendingUserDeletionRequests();
+      const hasRequest = pendingRequests.some((request) => request.userId === id);
+      if (!hasRequest) {
+        return res.status(409).json({ error: "Deletion request required" });
+      }
       const user = await storage.getUser(id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -1034,7 +1194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(
     "/api/users/:id/delete-summary",
     requireAuth,
-    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    requireRole("obispo", "secretario", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
@@ -3828,12 +3988,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Build budget by organization from real data
       const orgTypeNames: Record<string, string> = {
-        hombres_jovenes: "Hombres Jóvenes",
+        hombres_jovenes: "Cuórum del Sacerdocio Aarónico",
         mujeres_jovenes: "Mujeres Jóvenes",
         sociedad_socorro: "Sociedad de Socorro",
         primaria: "Primaria",
         escuela_dominical: "Escuela Dominical",
-        jas: "JAS",
+        jas: "Liderazgo JAS",
         cuorum_elderes: "Cuórum de Élderes",
       };
 

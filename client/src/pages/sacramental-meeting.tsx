@@ -204,12 +204,16 @@ export default function SacramentalMeetingPage() {
 
   // Calling mapping by organization type
   const callingsByOrgType: Record<string, string[]> = {
-    "hombres_jovenes": ["Asesor de Hombres Jóvenes", "Ayudante del Asesor de Hombres Jóvenes"],
+    "hombres_jovenes": [
+      "Presidente de Cuórum de Diáconos",
+      "Presidente de Cuórum de Maestros",
+      "Presidente de Cuórum de Presbíteros",
+    ],
     "mujeres_jovenes": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
     "sociedad_socorro": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
     "primaria": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
     "escuela_dominical": ["Presidente", "1er. Consejero", "2do. Consejero", "Secretario"],
-    "jas": ["Líder de JAS"],
+    "jas": ["Líder de JAS Varón", "Líder de JAS Mujer"],
   };
 
   // Filter organizations for releases and sustainments (exclude cuorum)

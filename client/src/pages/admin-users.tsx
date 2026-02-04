@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -34,7 +35,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 
@@ -45,6 +48,8 @@ const createUserSchema = z.object({
   phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
+  memberId: z.string().optional().or(z.literal("")),
+  isActive: z.boolean().optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -58,6 +63,8 @@ const editUserSchema = z.object({
   phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
   organizationId: z.string().optional(),
+  memberId: z.string().optional().or(z.literal("")),
+  isActive: z.boolean().optional(),
 });
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
@@ -72,12 +79,23 @@ interface User {
   phone?: string | null;
   role: string;
   organizationId?: string;
+  memberId?: string | null;
+  isActive?: boolean;
 }
 
 interface Organization {
   id: string;
   name: string;
   type: string;
+}
+
+interface DirectoryMember {
+  id: string;
+  nameSurename: string;
+  organizationName?: string | null;
+  organizationType?: string | null;
+  email?: string | null;
+  phone?: string | null;
 }
 
 interface AdminSession {
@@ -141,6 +159,17 @@ interface UserDeletionSummary {
   wardCouncilsCreated: number;
 }
 
+interface UserDeletionRequest {
+  id: string;
+  userId: string;
+  requestedBy: string;
+  reason?: string | null;
+  status: "pendiente" | "aprobada" | "rechazada";
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+}
+
 const deletionLabels: { key: keyof UserDeletionSummary; label: string }[] = [
   { key: "assignmentsAssignedTo", label: "Asignaciones asignadas al usuario" },
   { key: "assignmentsAssignedBy", label: "Asignaciones creadas por el usuario" },
@@ -174,13 +203,18 @@ export default function AdminUsersPage() {
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
   const [deleteSummary, setDeleteSummary] = useState<UserDeletionSummary | null>(null);
   const [deleteSummaryLoading, setDeleteSummaryLoading] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [approveRequest, setApproveRequest] = useState<UserDeletionRequest | null>(null);
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
 
-  // Verificar que solo obispo/consejeros puedan acceder
+  // Verificar que solo obispo/secretarios puedan acceder
   const isAdmin =
     user?.role === "obispo" ||
-    user?.role === "consejero_obispo" ||
+    user?.role === "secretario" ||
     user?.role === "secretario_ejecutivo";
+  const canCreateUser = user?.role === "secretario" || user?.role === "secretario_ejecutivo";
+  const canRequestDeletion = canCreateUser;
+  const canApproveDeletion = user?.role === "obispo";
 
   if (!isAdmin) {
     return (
@@ -208,9 +242,16 @@ export default function AdminUsersPage() {
     enabled: isAdmin,
   });
 
+  const { data: members = [] } = useMembers({ enabled: isAdmin });
+
   const { data: sessions = [], refetch: refetchSessions } = useQuery<AdminSession[]>({
     queryKey: ["/api/admin/sessions"],
     enabled: isAdmin,
+  });
+
+  const { data: deletionRequests = [], refetch: refetchDeletionRequests } = useQuery<UserDeletionRequest[]>({
+    queryKey: ["/api/user-deletion-requests"],
+    enabled: isAdmin && canApproveDeletion,
   });
 
   const { data: accessLog = [] } = useQuery<AccessLogEntry[]>({
@@ -247,11 +288,13 @@ export default function AdminUsersPage() {
       phone: "",
       role: "secretario",
       organizationId: "",
+      memberId: "",
+      isActive: true,
     },
   });
 
   useEffect(() => {
-    if (!accessRequest || prefilledRequestId === accessRequest.id) {
+    if (!accessRequest || prefilledRequestId === accessRequest.id || !canCreateUser) {
       return;
     }
 
@@ -262,13 +305,15 @@ export default function AdminUsersPage() {
           .toLowerCase()
           .replace(/\s+/g, ".");
 
-      createForm.reset({
-        username: suggestedUsername,
-        name: accessRequest.name,
-        email: accessRequest.email,
-        phone: accessRequest.phone || "",
-        role: "secretario",
+    createForm.reset({
+      username: suggestedUsername,
+      name: accessRequest.name,
+      email: accessRequest.email,
+      phone: accessRequest.phone || "",
+      role: "secretario",
       organizationId: "",
+      memberId: "",
+      isActive: true,
     });
 
     setPrefilledRequestId(accessRequest.id);
@@ -276,7 +321,8 @@ export default function AdminUsersPage() {
   }, [accessRequest, createForm, prefilledRequestId]);
 
   useEffect(() => {
-    if (!deleteUser) {
+    const targetUserId = deleteUser?.id ?? approveRequest?.userId;
+    if (!targetUserId) {
       setDeleteSummary(null);
       return;
     }
@@ -285,7 +331,7 @@ export default function AdminUsersPage() {
     const loadSummary = async () => {
       setDeleteSummaryLoading(true);
       try {
-        const response = await fetch(`/api/users/${deleteUser.id}/delete-summary`, {
+        const response = await fetch(`/api/users/${targetUserId}/delete-summary`, {
           headers: getAuthHeaders(),
           signal: controller.signal,
         });
@@ -314,7 +360,7 @@ export default function AdminUsersPage() {
     return () => {
       controller.abort();
     };
-  }, [deleteUser, toast]);
+  }, [approveRequest, deleteUser, toast]);
 
   const resetPasswordForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -332,13 +378,65 @@ export default function AdminUsersPage() {
       phone: "",
       role: "secretario",
       organizationId: "",
+      memberId: "",
+      isActive: true,
     },
   });
 
   const selectedRole = createForm.watch("role");
   const selectedEditRole = editUserForm.watch("role");
+  const selectedMemberId = createForm.watch("memberId");
+  const linkedMemberIds = useMemo(
+    () => new Set(users.map((u) => u.memberId).filter(Boolean)),
+    [users]
+  );
+  const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
+  const membersById = useMemo(
+    () => new Map((members as DirectoryMember[]).map((member) => [member.id, member])),
+    [members]
+  );
+  const selectedMember = selectedMemberId ? membersById.get(selectedMemberId) : undefined;
+
+  const formatMemberLabel = (member: DirectoryMember) => {
+    const orgLabel = member.organizationName ? ` (${member.organizationName})` : "";
+    return `${member.nameSurename}${orgLabel}`;
+  };
+
+  const getAvailableMembers = (currentMemberId?: string | null) => {
+    return (members as DirectoryMember[]).filter((member) => {
+      if (member.id === currentMemberId) return true;
+      return !linkedMemberIds.has(member.id);
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedMember) {
+      return;
+    }
+    const currentValues = createForm.getValues();
+    if (selectedMember.nameSurename && currentValues.name !== selectedMember.nameSurename) {
+      createForm.setValue("name", selectedMember.nameSurename);
+    }
+    if (selectedMember.email && currentValues.email !== selectedMember.email) {
+      createForm.setValue("email", selectedMember.email);
+    }
+    if (selectedMember.phone && currentValues.phone !== selectedMember.phone) {
+      createForm.setValue("phone", selectedMember.phone);
+    }
+    if (!currentValues.username && selectedMember.email) {
+      createForm.setValue("username", selectedMember.email.split("@")[0]);
+    }
+  }, [createForm, selectedMember]);
 
   const onCreateUser = async (data: CreateUserFormValues) => {
+    if (!canCreateUser) {
+      toast({
+        title: "Acceso restringido",
+        description: "Solo secretaría puede dar de alta usuarios.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       // Clean up data - don't send empty organizationId
       const cleanData = {
@@ -346,6 +444,8 @@ export default function AdminUsersPage() {
         organizationId: data.organizationId || undefined,
         email: data.email || undefined,
         phone: data.phone || undefined,
+        memberId: data.memberId || undefined,
+        isActive: typeof data.isActive === "boolean" ? data.isActive : undefined,
         accessRequestId: accessRequest?.id,
       };
 
@@ -410,6 +510,8 @@ export default function AdminUsersPage() {
           organizationId: data.organizationId || undefined,
           email: data.email || undefined,
           phone: data.phone || undefined,
+          memberId: data.memberId || null,
+          isActive: typeof data.isActive === "boolean" ? data.isActive : undefined,
         }),
       });
 
@@ -428,34 +530,69 @@ export default function AdminUsersPage() {
     setDeleteUser(targetUser);
   };
 
-  const onConfirmDeleteUser = async (cleanAll: boolean) => {
+  const onConfirmDeleteUser = async () => {
     if (!deleteUser) return;
 
     try {
-      const response = await fetch(`/api/users/${deleteUser.id}?cleanAll=${cleanAll}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
+      const response = await fetch("/api/user-deletion-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ userId: deleteUser.id, reason: deleteReason || undefined }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Error al solicitar la baja");
+      }
+
+      toast({
+        title: "Solicitud enviada",
+        description: "El obispo deberá confirmar la baja del usuario.",
+      });
+      setDeleteUser(null);
+      setDeleteSummary(null);
+      setDeleteReason("");
+      refetchDeletionRequests();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo solicitar la baja del usuario",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const onApproveDeletionRequest = async (cleanAll: boolean) => {
+    if (!approveRequest) return;
+
+    try {
+      const response = await fetch(`/api/user-deletion-requests/${approveRequest.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ cleanAll }),
       });
 
       if (response.status === 409) {
         const data = await response.json();
-        setDeleteSummary(data.summary);
-        toast({
-          title: "No se puede eliminar",
-          description: "El usuario tiene registros asociados.",
-          variant: "destructive",
-        });
-        return;
+        if (data?.summary) {
+          setDeleteSummary(data.summary);
+        }
+        throw new Error(data.error || "El usuario tiene registros asociados.");
       }
 
-      if (!response.ok) throw new Error("Error al eliminar usuario");
+      if (!response.ok) throw new Error("Error al aprobar la baja");
 
       toast({ title: "Éxito", description: "Usuario eliminado correctamente" });
-      setDeleteUser(null);
+      setApproveRequest(null);
       setDeleteSummary(null);
       refetch();
-    } catch (error) {
-      toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
+      refetchDeletionRequests();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo aprobar la baja del usuario",
+        variant: "destructive",
+      });
     }
   };
 
@@ -515,7 +652,7 @@ export default function AdminUsersPage() {
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-create-user">
+            <Button data-testid="button-create-user" disabled={!canCreateUser}>
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Usuario
             </Button>
@@ -524,7 +661,7 @@ export default function AdminUsersPage() {
             <DialogHeader>
               <DialogTitle>Crear Nuevo Usuario</DialogTitle>
               <DialogDescription>
-                Se generará una contraseña temporal y se enviará al correo.
+                Se generará una contraseña temporal y se enviará al correo si el acceso está activo.
               </DialogDescription>
             </DialogHeader>
             <Form {...createForm}>
@@ -543,6 +680,15 @@ export default function AdminUsersPage() {
                   </div>
                 )}
                 <div className="grid gap-4 md:grid-cols-2">
+                  {selectedMember && (
+                    <div className="md:col-span-2 rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm">
+                      <div className="font-medium">Datos del directorio</div>
+                      <div className="text-muted-foreground">
+                        {selectedMember.nameSurename}
+                        {selectedMember.organizationName ? ` · ${selectedMember.organizationName}` : ""}
+                      </div>
+                    </div>
+                  )}
                   <FormField
                     control={createForm.control}
                     name="name"
@@ -550,7 +696,11 @@ export default function AdminUsersPage() {
                       <FormItem>
                         <FormLabel>Nombre</FormLabel>
                         <FormControl>
-                          <Input {...field} data-testid="input-create-name" />
+                          <Input
+                            {...field}
+                            data-testid="input-create-name"
+                            disabled={Boolean(selectedMember?.nameSurename)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -578,26 +728,85 @@ export default function AdminUsersPage() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input type="email" {...field} data-testid="input-create-email" />
+                          <Input
+                            type="email"
+                            {...field}
+                            data-testid="input-create-email"
+                            disabled={Boolean(selectedMember?.email)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <FormField
-                    control={createForm.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Teléfono (Opcional)</FormLabel>
-                        <FormControl>
-                          <Input type="tel" {...field} data-testid="input-create-phone" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={createForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono (Opcional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="tel"
+                              {...field}
+                              data-testid="input-create-phone"
+                              disabled={Boolean(selectedMember?.phone)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="memberId"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Vincular a miembro del directorio</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-create-member">
+                                <SelectValue placeholder="Selecciona un miembro (opcional)" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="">Sin vincular</SelectItem>
+                              {getAvailableMembers().map((member) => (
+                                <SelectItem key={member.id} value={member.id}>
+                                  {formatMemberLabel(member)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="isActive"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2 flex items-center justify-between rounded-3xl bg-muted/30 p-4">
+                          <div className="space-y-1">
+                            <FormLabel className="text-base">Acceso activo</FormLabel>
+                            <p className="text-xs text-muted-foreground">
+                              Si se desactiva, no podrá iniciar sesión.
+                            </p>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value ?? true}
+                              onCheckedChange={field.onChange}
+                              data-testid="switch-create-active"
+                              className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
                   <FormField
                     control={createForm.control}
@@ -672,14 +881,15 @@ export default function AdminUsersPage() {
           if (!open) {
             setDeleteUser(null);
             setDeleteSummary(null);
+            setDeleteReason("");
           }
         }}
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Eliminar usuario</DialogTitle>
+            <DialogTitle>Solicitar baja de usuario</DialogTitle>
             <DialogDescription>
-              Esta acción eliminará la cuenta de {deleteUser?.name}.
+              Esta solicitud será revisada por el obispo antes de eliminar la cuenta de {deleteUser?.name}.
             </DialogDescription>
           </DialogHeader>
           {deleteSummaryLoading ? (
@@ -707,9 +917,18 @@ export default function AdminUsersPage() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No se encontraron registros asociados. Puedes eliminar este usuario.
+              Revisa el impacto antes de enviar la solicitud.
             </p>
           )}
+          <div className="space-y-2">
+            <FormLabel>Motivo de la baja (opcional)</FormLabel>
+            <Textarea
+              value={deleteReason}
+              onChange={(event) => setDeleteReason(event.target.value)}
+              placeholder="Describe brevemente el motivo o contexto."
+              data-testid="textarea-delete-reason"
+            />
+          </div>
           <div className="flex gap-2 justify-end">
             <Button
               type="button"
@@ -717,26 +936,103 @@ export default function AdminUsersPage() {
               onClick={() => {
                 setDeleteUser(null);
                 setDeleteSummary(null);
+                setDeleteReason("");
               }}
               data-testid="button-cancel-delete"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onConfirmDeleteUser}
+              disabled={deleteSummaryLoading}
+              data-testid="button-confirm-delete"
+            >
+              Enviar solicitud
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(approveRequest)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setApproveRequest(null);
+            setDeleteSummary(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Confirmar baja de usuario</DialogTitle>
+            <DialogDescription>
+              Confirma la eliminación de {approveRequest ? usersById.get(approveRequest.userId)?.name : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          {approveRequest?.reason ? (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Motivo:</span> {approveRequest.reason}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No se indicó motivo para la baja.
+            </p>
+          )}
+          {deleteSummaryLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : deleteSummary && deleteSummaryItems.length > 0 ? (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                Este usuario tiene registros asociados:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                {deleteSummaryItems.map((item) => (
+                  <li key={item.key}>
+                    {item.label}: <span className="font-medium">{item.count}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Puedes eliminar todo o cancelar para revisar con el secretario.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No se encontraron registros asociados.
+            </p>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setApproveRequest(null);
+                setDeleteSummary(null);
+              }}
+              data-testid="button-cancel-approve-delete"
             >
               Cancelar
             </Button>
             {deleteSummary && deleteSummaryItems.length > 0 ? (
               <Button
                 variant="destructive"
-                onClick={() => onConfirmDeleteUser(true)}
+                onClick={() => onApproveDeletionRequest(true)}
                 disabled={deleteSummaryLoading}
-                data-testid="button-confirm-clean-delete"
+                data-testid="button-approve-clean-delete"
               >
                 Limpiar todo y eliminar
               </Button>
             ) : (
               <Button
                 variant="destructive"
-                onClick={() => onConfirmDeleteUser(false)}
+                onClick={() => onApproveDeletionRequest(false)}
                 disabled={deleteSummaryLoading}
-                data-testid="button-confirm-delete"
+                data-testid="button-approve-delete"
               >
                 Eliminar usuario
               </Button>
@@ -744,6 +1040,69 @@ export default function AdminUsersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {canApproveDeletion && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Solicitudes de baja</CardTitle>
+            <CardDescription>
+              Confirma las bajas solicitadas por secretaría.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Solicitado por</TableHead>
+                    <TableHead>Motivo</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deletionRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        No hay solicitudes pendientes.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    deletionRequests.map((request) => {
+                      const targetUser = usersById.get(request.userId);
+                      const requester = usersById.get(request.requestedBy);
+                      return (
+                        <TableRow key={request.id}>
+                          <TableCell className="font-medium">
+                            {targetUser?.name || "Usuario"}
+                          </TableCell>
+                          <TableCell>{requester?.name || "Secretaría"}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {request.reason || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(request.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => setApproveRequest(request)}
+                            >
+                              Revisar y confirmar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -857,6 +1216,8 @@ export default function AdminUsersPage() {
                                     phone: u.phone || "",
                                     role: u.role as EditUserFormValues["role"],
                                     organizationId: u.organizationId || "",
+                                    memberId: u.memberId || "",
+                                    isActive: u.isActive ?? true,
                                   });
                                 }}
                                 data-testid={`button-edit-user-${u.id}`}
@@ -926,6 +1287,55 @@ export default function AdminUsersPage() {
                                             <Input type="tel" {...field} data-testid="input-edit-phone" />
                                           </FormControl>
                                           <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="memberId"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Miembro del directorio</FormLabel>
+                                          <Select value={field.value || ""} onValueChange={field.onChange}>
+                                            <FormControl>
+                                              <SelectTrigger data-testid="select-edit-member">
+                                                <SelectValue placeholder="Selecciona un miembro (opcional)" />
+                                              </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                              <SelectItem value="">Sin vincular</SelectItem>
+                                              {getAvailableMembers(editUser?.memberId).map((member) => (
+                                                <SelectItem key={member.id} value={member.id}>
+                                                  {formatMemberLabel(member)}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={editUserForm.control}
+                                      name="isActive"
+                                      render={({ field }) => (
+                                        <FormItem className="flex items-center justify-between rounded-3xl bg-muted/30 p-4">
+                                          <div className="space-y-1">
+                                            <FormLabel className="text-base">Acceso activo</FormLabel>
+                                            <p className="text-xs text-muted-foreground">
+                                              Desactiva para revocar acceso sin borrar la cuenta.
+                                            </p>
+                                          </div>
+                                          <FormControl>
+                                            <Switch
+                                              checked={field.value ?? true}
+                                              onCheckedChange={field.onChange}
+                                              data-testid="switch-edit-active"
+                                              className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
+                                            />
+                                          </FormControl>
                                         </FormItem>
                                       )}
                                     />
@@ -1007,15 +1417,17 @@ export default function AdminUsersPage() {
                             )}
                           </Dialog>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => onDeleteUser(u)}
-                            data-testid={`button-delete-user-${u.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {canRequestDeletion && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => onDeleteUser(u)}
+                              data-testid={`button-delete-user-${u.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
