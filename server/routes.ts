@@ -120,6 +120,67 @@ function requireRole(...roles: string[]) {
   };
 }
 
+const CALLING_ROLE_LABELS: Record<string, { neutral: string; male?: string; female?: string }> = {
+  obispo: { neutral: "Obispo" },
+  consejero_obispo: { neutral: "Consejero del obispo" },
+  secretario_ejecutivo: { neutral: "Secretario ejecutivo" },
+  secretario: { neutral: "Secretario del barrio" },
+  secretario_financiero: { neutral: "Secretario financiero" },
+  presidente_organizacion: { neutral: "Presidente/Presidenta", male: "Presidente", female: "Presidenta" },
+  consejero_organizacion: { neutral: "Consejero/Consejera", male: "Consejero", female: "Consejera" },
+  secretario_organizacion: { neutral: "Secretario/Secretaria", male: "Secretario", female: "Secretaria" },
+};
+
+const OBISPADO_ROLES = new Set([
+  "obispo",
+  "consejero_obispo",
+  "secretario",
+  "secretario_ejecutivo",
+  "secretario_financiero",
+]);
+
+const normalizeSexValue = (value?: string | null) => {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "M") return "M";
+  if (normalized === "F") return "F";
+  return undefined;
+};
+
+const getCallingLabel = (role: string, sex?: string | null) => {
+  const labels = CALLING_ROLE_LABELS[role];
+  if (!labels) return null;
+  const normalized = normalizeSexValue(sex);
+  if (normalized === "M" && labels.male) return labels.male;
+  if (normalized === "F" && labels.female) return labels.female;
+  return labels.neutral;
+};
+
+const getObispadoOrganizationId = async () => {
+  const organizations = await storage.getAllOrganizations();
+  return organizations.find((org) => org.type === "obispado")?.id ?? null;
+};
+
+const removeAutoCallingForUser = async (user: any) => {
+  if (!user?.memberId) return;
+  const member = await storage.getMemberById(user.memberId);
+  if (!member) return;
+  const callingName = getCallingLabel(user.role, member.sex);
+  if (!callingName) return;
+  const obispadoOrganizationId = await getObispadoOrganizationId();
+  const callingOrganizationId = OBISPADO_ROLES.has(user.role)
+    ? obispadoOrganizationId ?? user.organizationId ?? null
+    : user.organizationId ?? null;
+  const callings = await storage.getMemberCallings(user.memberId);
+  const match = callings.find(
+    (calling) =>
+      calling.callingName === callingName &&
+      (calling.organizationId ?? null) === (callingOrganizationId ?? null)
+  );
+  if (match) {
+    await storage.deleteMemberCalling(match.id);
+  }
+};
+
 const interviewCollisionRoles = new Map<string, string>([
   ["obispo", "Obispo"],
   ["consejero_obispo", "Consejero del obispado"],
@@ -794,6 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "organizationId is required for this role" });
       }
 
+      let memberForCalling: any = null;
       if (memberId) {
         const member = await storage.getMemberById(memberId);
         if (!member) {
@@ -803,6 +865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (memberAlreadyLinked) {
           return res.status(400).json({ error: "Member is already linked to another user" });
         }
+        memberForCalling = member;
       }
 
       // Bishop-level roles automatically get the Obispado organizationId
@@ -824,6 +887,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         organizationId: finalOrganizationId,
         memberId: memberId || null,
       });
+
+      if (memberId && memberForCalling) {
+        const callingName = getCallingLabel(role, memberForCalling.sex);
+        if (callingName) {
+          const obispadoOrganizationId = await getObispadoOrganizationId();
+          const callingOrganizationId = OBISPADO_ROLES.has(role)
+            ? obispadoOrganizationId ?? finalOrganizationId
+            : finalOrganizationId;
+          const existingCallings = await storage.getMemberCallings(memberId);
+          const alreadyExists = existingCallings.some(
+            (calling) =>
+              calling.callingName === callingName &&
+              (calling.organizationId ?? null) === (callingOrganizationId ?? null)
+          );
+          if (!alreadyExists) {
+            const callingPayload = insertMemberCallingSchema.parse({
+              memberId,
+              organizationId: callingOrganizationId,
+              callingName,
+            });
+            await storage.createMemberCalling(callingPayload);
+          }
+        }
+      }
 
       if (accessRequestId) {
         await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
@@ -1188,6 +1275,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reviewedAt: new Date(),
         });
 
+        const user = await storage.getUser(request.userId);
+        if (user) {
+          await removeAutoCallingForUser(user);
+        }
+
         if (cleanAll) {
           await storage.deleteUserWithCleanup(request.userId);
         } else {
@@ -1228,6 +1320,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           summary,
         });
       }
+
+      await removeAutoCallingForUser(user);
 
       if (cleanAll) {
         await storage.deleteUserWithCleanup(id);

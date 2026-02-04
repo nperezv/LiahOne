@@ -156,9 +156,11 @@ Para iniciar, los **usuarios existentes** pueden generar llamamientos equivalent
 
 ## 8) Dónde se asignan los llamamientos en la UI
 
+- **Automático al crear usuario**: si el usuario se crea con `memberId`, se genera un llamamiento básico según `users.role`.
+- **Automático al dar de baja**: al eliminar la cuenta se elimina ese llamamiento básico asociado al `users.role`, pero se conservan los demás llamamientos manuales.
 - **Directorio (`/directory`)** → desliza para **Editar** (o usa el botón de edición) en el miembro.
 - En el **modal de edición** aparece el bloque **“Llamamientos”** con un botón **“Agregar”** para crear y **“Quitar”** para eliminar.
-- Esto permite registrar llamamientos aunque la persona **no tenga cuenta**.
+- Esto permite registrar llamamientos aunque la persona **no tenga cuenta** (o completar llamamientos adicionales que no requieren acceso).
 
 ## 9) Backfill desde `users.role` (script opcional)
 
