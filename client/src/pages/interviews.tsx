@@ -8,6 +8,9 @@ import {
   Calendar as CalendarIcon,
   AlertCircle,
   CheckCircle2,
+  Check,
+  Search,
+  ChevronLeft,
   Download,
   Edit,
   Archive,
@@ -31,7 +34,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -39,6 +43,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Table,
   TableBody,
@@ -91,6 +102,9 @@ function formatInterviewType(type: string) {
     anual: "Entrevista Anual",
     orientacion: "Orientación",
     otra: "Otra",
+    inicial: "Inicial",
+    seguimiento: "Seguimiento",
+    recomendacion: "Recomendación",
   };
   return map[type] ?? type;
 }
@@ -152,6 +166,13 @@ const interviewMessageTemplates = [
   },
 ];
 
+const interviewTypeOptions = [
+  { value: "inicial", label: "Inicial" },
+  { value: "seguimiento", label: "Seguimiento" },
+  { value: "recomendacion", label: "Recomendación" },
+  { value: "otra", label: "Otra" },
+];
+
 const formatDateTimeForInput = (value?: string | Date | null) => {
   if (!value) return "";
   const build = (date: Date) => {
@@ -201,6 +222,35 @@ const formatDateTimeForApi = (value?: string | Date | null) => {
   return asDate.toISOString();
 };
 
+const formatDateTimeLabel = (value?: string) => {
+  if (!value) return "Seleccionar fecha y hora";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("es-ES", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
+const splitDateTimeValue = (value?: string) => {
+  const formatted = formatDateTimeForInput(value);
+  if (!formatted) return { date: "", time: "" };
+  const [date, time] = formatted.split("T");
+  return { date, time };
+};
+
+const getInitials = (name: string) =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
 export default function InterviewsPage() {
   const { toast } = useToast();
 
@@ -228,6 +278,16 @@ export default function InterviewsPage() {
   } | null>(null);
   const [selectedLeader, setSelectedLeader] = useState<any>(null);
   const [prefillHandled, setPrefillHandled] = useState(false);
+  const [step, setStep] = useState(1);
+  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+  const [typeSheetOpen, setTypeSheetOpen] = useState(false);
+  const [interviewerSheetOpen, setInterviewerSheetOpen] = useState(false);
+  const [dateDraft, setDateDraft] = useState({ date: "", time: "" });
+  const [leaderQuery, setLeaderQuery] = useState("");
+  const [editDateSheetOpen, setEditDateSheetOpen] = useState(false);
+  const [editTypeSheetOpen, setEditTypeSheetOpen] = useState(false);
+  const [editInterviewerSheetOpen, setEditInterviewerSheetOpen] = useState(false);
+  const [editDateDraft, setEditDateDraft] = useState({ date: "", time: "" });
 
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
@@ -385,6 +445,42 @@ export default function InterviewsPage() {
   );
   const editMemberId = editForm.watch("memberId");
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
+  const personDisplayName = form.watch("personName");
+
+  const resetWizard = () => {
+    setStep(1);
+    setDateSheetOpen(false);
+    setTypeSheetOpen(false);
+    setInterviewerSheetOpen(false);
+    setDateDraft({ date: "", time: "" });
+    setMemberQuery("");
+    setLeaderQuery("");
+    setSelectedLeader(null);
+    setPersonSource(canUseDirectory ? "directory" : "leader");
+    form.reset({
+      personName: isOrgMember ? user?.name || "" : "",
+      memberId: "",
+      date: "",
+      type: "",
+      interviewerId: "",
+      urgent: false,
+      notes: "",
+    });
+  };
+
+  const handleStepAdvance = async () => {
+    if (step === 1) {
+      const valid = await form.trigger(["personName"]);
+      if (!valid) return;
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      const valid = await form.trigger(["date", "type"]);
+      if (!valid) return;
+      setStep(3);
+    }
+  };
 
   useEffect(() => {
     if (prefillHandled || !search) return;
@@ -399,6 +495,8 @@ export default function InterviewsPage() {
     form.setValue("memberId", member.id, { shouldDirty: true });
     form.setValue("personName", member.nameSurename, { shouldDirty: true });
     setMemberQuery("");
+    setSelectedLeader(null);
+    setStep(2);
     setIsDialogOpen(true);
     setPrefillHandled(true);
     setLocation("/interviews");
@@ -524,6 +622,7 @@ export default function InterviewsPage() {
       urgent: !!interview.urgent,
       notes: interview.notes || "",
     });
+    setEditDateDraft(splitDateTimeValue(interview.date));
     setIsEditDialogOpen(true);
   };
 
@@ -750,7 +849,15 @@ export default function InterviewsPage() {
           </Button>
 
           {canManage && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog
+              open={isDialogOpen}
+              onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) {
+                  resetWizard();
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button data-testid="button-schedule-interview">
                   <Plus className="h-4 w-4 mr-2" />
@@ -758,285 +865,510 @@ export default function InterviewsPage() {
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>{isOrgMember ? "Solicitar Entrevista" : "Programar Nueva Entrevista"}</DialogTitle>
-                  <DialogDescription>
-                    {isOrgMember ? "Solicita una entrevista con el Obispado" : "Asigna una entrevista a un miembro del barrio"}
-                  </DialogDescription>
+              <DialogContent className="max-w-2xl overflow-hidden p-0">
+                <DialogHeader className="border-b border-border/20 bg-background/80 px-5 py-4 backdrop-blur">
+                  <div className="flex items-center justify-between">
+                    {step > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+                        className="-ml-2 text-primary"
+                      >
+                        <ChevronLeft className="mr-1 h-4 w-4" />
+                        Atrás
+                      </Button>
+                    ) : (
+                      <span className="w-12" />
+                    )}
+                    <div className="text-center">
+                      <DialogTitle className="text-base font-semibold">
+                        {step === 1
+                          ? "Programar entrevista"
+                          : step === 2
+                            ? `Entrevista con ${personDisplayName || "—"}`
+                            : "Detalles"}
+                      </DialogTitle>
+                      <DialogDescription className="sr-only">
+                        {isOrgMember ? "Solicita una entrevista con el Obispado" : "Asigna una entrevista a un miembro del barrio"}
+                      </DialogDescription>
+                    </div>
+                    <span className="w-12" />
+                  </div>
                 </DialogHeader>
 
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    <FormField
-                      control={form.control}
-                      name="personName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nombre de la Persona</FormLabel>
-                          {isOrgMember ? (
-                            <FormControl>
-                              <Input
-                                placeholder="Nombre Apllido"
-                                {...field}
-                                disabled={true}
-                                data-testid="input-person-name"
-                              />
-                            </FormControl>
-                          ) : (
-                            <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
-                              <div className="space-y-2">
-                                <Label>Fuente de la persona</Label>
-                                <Select
-                                  value={personSource}
-                                  onValueChange={(value) => {
-                                    const nextValue = value as "directory" | "leader" | "manual";
-                                    setPersonSource(nextValue);
-                                    form.setValue("memberId", "");
-                                    form.setValue("personName", "");
-                                    setSelectedLeader(null);
-                                    if (nextValue !== "directory") {
-                                      setMemberQuery("");
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger data-testid="select-person-source">
-                                    <SelectValue placeholder="Selecciona el origen" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {canUseDirectory && (
-                                      <SelectItem value="directory">Directorio</SelectItem>
-                                    )}
-                                    <SelectItem value="leader">Líderes con cuenta</SelectItem>
-                                    <SelectItem value="manual">Manual</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              {personSource === "directory" && canUseDirectory ? (
-                                <div className="space-y-3">
-                                  <Input
-                                    placeholder="Buscar en el directorio"
-                                    value={memberQuery}
-                                    onChange={(event) => setMemberQuery(event.target.value)}
-                                    data-testid="input-member-search"
-                                  />
-                                  {selectedMember && (
-                                    <div className="rounded-lg border border-dashed border-border/60 bg-background/60 px-3 py-2 text-sm">
-                                      Seleccionado: <strong>{selectedMember.nameSurename}</strong>
-                                    </div>
-                                  )}
-                                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
-                                    {isMembersLoading ? (
-                                      <div className="px-3 py-2 text-sm text-muted-foreground">Cargando miembros...</div>
-                                    ) : filteredMembers.length > 0 ? (
-                                      filteredMembers.map((member) => (
-                                        <div
-                                          key={member.id}
-                                          onClick={() => {
-                                            form.setValue("memberId", member.id, {
-                                              shouldDirty: true,
-                                              shouldValidate: true,
-                                            });
-                                            field.onChange(member.nameSurename);
-                                            setSelectedLeader(null);
-                                          }}
-                                          className="flex cursor-pointer items-center justify-between rounded-lg border border-transparent px-3 py-2 transition-colors hover:border-border/60 hover:bg-muted"
-                                          data-testid={`option-member-${member.id}`}
-                                        >
-                                          <div>
-                                            <div className="font-medium">{member.nameSurename}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                              {member.organizationName ?? "Sin organización"}
-                                            </div>
-                                          </div>
-                                          <span className="text-xs text-muted-foreground">›</span>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                                        No hay miembros con ese filtro.
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : personSource === "leader" ? (
-                                <div className="space-y-2">
-                                  <FormControl>
-                                    <Input
-                                      placeholder="Escribe un nombre o selecciona de la lista"
-                                      {...field}
-                                      data-testid="input-person-name"
-                                    />
-                                  </FormControl>
-                                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
-                                    {organizationMembers
-                                      .filter((u: any) =>
-                                        u.name.toLowerCase().includes(field.value.toLowerCase())
-                                      )
-                                      .map((u: any) => (
-                                        <div
-                                          key={u.id}
-                                          onClick={() => {
-                                            field.onChange(u.name);
-                                            setSelectedLeader(u);
-                                            form.setValue("memberId", "");
-                                          }}
-                                          className="flex cursor-pointer items-center justify-between rounded-lg border border-transparent px-3 py-2 transition-colors hover:border-border/60 hover:bg-muted"
-                                          data-testid={`option-person-${u.id}`}
-                                        >
-                                          <div>
-                                            <div className="font-medium">{u.name}</div>
-                                            <div className="text-xs text-muted-foreground capitalize">
-                                              {formatRole(u.role)}
-                                            </div>
-                                          </div>
-                                          <span className="text-xs text-muted-foreground">›</span>
-                                        </div>
-                                      ))}
-                                  </div>
-                                </div>
-                              ) : (
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="flex max-h-[75vh] flex-col">
+                    <div className="flex-1 space-y-6 overflow-y-auto px-5 py-6">
+                      {step === 1 && (
+                        <FormField
+                          control={form.control}
+                          name="personName"
+                          render={({ field }) => (
+                            <FormItem className="space-y-4">
+                              <FormLabel className="text-base">¿A quién deseas entrevistar?</FormLabel>
+                              {isOrgMember ? (
                                 <FormControl>
                                   <Input
-                                    placeholder="Escribe el nombre manualmente"
+                                    placeholder="Nombre Apellido"
                                     {...field}
+                                    disabled
                                     data-testid="input-person-name"
+                                    className="rounded-2xl bg-background/80"
                                   />
                                 </FormControl>
+                              ) : (
+                                <div className="space-y-4 rounded-3xl bg-muted/20 p-4 shadow-sm">
+                                  <div className="space-y-2">
+                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">Fuente</Label>
+                                    <ToggleGroup
+                                      type="single"
+                                      value={personSource}
+                                      onValueChange={(value) => {
+                                        if (!value) return;
+                                        const nextValue = value as "directory" | "leader" | "manual";
+                                        setPersonSource(nextValue);
+                                        form.setValue("memberId", "");
+                                        form.setValue("personName", "");
+                                        setSelectedLeader(null);
+                                        setLeaderQuery("");
+                                        if (nextValue !== "directory") {
+                                          setMemberQuery("");
+                                        }
+                                      }}
+                                      className="w-full rounded-full bg-muted/40 p-1"
+                                    >
+                                      <ToggleGroupItem
+                                        value="directory"
+                                        className={`flex-1 rounded-full text-xs sm:text-sm ${!canUseDirectory ? "pointer-events-none opacity-40" : ""}`}
+                                      >
+                                        Directorio
+                                      </ToggleGroupItem>
+                                      <ToggleGroupItem value="leader" className="flex-1 rounded-full text-xs sm:text-sm">
+                                        Líderes
+                                      </ToggleGroupItem>
+                                      <ToggleGroupItem value="manual" className="flex-1 rounded-full text-xs sm:text-sm">
+                                        Otros
+                                      </ToggleGroupItem>
+                                    </ToggleGroup>
+                                  </div>
+
+                                  {personSource === "directory" && canUseDirectory ? (
+                                    <div className="space-y-3">
+                                      <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                          placeholder="Buscar"
+                                          value={memberQuery}
+                                          onChange={(event) => setMemberQuery(event.target.value)}
+                                          data-testid="input-member-search"
+                                          className="rounded-2xl bg-background/80 pl-9"
+                                        />
+                                      </div>
+                                      {selectedMember && (
+                                        <div className="rounded-2xl bg-muted/40 px-3 py-2 text-sm">
+                                          Seleccionado: <strong>{selectedMember.nameSurename}</strong>
+                                        </div>
+                                      )}
+                                      <div className="max-h-64 space-y-2 overflow-y-auto">
+                                        {isMembersLoading ? (
+                                          <div className="rounded-2xl bg-background/80 px-4 py-3 text-sm text-muted-foreground">Cargando miembros...</div>
+                                        ) : filteredMembers.length > 0 ? (
+                                          filteredMembers.map((member) => (
+                                            <button
+                                              type="button"
+                                              key={member.id}
+                                              onClick={() => {
+                                                form.setValue("memberId", member.id, {
+                                                  shouldDirty: true,
+                                                  shouldValidate: true,
+                                                });
+                                                field.onChange(member.nameSurename);
+                                                setSelectedLeader(null);
+                                              }}
+                                              className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
+                                              data-testid={`option-member-${member.id}`}
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <Avatar className="h-9 w-9">
+                                                  <AvatarFallback>{getInitials(member.nameSurename)}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                  <div className="font-medium">{member.nameSurename}</div>
+                                                  <div className="text-xs text-muted-foreground">
+                                                    {member.organizationName ?? "Sin organización"}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              {selectedMemberId === member.id ? (
+                                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                                                  <Check className="h-4 w-4" />
+                                                </span>
+                                              ) : (
+                                                <span className="text-xs text-muted-foreground">›</span>
+                                              )}
+                                            </button>
+                                          ))
+                                        ) : (
+                                          <div className="rounded-2xl bg-background/80 px-4 py-3 text-sm text-muted-foreground">
+                                            No hay miembros con ese filtro.
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : personSource === "leader" ? (
+                                    <div className="space-y-3">
+                                      <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                          placeholder="Buscar"
+                                          value={leaderQuery}
+                                          onChange={(event) => setLeaderQuery(event.target.value)}
+                                          className="rounded-2xl bg-background/80 pl-9"
+                                        />
+                                      </div>
+                                      <div className="max-h-56 space-y-2 overflow-y-auto">
+                                        {organizationMembers
+                                          .filter((u: any) =>
+                                            u.name.toLowerCase().includes(leaderQuery.toLowerCase())
+                                          )
+                                          .map((u: any) => (
+                                            <button
+                                              type="button"
+                                              key={u.id}
+                                              onClick={() => {
+                                                field.onChange(u.name);
+                                                setSelectedLeader(u);
+                                                form.setValue("memberId", "");
+                                              }}
+                                              className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
+                                              data-testid={`option-person-${u.id}`}
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <Avatar className="h-9 w-9">
+                                                  <AvatarFallback>{getInitials(u.name)}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                  <div className="font-medium">{u.name}</div>
+                                                  <div className="text-xs text-muted-foreground capitalize">
+                                                    {formatRole(u.role)}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              {selectedLeader?.id === u.id ? (
+                                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                                                  <Check className="h-4 w-4" />
+                                                </span>
+                                              ) : (
+                                                <span className="text-xs text-muted-foreground">›</span>
+                                              )}
+                                            </button>
+                                          ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <FormControl>
+                                      <Input
+                                        placeholder="Escribe el nombre"
+                                        {...field}
+                                        data-testid="input-person-name"
+                                        className="rounded-2xl bg-background/80"
+                                      />
+                                    </FormControl>
+                                  )}
+                                </div>
                               )}
-                            </div>
+                              <FormMessage />
+                            </FormItem>
                           )}
-                          <FormMessage />
-                        </FormItem>
+                        />
                       )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="memberId"
-                      render={({ field }) => (
-                        <FormItem className="hidden">
-                          <FormControl>
-                            <Input type="hidden" {...field} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha y Hora</FormLabel>
-                            <FormControl>
-                              <Input type="datetime-local" {...field} data-testid="input-date" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Tipo de Entrevista</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-type">
-                                  <SelectValue placeholder="Seleccionar tipo" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="recomendacion_templo">Recomendación del Templo</SelectItem>
-                                <SelectItem value="llamamiento">Llamamiento</SelectItem>
-                                <SelectItem value="anual">Entrevista Anual</SelectItem>
-                                <SelectItem value="orientacion">Orientación</SelectItem>
-                                <SelectItem value="otra">Otra</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
-                      <FormField
-                        control={form.control}
-                        name="interviewerId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Entrevistador</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-interviewer">
-                                  <SelectValue placeholder="Seleccionar entrevistador" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {interviewers.map((i: any) => (
-                                  <SelectItem key={i.id} value={i.id}>
-                                    {i.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="urgent"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 p-3">
-                            <div className="space-y-1">
-                              <FormLabel>Urgente</FormLabel>
-                              <p className="text-xs text-muted-foreground">Se muestra con prioridad.</p>
+                      {step === 2 && (
+                        <div className="space-y-6">
+                          <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarFallback>{getInitials(personDisplayName || "?" )}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {selectedMember?.organizationName
+                                    ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
+                                </div>
+                              </div>
                             </div>
+                          </div>
+                          <FormField
+                            control={form.control}
+                            name="date"
+                            render={({ field }) => (
+                              <FormItem className="space-y-3">
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Fecha y hora</FormLabel>
+                                <FormControl>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDateDraft(splitDateTimeValue(field.value));
+                                      setDateSheetOpen(true);
+                                    }}
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
+                                    data-testid="input-date"
+                                  >
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Fecha y hora</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {formatDateTimeLabel(field.value)}
+                                      </div>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">›</span>
+                                  </button>
+                                </FormControl>
+                                <FormMessage />
+                                <Drawer open={dateSheetOpen} onOpenChange={setDateSheetOpen}>
+                                  <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                                    <DrawerHeader>
+                                      <DrawerTitle>Seleccionar fecha y hora</DrawerTitle>
+                                    </DrawerHeader>
+                                    <div className="space-y-4 px-4 pb-6">
+                                      <div className="space-y-2">
+                                        <Label>Fecha</Label>
+                                        <Input
+                                          type="date"
+                                          value={dateDraft.date}
+                                          onChange={(event) =>
+                                            setDateDraft((prev) => ({ ...prev, date: event.target.value }))
+                                          }
+                                          className="rounded-2xl bg-background/80"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Hora (24h)</Label>
+                                        <Input
+                                          type="time"
+                                          value={dateDraft.time}
+                                          onChange={(event) =>
+                                            setDateDraft((prev) => ({ ...prev, time: event.target.value }))
+                                          }
+                                          className="rounded-2xl bg-background/80"
+                                        />
+                                      </div>
+                                      <div className="flex justify-end gap-2">
+                                        <Button type="button" variant="ghost" onClick={() => setDateSheetOpen(false)}>
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          onClick={() => {
+                                            if (dateDraft.date && dateDraft.time) {
+                                              field.onChange(`${dateDraft.date}T${dateDraft.time}`);
+                                            }
+                                            setDateSheetOpen(false);
+                                          }}
+                                        >
+                                          Aceptar
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </DrawerContent>
+                                </Drawer>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="type"
+                            render={({ field }) => (
+                              <FormItem className="space-y-3">
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Tipo de entrevista</FormLabel>
+                                <FormControl>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTypeSheetOpen(true)}
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
+                                    data-testid="select-type"
+                                  >
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Tipo de entrevista</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {field.value ? formatInterviewType(field.value) : "Seleccionar tipo"}
+                                      </div>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">›</span>
+                                  </button>
+                                </FormControl>
+                                <FormMessage />
+                                <Drawer open={typeSheetOpen} onOpenChange={setTypeSheetOpen}>
+                                  <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                                    <DrawerHeader>
+                                      <DrawerTitle>Tipo de entrevista</DrawerTitle>
+                                    </DrawerHeader>
+                                    <div className="space-y-1 px-4 pb-6">
+                                      {interviewTypeOptions.map((option) => (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          onClick={() => {
+                                            field.onChange(option.value);
+                                            setTypeSheetOpen(false);
+                                          }}
+                                          className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
+                                        >
+                                          <span>{option.label}</span>
+                                          {field.value === option.value && <Check className="h-4 w-4" />}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </DrawerContent>
+                                </Drawer>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {step === 3 && (
+                        <div className="space-y-6">
+                          <FormField
+                            control={form.control}
+                            name="interviewerId"
+                            render={({ field }) => {
+                              const selectedInterviewer = interviewers.find((item: any) => item.id === field.value);
+                              return (
+                                <FormItem className="space-y-3">
+                                  <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Entrevistador</FormLabel>
+                                  <FormControl>
+                                    <button
+                                      type="button"
+                                      onClick={() => setInterviewerSheetOpen(true)}
+                                      className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
+                                      data-testid="select-interviewer"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <Avatar className="h-9 w-9">
+                                          <AvatarFallback>{selectedInterviewer ? getInitials(selectedInterviewer.name) : "?"}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <div className="text-sm text-muted-foreground">Entrevistador</div>
+                                          <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                            {selectedInterviewer?.name ?? "Seleccionar entrevistador"}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">›</span>
+                                    </button>
+                                  </FormControl>
+                                  <FormMessage />
+                                <Drawer open={interviewerSheetOpen} onOpenChange={setInterviewerSheetOpen}>
+                                  <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                                    <DrawerHeader>
+                                      <DrawerTitle>Entrevistador</DrawerTitle>
+                                    </DrawerHeader>
+                                    <div className="space-y-1 px-4 pb-6">
+                                      {interviewers.map((i: any) => (
+                                        <button
+                                          key={i.id}
+                                          type="button"
+                                          onClick={() => {
+                                            field.onChange(i.id);
+                                            setInterviewerSheetOpen(false);
+                                          }}
+                                          className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
+                                        >
+                                          <span>{i.name}</span>
+                                          {field.value === i.id && <Check className="h-4 w-4" />}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </DrawerContent>
+                                </Drawer>
+                              </FormItem>
+                            );
+                          }}
+                        />
+
+                          <FormField
+                            control={form.control}
+                            name="urgent"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center justify-between rounded-3xl bg-background/80 p-4 shadow-sm">
+                                <div className="space-y-1">
+                                  <FormLabel className="text-base">Urgente</FormLabel>
+                                  <p className="text-xs text-muted-foreground">Se muestra con prioridad.</p>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    data-testid="checkbox-urgent"
+                                    className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="notes"
+                            render={({ field }) => (
+                              <FormItem className="space-y-3">
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Notas</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="Notas adicionales sobre la entrevista"
+                                    {...field}
+                                    data-testid="textarea-notes"
+                                    className="min-h-[140px] rounded-3xl bg-background/80"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      <FormField
+                        control={form.control}
+                        name="memberId"
+                        render={({ field }) => (
+                          <FormItem className="hidden">
                             <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                data-testid="checkbox-urgent"
-                              />
+                              <Input type="hidden" {...field} />
                             </FormControl>
                           </FormItem>
                         )}
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Notas (Opcional)</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="Notas adicionales sobre la entrevista" {...field} data-testid="textarea-notes" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsDialogOpen(false)}
-                        data-testid="button-cancel"
-                      >
-                        Cancelar
-                      </Button>
-                      <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
-                        {createMutation.isPending ? "Guardando..." : "Guardar"}
-                      </Button>
+                    <div className="sticky bottom-0 border-t border-border/20 bg-background/90 px-5 py-4 backdrop-blur">
+                      <div className="flex items-center justify-between gap-3">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="w-full rounded-full"
+                          onClick={() => {
+                            resetWizard();
+                            setIsDialogOpen(false);
+                          }}
+                          data-testid="button-cancel"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type={step === 3 ? "submit" : "button"}
+                          onClick={step === 3 ? undefined : handleStepAdvance}
+                          data-testid="button-submit"
+                          disabled={createMutation.isPending}
+                          className="w-full rounded-full"
+                        >
+                          {createMutation.isPending ? "Guardando..." : step === 3 ? "Guardar" : "Siguiente"}
+                        </Button>
+                      </div>
                     </div>
                   </form>
                 </Form>
@@ -1378,7 +1710,18 @@ export default function InterviewsPage() {
       </Dialog>
 
       {/* Edit Interview Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setEditingInterview(null);
+            setEditDateSheetOpen(false);
+            setEditTypeSheetOpen(false);
+            setEditInterviewerSheetOpen(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar Entrevista</DialogTitle>
@@ -1436,8 +1779,68 @@ export default function InterviewsPage() {
                     <FormItem>
                       <FormLabel>Fecha y Hora</FormLabel>
                       <FormControl>
-                        <Input type="datetime-local" {...field} data-testid="input-edit-date" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditDateDraft(splitDateTimeValue(field.value));
+                            setEditDateSheetOpen(true);
+                          }}
+                          className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                          data-testid="input-edit-date"
+                        >
+                          <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
+                            {formatDateTimeLabel(field.value)}
+                          </span>
+                          <CalendarIcon className="h-4 w-4" />
+                        </button>
                       </FormControl>
+                      <Drawer open={editDateSheetOpen} onOpenChange={setEditDateSheetOpen}>
+                        <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                          <DrawerHeader>
+                            <DrawerTitle>Seleccionar fecha y hora</DrawerTitle>
+                          </DrawerHeader>
+                          <div className="space-y-4 px-4 pb-6">
+                            <div className="space-y-2">
+                              <Label>Fecha</Label>
+                              <Input
+                                type="date"
+                                value={editDateDraft.date}
+                                onChange={(event) =>
+                                  setEditDateDraft((prev) => ({ ...prev, date: event.target.value }))
+                                }
+                                className="rounded-2xl bg-background/80"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Hora (24h)</Label>
+                              <Input
+                                type="time"
+                                value={editDateDraft.time}
+                                onChange={(event) =>
+                                  setEditDateDraft((prev) => ({ ...prev, time: event.target.value }))
+                                }
+                                className="rounded-2xl bg-background/80"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button type="button" variant="ghost" onClick={() => setEditDateSheetOpen(false)}>
+                                Cancelar
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  if (editDateDraft.date && editDateDraft.time) {
+                                    field.onChange(`${editDateDraft.date}T${editDateDraft.time}`);
+                                  }
+                                  setEditDateSheetOpen(false);
+                                }}
+                              >
+                                Aceptar
+                              </Button>
+                            </div>
+                          </div>
+                        </DrawerContent>
+                      </Drawer>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1449,20 +1852,42 @@ export default function InterviewsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo de Entrevista</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-edit-type">
-                            <SelectValue placeholder="Seleccionar tipo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="recomendacion_templo">Recomendación del Templo</SelectItem>
-                          <SelectItem value="llamamiento">Llamamiento</SelectItem>
-                          <SelectItem value="anual">Entrevista Anual</SelectItem>
-                          <SelectItem value="orientacion">Orientación</SelectItem>
-                          <SelectItem value="otra">Otra</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <button
+                          type="button"
+                          onClick={() => setEditTypeSheetOpen(true)}
+                          className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                          data-testid="select-edit-type"
+                        >
+                          <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
+                            {field.value ? formatInterviewType(field.value) : "Seleccionar tipo"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">›</span>
+                        </button>
+                      </FormControl>
+                      <Drawer open={editTypeSheetOpen} onOpenChange={setEditTypeSheetOpen}>
+                        <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                          <DrawerHeader>
+                            <DrawerTitle>Tipo de entrevista</DrawerTitle>
+                          </DrawerHeader>
+                          <div className="space-y-1 px-4 pb-6">
+                            {interviewTypeOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  field.onChange(option.value);
+                                  setEditTypeSheetOpen(false);
+                                }}
+                                className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
+                              >
+                                <span>{option.label}</span>
+                                {field.value === option.value && <Check className="h-4 w-4" />}
+                              </button>
+                            ))}
+                          </div>
+                        </DrawerContent>
+                      </Drawer>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1475,20 +1900,44 @@ export default function InterviewsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Entrevistador</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-edit-interviewer">
-                          <SelectValue placeholder="Seleccionar entrevistador" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {interviewers.map((i: any) => (
-                          <SelectItem key={i.id} value={i.id}>
-                            {i.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <button
+                        type="button"
+                        onClick={() => setEditInterviewerSheetOpen(true)}
+                        className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                        data-testid="select-edit-interviewer"
+                      >
+                        <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
+                          {field.value
+                            ? interviewers.find((item: any) => item.id === field.value)?.name ?? "Seleccionar"
+                            : "Seleccionar entrevistador"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">›</span>
+                      </button>
+                    </FormControl>
+                    <Drawer open={editInterviewerSheetOpen} onOpenChange={setEditInterviewerSheetOpen}>
+                      <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                        <DrawerHeader>
+                          <DrawerTitle>Entrevistador</DrawerTitle>
+                        </DrawerHeader>
+                        <div className="space-y-1 px-4 pb-6">
+                          {interviewers.map((i: any) => (
+                            <button
+                              key={i.id}
+                              type="button"
+                              onClick={() => {
+                                field.onChange(i.id);
+                                setEditInterviewerSheetOpen(false);
+                              }}
+                              className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
+                            >
+                              <span>{i.name}</span>
+                              {field.value === i.id && <Check className="h-4 w-4" />}
+                            </button>
+                          ))}
+                        </div>
+                      </DrawerContent>
+                    </Drawer>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1498,11 +1947,16 @@ export default function InterviewsPage() {
                 control={editForm.control}
                 name="urgent"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} data-testid="checkbox-edit-urgent" />
-                    </FormControl>
+                  <FormItem className="flex items-center justify-between rounded-2xl bg-background/80 p-4">
                     <FormLabel>Urgente</FormLabel>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-edit-urgent"
+                        className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
@@ -1514,7 +1968,12 @@ export default function InterviewsPage() {
                   <FormItem>
                     <FormLabel>Notas (Opcional)</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Notas..." {...field} data-testid="textarea-edit-notes" />
+                      <Textarea
+                        placeholder="Notas..."
+                        {...field}
+                        data-testid="textarea-edit-notes"
+                        className="min-h-[120px] rounded-2xl bg-background/80"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
