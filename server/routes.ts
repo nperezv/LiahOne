@@ -118,9 +118,41 @@ function requireRole(...roles: string[]) {
 
 const interviewCollisionRoles = new Map<string, string>([
   ["obispo", "Obispo"],
-  ["consejero_obispo", "Consejero del Obispado"],
+  ["consejero_obispo", "Consejero del obispado"],
   ["presidente_organizacion", "Presidente de organización"],
 ]);
+
+const normalizeMemberName = (value?: string | null) => {
+  if (!value) return "";
+  const cleaned = value.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+
+  if (cleaned.includes(",")) {
+    const [surnamePart, namePart] = cleaned.split(",").map((part) => part.trim());
+    if (namePart && surnamePart) {
+      return `${namePart} ${surnamePart}`.trim();
+    }
+  }
+
+  const parts = cleaned.split(" ");
+  if (parts.length < 2) return cleaned;
+
+  const surnameCount = parts.length >= 4 ? 2 : 1;
+  const surnames = parts.slice(0, surnameCount);
+  const names = parts.slice(surnameCount);
+  if (names.length === 0) return cleaned;
+  return [...names, ...surnames].join(" ");
+};
+
+const formatInterviewerTitle = (role?: string | null) => {
+  if (!role) return "";
+  const map: Record<string, string> = {
+    obispo: "Obispo",
+    consejero_obispo: "Consejero del obispado",
+    secretario_ejecutivo: "Secretario Ejecutivo",
+  };
+  return map[role] ?? "";
+};
 
 async function hasInterviewCollision({
   interviewerId,
@@ -1585,6 +1617,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let assignedUser: any | undefined;
       let memberEmail: string | null | undefined;
       let memberName: string | undefined;
+      let memberSex: string | undefined;
+      let memberOrganizationType: string | undefined;
       let resolvedPersonName = personName;
       let resolvedMemberId = memberId;
 
@@ -1594,8 +1628,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Member not found" });
         }
         resolvedPersonName = member.nameSurename;
-        memberName = member.nameSurename;
+        memberName = normalizeMemberName(member.nameSurename);
         memberEmail = member.email;
+        memberSex = member.sex;
+        if (member.organizationId) {
+          const organization = await storage.getOrganization(member.organizationId);
+          memberOrganizationType = organization?.type;
+        }
         if (memberEmail) {
           const users = await storage.getAllUsers();
           const matchedUser = users.find(
@@ -1677,32 +1716,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         minute: "2-digit",
         hour12: false,
       });
-      const interviewTypeLabel = interview.type;
-      const interviewerTitle = interviewerRoleLabel
-        ? interviewer?.name
-          ? `${interviewerRoleLabel}; ${interviewer.name}`
-          : interviewerRoleLabel
-        : interviewer?.name
-          ? `líder; ${interviewer.name}`
-          : "Obispado";
+      const interviewerRoleTitle = formatInterviewerTitle(interviewer?.role);
+      const interviewerTitle = interviewer?.name
+        ? interviewerRoleTitle
+          ? `${interviewerRoleTitle} ${interviewer.name}`
+          : interviewer.name
+        : interviewerRoleTitle || "obispado";
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
 
-      const recipientMap = new Map<string, string>();
+      const recipients: Array<{
+        email: string;
+        name: string;
+        sex?: string;
+        organizationType?: string;
+      }> = [];
       if (memberEmail) {
-        recipientMap.set(memberEmail, memberName || resolvedPersonName);
+        recipients.push({
+          email: memberEmail,
+          name: memberName || resolvedPersonName,
+          sex: memberSex,
+          organizationType: memberOrganizationType,
+        });
       }
       if (assignedUser?.email) {
-        recipientMap.set(assignedUser.email, assignedUser.name);
+        recipients.push({
+          email: assignedUser.email,
+          name: assignedUser.name,
+        });
       }
 
-      for (const [email, name] of recipientMap.entries()) {
+      for (const recipient of recipients) {
         await sendInterviewScheduledEmail({
-          toEmail: email,
-          recipientName: name,
+          toEmail: recipient.email,
+          recipientName: recipient.name,
           interviewerName: interviewerTitle,
+          interviewerRole: interviewer?.role,
           interviewDate,
           interviewTime,
-          interviewType: interviewTypeLabel,
+          interviewType: interview.type,
           notes: rest.notes,
+          wardName,
+          recipientSex: recipient.sex,
+          recipientOrganizationType: recipient.organizationType,
         });
       }
   

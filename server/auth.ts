@@ -195,14 +195,98 @@ export async function sendNewUserCredentialsEmail(payload: {
   });
 }
 
+type RecipientGender = "male" | "female" | "unknown";
+
+const formatInterviewType = (type?: string | null) => {
+  if (!type) return "";
+  const map: Record<string, string> = {
+    recomendacion_templo: "Recomendación para el templo",
+    llamamiento: "Llamamiento",
+    anual: "Entrevista Anual",
+    orientacion: "Orientación",
+    otra: "Otra",
+    inicial: "Inicial",
+    seguimiento: "Seguimiento",
+    recomendacion: "Recomendación para el templo",
+  };
+  return map[type] ?? type;
+};
+
+const getGenderFromSex = (sex?: string | null): RecipientGender => {
+  const normalized = sex?.trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (normalized.includes("mujer") || normalized.includes("femen")) return "female";
+  if (normalized.includes("hombre") || normalized.includes("mascul")) return "male";
+  return "unknown";
+};
+
+const getGenderFromOrganization = (organizationType?: string | null): RecipientGender => {
+  switch (organizationType) {
+    case "sociedad_socorro":
+    case "mujeres_jovenes":
+      return "female";
+    case "cuorum_elderes":
+    case "hombres_jovenes":
+      return "male";
+    default:
+      return "unknown";
+  }
+};
+
+const getRecipientSalutation = (sex?: string | null, organizationType?: string | null) => {
+  const gender = getGenderFromSex(sex);
+  const resolvedGender = gender === "unknown" ? getGenderFromOrganization(organizationType) : gender;
+  if (resolvedGender === "female") return "apreciada hermana";
+  if (resolvedGender === "male") return "apreciado hermano";
+  return "apreciado(a) hermano(a)";
+};
+
+const getTimeGreeting = (timeLabel?: string) => {
+  if (!timeLabel) return "Estimado(a)";
+  const hourMatch = timeLabel.match(/(\d{1,2})/);
+  const hour = hourMatch ? Number(hourMatch[1]) : null;
+  if (hour === null) return "Estimado(a)";
+  if (hour < 12) return "Buenos días";
+  if (hour < 19) return "Buenas tardes";
+  return "Buenas noches";
+};
+
+const getInterviewerArticle = (interviewerRole?: string | null, interviewerName?: string | null) => {
+  if (interviewerRole === "presidente_organizacion") {
+    const lowerName = interviewerName?.toLowerCase() ?? "";
+    if (lowerName.startsWith("presidenta") || lowerName.startsWith("consejera")) {
+      return "la";
+    }
+  }
+  return "el";
+};
+
+const buildInterviewerReference = (interviewerName?: string | null, interviewerRole?: string | null) => {
+  const name = interviewerName?.trim() || "obispado";
+  const article = getInterviewerArticle(interviewerRole, interviewerName);
+  return `${article} ${name}`;
+};
+
+const buildInterviewSignature = (options: { role?: string | null; wardName?: string | null }) => {
+  const wardName = options.wardName?.trim();
+  if (options.role === "obispo" || options.role === "consejero_obispo" || options.role === "secretario_ejecutivo") {
+    return `Obispado ${wardName || "Barrio"}`;
+  }
+  return wardName || "";
+};
+
 export async function sendInterviewScheduledEmail(payload: {
   toEmail: string;
   recipientName: string;
   interviewerName?: string | null;
+  interviewerRole?: string | null;
   interviewDate: string;
   interviewTime: string;
   interviewType?: string | null;
   notes?: string | null;
+  wardName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -222,34 +306,27 @@ export async function sendInterviewScheduledEmail(payload: {
     auth: { user, pass },
   });
 
-  const interviewerLine = payload.interviewerName
-    ? `con el ${payload.interviewerName}`
-    : "con el obispado";
-  const typeLine = payload.interviewType
-    ? `Tipo de entrevista: ${payload.interviewType}`
-    : "Tipo de entrevista: (sin especificar)";
+  const interviewerLine = buildInterviewerReference(payload.interviewerName, payload.interviewerRole);
+  const typeLabel = formatInterviewType(payload.interviewType);
+  const typeLine = typeLabel ? `Tipo de entrevista: ${typeLabel}` : null;
   const notesLine = payload.notes?.trim()
     ? `Notas adicionales: ${payload.notes.trim()}`
-    : "Notas adicionales: (sin notas)";
-  const hourMatch = payload.interviewTime.match(/(\d{1,2})/);
-  const hour = hourMatch ? Number(hourMatch[1]) : null;
-  const greeting =
-    hour === null
-      ? "Estimado(a)"
-      : hour < 12
-        ? "Buenos días"
-        : hour < 19
-          ? "Buenas tardes"
-          : "Buenas noches";
+    : null;
+  const greeting = getTimeGreeting(payload.interviewTime);
+  const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
+  const signatureLine = buildInterviewSignature({
+    role: payload.interviewerRole,
+    wardName: payload.wardName,
+  });
 
   await transporter.sendMail({
     from,
     to: payload.toEmail,
     subject: "Entrevista programada",
     text: [
-      `${greeting} apreciado(a) hermano(a) ${payload.recipientName},`,
+      `${greeting} ${salutation} ${payload.recipientName},`,
       "",
-      `Se ha programado una entrevista ${interviewerLine}.`,
+      `Se ha programado una entrevista con ${interviewerLine}.`,
       `Fecha: ${payload.interviewDate}`,
       `Hora: ${payload.interviewTime} hrs.`,
       "Lugar: oficina del obispado.",
@@ -259,8 +336,11 @@ export async function sendInterviewScheduledEmail(payload: {
       "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
       "Si necesitas reprogramar, responde a este correo o comunícate con el obispado.",
       "",
-      "Con aprecio y gratitud.",
-    ].join("\n"),
+      "Con aprecio y gratitud",
+      signatureLine,
+    ]
+      .filter((line) => line !== null && line !== undefined)
+      .join("\n"),
   });
 }
 

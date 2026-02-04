@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { endOfMonth, endOfQuarter, endOfWeek, startOfMonth, startOfQuarter, startOfWeek } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -62,6 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   useInterviews,
@@ -75,6 +76,8 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
+import { normalizeMemberName } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 
 /**
  * Estado (backend):
@@ -97,14 +100,14 @@ type InterviewFormValues = z.infer<typeof interviewSchema>;
 
 function formatInterviewType(type: string) {
   const map: Record<string, string> = {
-    recomendacion_templo: "Recomendación del Templo",
+    recomendacion_templo: "Recomendación para el templo",
     llamamiento: "Llamamiento",
     anual: "Entrevista Anual",
     orientacion: "Orientación",
     otra: "Otra",
     inicial: "Inicial",
     seguimiento: "Seguimiento",
-    recomendacion: "Recomendación",
+    recomendacion: "Recomendación para el templo",
   };
   return map[type] ?? type;
 }
@@ -112,11 +115,58 @@ function formatInterviewType(type: string) {
 function formatRole(role: string) {
   const map: Record<string, string> = {
     obispo: "Obispo",
-    consejero_obispo: "Consejero",
+    consejero_obispo: "Consejero del obispado",
     secretario_ejecutivo: "Secretario Ejecutivo",
   };
   return map[role] ?? role;
 }
+
+type RecipientGender = "male" | "female" | "unknown";
+
+const getGenderFromSex = (sex?: string | null): RecipientGender => {
+  const normalized = sex?.trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (normalized.includes("mujer") || normalized.includes("femen")) return "female";
+  if (normalized.includes("hombre") || normalized.includes("mascul")) return "male";
+  return "unknown";
+};
+
+const getGenderFromOrganization = (organizationType?: string | null): RecipientGender => {
+  switch (organizationType) {
+    case "sociedad_socorro":
+    case "mujeres_jovenes":
+      return "female";
+    case "cuorum_elderes":
+    case "hombres_jovenes":
+      return "male";
+    default:
+      return "unknown";
+  }
+};
+
+const getRecipientSalutation = (sex?: string | null, organizationType?: string | null) => {
+  const gender = getGenderFromSex(sex);
+  const resolvedGender = gender === "unknown" ? getGenderFromOrganization(organizationType) : gender;
+  if (resolvedGender === "female") return "apreciada hermana";
+  if (resolvedGender === "male") return "apreciado hermano";
+  return "apreciado(a) hermano(a)";
+};
+
+const getTimeGreeting = (timeLabel?: string) => {
+  if (!timeLabel) return "Estimado(a)";
+  const hourMatch = timeLabel.match(/(\d{1,2})/);
+  const hour = hourMatch ? Number(hourMatch[1]) : null;
+  if (hour === null) return "Estimado(a)";
+  if (hour < 12) return "Buenos días";
+  if (hour < 19) return "Buenas tardes";
+  return "Buenas noches";
+};
+
+const buildInterviewerReference = (interviewerName?: string, interviewerArticle?: string) => {
+  const name = interviewerName?.trim() || "obispado";
+  const article = interviewerArticle?.trim() || "el";
+  return `${article} ${name}`;
+};
 
 const interviewMessageTemplates = [
   {
@@ -125,14 +175,33 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      interviewerArticle?: string;
+      signature?: string;
+      interviewType?: string;
+      notes?: string;
+      sex?: string | null;
+      organizationType?: string | null;
       dateLabel: string;
       timeLabel: string;
     }) =>
       [
-        `Hola ${data.name},`,
-        `Tu entrevista con ${data.interviewerName ?? "el obispado"} está programada para el ${data.dateLabel} a las ${data.timeLabel}.`,
-        "Si necesitas cambiar la hora, por favor avísanos con anticipación.",
-      ].join("\n"),
+        `${getTimeGreeting(data.timeLabel)} ${getRecipientSalutation(data.sex, data.organizationType)} ${data.name},`,
+        "",
+        `Se ha programado una entrevista con ${buildInterviewerReference(data.interviewerName, data.interviewerArticle)}.`,
+        `Fecha: ${data.dateLabel}`,
+        `Hora: ${data.timeLabel} hrs.`,
+        "Lugar: oficina del obispado.",
+        data.interviewType ? `Tipo de entrevista: ${data.interviewType}` : null,
+        data.notes?.trim() ? `Notas adicionales: ${data.notes.trim()}` : null,
+        "",
+        "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
+        "Si necesitas reprogramar, responde a este correo o comunícate con el obispado.",
+        "",
+        "Con aprecio y gratitud",
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
   {
     id: "recordatorio",
@@ -140,14 +209,32 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      interviewerArticle?: string;
+      signature?: string;
+      interviewType?: string;
+      notes?: string;
+      sex?: string | null;
+      organizationType?: string | null;
       dateLabel: string;
       timeLabel: string;
     }) =>
       [
-        `Hola ${data.name},`,
-        `Este es un recordatorio de tu entrevista con ${data.interviewerName ?? "el obispado"} el ${data.dateLabel} a las ${data.timeLabel}.`,
+        `${getTimeGreeting(data.timeLabel)} ${getRecipientSalutation(data.sex, data.organizationType)} ${data.name},`,
+        "",
+        `Este es un recordatorio de tu entrevista con ${buildInterviewerReference(data.interviewerName, data.interviewerArticle)}.`,
+        `Fecha: ${data.dateLabel}`,
+        `Hora: ${data.timeLabel} hrs.`,
+        "Lugar: oficina del obispado.",
+        data.interviewType ? `Tipo de entrevista: ${data.interviewType}` : null,
+        data.notes?.trim() ? `Notas adicionales: ${data.notes.trim()}` : null,
+        "",
         "¡Te esperamos!",
-      ].join("\n"),
+        "",
+        "Con aprecio y gratitud",
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
   {
     id: "seguimiento",
@@ -155,21 +242,39 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      interviewerArticle?: string;
+      signature?: string;
+      interviewType?: string;
+      notes?: string;
+      sex?: string | null;
+      organizationType?: string | null;
       dateLabel: string;
       timeLabel: string;
     }) =>
       [
-        `Hola ${data.name},`,
-        `Gracias por coordinar tu entrevista con ${data.interviewerName ?? "el obispado"} para el ${data.dateLabel} a las ${data.timeLabel}.`,
+        `${getTimeGreeting(data.timeLabel)} ${getRecipientSalutation(data.sex, data.organizationType)} ${data.name},`,
+        "",
+        `Gracias por coordinar tu entrevista con ${buildInterviewerReference(data.interviewerName, data.interviewerArticle)}.`,
+        `Fecha: ${data.dateLabel}`,
+        `Hora: ${data.timeLabel} hrs.`,
+        "Lugar: oficina del obispado.",
+        data.interviewType ? `Tipo de entrevista: ${data.interviewType}` : null,
+        data.notes?.trim() ? `Notas adicionales: ${data.notes.trim()}` : null,
+        "",
         "Si hay algo que debamos preparar, háznoslo saber.",
-      ].join("\n"),
+        "",
+        "Con aprecio y gratitud",
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
 ];
 
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación" },
+  { value: "recomendacion", label: "Recomendación para el templo" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -251,6 +356,24 @@ const getInitials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join("");
 
+const formatInterviewerTitle = (role?: string) => {
+  if (!role) return "";
+  const map: Record<string, string> = {
+    obispo: "Obispo",
+    consejero_obispo: "Consejero del obispado",
+    secretario_ejecutivo: "Secretario Ejecutivo",
+  };
+  return map[role] ?? "";
+};
+
+const buildInterviewSignature = (options: { role?: string; wardName?: string }) => {
+  const wardName = options.wardName?.trim();
+  if (options.role === "obispo" || options.role === "consejero_obispo" || options.role === "secretario_ejecutivo") {
+    return `Obispado ${wardName || "Barrio"}`;
+  }
+  return wardName || "";
+};
+
 export default function InterviewsPage() {
   const { toast } = useToast();
 
@@ -273,6 +396,12 @@ export default function InterviewsPage() {
     phone?: string | null;
     email?: string | null;
     interviewerName?: string;
+    interviewerArticle?: string;
+    signature?: string;
+    interviewType?: string;
+    notes?: string;
+    sex?: string | null;
+    organizationType?: string | null;
     dateLabel: string;
     timeLabel: string;
   } | null>(null);
@@ -292,6 +421,10 @@ export default function InterviewsPage() {
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
   const { data: users = [] } = useUsers();
+  const { data: template } = useQuery({
+    queryKey: ["/api/pdf-template"],
+    queryFn: () => apiRequest("GET", "/api/pdf-template"),
+  });
   const canUseDirectory = [
     "obispo",
     "consejero_obispo",
@@ -364,6 +497,12 @@ export default function InterviewsPage() {
   const buildInterviewMessage = (payload: {
     name: string;
     interviewerName?: string;
+    interviewerArticle?: string;
+    signature?: string;
+    interviewType?: string;
+    notes?: string;
+    sex?: string | null;
+    organizationType?: string | null;
     dateLabel: string;
     timeLabel: string;
   }) => {
@@ -446,6 +585,9 @@ export default function InterviewsPage() {
   const editMemberId = editForm.watch("memberId");
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
   const personDisplayName = form.watch("personName");
+  const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
+  const interviewDisplayName = normalizeMemberName(personDisplayName);
+  const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
     setStep(1);
@@ -468,21 +610,26 @@ export default function InterviewsPage() {
     });
   };
 
-  const handleStepAdvance = async () => {
-    if (step === 1) {
-      const valid = await form.trigger(["personName"]);
-      if (!valid) return;
-      setStep(2);
-      return;
+  useEffect(() => {
+    if (isDialogOpen) return;
+    if (resetTimeoutRef.current) {
+      window.clearTimeout(resetTimeoutRef.current);
     }
-    if (step === 2) {
-      const valid = await form.trigger(["date", "type"]);
-      if (!valid) return;
-      setStep(3);
-    }
-  };
+    resetTimeoutRef.current = window.setTimeout(() => {
+      resetWizard();
+      resetTimeoutRef.current = null;
+    }, 220);
+  }, [isDialogOpen]);
 
-  const handleStepAdvance = async () => {
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const advanceWizardStep = async () => {
     if (step === 1) {
       const valid = await form.trigger(["personName"]);
       if (!valid) return;
@@ -527,14 +674,35 @@ export default function InterviewsPage() {
       },
       {
         onSuccess: () => {
-          const interviewerName = userById.get(data.interviewerId)?.name ?? "Obispado";
+          const interviewerUser = userById.get(data.interviewerId);
+          const interviewerTitle = formatInterviewerTitle(interviewerUser?.role);
+          const interviewerName = interviewerUser?.name
+            ? interviewerTitle
+              ? `${interviewerTitle} ${interviewerUser.name}`
+              : interviewerUser.name
+            : "obispado";
+          const interviewerArticle = interviewerUser?.role === "presidente_organizacion" ? "la" : "el";
+          const signature = buildInterviewSignature({
+            role: interviewerUser?.role,
+            wardName: template?.wardName,
+          });
           const { dateLabel, timeLabel } = formatInterviewDateLabels(data.date);
-          const contact =
+          const interviewTypeLabel = formatInterviewType(data.type);
+          const notesValue = data.notes?.trim() || "";
+          const contact: {
+            name: string;
+            phone?: string | null;
+            email?: string | null;
+            sex?: string | null;
+            organizationType?: string | null;
+          } =
             selectedMember
               ? {
-                  name: selectedMember.nameSurename,
+                  name: selectedMemberName,
                   phone: selectedMember.phone,
                   email: selectedMember.email,
+                  sex: selectedMember.sex,
+                  organizationType: selectedMember.organizationType,
                 }
               : selectedLeader
                 ? {
@@ -543,7 +711,7 @@ export default function InterviewsPage() {
                     email: selectedLeader.email,
                   }
                 : {
-                    name: data.personName,
+                    name: normalizeMemberName(data.personName),
                     phone: undefined,
                     email: undefined,
                   };
@@ -552,6 +720,12 @@ export default function InterviewsPage() {
             const nextMessage = interviewMessageTemplates[0].build({
               name: contact.name,
               interviewerName,
+              interviewerArticle,
+              signature,
+              interviewType: interviewTypeLabel,
+              notes: notesValue,
+              sex: contact.sex,
+              organizationType: contact.organizationType,
               dateLabel,
               timeLabel,
             });
@@ -560,6 +734,10 @@ export default function InterviewsPage() {
             setMessageContact({
               ...contact,
               interviewerName,
+              interviewerArticle,
+              signature,
+              interviewType: interviewTypeLabel,
+              notes: notesValue,
               dateLabel,
               timeLabel,
             });
@@ -867,9 +1045,6 @@ export default function InterviewsPage() {
               open={isDialogOpen}
               onOpenChange={(open) => {
                 setIsDialogOpen(open);
-                if (!open) {
-                  resetWizard();
-                }
               }}
             >
               <DialogTrigger asChild>
@@ -901,7 +1076,7 @@ export default function InterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${personDisplayName || "—"}`
+                            ? `Entrevista con ${interviewDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -1104,10 +1279,10 @@ export default function InterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-10 w-10">
-                                <AvatarFallback>{getInitials(personDisplayName || "?" )}</AvatarFallback>
+                                <AvatarFallback>{getInitials(interviewDisplayName || "?" )}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="font-medium">{interviewDisplayName || "—"}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {selectedMember?.organizationName
                                     ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
@@ -1366,7 +1541,6 @@ export default function InterviewsPage() {
                           variant="secondary"
                           className="w-full rounded-full"
                           onClick={() => {
-                            resetWizard();
                             setIsDialogOpen(false);
                           }}
                           data-testid="button-cancel"
@@ -1375,7 +1549,7 @@ export default function InterviewsPage() {
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
-                          onClick={step === 3 ? undefined : handleStepAdvance}
+                          onClick={step === 3 ? undefined : advanceWizardStep}
                           data-testid="button-submit"
                           disabled={createMutation.isPending}
                           className="w-full rounded-full"
