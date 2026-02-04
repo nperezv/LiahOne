@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Edit, Trash2, Key, Check, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Key, Check, ChevronDown, Search } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -218,6 +218,7 @@ export default function AdminUsersPage() {
   const [approveRequest, setApproveRequest] = useState<UserDeletionRequest | null>(null);
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
 
   // Verificar que solo obispo/secretarios puedan acceder
   const isAdmin =
@@ -343,6 +344,7 @@ export default function AdminUsersPage() {
     if (!targetUserId) {
       setDeleteSummary(null);
       setDeleteSummaryError(null);
+      setDeleteSummaryLoading(false);
       return;
     }
 
@@ -449,6 +451,14 @@ export default function AdminUsersPage() {
     return `${member.nameSurename}${orgLabel}`;
   };
 
+  useEffect(() => {
+    if (selectedMember) {
+      setMemberSearch(formatMemberLabel(selectedMember));
+    } else if (!memberPickerOpen) {
+      setMemberSearch("");
+    }
+  }, [memberPickerOpen, selectedMember]);
+
   const getAvailableMembers = (currentMemberId?: string | null) => {
     const availableMembers = (members as DirectoryMember[]).filter((member) => {
       if (member.id === currentMemberId) return true;
@@ -465,6 +475,18 @@ export default function AdminUsersPage() {
     }
     return availableMembers;
   };
+
+  const filteredMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+    const availableMembers = getAvailableMembers();
+    if (!query) return availableMembers;
+    return availableMembers.filter((member) => {
+      const label = formatMemberLabel(member).toLowerCase();
+      const email = member.email?.toLowerCase() ?? "";
+      const phone = member.phone?.toLowerCase() ?? "";
+      return label.includes(query) || email.includes(query) || phone.includes(query);
+    });
+  }, [memberSearch, members, linkedMemberIds]);
 
   useEffect(() => {
     if (!selectedMember) {
@@ -584,6 +606,8 @@ export default function AdminUsersPage() {
   };
 
   const onDeleteUser = (targetUser: User) => {
+    setDeleteSummary(null);
+    setDeleteSummaryError(null);
     setDeleteUser(targetUser);
   };
 
@@ -752,42 +776,63 @@ export default function AdminUsersPage() {
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Miembros</FormLabel>
-                        <Popover open={memberPickerOpen} onOpenChange={setMemberPickerOpen}>
+                        <Popover
+                          open={memberPickerOpen}
+                          onOpenChange={(open) => {
+                            setMemberPickerOpen(open);
+                            if (!open) {
+                              if (selectedMember) {
+                                setMemberSearch(formatMemberLabel(selectedMember));
+                              } else {
+                                setMemberSearch("");
+                              }
+                            }
+                          }}
+                        >
                           <PopoverTrigger asChild>
                             <FormControl>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={cn(
-                                  "h-12 w-full justify-between rounded-full border-muted/60 bg-muted/40 shadow-inner",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                                data-testid="select-create-member"
-                              >
-                                {selectedMember
-                                  ? formatMemberLabel(selectedMember)
-                                  : "Buscar miembro..."}
-                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
+                              <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  role="combobox"
+                                  value={memberSearch}
+                                  onChange={(event) => {
+                                    const nextValue = event.target.value;
+                                    setMemberSearch(nextValue);
+                                    if (selectedMemberId && selectedMember && nextValue !== formatMemberLabel(selectedMember)) {
+                                      createForm.setValue("memberId", "");
+                                    }
+                                    if (!memberPickerOpen) {
+                                      setMemberPickerOpen(true);
+                                    }
+                                  }}
+                                  onFocus={() => setMemberPickerOpen(true)}
+                                  placeholder="Buscar miembro..."
+                                  className={cn(
+                                    "h-12 w-full rounded-full border-muted/60 bg-muted/40 pl-10 pr-10 shadow-inner",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  data-testid="select-create-member"
+                                />
+                                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                              </div>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="p-0" align="start">
-                            <Command
-                              className="rounded-3xl border border-muted/60 bg-muted/30 shadow-sm [&_[cmdk-input-wrapper]]:rounded-full [&_[cmdk-input-wrapper]]:border [&_[cmdk-input-wrapper]]:border-muted/50 [&_[cmdk-input-wrapper]]:bg-background [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]_svg]:h-4 [&_[cmdk-input-wrapper]_svg]:w-4 [&_[cmdk-input-wrapper]_svg]:text-muted-foreground [&_[cmdk-input-wrapper]]:shadow-inner [&_[cmdk-input]]:h-10 [&_[cmdk-input]]:text-sm"
-                            >
-                              <CommandInput
-                                placeholder="Buscar miembro..."
-                                className="rounded-full bg-transparent px-1 placeholder:text-muted-foreground/80"
-                              />
-                              <CommandList>
+                          <PopoverContent
+                            className="w-[--radix-popover-trigger-width] p-1"
+                            align="start"
+                          >
+                            <Command className="rounded-2xl bg-background">
+                              <CommandList className="max-h-[260px]">
                                 <CommandEmpty>No se encontraron miembros.</CommandEmpty>
                                 <CommandGroup>
-                                  {getAvailableMembers().map((member) => (
+                                  {filteredMembers.map((member) => (
                                     <CommandItem
                                       key={member.id}
                                       value={formatMemberLabel(member)}
                                       onSelect={() => {
                                         field.onChange(member.id);
+                                        setMemberSearch(formatMemberLabel(member));
                                         setMemberPickerOpen(false);
                                       }}
                                       className="flex items-center justify-between"
@@ -959,6 +1004,7 @@ export default function AdminUsersPage() {
             setDeleteUser(null);
             setDeleteSummary(null);
             setDeleteSummaryError(null);
+            setDeleteSummaryLoading(false);
             setDeleteReason("");
           }
         }}
@@ -1055,6 +1101,7 @@ export default function AdminUsersPage() {
             setApproveRequest(null);
             setDeleteSummary(null);
             setDeleteSummaryError(null);
+            setDeleteSummaryLoading(false);
           }
         }}
       >
@@ -1199,7 +1246,11 @@ export default function AdminUsersPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => setApproveRequest(request)}
+                              onClick={() => {
+                                setDeleteSummary(null);
+                                setDeleteSummaryError(null);
+                                setApproveRequest(request);
+                              }}
                             >
                               Revisar y confirmar
                             </Button>
