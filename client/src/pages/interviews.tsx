@@ -100,14 +100,14 @@ type InterviewFormValues = z.infer<typeof interviewSchema>;
 
 function formatInterviewType(type: string) {
   const map: Record<string, string> = {
-    recomendacion_templo: "Recomendación para el templo",
+    recomendacion_templo: "Recomendación para el Templo",
     llamamiento: "Llamamiento",
     anual: "Entrevista Anual",
     orientacion: "Orientación",
     otra: "Otra",
     inicial: "Inicial",
     seguimiento: "Seguimiento",
-    recomendacion: "Recomendación para el templo",
+    recomendacion: "Recomendación para el Templo",
   };
   return map[type] ?? type;
 }
@@ -149,7 +149,7 @@ const getRecipientSalutation = (sex?: string | null, organizationType?: string |
   const resolvedGender = gender === "unknown" ? getGenderFromOrganization(organizationType) : gender;
   if (resolvedGender === "female") return "apreciada hermana";
   if (resolvedGender === "male") return "apreciado hermano";
-  return "apreciado(a) hermano(a)";
+  return "apreciado hermano";
 };
 
 const getTimeGreeting = (timeLabel?: string) => {
@@ -168,6 +168,14 @@ const buildInterviewerReference = (interviewerName?: string, interviewerArticle?
   return `${article} ${name}`;
 };
 
+const buildRescheduleLine = (secretaryName?: string) => {
+  const trimmed = secretaryName?.trim();
+  if (!trimmed) {
+    return "Si necesitas reprogramar, comunícate con el secretario ejecutivo.";
+  }
+  return `Si necesitas reprogramar, comunícate con el secretario ${trimmed}.`;
+};
+
 const interviewMessageTemplates = [
   {
     id: "confirmacion",
@@ -181,6 +189,7 @@ const interviewMessageTemplates = [
       notes?: string;
       sex?: string | null;
       organizationType?: string | null;
+      secretaryName?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -195,9 +204,9 @@ const interviewMessageTemplates = [
         data.notes?.trim() ? `Notas adicionales: ${data.notes.trim()}` : null,
         "",
         "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
-        "Si necesitas reprogramar, responde a este correo o comunícate con el obispado.",
+        buildRescheduleLine(data.secretaryName),
         "",
-        "Con aprecio y gratitud",
+        "Con aprecio y gratitud.",
         data.signature,
       ]
         .filter(Boolean)
@@ -215,6 +224,7 @@ const interviewMessageTemplates = [
       notes?: string;
       sex?: string | null;
       organizationType?: string | null;
+      secretaryName?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -229,8 +239,9 @@ const interviewMessageTemplates = [
         data.notes?.trim() ? `Notas adicionales: ${data.notes.trim()}` : null,
         "",
         "¡Te esperamos!",
+        buildRescheduleLine(data.secretaryName),
         "",
-        "Con aprecio y gratitud",
+        "Con aprecio y gratitud.",
         data.signature,
       ]
         .filter(Boolean)
@@ -248,6 +259,7 @@ const interviewMessageTemplates = [
       notes?: string;
       sex?: string | null;
       organizationType?: string | null;
+      secretaryName?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -262,8 +274,9 @@ const interviewMessageTemplates = [
         data.notes?.trim() ? `Notas adicionales: ${data.notes.trim()}` : null,
         "",
         "Si hay algo que debamos preparar, háznoslo saber.",
+        buildRescheduleLine(data.secretaryName),
         "",
-        "Con aprecio y gratitud",
+        "Con aprecio y gratitud.",
         data.signature,
       ]
         .filter(Boolean)
@@ -274,7 +287,7 @@ const interviewMessageTemplates = [
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación para el templo" },
+  { value: "recomendacion", label: "Recomendación para el Templo" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -402,6 +415,7 @@ export default function InterviewsPage() {
     notes?: string;
     sex?: string | null;
     organizationType?: string | null;
+    secretaryName?: string;
     dateLabel: string;
     timeLabel: string;
   } | null>(null);
@@ -493,6 +507,10 @@ export default function InterviewsPage() {
     for (const u of users) m.set(u.id, u);
     return m;
   }, [users]);
+  const secretaryExecutiveName = useMemo(() => {
+    const secretary = users.find((u: any) => u.role === "secretario_ejecutivo");
+    return secretary?.name ? normalizeMemberName(secretary.name) : "";
+  }, [users]);
 
   const buildInterviewMessage = (payload: {
     name: string;
@@ -503,6 +521,7 @@ export default function InterviewsPage() {
     notes?: string;
     sex?: string | null;
     organizationType?: string | null;
+    secretaryName?: string;
     dateLabel: string;
     timeLabel: string;
   }) => {
@@ -726,6 +745,7 @@ export default function InterviewsPage() {
               notes: notesValue,
               sex: contact.sex,
               organizationType: contact.organizationType,
+              secretaryName: secretaryExecutiveName || undefined,
               dateLabel,
               timeLabel,
             });
@@ -740,6 +760,7 @@ export default function InterviewsPage() {
               notes: notesValue,
               dateLabel,
               timeLabel,
+              secretaryName: secretaryExecutiveName || undefined,
             });
             setIsMessageDialogOpen(true);
           }
