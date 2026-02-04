@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { endOfMonth, endOfQuarter, endOfWeek, startOfMonth, startOfQuarter, startOfWeek } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -449,6 +449,7 @@ export default function InterviewsPage() {
   const personDisplayName = form.watch("personName");
   const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
   const interviewDisplayName = normalizeMemberName(personDisplayName);
+  const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
     setStep(1);
@@ -470,6 +471,25 @@ export default function InterviewsPage() {
       notes: "",
     });
   };
+
+  useEffect(() => {
+    if (isDialogOpen) return;
+    if (resetTimeoutRef.current) {
+      window.clearTimeout(resetTimeoutRef.current);
+    }
+    resetTimeoutRef.current = window.setTimeout(() => {
+      resetWizard();
+      resetTimeoutRef.current = null;
+    }, 220);
+  }, [isDialogOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const advanceWizardStep = async () => {
     if (step === 1) {
@@ -856,9 +876,6 @@ export default function InterviewsPage() {
               open={isDialogOpen}
               onOpenChange={(open) => {
                 setIsDialogOpen(open);
-                if (!open) {
-                  resetWizard();
-                }
               }}
             >
               <DialogTrigger asChild>
