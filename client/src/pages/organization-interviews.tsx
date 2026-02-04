@@ -97,7 +97,7 @@ function formatInterviewType(type: string) {
     seguimiento: "Seguimiento",
     otro: "Otro",
     inicial: "Inicial",
-    recomendacion: "Recomendación",
+    recomendacion: "Recomendación para el templo",
     otra: "Otra",
   };
   return map[type] ?? type;
@@ -106,7 +106,7 @@ function formatInterviewType(type: string) {
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación" },
+  { value: "recomendacion", label: "Recomendación para el templo" },
   { value: "otra", label: "Otra" },
 ];
 

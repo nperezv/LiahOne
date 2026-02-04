@@ -62,6 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   useInterviews,
@@ -76,6 +77,7 @@ import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
 import { normalizeMemberName } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 
 /**
  * Estado (backend):
@@ -105,7 +107,7 @@ function formatInterviewType(type: string) {
     otra: "Otra",
     inicial: "Inicial",
     seguimiento: "Seguimiento",
-    recomendacion: "Recomendación",
+    recomendacion: "Recomendación para el templo",
   };
   return map[type] ?? type;
 }
@@ -113,7 +115,7 @@ function formatInterviewType(type: string) {
 function formatRole(role: string) {
   const map: Record<string, string> = {
     obispo: "Obispo",
-    consejero_obispo: "Consejero",
+    consejero_obispo: "Consejero del obispado",
     secretario_ejecutivo: "Secretario Ejecutivo",
   };
   return map[role] ?? role;
@@ -126,6 +128,7 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      signature?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -133,7 +136,10 @@ const interviewMessageTemplates = [
         `Hola ${data.name},`,
         `Tu entrevista con ${data.interviewerName ?? "el obispado"} está programada para el ${data.dateLabel} a las ${data.timeLabel}.`,
         "Si necesitas cambiar la hora, por favor avísanos con anticipación.",
-      ].join("\n"),
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
   {
     id: "recordatorio",
@@ -141,6 +147,7 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      signature?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -148,7 +155,10 @@ const interviewMessageTemplates = [
         `Hola ${data.name},`,
         `Este es un recordatorio de tu entrevista con ${data.interviewerName ?? "el obispado"} el ${data.dateLabel} a las ${data.timeLabel}.`,
         "¡Te esperamos!",
-      ].join("\n"),
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
   {
     id: "seguimiento",
@@ -156,6 +166,7 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      signature?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -163,14 +174,17 @@ const interviewMessageTemplates = [
         `Hola ${data.name},`,
         `Gracias por coordinar tu entrevista con ${data.interviewerName ?? "el obispado"} para el ${data.dateLabel} a las ${data.timeLabel}.`,
         "Si hay algo que debamos preparar, háznoslo saber.",
-      ].join("\n"),
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
 ];
 
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación" },
+  { value: "recomendacion", label: "Recomendación para el templo" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -252,6 +266,24 @@ const getInitials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join("");
 
+const formatInterviewerTitle = (role?: string) => {
+  if (!role) return "";
+  const map: Record<string, string> = {
+    obispo: "Obispo",
+    consejero_obispo: "Consejero del obispado",
+    secretario_ejecutivo: "Secretario Ejecutivo",
+  };
+  return map[role] ?? "";
+};
+
+const buildInterviewSignature = (options: { role?: string; wardName?: string }) => {
+  const wardName = options.wardName?.trim();
+  if (options.role === "obispo" || options.role === "consejero_obispo" || options.role === "secretario_ejecutivo") {
+    return `Atentamente, Obispado ${wardName || "Barrio"}`;
+  }
+  return wardName ? `Atentamente, ${wardName}` : "";
+};
+
 export default function InterviewsPage() {
   const { toast } = useToast();
 
@@ -274,6 +306,7 @@ export default function InterviewsPage() {
     phone?: string | null;
     email?: string | null;
     interviewerName?: string;
+    signature?: string;
     dateLabel: string;
     timeLabel: string;
   } | null>(null);
@@ -293,6 +326,10 @@ export default function InterviewsPage() {
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
   const { data: users = [] } = useUsers();
+  const { data: template } = useQuery({
+    queryKey: ["/api/pdf-template"],
+    queryFn: () => apiRequest("GET", "/api/pdf-template"),
+  });
   const canUseDirectory = [
     "obispo",
     "consejero_obispo",
@@ -365,6 +402,7 @@ export default function InterviewsPage() {
   const buildInterviewMessage = (payload: {
     name: string;
     interviewerName?: string;
+    signature?: string;
     dateLabel: string;
     timeLabel: string;
   }) => {
@@ -536,7 +574,17 @@ export default function InterviewsPage() {
       },
       {
         onSuccess: () => {
-          const interviewerName = userById.get(data.interviewerId)?.name ?? "Obispado";
+          const interviewerUser = userById.get(data.interviewerId);
+          const interviewerTitle = formatInterviewerTitle(interviewerUser?.role);
+          const interviewerName = interviewerUser?.name
+            ? interviewerTitle
+              ? `${interviewerTitle} ${interviewerUser.name}`
+              : interviewerUser.name
+            : "el obispado";
+          const signature = buildInterviewSignature({
+            role: interviewerUser?.role,
+            wardName: template?.wardName,
+          });
           const { dateLabel, timeLabel } = formatInterviewDateLabels(data.date);
           const contact =
             selectedMember
@@ -561,6 +609,7 @@ export default function InterviewsPage() {
             const nextMessage = interviewMessageTemplates[0].build({
               name: contact.name,
               interviewerName,
+              signature,
               dateLabel,
               timeLabel,
             });
@@ -569,6 +618,7 @@ export default function InterviewsPage() {
             setMessageContact({
               ...contact,
               interviewerName,
+              signature,
               dateLabel,
               timeLabel,
             });
