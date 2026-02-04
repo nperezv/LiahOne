@@ -70,7 +70,7 @@ export default function PresidencyMeetingsPage() {
   };
 
   const organizationNames: Record<string, string> = {
-    "hombres-jovenes": "Hombres Jóvenes",
+    "hombres-jovenes": "Cuórum del Sacerdocio Aarónico",
     "mujeres-jovenes": "Mujeres Jóvenes",
     "sociedad-socorro": "Sociedad de Socorro",
     "primaria": "Primaria",
@@ -88,6 +88,9 @@ export default function PresidencyMeetingsPage() {
   }, [params?.org, organizations]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Presidencia";
+  const isLeadershipOnly = params?.org === "jas";
+  const pageTitle = isLeadershipOnly ? `Liderazgo de ${orgName}` : `Presidencia de ${orgName}`;
+  const meetingTitle = isLeadershipOnly ? "REUNIÓN DE LIDERAZGO" : "REUNIÓN DE PRESIDENCIA";
 
   // PDF export handler for meeting minutes
   const handleExportMeetingPDF = (meeting: any) => {
@@ -98,7 +101,7 @@ export default function PresidencyMeetingsPage() {
     });
     
     // Create a document with meeting details
-    const content = `REUNIÓN DE PRESIDENCIA - ${orgName.toUpperCase()}
+    const content = `${meetingTitle} - ${orgName.toUpperCase()}
     
 Fecha: ${meetingDate}
 
@@ -185,7 +188,7 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
     <div className="p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
-          <h1 className="text-2xl font-bold mb-2">Presidencia de {orgName}</h1>
+          <h1 className="text-2xl font-bold mb-2">{pageTitle}</h1>
           <p className="text-sm text-muted-foreground">
             Gestiona las reuniones y acuerdos de presidencia
           </p>

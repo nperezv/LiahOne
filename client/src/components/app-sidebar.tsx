@@ -80,12 +80,12 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     icon: FileText,
     roles: ["obispo", "consejero_obispo", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"],
     subItems: [
-      { title: "Hombres Jóvenes", url: "/presidency/hombres-jovenes" },
+      { title: "Cuórum del Sacerdocio Aarónico", url: "/presidency/hombres-jovenes" },
       { title: "Mujeres Jóvenes", url: "/presidency/mujeres-jovenes" },
       { title: "Sociedad de Socorro", url: "/presidency/sociedad-socorro" },
       { title: "Primaria", url: "/presidency/primaria" },
       { title: "Escuela Dominical", url: "/presidency/escuela-dominical" },
-      { title: "JAS", url: "/presidency/jas" },
+      { title: "Liderazgo JAS", url: "/presidency/jas" },
       { title: "Cuórum de Élderes", url: "/presidency/cuorum-elderes" },
     ],
     presidentOnly: true, // Presidents only see their own presidency

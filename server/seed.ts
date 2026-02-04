@@ -26,11 +26,11 @@ async function seed() {
     await ensureOrganization("barrio", "Barrio");
     await ensureOrganization("cuorum_elderes", "Cuórum de Élderes");
     await ensureOrganization("sociedad_socorro", "Sociedad de Socorro");
-    await ensureOrganization("hombres_jovenes", "Hombres Jóvenes");
+    await ensureOrganization("hombres_jovenes", "Cuórum del Sacerdocio Aarónico");
     await ensureOrganization("mujeres_jovenes", "Mujeres Jóvenes");
     await ensureOrganization("primaria", "Primaria");
     await ensureOrganization("escuela_dominical", "Escuela Dominical");
-    await ensureOrganization("jas", "JAS");
+    await ensureOrganization("jas", "Liderazgo JAS");
 
     if (existingUsers.length === 0) {
       console.log("Creating admin user...");
