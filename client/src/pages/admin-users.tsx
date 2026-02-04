@@ -213,6 +213,7 @@ export default function AdminUsersPage() {
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
   const [deleteSummary, setDeleteSummary] = useState<UserDeletionSummary | null>(null);
   const [deleteSummaryLoading, setDeleteSummaryLoading] = useState(false);
+  const [deleteSummaryError, setDeleteSummaryError] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [approveRequest, setApproveRequest] = useState<UserDeletionRequest | null>(null);
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
@@ -341,12 +342,14 @@ export default function AdminUsersPage() {
     const targetUserId = deleteUser?.id ?? approveRequest?.userId;
     if (!targetUserId) {
       setDeleteSummary(null);
+      setDeleteSummaryError(null);
       return;
     }
 
     const controller = new AbortController();
     const loadSummary = async () => {
       setDeleteSummaryLoading(true);
+      setDeleteSummaryError(null);
       try {
         const response = await fetch(`/api/users/${targetUserId}/delete-summary`, {
           headers: getAuthHeaders(),
@@ -359,6 +362,7 @@ export default function AdminUsersPage() {
         setDeleteSummary(summary);
       } catch (error) {
         if (!controller.signal.aborted) {
+          setDeleteSummaryError("No se pudo cargar el resumen de dependencias.");
           toast({
             title: "Error",
             description: "No se pudo cargar el resumen de dependencias.",
@@ -378,6 +382,32 @@ export default function AdminUsersPage() {
       controller.abort();
     };
   }, [approveRequest, deleteUser, toast]);
+
+  const reloadDeleteSummary = async () => {
+    const targetUserId = deleteUser?.id ?? approveRequest?.userId;
+    if (!targetUserId) return;
+    setDeleteSummaryLoading(true);
+    setDeleteSummaryError(null);
+    try {
+      const response = await fetch(`/api/users/${targetUserId}/delete-summary`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error("Error al cargar dependencias");
+      }
+      const summary = await response.json();
+      setDeleteSummary(summary);
+    } catch (error) {
+      setDeleteSummaryError("No se pudo cargar el resumen de dependencias.");
+      toast({
+        title: "Error",
+        description: "No se pudo cargar el resumen de dependencias.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteSummaryLoading(false);
+    }
+  };
 
   const resetPasswordForm = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -729,7 +759,7 @@ export default function AdminUsersPage() {
                                 variant="outline"
                                 role="combobox"
                                 className={cn(
-                                  "h-12 w-full justify-between rounded-2xl",
+                                  "h-12 w-full justify-between rounded-full border-muted/60 bg-muted/40 shadow-inner",
                                   !field.value && "text-muted-foreground"
                                 )}
                                 data-testid="select-create-member"
@@ -742,8 +772,13 @@ export default function AdminUsersPage() {
                             </FormControl>
                           </PopoverTrigger>
                           <PopoverContent className="p-0" align="start">
-                            <Command>
-                              <CommandInput placeholder="Buscar miembro..." />
+                            <Command
+                              className="rounded-3xl border border-muted/60 bg-muted/30 shadow-sm [&_[cmdk-input-wrapper]]:rounded-full [&_[cmdk-input-wrapper]]:border [&_[cmdk-input-wrapper]]:border-muted/50 [&_[cmdk-input-wrapper]]:bg-background [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]_svg]:h-4 [&_[cmdk-input-wrapper]_svg]:w-4 [&_[cmdk-input-wrapper]_svg]:text-muted-foreground [&_[cmdk-input-wrapper]]:shadow-inner [&_[cmdk-input]]:h-10 [&_[cmdk-input]]:text-sm"
+                            >
+                              <CommandInput
+                                placeholder="Buscar miembro..."
+                                className="rounded-full bg-transparent px-1 placeholder:text-muted-foreground/80"
+                              />
                               <CommandList>
                                 <CommandEmpty>No se encontraron miembros.</CommandEmpty>
                                 <CommandGroup>
@@ -923,6 +958,7 @@ export default function AdminUsersPage() {
           if (!open) {
             setDeleteUser(null);
             setDeleteSummary(null);
+            setDeleteSummaryError(null);
             setDeleteReason("");
           }
         }}
@@ -934,8 +970,23 @@ export default function AdminUsersPage() {
               Esta solicitud será revisada por el obispo antes de eliminar la cuenta de {deleteUser?.name}.
             </DialogDescription>
           </DialogHeader>
-          {deleteSummaryLoading ? (
+          {deleteSummaryError ? (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+              <p>{deleteSummaryError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={reloadDeleteSummary}
+                disabled={deleteSummaryLoading}
+              >
+                Reintentar carga
+              </Button>
+            </div>
+          ) : deleteSummaryLoading ? (
             <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Cargando resumen de dependencias…</p>
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-4 w-2/3" />
@@ -978,6 +1029,7 @@ export default function AdminUsersPage() {
               onClick={() => {
                 setDeleteUser(null);
                 setDeleteSummary(null);
+                setDeleteSummaryError(null);
                 setDeleteReason("");
               }}
               data-testid="button-cancel-delete"
@@ -1002,6 +1054,7 @@ export default function AdminUsersPage() {
           if (!open) {
             setApproveRequest(null);
             setDeleteSummary(null);
+            setDeleteSummaryError(null);
           }
         }}
       >
@@ -1021,8 +1074,23 @@ export default function AdminUsersPage() {
               No se indicó motivo para la baja.
             </p>
           )}
-          {deleteSummaryLoading ? (
+          {deleteSummaryError ? (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+              <p>{deleteSummaryError}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={reloadDeleteSummary}
+                disabled={deleteSummaryLoading}
+              >
+                Reintentar carga
+              </Button>
+            </div>
+          ) : deleteSummaryLoading ? (
             <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Cargando resumen de dependencias…</p>
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-4 w-2/3" />
@@ -1055,6 +1123,7 @@ export default function AdminUsersPage() {
               onClick={() => {
                 setApproveRequest(null);
                 setDeleteSummary(null);
+                setDeleteSummaryError(null);
               }}
               data-testid="button-cancel-approve-delete"
             >
