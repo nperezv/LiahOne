@@ -220,6 +220,7 @@ export default function AdminUsersPage() {
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
+  const [memberInputFocused, setMemberInputFocused] = useState(false);
 
   // Verificar que solo obispo/secretarios puedan acceder
   const isAdmin =
@@ -459,6 +460,13 @@ export default function AdminUsersPage() {
       setMemberSearch("");
     }
   }, [memberPickerOpen, selectedMember]);
+
+  useEffect(() => {
+    const shouldOpen = memberInputFocused && memberSearch.trim().length >= 2;
+    if (shouldOpen !== memberPickerOpen) {
+      setMemberPickerOpen(shouldOpen);
+    }
+  }, [memberInputFocused, memberPickerOpen, memberSearch]);
 
   const getAvailableMembers = (currentMemberId?: string | null) => {
     const availableMembers = (members as DirectoryMember[]).filter((member) => {
@@ -782,6 +790,7 @@ export default function AdminUsersPage() {
                           onOpenChange={(open) => {
                             setMemberPickerOpen(open);
                             if (!open) {
+                              setMemberInputFocused(false);
                               if (selectedMember) {
                                 setMemberSearch(formatMemberLabel(selectedMember));
                               } else {
@@ -803,11 +812,9 @@ export default function AdminUsersPage() {
                                     if (selectedMemberId && selectedMember && nextValue !== formatMemberLabel(selectedMember)) {
                                       createForm.setValue("memberId", "");
                                     }
-                                    if (!memberPickerOpen) {
-                                      setMemberPickerOpen(true);
-                                    }
                                   }}
-                                  onFocus={() => setMemberPickerOpen(true)}
+                                  onFocus={() => setMemberInputFocused(true)}
+                                  onBlur={() => setMemberInputFocused(false)}
                                   placeholder="Buscar miembro..."
                                   className={cn(
                                     "h-12 w-full rounded-full border-muted/60 bg-muted/40 pl-10 pr-10 shadow-inner",
@@ -822,6 +829,8 @@ export default function AdminUsersPage() {
                           <PopoverContent
                             className="w-[--radix-popover-trigger-width] p-1"
                             align="start"
+                            onOpenAutoFocus={(event) => event.preventDefault()}
+                            onMouseDown={(event) => event.preventDefault()}
                           >
                             <Command className="rounded-2xl bg-background">
                               <CommandList className="max-h-[260px]">
@@ -835,6 +844,7 @@ export default function AdminUsersPage() {
                                         field.onChange(member.id);
                                         setMemberSearch(formatMemberLabel(member));
                                         setMemberPickerOpen(false);
+                                        setMemberInputFocused(false);
                                       }}
                                       className="flex items-center justify-between"
                                     >
