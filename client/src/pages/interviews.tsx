@@ -606,6 +606,9 @@ export default function InterviewsPage() {
   const personDisplayName = form.watch("personName");
   const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
   const interviewDisplayName = normalizeMemberName(personDisplayName);
+  const resolvedDisplayName = selectedMember
+    ? normalizeMemberName(selectedMember.nameSurename)
+    : interviewDisplayName;
   const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
@@ -630,7 +633,13 @@ export default function InterviewsPage() {
   };
 
   useEffect(() => {
-    if (isDialogOpen) return;
+    if (isDialogOpen) {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+        resetTimeoutRef.current = null;
+      }
+      return;
+    }
     if (resetTimeoutRef.current) {
       window.clearTimeout(resetTimeoutRef.current);
     }
@@ -666,26 +675,30 @@ export default function InterviewsPage() {
     if (prefillHandled || !search) return;
     const params = new URLSearchParams(search);
     const memberIdParam = params.get("memberId");
-    if (!memberIdParam || members.length === 0) return;
+    const memberNameParam = params.get("memberName")?.trim() ?? "";
+    if (!memberIdParam) return;
 
     const member = members.find((item) => item.id === memberIdParam);
-    if (!member) return;
+    const resolvedName = member?.nameSurename ?? memberNameParam;
+    const normalizedName = normalizeMemberName(resolvedName);
+    if (!normalizedName) return;
 
-    setPersonSource("directory");
-    form.setValue("memberId", member.id, { shouldDirty: true });
-    form.setValue("personName", member.nameSurename, { shouldDirty: true });
+    setPersonSource(canUseDirectory ? "directory" : "manual");
+    form.setValue("memberId", memberIdParam, { shouldDirty: true });
+    form.setValue("personName", normalizedName, { shouldDirty: true });
     setMemberQuery("");
     setSelectedLeader(null);
     setStep(2);
     setIsDialogOpen(true);
     setPrefillHandled(true);
     setLocation("/interviews");
-  }, [prefillHandled, search, members, form, setLocation]);
+  }, [prefillHandled, search, members, form, setLocation, canUseDirectory]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
       {
         ...data,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         status: "programada", // ✅ en UI la llamamos Pendiente
         notes: data.notes || "",
@@ -792,7 +805,7 @@ export default function InterviewsPage() {
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: data.personName,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
@@ -827,7 +840,7 @@ export default function InterviewsPage() {
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
     editForm.reset({
-      personName: interview.personName,
+      personName: normalizeMemberName(interview.personName),
       memberId: interview.memberId ?? "",
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
@@ -1097,7 +1110,7 @@ export default function InterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${interviewDisplayName || "—"}`
+                            ? `Entrevista con ${resolvedDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -1194,7 +1207,7 @@ export default function InterviewsPage() {
                                                   shouldDirty: true,
                                                   shouldValidate: true,
                                                 });
-                                                field.onChange(member.nameSurename);
+                                                field.onChange(normalizeMemberName(member.nameSurename));
                                                 setSelectedLeader(null);
                                               }}
                                               className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
@@ -1300,10 +1313,10 @@ export default function InterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-10 w-10">
-                                <AvatarFallback>{getInitials(interviewDisplayName || "?" )}</AvatarFallback>
+                                <AvatarFallback>{getInitials(resolvedDisplayName || "?" )}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium">{interviewDisplayName || "—"}</div>
+                                <div className="font-medium">{resolvedDisplayName || "—"}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {selectedMember?.organizationName
                                     ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
@@ -1749,7 +1762,9 @@ export default function InterviewsPage() {
                       className="cursor-pointer"
                       onClick={() => handleOpenDetails(interview)}
                     >
-                      <TableCell className="font-medium">{interview.personName}</TableCell>
+                      <TableCell className="font-medium">
+                        {normalizeMemberName(interview.personName)}
+                      </TableCell>
                       <TableCell className="text-sm">{formatInterviewType(interview.type)}</TableCell>
                       <TableCell className="text-sm">
                         {interviewer?.name ?? "—"}

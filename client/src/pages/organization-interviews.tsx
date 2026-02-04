@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -71,6 +71,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { exportInterviews } from "@/lib/export";
+import { normalizeMemberName } from "@/lib/utils";
 
 /* =========================
    Schema
@@ -211,6 +212,7 @@ export default function OrganizationInterviewsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const search = useSearch();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -314,7 +316,8 @@ export default function OrganizationInterviewsPage() {
   const editForm = useForm<InterviewFormValues>({
     resolver: zodResolver(interviewSchema),
   });
-  const personDisplayName = form.watch("personName");
+  const personDisplayName = normalizeMemberName(form.watch("personName"));
+  const resolvedDisplayName = personDisplayName || "—";
   const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
@@ -334,7 +337,13 @@ export default function OrganizationInterviewsPage() {
   };
 
   useEffect(() => {
-    if (isDialogOpen) return;
+    if (isDialogOpen) {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+        resetTimeoutRef.current = null;
+      }
+      return;
+    }
     if (resetTimeoutRef.current) {
       window.clearTimeout(resetTimeoutRef.current);
     }
@@ -351,6 +360,19 @@ export default function OrganizationInterviewsPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const memberNameParam = params.get("memberName")?.trim() ?? "";
+    const normalizedName = normalizeMemberName(memberNameParam);
+    if (!normalizedName) return;
+
+    form.setValue("personName", normalizedName, { shouldDirty: true });
+    setStep(2);
+    setIsDialogOpen(true);
+    setLocation("/organization-interviews");
+  }, [form, search, setLocation]);
 
   const advanceWizardStep = async () => {
     if (step === 1) {
@@ -385,7 +407,7 @@ export default function OrganizationInterviewsPage() {
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
     editForm.reset({
-      personName: interview.personName,
+      personName: normalizeMemberName(interview.personName),
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
       interviewerId: interview.interviewerId,
@@ -402,7 +424,7 @@ export default function OrganizationInterviewsPage() {
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: data.personName,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
@@ -510,7 +532,7 @@ export default function OrganizationInterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${personDisplayName || "—"}`
+                            ? `Entrevista con ${resolvedDisplayName}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -527,6 +549,7 @@ export default function OrganizationInterviewsPage() {
                       createMutation.mutate(
                         {
                           ...data,
+                          personName: normalizeMemberName(data.personName),
                           date: formatDateTimeForApi(data.date),
                         },
                         {
@@ -575,7 +598,7 @@ export default function OrganizationInterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-sm font-medium">
-                                {(personDisplayName || "?")
+                                {(resolvedDisplayName || "?")
                                   .split(" ")
                                   .filter(Boolean)
                                   .slice(0, 2)
@@ -583,7 +606,7 @@ export default function OrganizationInterviewsPage() {
                                   .join("")}
                               </div>
                               <div>
-                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="font-medium">{resolvedDisplayName}</div>
                                 <div className="text-xs text-muted-foreground">Entrevista de organización</div>
                               </div>
                             </div>
@@ -879,7 +902,7 @@ export default function OrganizationInterviewsPage() {
             <TableBody>
               {filteredInterviews.map((interview: any) => (
                 <TableRow key={interview.id}>
-                  <TableCell>{interview.personName}</TableCell>
+                  <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
                   <TableCell>
                     {formatInterviewType(interview.type)}
                   </TableCell>
