@@ -677,11 +677,12 @@ export default function InterviewsPage() {
 
     const member = members.find((item) => item.id === memberIdParam);
     const resolvedName = member?.nameSurename ?? memberNameParam;
-    if (!resolvedName) return;
+    const normalizedName = normalizeMemberName(resolvedName);
+    if (!normalizedName) return;
 
     setPersonSource(canUseDirectory ? "directory" : "manual");
     form.setValue("memberId", memberIdParam, { shouldDirty: true });
-    form.setValue("personName", resolvedName, { shouldDirty: true });
+    form.setValue("personName", normalizedName, { shouldDirty: true });
     setMemberQuery("");
     setSelectedLeader(null);
     setStep(2);
@@ -694,6 +695,7 @@ export default function InterviewsPage() {
     createMutation.mutate(
       {
         ...data,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         status: "programada", // ✅ en UI la llamamos Pendiente
         notes: data.notes || "",
@@ -800,7 +802,7 @@ export default function InterviewsPage() {
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: data.personName,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
@@ -835,7 +837,7 @@ export default function InterviewsPage() {
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
     editForm.reset({
-      personName: interview.personName,
+      personName: normalizeMemberName(interview.personName),
       memberId: interview.memberId ?? "",
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
@@ -1202,7 +1204,7 @@ export default function InterviewsPage() {
                                                   shouldDirty: true,
                                                   shouldValidate: true,
                                                 });
-                                                field.onChange(member.nameSurename);
+                                                field.onChange(normalizeMemberName(member.nameSurename));
                                                 setSelectedLeader(null);
                                               }}
                                               className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
@@ -1757,7 +1759,9 @@ export default function InterviewsPage() {
                       className="cursor-pointer"
                       onClick={() => handleOpenDetails(interview)}
                     >
-                      <TableCell className="font-medium">{interview.personName}</TableCell>
+                      <TableCell className="font-medium">
+                        {normalizeMemberName(interview.personName)}
+                      </TableCell>
                       <TableCell className="text-sm">{formatInterviewType(interview.type)}</TableCell>
                       <TableCell className="text-sm">
                         {interviewer?.name ?? "—"}

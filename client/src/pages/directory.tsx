@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { normalizeMemberName } from "@/lib/utils";
 import {
   useCreateMember,
   useDeleteMember,
@@ -716,7 +717,7 @@ export default function DirectoryPage() {
               <Button
                 className="w-full bg-[#0A84FF] text-white hover:bg-[#0A84FF]/90"
                 onClick={() => {
-                  const memberName = encodeURIComponent(sheetMember.nameSurename ?? "");
+                  const memberName = encodeURIComponent(normalizeMemberName(sheetMember.nameSurename));
                   const basePath = isOrgMember ? "/organization-interviews" : "/interviews";
                   const memberIdParam = sheetMember.id ? `&memberId=${sheetMember.id}` : "";
                   setLocation(`${basePath}?memberName=${memberName}${memberIdParam}`);

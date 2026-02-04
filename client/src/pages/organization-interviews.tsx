@@ -71,6 +71,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { exportInterviews } from "@/lib/export";
+import { normalizeMemberName } from "@/lib/utils";
 
 /* =========================
    Schema
@@ -315,7 +316,7 @@ export default function OrganizationInterviewsPage() {
   const editForm = useForm<InterviewFormValues>({
     resolver: zodResolver(interviewSchema),
   });
-  const personDisplayName = form.watch("personName");
+  const personDisplayName = normalizeMemberName(form.watch("personName"));
   const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
@@ -363,9 +364,10 @@ export default function OrganizationInterviewsPage() {
     if (!search) return;
     const params = new URLSearchParams(search);
     const memberNameParam = params.get("memberName")?.trim() ?? "";
-    if (!memberNameParam) return;
+    const normalizedName = normalizeMemberName(memberNameParam);
+    if (!normalizedName) return;
 
-    form.setValue("personName", memberNameParam, { shouldDirty: true });
+    form.setValue("personName", normalizedName, { shouldDirty: true });
     setStep(2);
     setIsDialogOpen(true);
     setLocation("/organization-interviews");
@@ -404,7 +406,7 @@ export default function OrganizationInterviewsPage() {
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
     editForm.reset({
-      personName: interview.personName,
+      personName: normalizeMemberName(interview.personName),
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
       interviewerId: interview.interviewerId,
@@ -421,7 +423,7 @@ export default function OrganizationInterviewsPage() {
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: data.personName,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
@@ -546,6 +548,7 @@ export default function OrganizationInterviewsPage() {
                       createMutation.mutate(
                         {
                           ...data,
+                          personName: normalizeMemberName(data.personName),
                           date: formatDateTimeForApi(data.date),
                         },
                         {
@@ -898,7 +901,7 @@ export default function OrganizationInterviewsPage() {
             <TableBody>
               {filteredInterviews.map((interview: any) => (
                 <TableRow key={interview.id}>
-                  <TableCell>{interview.personName}</TableCell>
+                  <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
                   <TableCell>
                     {formatInterviewType(interview.type)}
                   </TableCell>
