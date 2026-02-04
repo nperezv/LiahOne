@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Check,
   Search,
+  ChevronLeft,
   Download,
   Edit,
   Archive,
@@ -444,6 +445,42 @@ export default function InterviewsPage() {
   );
   const editMemberId = editForm.watch("memberId");
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
+  const personDisplayName = form.watch("personName");
+
+  const resetWizard = () => {
+    setStep(1);
+    setDateSheetOpen(false);
+    setTypeSheetOpen(false);
+    setInterviewerSheetOpen(false);
+    setDateDraft({ date: "", time: "" });
+    setMemberQuery("");
+    setLeaderQuery("");
+    setSelectedLeader(null);
+    setPersonSource(canUseDirectory ? "directory" : "leader");
+    form.reset({
+      personName: isOrgMember ? user?.name || "" : "",
+      memberId: "",
+      date: "",
+      type: "",
+      interviewerId: "",
+      urgent: false,
+      notes: "",
+    });
+  };
+
+  const handleStepAdvance = async () => {
+    if (step === 1) {
+      const valid = await form.trigger(["personName"]);
+      if (!valid) return;
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      const valid = await form.trigger(["date", "type"]);
+      if (!valid) return;
+      setStep(3);
+    }
+  };
 
   const handleStepAdvance = async () => {
     if (step === 1) {
@@ -472,6 +509,8 @@ export default function InterviewsPage() {
     form.setValue("memberId", member.id, { shouldDirty: true });
     form.setValue("personName", member.nameSurename, { shouldDirty: true });
     setMemberQuery("");
+    setSelectedLeader(null);
+    setStep(2);
     setIsDialogOpen(true);
     setPrefillHandled(true);
     setLocation("/interviews");
@@ -829,12 +868,7 @@ export default function InterviewsPage() {
               onOpenChange={(open) => {
                 setIsDialogOpen(open);
                 if (!open) {
-                  setStep(1);
-                  setDateSheetOpen(false);
-                  setTypeSheetOpen(false);
-                  setInterviewerSheetOpen(false);
-                  setDateDraft({ date: "", time: "" });
-                  setLeaderQuery("");
+                  resetWizard();
                 }
               }}
             >
@@ -856,6 +890,7 @@ export default function InterviewsPage() {
                         onClick={() => setStep((prev) => Math.max(1, prev - 1))}
                         className="-ml-2 text-primary"
                       >
+                        <ChevronLeft className="mr-1 h-4 w-4" />
                         Atrás
                       </Button>
                     ) : (
@@ -866,7 +901,7 @@ export default function InterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? "Entrevista con"
+                            ? `Entrevista con ${personDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -965,7 +1000,6 @@ export default function InterviewsPage() {
                                                 });
                                                 field.onChange(member.nameSurename);
                                                 setSelectedLeader(null);
-                                                setStep(2);
                                               }}
                                               className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
                                               data-testid={`option-member-${member.id}`}
@@ -1021,7 +1055,6 @@ export default function InterviewsPage() {
                                                 field.onChange(u.name);
                                                 setSelectedLeader(u);
                                                 form.setValue("memberId", "");
-                                                setStep(2);
                                               }}
                                               className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
                                               data-testid={`option-person-${u.id}`}
@@ -1068,6 +1101,20 @@ export default function InterviewsPage() {
 
                       {step === 2 && (
                         <div className="space-y-6">
+                          <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarFallback>{getInitials(personDisplayName || "?" )}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {selectedMember?.organizationName
+                                    ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                           <FormField
                             control={form.control}
                             name="date"
@@ -1318,7 +1365,10 @@ export default function InterviewsPage() {
                           type="button"
                           variant="secondary"
                           className="w-full rounded-full"
-                          onClick={() => setIsDialogOpen(false)}
+                          onClick={() => {
+                            resetWizard();
+                            setIsDialogOpen(false);
+                          }}
                           data-testid="button-cancel"
                         >
                           Cancelar

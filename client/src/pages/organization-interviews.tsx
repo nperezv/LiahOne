@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Check,
+  ChevronLeft,
   Download,
   Edit,
   Archive,
@@ -313,6 +314,37 @@ export default function OrganizationInterviewsPage() {
   const editForm = useForm<InterviewFormValues>({
     resolver: zodResolver(interviewSchema),
   });
+  const personDisplayName = form.watch("personName");
+
+  const resetWizard = () => {
+    setStep(1);
+    setDateSheetOpen(false);
+    setTypeSheetOpen(false);
+    setInterviewerSheetOpen(false);
+    setDateDraft({ date: "", time: "" });
+    form.reset({
+      personName: "",
+      date: "",
+      type: "",
+      interviewerId: "",
+      urgent: false,
+      notes: "",
+    });
+  };
+
+  const handleStepAdvance = async () => {
+    if (step === 1) {
+      const valid = await form.trigger(["personName"]);
+      if (!valid) return;
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      const valid = await form.trigger(["date", "type"]);
+      if (!valid) return;
+      setStep(3);
+    }
+  };
 
   const handleStepAdvance = async () => {
     if (step === 1) {
@@ -442,11 +474,7 @@ export default function OrganizationInterviewsPage() {
               onOpenChange={(open) => {
                 setIsDialogOpen(open);
                 if (!open) {
-                  setStep(1);
-                  setDateSheetOpen(false);
-                  setTypeSheetOpen(false);
-                  setInterviewerSheetOpen(false);
-                  setDateDraft({ date: "", time: "" });
+                  resetWizard();
                 }
               }}
             >
@@ -468,6 +496,7 @@ export default function OrganizationInterviewsPage() {
                         onClick={() => setStep((prev) => Math.max(1, prev - 1))}
                         className="-ml-2 text-primary"
                       >
+                        <ChevronLeft className="mr-1 h-4 w-4" />
                         Atrás
                       </Button>
                     ) : (
@@ -478,7 +507,7 @@ export default function OrganizationInterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? "Entrevista con"
+                            ? `Entrevista con ${personDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -540,6 +569,22 @@ export default function OrganizationInterviewsPage() {
 
                       {step === 2 && (
                         <div className="space-y-6">
+                          <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-sm font-medium">
+                                {(personDisplayName || "?")
+                                  .split(" ")
+                                  .filter(Boolean)
+                                  .slice(0, 2)
+                                  .map((part) => part[0]?.toUpperCase())
+                                  .join("")}
+                              </div>
+                              <div>
+                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="text-xs text-muted-foreground">Entrevista de organización</div>
+                              </div>
+                            </div>
+                          </div>
                           <FormField
                             control={form.control}
                             name="date"
@@ -762,7 +807,10 @@ export default function OrganizationInterviewsPage() {
                           type="button"
                           variant="secondary"
                           className="w-full rounded-full"
-                          onClick={() => setIsDialogOpen(false)}
+                          onClick={() => {
+                            resetWizard();
+                            setIsDialogOpen(false);
+                          }}
                         >
                           Cancelar
                         </Button>
