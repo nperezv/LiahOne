@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -71,6 +71,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { exportInterviews } from "@/lib/export";
+import { normalizeMemberName } from "@/lib/utils";
 
 /* =========================
    Schema
@@ -211,6 +212,7 @@ export default function OrganizationInterviewsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const search = useSearch();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -314,7 +316,7 @@ export default function OrganizationInterviewsPage() {
   const editForm = useForm<InterviewFormValues>({
     resolver: zodResolver(interviewSchema),
   });
-  const personDisplayName = form.watch("personName");
+  const personDisplayName = normalizeMemberName(form.watch("personName"));
   const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
@@ -334,7 +336,13 @@ export default function OrganizationInterviewsPage() {
   };
 
   useEffect(() => {
-    if (isDialogOpen) return;
+    if (isDialogOpen) {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+        resetTimeoutRef.current = null;
+      }
+      return;
+    }
     if (resetTimeoutRef.current) {
       window.clearTimeout(resetTimeoutRef.current);
     }
@@ -351,6 +359,19 @@ export default function OrganizationInterviewsPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const memberNameParam = params.get("memberName")?.trim() ?? "";
+    const normalizedName = normalizeMemberName(memberNameParam);
+    if (!normalizedName) return;
+
+    form.setValue("personName", normalizedName, { shouldDirty: true });
+    setStep(2);
+    setIsDialogOpen(true);
+    setLocation("/organization-interviews");
+  }, [form, search, setLocation]);
 
   const advanceWizardStep = async () => {
     if (step === 1) {
@@ -385,7 +406,7 @@ export default function OrganizationInterviewsPage() {
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
     editForm.reset({
-      personName: interview.personName,
+      personName: normalizeMemberName(interview.personName),
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
       interviewerId: interview.interviewerId,
@@ -402,7 +423,7 @@ export default function OrganizationInterviewsPage() {
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: data.personName,
+        personName: normalizeMemberName(data.personName),
         date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
@@ -527,6 +548,7 @@ export default function OrganizationInterviewsPage() {
                       createMutation.mutate(
                         {
                           ...data,
+                          personName: normalizeMemberName(data.personName),
                           date: formatDateTimeForApi(data.date),
                         },
                         {
@@ -879,7 +901,7 @@ export default function OrganizationInterviewsPage() {
             <TableBody>
               {filteredInterviews.map((interview: any) => (
                 <TableRow key={interview.id}>
-                  <TableCell>{interview.personName}</TableCell>
+                  <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
                   <TableCell>
                     {formatInterviewType(interview.type)}
                   </TableCell>
