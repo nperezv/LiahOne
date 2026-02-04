@@ -211,8 +211,12 @@ export default function AdminUsersPage() {
   const isAdmin =
     user?.role === "obispo" ||
     user?.role === "secretario" ||
+    user?.role === "secretario_ejecutivo" ||
+    user?.role === "secretario_financiero";
+  const canCreateUser =
+    user?.role === "obispo" ||
+    user?.role === "secretario" ||
     user?.role === "secretario_ejecutivo";
-  const canCreateUser = user?.role === "secretario" || user?.role === "secretario_ejecutivo";
   const canRequestDeletion = canCreateUser;
   const canApproveDeletion = user?.role === "obispo";
 
@@ -403,10 +407,20 @@ export default function AdminUsersPage() {
   };
 
   const getAvailableMembers = (currentMemberId?: string | null) => {
-    return (members as DirectoryMember[]).filter((member) => {
+    const availableMembers = (members as DirectoryMember[]).filter((member) => {
       if (member.id === currentMemberId) return true;
       return !linkedMemberIds.has(member.id);
     });
+    if (currentMemberId && !availableMembers.some((member) => member.id === currentMemberId)) {
+      return [
+        {
+          id: currentMemberId,
+          nameSurename: "Miembro no disponible",
+        },
+        ...availableMembers,
+      ];
+    }
+    return availableMembers;
   };
 
   useEffect(() => {
@@ -432,7 +446,7 @@ export default function AdminUsersPage() {
     if (!canCreateUser) {
       toast({
         title: "Acceso restringido",
-        description: "Solo secretaría puede dar de alta usuarios.",
+        description: "Solo obispo o secretarios pueden dar de alta usuarios.",
         variant: "destructive",
       });
       return;
@@ -765,7 +779,7 @@ export default function AdminUsersPage() {
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
                           <FormLabel>Vincular a miembro del directorio</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                             <FormControl>
                               <SelectTrigger data-testid="select-create-member">
                                 <SelectValue placeholder="Selecciona un miembro (opcional)" />
@@ -814,7 +828,7 @@ export default function AdminUsersPage() {
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Rol</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger data-testid="select-create-role">
                               <SelectValue />
@@ -843,7 +857,7 @@ export default function AdminUsersPage() {
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
                           <FormLabel>Organización</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                             <FormControl>
                               <SelectTrigger data-testid="select-create-organization">
                                 <SelectValue placeholder="Selecciona una organización" />
@@ -1346,7 +1360,7 @@ export default function AdminUsersPage() {
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Rol</FormLabel>
-                                          <Select value={field.value} onValueChange={field.onChange}>
+                                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                                             <FormControl>
                                               <SelectTrigger data-testid="select-edit-role">
                                                 <SelectValue />
@@ -1375,13 +1389,14 @@ export default function AdminUsersPage() {
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel>Organización</FormLabel>
-                                            <Select value={field.value} onValueChange={field.onChange}>
+                                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
                                               <FormControl>
                                                 <SelectTrigger data-testid="select-edit-organization">
                                                   <SelectValue placeholder="Selecciona una organización" />
                                                 </SelectTrigger>
                                               </FormControl>
                                               <SelectContent>
+                                                <SelectItem value="">Sin organización</SelectItem>
                                                 {organizations.map((org) => (
                                                   <SelectItem key={org.id} value={org.id}>
                                                     {org.name}
