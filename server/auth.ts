@@ -200,14 +200,14 @@ type RecipientGender = "male" | "female" | "unknown";
 const formatInterviewType = (type?: string | null) => {
   if (!type) return "";
   const map: Record<string, string> = {
-    recomendacion_templo: "Recomendación para el templo",
+    recomendacion_templo: "Recomendación para el Templo",
     llamamiento: "Llamamiento",
     anual: "Entrevista Anual",
     orientacion: "Orientación",
     otra: "Otra",
     inicial: "Inicial",
     seguimiento: "Seguimiento",
-    recomendacion: "Recomendación para el templo",
+    recomendacion: "Recomendación para el Templo",
   };
   return map[type] ?? type;
 };
@@ -238,7 +238,7 @@ const getRecipientSalutation = (sex?: string | null, organizationType?: string |
   const resolvedGender = gender === "unknown" ? getGenderFromOrganization(organizationType) : gender;
   if (resolvedGender === "female") return "apreciada hermana";
   if (resolvedGender === "male") return "apreciado hermano";
-  return "apreciado(a) hermano(a)";
+  return "apreciado hermano";
 };
 
 const getTimeGreeting = (timeLabel?: string) => {
@@ -287,6 +287,7 @@ export async function sendInterviewScheduledEmail(payload: {
   wardName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  secretaryName?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -314,6 +315,10 @@ export async function sendInterviewScheduledEmail(payload: {
     : null;
   const greeting = getTimeGreeting(payload.interviewTime);
   const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
+  const secretaryName = payload.secretaryName?.trim();
+  const rescheduleLine = secretaryName
+    ? `Si necesitas reprogramar, comunícate con el secretario ${secretaryName}.`
+    : "Si necesitas reprogramar, comunícate con el secretario ejecutivo.";
   const signatureLine = buildInterviewSignature({
     role: payload.interviewerRole,
     wardName: payload.wardName,
@@ -334,9 +339,9 @@ export async function sendInterviewScheduledEmail(payload: {
       notesLine,
       "",
       "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
-      "Si necesitas reprogramar, responde a este correo o comunícate con el obispado.",
+      rescheduleLine,
       "",
-      "Con aprecio y gratitud",
+      "Con aprecio y gratitud.",
       signatureLine,
     ]
       .filter((line) => line !== null && line !== undefined)

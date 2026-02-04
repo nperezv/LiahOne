@@ -1724,6 +1724,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : interviewerRoleTitle || "obispado";
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName;
+      const allUsers = await storage.getAllUsers();
+      const secretaryExecutive = allUsers.find((u) => u.role === "secretario_ejecutivo");
+      const secretaryExecutiveName = secretaryExecutive?.name
+        ? normalizeMemberName(secretaryExecutive.name)
+        : null;
 
       const recipients: Array<{
         email: string;
@@ -1759,6 +1764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           wardName,
           recipientSex: recipient.sex,
           recipientOrganizationType: recipient.organizationType,
+          secretaryName: secretaryExecutiveName,
         });
       }
   
