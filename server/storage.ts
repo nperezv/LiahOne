@@ -457,6 +457,9 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(userDevices).where(eq(userDevices.userId, id));
       await tx.delete(refreshTokens).where(eq(refreshTokens.userId, id));
       await tx.delete(emailOtps).where(eq(emailOtps.userId, id));
+      await tx.delete(userDeletionRequests).where(eq(userDeletionRequests.userId, id));
+      await tx.delete(userDeletionRequests).where(eq(userDeletionRequests.requestedBy, id));
+      await tx.update(userDeletionRequests).set({ reviewedBy: null }).where(eq(userDeletionRequests.reviewedBy, id));
 
       await tx.delete(assignments).where(eq(assignments.assignedTo, id));
       await tx.delete(assignments).where(eq(assignments.assignedBy, id));
