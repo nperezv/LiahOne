@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
@@ -1060,7 +1061,7 @@ export default function AdminUsersPage() {
             </p>
           )}
           <div className="space-y-2">
-            <FormLabel>Motivo de la baja (opcional)</FormLabel>
+            <Label>Motivo de la baja (opcional)</Label>
             <Textarea
               value={deleteReason}
               onChange={(event) => setDeleteReason(event.target.value)}
