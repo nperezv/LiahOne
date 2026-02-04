@@ -317,6 +317,7 @@ export default function OrganizationInterviewsPage() {
     resolver: zodResolver(interviewSchema),
   });
   const personDisplayName = normalizeMemberName(form.watch("personName"));
+  const resolvedDisplayName = personDisplayName || "—";
   const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
@@ -531,7 +532,7 @@ export default function OrganizationInterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${personDisplayName || "—"}`
+                            ? `Entrevista con ${resolvedDisplayName}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -597,7 +598,7 @@ export default function OrganizationInterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-sm font-medium">
-                                {(personDisplayName || "?")
+                                {(resolvedDisplayName || "?")
                                   .split(" ")
                                   .filter(Boolean)
                                   .slice(0, 2)
@@ -605,7 +606,7 @@ export default function OrganizationInterviewsPage() {
                                   .join("")}
                               </div>
                               <div>
-                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="font-medium">{resolvedDisplayName}</div>
                                 <div className="text-xs text-muted-foreground">Entrevista de organización</div>
                               </div>
                             </div>
