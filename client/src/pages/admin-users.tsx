@@ -779,14 +779,17 @@ export default function AdminUsersPage() {
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
                           <FormLabel>Vincular a miembro del directorio</FormLabel>
-                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <Select
+                            value={field.value ?? ""}
+                            onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}
+                          >
                             <FormControl>
                               <SelectTrigger data-testid="select-create-member">
                                 <SelectValue placeholder="Selecciona un miembro (opcional)" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">Sin vincular</SelectItem>
+                              <SelectItem value="__none__">Sin vincular</SelectItem>
                               {getAvailableMembers().map((member) => (
                                 <SelectItem key={member.id} value={member.id}>
                                   {formatMemberLabel(member)}
@@ -1311,14 +1314,19 @@ export default function AdminUsersPage() {
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Miembro del directorio</FormLabel>
-                                          <Select value={field.value || ""} onValueChange={field.onChange}>
+                                          <Select
+                                            value={field.value ?? ""}
+                                            onValueChange={(value) =>
+                                              field.onChange(value === "__none__" ? "" : value)
+                                            }
+                                          >
                                             <FormControl>
                                               <SelectTrigger data-testid="select-edit-member">
                                                 <SelectValue placeholder="Selecciona un miembro (opcional)" />
                                               </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                              <SelectItem value="">Sin vincular</SelectItem>
+                                              <SelectItem value="__none__">Sin vincular</SelectItem>
                                               {getAvailableMembers(editUser?.memberId).map((member) => (
                                                 <SelectItem key={member.id} value={member.id}>
                                                   {formatMemberLabel(member)}
@@ -1389,14 +1397,19 @@ export default function AdminUsersPage() {
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel>Organización</FormLabel>
-                                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                                            <Select
+                                              value={field.value ?? ""}
+                                              onValueChange={(value) =>
+                                                field.onChange(value === "__none__" ? "" : value)
+                                              }
+                                            >
                                               <FormControl>
                                                 <SelectTrigger data-testid="select-edit-organization">
                                                   <SelectValue placeholder="Selecciona una organización" />
                                                 </SelectTrigger>
                                               </FormControl>
                                               <SelectContent>
-                                                <SelectItem value="">Sin organización</SelectItem>
+                                                <SelectItem value="__none__">Sin organización</SelectItem>
                                                 {organizations.map((org) => (
                                                   <SelectItem key={org.id} value={org.id}>
                                                     {org.name}
