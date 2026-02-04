@@ -747,7 +747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(
     "/api/users",
     requireAuth,
-    requireRole("secretario", "secretario_ejecutivo"),
+    requireRole("obispo", "secretario", "secretario_ejecutivo"),
     async (req: Request, res: Response) => {
     try {
       const {
@@ -840,7 +840,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch(
     "/api/users/:id",
     requireAuth,
-    requireRole("obispo", "consejero_obispo", "secretario_ejecutivo"),
+    requireRole(
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero"
+    ),
     async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
