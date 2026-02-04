@@ -332,21 +332,7 @@ export default function OrganizationInterviewsPage() {
     });
   };
 
-  const handleStepAdvance = async () => {
-    if (step === 1) {
-      const valid = await form.trigger(["personName"]);
-      if (!valid) return;
-      setStep(2);
-      return;
-    }
-    if (step === 2) {
-      const valid = await form.trigger(["date", "type"]);
-      if (!valid) return;
-      setStep(3);
-    }
-  };
-
-  const handleStepAdvance = async () => {
+  const advanceWizardStep = async () => {
     if (step === 1) {
       const valid = await form.trigger(["personName"]);
       if (!valid) return;
@@ -808,7 +794,6 @@ export default function OrganizationInterviewsPage() {
                           variant="secondary"
                           className="w-full rounded-full"
                           onClick={() => {
-                            resetWizard();
                             setIsDialogOpen(false);
                           }}
                         >
@@ -816,7 +801,7 @@ export default function OrganizationInterviewsPage() {
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
-                          onClick={step === 3 ? undefined : handleStepAdvance}
+                          onClick={step === 3 ? undefined : advanceWizardStep}
                           disabled={createMutation.isPending}
                           className="w-full rounded-full"
                         >

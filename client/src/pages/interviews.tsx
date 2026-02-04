@@ -75,6 +75,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
+import { normalizeMemberName } from "@/lib/utils";
 
 /**
  * Estado (backend):
@@ -446,6 +447,8 @@ export default function InterviewsPage() {
   const editMemberId = editForm.watch("memberId");
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
   const personDisplayName = form.watch("personName");
+  const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
+  const interviewDisplayName = normalizeMemberName(personDisplayName);
 
   const resetWizard = () => {
     setStep(1);
@@ -468,21 +471,7 @@ export default function InterviewsPage() {
     });
   };
 
-  const handleStepAdvance = async () => {
-    if (step === 1) {
-      const valid = await form.trigger(["personName"]);
-      if (!valid) return;
-      setStep(2);
-      return;
-    }
-    if (step === 2) {
-      const valid = await form.trigger(["date", "type"]);
-      if (!valid) return;
-      setStep(3);
-    }
-  };
-
-  const handleStepAdvance = async () => {
+  const advanceWizardStep = async () => {
     if (step === 1) {
       const valid = await form.trigger(["personName"]);
       if (!valid) return;
@@ -532,7 +521,7 @@ export default function InterviewsPage() {
           const contact =
             selectedMember
               ? {
-                  name: selectedMember.nameSurename,
+                  name: selectedMemberName,
                   phone: selectedMember.phone,
                   email: selectedMember.email,
                 }
@@ -543,7 +532,7 @@ export default function InterviewsPage() {
                     email: selectedLeader.email,
                   }
                 : {
-                    name: data.personName,
+                    name: normalizeMemberName(data.personName),
                     phone: undefined,
                     email: undefined,
                   };
@@ -901,7 +890,7 @@ export default function InterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${personDisplayName || "—"}`
+                            ? `Entrevista con ${interviewDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -1104,10 +1093,10 @@ export default function InterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-10 w-10">
-                                <AvatarFallback>{getInitials(personDisplayName || "?" )}</AvatarFallback>
+                                <AvatarFallback>{getInitials(interviewDisplayName || "?" )}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="font-medium">{interviewDisplayName || "—"}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {selectedMember?.organizationName
                                     ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
@@ -1366,7 +1355,6 @@ export default function InterviewsPage() {
                           variant="secondary"
                           className="w-full rounded-full"
                           onClick={() => {
-                            resetWizard();
                             setIsDialogOpen(false);
                           }}
                           data-testid="button-cancel"
@@ -1375,7 +1363,7 @@ export default function InterviewsPage() {
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
-                          onClick={step === 3 ? undefined : handleStepAdvance}
+                          onClick={step === 3 ? undefined : advanceWizardStep}
                           data-testid="button-submit"
                           disabled={createMutation.isPending}
                           className="w-full rounded-full"
