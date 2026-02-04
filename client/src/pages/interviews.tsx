@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { endOfMonth, endOfQuarter, endOfWeek, startOfMonth, startOfQuarter, startOfWeek } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -62,6 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   useInterviews,
@@ -75,6 +76,8 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
+import { normalizeMemberName } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 
 /**
  * Estado (backend):
@@ -104,7 +107,7 @@ function formatInterviewType(type: string) {
     otra: "Otra",
     inicial: "Inicial",
     seguimiento: "Seguimiento",
-    recomendacion: "Recomendación",
+    recomendacion: "Recomendación para el templo",
   };
   return map[type] ?? type;
 }
@@ -112,7 +115,7 @@ function formatInterviewType(type: string) {
 function formatRole(role: string) {
   const map: Record<string, string> = {
     obispo: "Obispo",
-    consejero_obispo: "Consejero",
+    consejero_obispo: "Consejero del obispado",
     secretario_ejecutivo: "Secretario Ejecutivo",
   };
   return map[role] ?? role;
@@ -125,6 +128,7 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      signature?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -132,7 +136,10 @@ const interviewMessageTemplates = [
         `Hola ${data.name},`,
         `Tu entrevista con ${data.interviewerName ?? "el obispado"} está programada para el ${data.dateLabel} a las ${data.timeLabel}.`,
         "Si necesitas cambiar la hora, por favor avísanos con anticipación.",
-      ].join("\n"),
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
   {
     id: "recordatorio",
@@ -140,6 +147,7 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      signature?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -147,7 +155,10 @@ const interviewMessageTemplates = [
         `Hola ${data.name},`,
         `Este es un recordatorio de tu entrevista con ${data.interviewerName ?? "el obispado"} el ${data.dateLabel} a las ${data.timeLabel}.`,
         "¡Te esperamos!",
-      ].join("\n"),
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
   {
     id: "seguimiento",
@@ -155,6 +166,7 @@ const interviewMessageTemplates = [
     build: (data: {
       name: string;
       interviewerName?: string;
+      signature?: string;
       dateLabel: string;
       timeLabel: string;
     }) =>
@@ -162,14 +174,17 @@ const interviewMessageTemplates = [
         `Hola ${data.name},`,
         `Gracias por coordinar tu entrevista con ${data.interviewerName ?? "el obispado"} para el ${data.dateLabel} a las ${data.timeLabel}.`,
         "Si hay algo que debamos preparar, háznoslo saber.",
-      ].join("\n"),
+        data.signature,
+      ]
+        .filter(Boolean)
+        .join("\n"),
   },
 ];
 
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación" },
+  { value: "recomendacion", label: "Recomendación para el templo" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -251,6 +266,24 @@ const getInitials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join("");
 
+const formatInterviewerTitle = (role?: string) => {
+  if (!role) return "";
+  const map: Record<string, string> = {
+    obispo: "Obispo",
+    consejero_obispo: "Consejero del obispado",
+    secretario_ejecutivo: "Secretario Ejecutivo",
+  };
+  return map[role] ?? "";
+};
+
+const buildInterviewSignature = (options: { role?: string; wardName?: string }) => {
+  const wardName = options.wardName?.trim();
+  if (options.role === "obispo" || options.role === "consejero_obispo" || options.role === "secretario_ejecutivo") {
+    return `Atentamente, Obispado ${wardName || "Barrio"}`;
+  }
+  return wardName ? `Atentamente, ${wardName}` : "";
+};
+
 export default function InterviewsPage() {
   const { toast } = useToast();
 
@@ -273,6 +306,7 @@ export default function InterviewsPage() {
     phone?: string | null;
     email?: string | null;
     interviewerName?: string;
+    signature?: string;
     dateLabel: string;
     timeLabel: string;
   } | null>(null);
@@ -292,6 +326,10 @@ export default function InterviewsPage() {
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
   const { data: users = [] } = useUsers();
+  const { data: template } = useQuery({
+    queryKey: ["/api/pdf-template"],
+    queryFn: () => apiRequest("GET", "/api/pdf-template"),
+  });
   const canUseDirectory = [
     "obispo",
     "consejero_obispo",
@@ -364,6 +402,7 @@ export default function InterviewsPage() {
   const buildInterviewMessage = (payload: {
     name: string;
     interviewerName?: string;
+    signature?: string;
     dateLabel: string;
     timeLabel: string;
   }) => {
@@ -446,6 +485,9 @@ export default function InterviewsPage() {
   const editMemberId = editForm.watch("memberId");
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
   const personDisplayName = form.watch("personName");
+  const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
+  const interviewDisplayName = normalizeMemberName(personDisplayName);
+  const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
     setStep(1);
@@ -468,21 +510,26 @@ export default function InterviewsPage() {
     });
   };
 
-  const handleStepAdvance = async () => {
-    if (step === 1) {
-      const valid = await form.trigger(["personName"]);
-      if (!valid) return;
-      setStep(2);
-      return;
+  useEffect(() => {
+    if (isDialogOpen) return;
+    if (resetTimeoutRef.current) {
+      window.clearTimeout(resetTimeoutRef.current);
     }
-    if (step === 2) {
-      const valid = await form.trigger(["date", "type"]);
-      if (!valid) return;
-      setStep(3);
-    }
-  };
+    resetTimeoutRef.current = window.setTimeout(() => {
+      resetWizard();
+      resetTimeoutRef.current = null;
+    }, 220);
+  }, [isDialogOpen]);
 
-  const handleStepAdvance = async () => {
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const advanceWizardStep = async () => {
     if (step === 1) {
       const valid = await form.trigger(["personName"]);
       if (!valid) return;
@@ -527,12 +574,22 @@ export default function InterviewsPage() {
       },
       {
         onSuccess: () => {
-          const interviewerName = userById.get(data.interviewerId)?.name ?? "Obispado";
+          const interviewerUser = userById.get(data.interviewerId);
+          const interviewerTitle = formatInterviewerTitle(interviewerUser?.role);
+          const interviewerName = interviewerUser?.name
+            ? interviewerTitle
+              ? `${interviewerTitle} ${interviewerUser.name}`
+              : interviewerUser.name
+            : "el obispado";
+          const signature = buildInterviewSignature({
+            role: interviewerUser?.role,
+            wardName: template?.wardName,
+          });
           const { dateLabel, timeLabel } = formatInterviewDateLabels(data.date);
           const contact =
             selectedMember
               ? {
-                  name: selectedMember.nameSurename,
+                  name: selectedMemberName,
                   phone: selectedMember.phone,
                   email: selectedMember.email,
                 }
@@ -543,7 +600,7 @@ export default function InterviewsPage() {
                     email: selectedLeader.email,
                   }
                 : {
-                    name: data.personName,
+                    name: normalizeMemberName(data.personName),
                     phone: undefined,
                     email: undefined,
                   };
@@ -552,6 +609,7 @@ export default function InterviewsPage() {
             const nextMessage = interviewMessageTemplates[0].build({
               name: contact.name,
               interviewerName,
+              signature,
               dateLabel,
               timeLabel,
             });
@@ -560,6 +618,7 @@ export default function InterviewsPage() {
             setMessageContact({
               ...contact,
               interviewerName,
+              signature,
               dateLabel,
               timeLabel,
             });
@@ -867,9 +926,6 @@ export default function InterviewsPage() {
               open={isDialogOpen}
               onOpenChange={(open) => {
                 setIsDialogOpen(open);
-                if (!open) {
-                  resetWizard();
-                }
               }}
             >
               <DialogTrigger asChild>
@@ -901,7 +957,7 @@ export default function InterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${personDisplayName || "—"}`
+                            ? `Entrevista con ${interviewDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -1104,10 +1160,10 @@ export default function InterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-10 w-10">
-                                <AvatarFallback>{getInitials(personDisplayName || "?" )}</AvatarFallback>
+                                <AvatarFallback>{getInitials(interviewDisplayName || "?" )}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium">{personDisplayName || "—"}</div>
+                                <div className="font-medium">{interviewDisplayName || "—"}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {selectedMember?.organizationName
                                     ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
@@ -1366,7 +1422,6 @@ export default function InterviewsPage() {
                           variant="secondary"
                           className="w-full rounded-full"
                           onClick={() => {
-                            resetWizard();
                             setIsDialogOpen(false);
                           }}
                           data-testid="button-cancel"
@@ -1375,7 +1430,7 @@ export default function InterviewsPage() {
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
-                          onClick={step === 3 ? undefined : handleStepAdvance}
+                          onClick={step === 3 ? undefined : advanceWizardStep}
                           data-testid="button-submit"
                           disabled={createMutation.isPending}
                           className="w-full rounded-full"

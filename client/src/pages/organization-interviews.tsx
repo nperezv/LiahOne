@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -97,7 +97,7 @@ function formatInterviewType(type: string) {
     seguimiento: "Seguimiento",
     otro: "Otro",
     inicial: "Inicial",
-    recomendacion: "Recomendación",
+    recomendacion: "Recomendación para el templo",
     otra: "Otra",
   };
   return map[type] ?? type;
@@ -106,7 +106,7 @@ function formatInterviewType(type: string) {
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación" },
+  { value: "recomendacion", label: "Recomendación para el templo" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -315,6 +315,7 @@ export default function OrganizationInterviewsPage() {
     resolver: zodResolver(interviewSchema),
   });
   const personDisplayName = form.watch("personName");
+  const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
     setStep(1);
@@ -332,21 +333,26 @@ export default function OrganizationInterviewsPage() {
     });
   };
 
-  const handleStepAdvance = async () => {
-    if (step === 1) {
-      const valid = await form.trigger(["personName"]);
-      if (!valid) return;
-      setStep(2);
-      return;
+  useEffect(() => {
+    if (isDialogOpen) return;
+    if (resetTimeoutRef.current) {
+      window.clearTimeout(resetTimeoutRef.current);
     }
-    if (step === 2) {
-      const valid = await form.trigger(["date", "type"]);
-      if (!valid) return;
-      setStep(3);
-    }
-  };
+    resetTimeoutRef.current = window.setTimeout(() => {
+      resetWizard();
+      resetTimeoutRef.current = null;
+    }, 220);
+  }, [isDialogOpen]);
 
-  const handleStepAdvance = async () => {
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const advanceWizardStep = async () => {
     if (step === 1) {
       const valid = await form.trigger(["personName"]);
       if (!valid) return;
@@ -473,9 +479,6 @@ export default function OrganizationInterviewsPage() {
               open={isDialogOpen}
               onOpenChange={(open) => {
                 setIsDialogOpen(open);
-                if (!open) {
-                  resetWizard();
-                }
               }}
             >
               <DialogTrigger asChild>
@@ -808,7 +811,6 @@ export default function OrganizationInterviewsPage() {
                           variant="secondary"
                           className="w-full rounded-full"
                           onClick={() => {
-                            resetWizard();
                             setIsDialogOpen(false);
                           }}
                         >
@@ -816,7 +818,7 @@ export default function OrganizationInterviewsPage() {
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
-                          onClick={step === 3 ? undefined : handleStepAdvance}
+                          onClick={step === 3 ? undefined : advanceWizardStep}
                           disabled={createMutation.isPending}
                           className="w-full rounded-full"
                         >
