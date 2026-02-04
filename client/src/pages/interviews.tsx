@@ -630,7 +630,13 @@ export default function InterviewsPage() {
   };
 
   useEffect(() => {
-    if (isDialogOpen) return;
+    if (isDialogOpen) {
+      if (resetTimeoutRef.current) {
+        window.clearTimeout(resetTimeoutRef.current);
+        resetTimeoutRef.current = null;
+      }
+      return;
+    }
     if (resetTimeoutRef.current) {
       window.clearTimeout(resetTimeoutRef.current);
     }
