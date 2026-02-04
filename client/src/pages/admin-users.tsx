@@ -511,7 +511,7 @@ export default function AdminUsersPage() {
     if (selectedMember.phone && currentValues.phone !== selectedMember.phone) {
       createForm.setValue("phone", selectedMember.phone);
     }
-    if (!currentValues.username && selectedMember.email) {
+    if (selectedMember.email) {
       createForm.setValue("username", selectedMember.email.split("@")[0]);
     }
   }, [createForm, selectedMember]);
@@ -527,8 +527,10 @@ export default function AdminUsersPage() {
     }
     try {
       // Clean up data - don't send empty organizationId
+      const derivedUsername = data.email ? data.email.split("@")[0] : data.username;
       const cleanData = {
         ...data,
+        username: derivedUsername,
         organizationId: data.organizationId || undefined,
         email: data.email || undefined,
         phone: data.phone || undefined,

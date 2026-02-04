@@ -751,7 +751,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
     try {
       const {
-        username,
         name,
         email,
         role,
@@ -762,7 +761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive,
       } = req.body;
 
-      if (!username || !name || !role) {
+      if (!name || !role) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -770,9 +769,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Email is required to send credentials" });
       }
 
+      const derivedUsername = typeof email === "string" ? email.split("@")[0].trim() : "";
+      if (!derivedUsername) {
+        return res.status(400).json({ error: "Invalid email for username generation" });
+      }
+
       // Check if the username already exists
       const existingUsers = await storage.getAllUsers();
-      const usernameExists = existingUsers.some(u => u.username.toLowerCase() === username.toLowerCase());
+      const usernameExists = existingUsers.some(
+        (u) => u.username.toLowerCase() === derivedUsername.toLowerCase()
+      );
       if (usernameExists) {
         return res.status(400).json({ error: "Username already exists" });
       }
@@ -802,7 +808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const temporaryPassword = generateTemporaryPassword();
       const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
       const user = await storage.createUser({
-        username,
+        username: derivedUsername,
         password: hashedPassword,
         name,
         email,
@@ -821,7 +827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await sendNewUserCredentialsEmail({
         toEmail: email,
         name,
-        username,
+        username: derivedUsername,
         temporaryPassword,
       });
 
