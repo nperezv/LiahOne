@@ -779,7 +779,7 @@ export default function AdminUsersPage() {
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
                           <FormLabel>Vincular a miembro del directorio</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                             <FormControl>
                               <SelectTrigger data-testid="select-create-member">
                                 <SelectValue placeholder="Selecciona un miembro (opcional)" />
@@ -828,7 +828,7 @@ export default function AdminUsersPage() {
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Rol</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger data-testid="select-create-role">
                               <SelectValue />
@@ -857,7 +857,7 @@ export default function AdminUsersPage() {
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
                           <FormLabel>Organización</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
+                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                             <FormControl>
                               <SelectTrigger data-testid="select-create-organization">
                                 <SelectValue placeholder="Selecciona una organización" />
@@ -1360,7 +1360,7 @@ export default function AdminUsersPage() {
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Rol</FormLabel>
-                                          <Select value={field.value} onValueChange={field.onChange}>
+                                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
                                             <FormControl>
                                               <SelectTrigger data-testid="select-edit-role">
                                                 <SelectValue />
@@ -1389,7 +1389,7 @@ export default function AdminUsersPage() {
                                         render={({ field }) => (
                                           <FormItem>
                                             <FormLabel>Organización</FormLabel>
-                                            <Select value={field.value} onValueChange={field.onChange}>
+                                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
                                               <FormControl>
                                                 <SelectTrigger data-testid="select-edit-organization">
                                                   <SelectValue placeholder="Selecciona una organización" />
