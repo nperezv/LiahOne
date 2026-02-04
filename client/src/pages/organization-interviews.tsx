@@ -794,7 +794,6 @@ export default function OrganizationInterviewsPage() {
                           variant="secondary"
                           className="w-full rounded-full"
                           onClick={() => {
-                            resetWizard();
                             setIsDialogOpen(false);
                           }}
                         >
