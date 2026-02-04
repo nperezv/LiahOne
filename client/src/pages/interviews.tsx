@@ -606,6 +606,9 @@ export default function InterviewsPage() {
   const personDisplayName = form.watch("personName");
   const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
   const interviewDisplayName = normalizeMemberName(personDisplayName);
+  const resolvedDisplayName = selectedMember
+    ? normalizeMemberName(selectedMember.nameSurename)
+    : interviewDisplayName;
   const resetTimeoutRef = useRef<number | null>(null);
 
   const resetWizard = () => {
@@ -1107,7 +1110,7 @@ export default function InterviewsPage() {
                         {step === 1
                           ? "Programar entrevista"
                           : step === 2
-                            ? `Entrevista con ${interviewDisplayName || "—"}`
+                            ? `Entrevista con ${resolvedDisplayName || "—"}`
                             : "Detalles"}
                       </DialogTitle>
                       <DialogDescription className="sr-only">
@@ -1310,10 +1313,10 @@ export default function InterviewsPage() {
                           <div className="rounded-3xl bg-background/80 px-4 py-4 shadow-sm">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-10 w-10">
-                                <AvatarFallback>{getInitials(interviewDisplayName || "?" )}</AvatarFallback>
+                                <AvatarFallback>{getInitials(resolvedDisplayName || "?" )}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium">{interviewDisplayName || "—"}</div>
+                                <div className="font-medium">{resolvedDisplayName || "—"}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {selectedMember?.organizationName
                                     ?? (selectedLeader ? formatRole(selectedLeader.role) : "Sin organización")}
