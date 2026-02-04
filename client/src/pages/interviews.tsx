@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Check,
+  Search,
   Download,
   Edit,
   Archive,
@@ -846,20 +847,33 @@ export default function InterviewsPage() {
 
               <DialogContent className="max-w-2xl overflow-hidden p-0">
                 <DialogHeader className="border-b border-border/20 bg-background/80 px-5 py-4 backdrop-blur">
-                  <DialogTitle>{isOrgMember ? "Solicitar Entrevista" : "Programar Nueva Entrevista"}</DialogTitle>
-                  <DialogDescription>
-                    {isOrgMember ? "Solicita una entrevista con el Obispado" : "Asigna una entrevista a un miembro del barrio"}
-                  </DialogDescription>
-                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Paso {step} de 3</span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3].map((item) => (
-                        <span
-                          key={item}
-                          className={`h-1.5 w-6 rounded-full ${step >= item ? "bg-primary" : "bg-muted"}`}
-                        />
-                      ))}
+                  <div className="flex items-center justify-between">
+                    {step > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+                        className="-ml-2 text-primary"
+                      >
+                        Atrás
+                      </Button>
+                    ) : (
+                      <span className="w-12" />
+                    )}
+                    <div className="text-center">
+                      <DialogTitle className="text-base font-semibold">
+                        {step === 1
+                          ? "Programar entrevista"
+                          : step === 2
+                            ? "Entrevista con"
+                            : "Detalles"}
+                      </DialogTitle>
+                      <DialogDescription className="sr-only">
+                        {isOrgMember ? "Solicita una entrevista con el Obispado" : "Asigna una entrevista a un miembro del barrio"}
+                      </DialogDescription>
                     </div>
+                    <span className="w-12" />
                   </div>
                 </DialogHeader>
 
@@ -872,7 +886,7 @@ export default function InterviewsPage() {
                           name="personName"
                           render={({ field }) => (
                             <FormItem className="space-y-4">
-                              <FormLabel>Persona</FormLabel>
+                              <FormLabel className="text-base">¿A quién deseas entrevistar?</FormLabel>
                               {isOrgMember ? (
                                 <FormControl>
                                   <Input
@@ -884,9 +898,9 @@ export default function InterviewsPage() {
                                   />
                                 </FormControl>
                               ) : (
-                                <div className="space-y-4 rounded-2xl bg-background/80 p-4 shadow-sm">
+                                <div className="space-y-4 rounded-3xl bg-muted/20 p-4 shadow-sm">
                                   <div className="space-y-2">
-                                    <Label>Fuente de la persona</Label>
+                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">Fuente</Label>
                                     <ToggleGroup
                                       type="single"
                                       value={personSource}
@@ -921,21 +935,24 @@ export default function InterviewsPage() {
 
                                   {personSource === "directory" && canUseDirectory ? (
                                     <div className="space-y-3">
-                                      <Input
-                                        placeholder="Buscar en el directorio"
-                                        value={memberQuery}
-                                        onChange={(event) => setMemberQuery(event.target.value)}
-                                        data-testid="input-member-search"
-                                        className="rounded-2xl bg-background/80"
-                                      />
+                                      <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                          placeholder="Buscar"
+                                          value={memberQuery}
+                                          onChange={(event) => setMemberQuery(event.target.value)}
+                                          data-testid="input-member-search"
+                                          className="rounded-2xl bg-background/80 pl-9"
+                                        />
+                                      </div>
                                       {selectedMember && (
                                         <div className="rounded-2xl bg-muted/40 px-3 py-2 text-sm">
                                           Seleccionado: <strong>{selectedMember.nameSurename}</strong>
                                         </div>
                                       )}
-                                      <div className="max-h-60 divide-y divide-border/10 overflow-y-auto rounded-2xl bg-background/80">
+                                      <div className="max-h-64 space-y-2 overflow-y-auto">
                                         {isMembersLoading ? (
-                                          <div className="px-4 py-3 text-sm text-muted-foreground">Cargando miembros...</div>
+                                          <div className="rounded-2xl bg-background/80 px-4 py-3 text-sm text-muted-foreground">Cargando miembros...</div>
                                         ) : filteredMembers.length > 0 ? (
                                           filteredMembers.map((member) => (
                                             <button
@@ -950,7 +967,7 @@ export default function InterviewsPage() {
                                                 setSelectedLeader(null);
                                                 setStep(2);
                                               }}
-                                              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                                              className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
                                               data-testid={`option-member-${member.id}`}
                                             >
                                               <div className="flex items-center gap-3">
@@ -964,11 +981,17 @@ export default function InterviewsPage() {
                                                   </div>
                                                 </div>
                                               </div>
-                                              <span className="text-xs text-muted-foreground">›</span>
+                                              {selectedMemberId === member.id ? (
+                                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                                                  <Check className="h-4 w-4" />
+                                                </span>
+                                              ) : (
+                                                <span className="text-xs text-muted-foreground">›</span>
+                                              )}
                                             </button>
                                           ))
                                         ) : (
-                                          <div className="px-4 py-3 text-sm text-muted-foreground">
+                                          <div className="rounded-2xl bg-background/80 px-4 py-3 text-sm text-muted-foreground">
                                             No hay miembros con ese filtro.
                                           </div>
                                         )}
@@ -976,13 +999,16 @@ export default function InterviewsPage() {
                                     </div>
                                   ) : personSource === "leader" ? (
                                     <div className="space-y-3">
-                                      <Input
-                                        placeholder="Buscar líder"
-                                        value={leaderQuery}
-                                        onChange={(event) => setLeaderQuery(event.target.value)}
-                                        className="rounded-2xl bg-background/80"
-                                      />
-                                      <div className="max-h-56 divide-y divide-border/10 overflow-y-auto rounded-2xl bg-background/80">
+                                      <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                          placeholder="Buscar"
+                                          value={leaderQuery}
+                                          onChange={(event) => setLeaderQuery(event.target.value)}
+                                          className="rounded-2xl bg-background/80 pl-9"
+                                        />
+                                      </div>
+                                      <div className="max-h-56 space-y-2 overflow-y-auto">
                                         {organizationMembers
                                           .filter((u: any) =>
                                             u.name.toLowerCase().includes(leaderQuery.toLowerCase())
@@ -997,7 +1023,7 @@ export default function InterviewsPage() {
                                                 form.setValue("memberId", "");
                                                 setStep(2);
                                               }}
-                                              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                                              className="flex w-full items-center justify-between gap-3 rounded-2xl bg-background/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-muted/40"
                                               data-testid={`option-person-${u.id}`}
                                             >
                                               <div className="flex items-center gap-3">
@@ -1011,7 +1037,13 @@ export default function InterviewsPage() {
                                                   </div>
                                                 </div>
                                               </div>
-                                              <span className="text-xs text-muted-foreground">›</span>
+                                              {selectedLeader?.id === u.id ? (
+                                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
+                                                  <Check className="h-4 w-4" />
+                                                </span>
+                                              ) : (
+                                                <span className="text-xs text-muted-foreground">›</span>
+                                              )}
                                             </button>
                                           ))}
                                       </div>
@@ -1019,7 +1051,7 @@ export default function InterviewsPage() {
                                   ) : (
                                     <FormControl>
                                       <Input
-                                        placeholder="Escribe el nombre manualmente"
+                                        placeholder="Escribe el nombre"
                                         {...field}
                                         data-testid="input-person-name"
                                         className="rounded-2xl bg-background/80"
@@ -1041,7 +1073,7 @@ export default function InterviewsPage() {
                             name="date"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Fecha y hora</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Fecha y hora</FormLabel>
                                 <FormControl>
                                   <button
                                     type="button"
@@ -1049,13 +1081,16 @@ export default function InterviewsPage() {
                                       setDateDraft(splitDateTimeValue(field.value));
                                       setDateSheetOpen(true);
                                     }}
-                                    className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm text-muted-foreground"
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
                                     data-testid="input-date"
                                   >
-                                    <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                                      {formatDateTimeLabel(field.value)}
-                                    </span>
-                                    <CalendarIcon className="h-4 w-4" />
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Fecha y hora</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {formatDateTimeLabel(field.value)}
+                                      </div>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">›</span>
                                   </button>
                                 </FormControl>
                                 <FormMessage />
@@ -1100,7 +1135,7 @@ export default function InterviewsPage() {
                                             setDateSheetOpen(false);
                                           }}
                                         >
-                                          Listo
+                                          Aceptar
                                         </Button>
                                       </div>
                                     </div>
@@ -1115,17 +1150,20 @@ export default function InterviewsPage() {
                             name="type"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Tipo de entrevista</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Tipo de entrevista</FormLabel>
                                 <FormControl>
                                   <button
                                     type="button"
                                     onClick={() => setTypeSheetOpen(true)}
-                                    className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
                                     data-testid="select-type"
                                   >
-                                    <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                                      {field.value ? formatInterviewType(field.value) : "Seleccionar tipo"}
-                                    </span>
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Tipo de entrevista</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {field.value ? formatInterviewType(field.value) : "Seleccionar tipo"}
+                                      </div>
+                                    </div>
                                     <span className="text-xs text-muted-foreground">›</span>
                                   </button>
                                 </FormControl>
@@ -1164,25 +1202,33 @@ export default function InterviewsPage() {
                           <FormField
                             control={form.control}
                             name="interviewerId"
-                            render={({ field }) => (
-                              <FormItem className="space-y-3">
-                                <FormLabel>Entrevistador</FormLabel>
-                                <FormControl>
-                                  <button
-                                    type="button"
-                                    onClick={() => setInterviewerSheetOpen(true)}
-                                    className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
-                                    data-testid="select-interviewer"
-                                  >
-                                    <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                                      {field.value
-                                        ? interviewers.find((item: any) => item.id === field.value)?.name ?? "Seleccionar"
-                                        : "Seleccionar entrevistador"}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">›</span>
-                                  </button>
-                                </FormControl>
-                                <FormMessage />
+                            render={({ field }) => {
+                              const selectedInterviewer = interviewers.find((item: any) => item.id === field.value);
+                              return (
+                                <FormItem className="space-y-3">
+                                  <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Entrevistador</FormLabel>
+                                  <FormControl>
+                                    <button
+                                      type="button"
+                                      onClick={() => setInterviewerSheetOpen(true)}
+                                      className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
+                                      data-testid="select-interviewer"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <Avatar className="h-9 w-9">
+                                          <AvatarFallback>{selectedInterviewer ? getInitials(selectedInterviewer.name) : "?"}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <div className="text-sm text-muted-foreground">Entrevistador</div>
+                                          <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                            {selectedInterviewer?.name ?? "Seleccionar entrevistador"}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">›</span>
+                                    </button>
+                                  </FormControl>
+                                  <FormMessage />
                                 <Drawer open={interviewerSheetOpen} onOpenChange={setInterviewerSheetOpen}>
                                   <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
                                     <DrawerHeader>
@@ -1207,16 +1253,17 @@ export default function InterviewsPage() {
                                   </DrawerContent>
                                 </Drawer>
                               </FormItem>
-                            )}
-                          />
+                            );
+                          }}
+                        />
 
                           <FormField
                             control={form.control}
                             name="urgent"
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between rounded-2xl bg-background/80 p-4">
+                              <FormItem className="flex items-center justify-between rounded-3xl bg-background/80 p-4 shadow-sm">
                                 <div className="space-y-1">
-                                  <FormLabel>Urgente</FormLabel>
+                                  <FormLabel className="text-base">Urgente</FormLabel>
                                   <p className="text-xs text-muted-foreground">Se muestra con prioridad.</p>
                                 </div>
                                 <FormControl>
@@ -1236,13 +1283,13 @@ export default function InterviewsPage() {
                             name="notes"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Notas</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Notas</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     placeholder="Notas adicionales sobre la entrevista"
                                     {...field}
                                     data-testid="textarea-notes"
-                                    className="min-h-[120px] rounded-2xl bg-background/80"
+                                    className="min-h-[140px] rounded-3xl bg-background/80"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1265,23 +1312,25 @@ export default function InterviewsPage() {
                       />
                     </div>
 
-                    <div className="sticky bottom-0 border-t border-border/20 bg-background/80 px-5 py-4 backdrop-blur">
-                      <div className="flex items-center justify-between">
+                    <div className="sticky bottom-0 border-t border-border/20 bg-background/90 px-5 py-4 backdrop-blur">
+                      <div className="flex items-center justify-between gap-3">
                         <Button
                           type="button"
-                          variant="ghost"
-                          onClick={() => setStep((prev) => Math.max(1, prev - 1))}
-                          disabled={step === 1}
+                          variant="secondary"
+                          className="w-full rounded-full"
+                          onClick={() => setIsDialogOpen(false)}
+                          data-testid="button-cancel"
                         >
-                          Atrás
+                          Cancelar
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
                           onClick={step === 3 ? undefined : handleStepAdvance}
                           data-testid="button-submit"
                           disabled={createMutation.isPending}
+                          className="w-full rounded-full"
                         >
-                          {createMutation.isPending ? "Guardando..." : "Guardar"}
+                          {createMutation.isPending ? "Guardando..." : step === 3 ? "Guardar" : "Siguiente"}
                         </Button>
                       </div>
                     </div>
@@ -1750,7 +1799,7 @@ export default function InterviewsPage() {
                                   setEditDateSheetOpen(false);
                                 }}
                               >
-                                Listo
+                                Aceptar
                               </Button>
                             </div>
                           </div>

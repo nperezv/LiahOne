@@ -459,20 +459,33 @@ export default function OrganizationInterviewsPage() {
 
               <DialogContent className="max-w-2xl overflow-hidden p-0">
                 <DialogHeader className="border-b border-border/20 bg-background/80 px-5 py-4 backdrop-blur">
-                  <DialogTitle>Programar Entrevista</DialogTitle>
-                  <DialogDescription>
-                    Registra una entrevista de la organización
-                  </DialogDescription>
-                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Paso {step} de 3</span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3].map((item) => (
-                        <span
-                          key={item}
-                          className={`h-1.5 w-6 rounded-full ${step >= item ? "bg-primary" : "bg-muted"}`}
-                        />
-                      ))}
+                  <div className="flex items-center justify-between">
+                    {step > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+                        className="-ml-2 text-primary"
+                      >
+                        Atrás
+                      </Button>
+                    ) : (
+                      <span className="w-12" />
+                    )}
+                    <div className="text-center">
+                      <DialogTitle className="text-base font-semibold">
+                        {step === 1
+                          ? "Programar entrevista"
+                          : step === 2
+                            ? "Entrevista con"
+                            : "Detalles"}
+                      </DialogTitle>
+                      <DialogDescription className="sr-only">
+                        Registra una entrevista de la organización
+                      </DialogDescription>
                     </div>
+                    <span className="w-12" />
                   </div>
                 </DialogHeader>
 
@@ -512,7 +525,7 @@ export default function OrganizationInterviewsPage() {
                           name="personName"
                           render={({ field }) => (
                             <FormItem className="space-y-3">
-                              <FormLabel>Persona</FormLabel>
+                              <FormLabel className="text-base">¿A quién deseas entrevistar?</FormLabel>
                               <FormControl>
                                 <Input
                                   {...field}
@@ -532,7 +545,7 @@ export default function OrganizationInterviewsPage() {
                             name="date"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Fecha</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Fecha y hora</FormLabel>
                                 <FormControl>
                                   <button
                                     type="button"
@@ -540,12 +553,15 @@ export default function OrganizationInterviewsPage() {
                                       setDateDraft(splitDateTimeValue(field.value));
                                       setDateSheetOpen(true);
                                     }}
-                                    className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
                                   >
-                                    <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                                      {formatDateTimeLabel(field.value)}
-                                    </span>
-                                    <CalendarIcon className="h-4 w-4" />
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Fecha y hora</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {formatDateTimeLabel(field.value)}
+                                      </div>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">›</span>
                                   </button>
                                 </FormControl>
                                 <FormMessage />
@@ -590,7 +606,7 @@ export default function OrganizationInterviewsPage() {
                                             setDateSheetOpen(false);
                                           }}
                                         >
-                                          Listo
+                                          Aceptar
                                         </Button>
                                       </div>
                                     </div>
@@ -605,16 +621,19 @@ export default function OrganizationInterviewsPage() {
                             name="type"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Tipo</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Tipo de entrevista</FormLabel>
                                 <FormControl>
                                   <button
                                     type="button"
                                     onClick={() => setTypeSheetOpen(true)}
-                                    className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
                                   >
-                                    <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                                      {field.value ? formatInterviewType(field.value) : "Seleccionar tipo"}
-                                    </span>
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Tipo de entrevista</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {field.value ? formatInterviewType(field.value) : "Seleccionar tipo"}
+                                      </div>
+                                    </div>
                                     <span className="text-xs text-muted-foreground">›</span>
                                   </button>
                                 </FormControl>
@@ -655,18 +674,21 @@ export default function OrganizationInterviewsPage() {
                             name="interviewerId"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Entrevistador</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Entrevistador</FormLabel>
                                 <FormControl>
                                   <button
                                     type="button"
                                     onClick={() => setInterviewerSheetOpen(true)}
-                                    className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
                                   >
-                                    <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                                      {field.value
-                                        ? interviewers.find((item: any) => item.id === field.value)?.name ?? "Seleccionar"
-                                        : "Seleccionar entrevistador"}
-                                    </span>
+                                    <div>
+                                      <div className="text-sm text-muted-foreground">Entrevistador</div>
+                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
+                                        {field.value
+                                          ? interviewers.find((item: any) => item.id === field.value)?.name ?? "Seleccionar"
+                                          : "Seleccionar entrevistador"}
+                                      </div>
+                                    </div>
                                     <span className="text-xs text-muted-foreground">›</span>
                                   </button>
                                 </FormControl>
@@ -702,8 +724,8 @@ export default function OrganizationInterviewsPage() {
                             control={form.control}
                             name="urgent"
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between rounded-2xl bg-background/80 p-4">
-                                <FormLabel>Urgente</FormLabel>
+                              <FormItem className="flex items-center justify-between rounded-3xl bg-background/80 p-4 shadow-sm">
+                                <FormLabel className="text-base">Urgente</FormLabel>
                                 <FormControl>
                                   <Switch
                                     checked={field.value}
@@ -720,11 +742,11 @@ export default function OrganizationInterviewsPage() {
                             name="notes"
                             render={({ field }) => (
                               <FormItem className="space-y-3">
-                                <FormLabel>Notas</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Notas</FormLabel>
                                 <FormControl>
                                   <Textarea
                                     {...field}
-                                    className="min-h-[120px] rounded-2xl bg-background/80"
+                                    className="min-h-[140px] rounded-3xl bg-background/80"
                                   />
                                 </FormControl>
                               </FormItem>
@@ -734,22 +756,23 @@ export default function OrganizationInterviewsPage() {
                       )}
                     </div>
 
-                    <div className="sticky bottom-0 border-t border-border/20 bg-background/80 px-5 py-4 backdrop-blur">
-                      <div className="flex items-center justify-between">
+                    <div className="sticky bottom-0 border-t border-border/20 bg-background/90 px-5 py-4 backdrop-blur">
+                      <div className="flex items-center justify-between gap-3">
                         <Button
                           type="button"
-                          variant="ghost"
-                          onClick={() => setStep((prev) => Math.max(1, prev - 1))}
-                          disabled={step === 1}
+                          variant="secondary"
+                          className="w-full rounded-full"
+                          onClick={() => setIsDialogOpen(false)}
                         >
-                          Atrás
+                          Cancelar
                         </Button>
                         <Button
                           type={step === 3 ? "submit" : "button"}
                           onClick={step === 3 ? undefined : handleStepAdvance}
                           disabled={createMutation.isPending}
+                          className="w-full rounded-full"
                         >
-                          {createMutation.isPending ? "Guardando..." : "Guardar"}
+                          {createMutation.isPending ? "Guardando..." : step === 3 ? "Guardar" : "Siguiente"}
                         </Button>
                       </div>
                     </div>
@@ -1001,7 +1024,7 @@ export default function OrganizationInterviewsPage() {
                                   setEditDateSheetOpen(false);
                                 }}
                               >
-                                Listo
+                                Aceptar
                               </Button>
                             </div>
                           </div>
