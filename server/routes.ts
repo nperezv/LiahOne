@@ -773,6 +773,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!derivedUsername) {
         return res.status(400).json({ error: "Invalid email for username generation" });
       }
+      const normalizedName = normalizeMemberName(name);
+      if (!normalizedName) {
+        return res.status(400).json({ error: "Invalid name" });
+      }
 
       // Check if the username already exists
       const existingUsers = await storage.getAllUsers();
@@ -810,7 +814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.createUser({
         username: derivedUsername,
         password: hashedPassword,
-        name,
+        name: normalizedName,
         email,
         phone: phone || null,
         requirePasswordChange: true,
@@ -826,7 +830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await sendNewUserCredentialsEmail({
         toEmail: email,
-        name,
+        name: normalizedName,
         username: derivedUsername,
         temporaryPassword,
       });

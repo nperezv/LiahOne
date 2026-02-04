@@ -50,7 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
-import { cn } from "@/lib/utils";
+import { cn, normalizeMemberName } from "@/lib/utils";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
@@ -328,7 +328,7 @@ export default function AdminUsersPage() {
 
     createForm.reset({
       username: suggestedUsername,
-      name: accessRequest.name,
+      name: normalizeMemberName(accessRequest.name),
       email: accessRequest.email,
       phone: accessRequest.phone || "",
       role: "secretario",
@@ -502,8 +502,9 @@ export default function AdminUsersPage() {
       return;
     }
     const currentValues = createForm.getValues();
-    if (selectedMember.nameSurename && currentValues.name !== selectedMember.nameSurename) {
-      createForm.setValue("name", selectedMember.nameSurename);
+    const normalizedName = normalizeMemberName(selectedMember.nameSurename);
+    if (normalizedName && currentValues.name !== normalizedName) {
+      createForm.setValue("name", normalizedName);
     }
     if (selectedMember.email && currentValues.email !== selectedMember.email) {
       createForm.setValue("email", selectedMember.email);
