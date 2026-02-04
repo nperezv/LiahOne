@@ -3302,14 +3302,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const interviews = await storage.getAllInterviews();
     const assignments = await storage.getAllAssignments();
     
-    // Get pending interviews for next 3-4 days
     const now = new Date();
-    const inThreeDays = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-    const inFourDays = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
-    
-    const upcomingInterviews = interviews.filter((i: any) => {
-      const iDate = new Date(i.date);
-      return i.status === "programada" && iDate >= now && iDate <= inFourDays;
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(todayStart.getDate() + 1);
+    const tomorrowEnd = new Date(todayEnd);
+    tomorrowEnd.setDate(todayEnd.getDate() + 1);
+
+    const buildFollowUpSendAt = (interviewDate: Date) => {
+      const sameDayEight = new Date(interviewDate);
+      sameDayEight.setHours(8, 0, 0, 0);
+      const fiveHoursBefore = new Date(interviewDate.getTime() - 5 * 60 * 60 * 1000);
+      return new Date(Math.max(sameDayEight.getTime(), fiveHoursBefore.getTime()));
+    };
+
+    const scheduledInterviews = interviews.filter((i: any) => i.status === "programada");
+    const recordatorioInterviews = scheduledInterviews.filter((i: any) => {
+      const interviewDate = new Date(i.date);
+      return interviewDate >= tomorrowStart && interviewDate <= tomorrowEnd;
+    });
+    const seguimientoInterviews = scheduledInterviews.filter((i: any) => {
+      const interviewDate = new Date(i.date);
+      return interviewDate >= todayStart && interviewDate <= todayEnd;
     });
 
     // Get pending assignments
@@ -3318,13 +3335,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Format reminder data
     const reminderData = {
       timestamp: new Date(),
-      upcomingInterviews: upcomingInterviews.length,
+      recordatorioInterviews: recordatorioInterviews.length,
+      seguimientoInterviews: seguimientoInterviews.length,
       pendingAssignments: pendingAssignments.length,
       details: {
-        interviews: upcomingInterviews.map((i: any) => ({
-          personName: i.personName,
-          date: i.date,
-          type: i.type,
+        recordatorioInterviews: recordatorioInterviews.map((i: any) => {
+          const interviewDate = new Date(i.date);
+          const sendAt = new Date(interviewDate);
+          sendAt.setDate(interviewDate.getDate() - 1);
+          sendAt.setHours(10, 0, 0, 0);
+          return {
+            personName: i.personName,
+            date: i.date,
+            type: i.type,
+            sendAt: sendAt.toISOString(),
+          };
+        }),
+        seguimientoInterviews: seguimientoInterviews.map((i: any) => {
+          const interviewDate = new Date(i.date);
+          return {
+            personName: i.personName,
+            date: i.date,
+            type: i.type,
+            sendAt: buildFollowUpSendAt(interviewDate).toISOString(),
+          };
         })),
         assignments: pendingAssignments.map((a: any) => ({
           title: a.title,

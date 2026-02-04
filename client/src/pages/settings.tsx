@@ -346,15 +346,16 @@ export default function Settings() {
           <CardHeader>
             <CardTitle>Recordatorios Automáticos</CardTitle>
             <CardDescription>
-              Envía recordatorios de entrevistas próximas y asignaciones pendientes
+              Envía recordatorios de entrevistas programadas y asignaciones pendientes
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Esta función envía recordatorios para:
+              Esta función prepara recordatorios para:
             </p>
             <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-              <li>Entrevistas programadas para los próximos 3-4 días</li>
+              <li>Recordatorio: entrevistas del día siguiente (10:00)</li>
+              <li>Seguimiento: entrevistas de hoy (08:00 o 5 horas antes)</li>
               <li>Asignaciones pendientes que aún no se han completado</li>
             </ul>
             <Button
