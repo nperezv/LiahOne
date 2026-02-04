@@ -269,6 +269,18 @@ export const members = pgTable("members", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const memberCallings = pgTable("member_callings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull().references(() => members.id),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  callingName: text("calling_name").notNull(),
+  callingType: text("calling_type"),
+  isActive: boolean("is_active").notNull().default(true),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const hymns = pgTable("hymns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   number: integer("number").notNull(),
@@ -541,6 +553,7 @@ export const organizationsRelations = relations(organizations, ({ one, many }) =
   }),
   members: many(users),
   directoryMembers: many(members),
+  memberCallings: many(memberCallings),
   presidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
   goals: many(goals),
@@ -548,7 +561,7 @@ export const organizationsRelations = relations(organizations, ({ one, many }) =
   birthdays: many(birthdays),
 }));
 
-export const membersRelations = relations(members, ({ one }) => ({
+export const membersRelations = relations(members, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [members.organizationId],
     references: [organizations.id],
@@ -556,6 +569,18 @@ export const membersRelations = relations(members, ({ one }) => ({
   user: one(users, {
     fields: [members.id],
     references: [users.memberId],
+  }),
+  callings: many(memberCallings),
+}));
+
+export const memberCallingsRelations = relations(memberCallings, ({ one }) => ({
+  member: one(members, {
+    fields: [memberCallings.memberId],
+    references: [members.id],
+  }),
+  organization: one(organizations, {
+    fields: [memberCallings.organizationId],
+    references: [organizations.id],
   }),
 }));
 
@@ -854,6 +879,16 @@ export const insertMemberSchema = createInsertSchema(members, {
 });
 export const selectMemberSchema = createSelectSchema(members);
 export type Member = typeof members.$inferSelect;
+export const insertMemberCallingSchema = createInsertSchema(memberCallings, {
+  startDate: dateSchema,
+  endDate: dateSchema,
+}).omit({
+  id: true,
+  createdAt: true,
+});
+export const selectMemberCallingSchema = createSelectSchema(memberCallings);
+export type MemberCalling = typeof memberCallings.$inferSelect;
+export type InsertMemberCalling = z.infer<typeof insertMemberCallingSchema>;
 export type InsertBirthdayType = z.infer<typeof insertBirthdaySchema>;
 export type InsertBirthday = z.infer<typeof insertBirthdaySchema>;
 

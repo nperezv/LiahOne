@@ -19,6 +19,7 @@ import {
   insertGoalSchema,
   insertBirthdaySchema,
   insertMemberSchema,
+  insertMemberCallingSchema,
   insertActivitySchema,
   insertAssignmentSchema,
   insertPdfTemplateSchema,
@@ -2988,6 +2989,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting member:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
+  // MEMBER CALLINGS
+  // ========================================
+  app.get("/api/members/:id/callings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const callings = await storage.getMemberCallings(req.params.id);
+      res.json(callings);
+    } catch (error) {
+      console.error("Error fetching member callings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/members/:id/callings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const member = await storage.getMemberById(req.params.id);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+
+      const callingData = insertMemberCallingSchema.parse({
+        ...req.body,
+        memberId: req.params.id,
+      });
+      const calling = await storage.createMemberCalling(callingData);
+      res.status(201).json(calling);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating member calling:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/members/:memberId/callings/:callingId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const existing = await storage.getMemberCallingById(req.params.callingId);
+      if (!existing || existing.memberId !== req.params.memberId) {
+        return res.status(404).json({ error: "Calling not found" });
+      }
+
+      const callingData = insertMemberCallingSchema.partial().parse(req.body);
+      const updated = await storage.updateMemberCalling(req.params.callingId, callingData);
+      if (!updated) {
+        return res.status(404).json({ error: "Calling not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating member calling:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/members/:memberId/callings/:callingId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const existing = await storage.getMemberCallingById(req.params.callingId);
+      if (!existing || existing.memberId !== req.params.memberId) {
+        return res.status(404).json({ error: "Calling not found" });
+      }
+
+      await storage.deleteMemberCalling(req.params.callingId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting member calling:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

@@ -28,6 +28,9 @@ import {
   useCreateMember,
   useDeleteMember,
   useMembers,
+  useMemberCallings,
+  useCreateMemberCalling,
+  useDeleteMemberCalling,
   useOrganizations,
   useUpdateMember,
 } from "@/hooks/use-api";
@@ -35,14 +38,20 @@ import { Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
 
 const memberSchema = z.object({
   nameSurename: z.string().min(1, "El nombre es requerido"),
-  sex: z.string().min(1, "El sexo es requerido"),
+  sex: z.enum(["M", "F"], { required_error: "El sexo es requerido" }),
   birthday: z.string().min(1, "La fecha de nacimiento es requerida"),
   phone: z.string().optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   organizationId: z.string().optional().or(z.literal("")),
 });
 
+const callingSchema = z.object({
+  callingName: z.string().min(1, "El llamamiento es requerido"),
+  organizationId: z.string().min(1, "La organización es requerida"),
+});
+
 type MemberFormValues = z.infer<typeof memberSchema>;
+type CallingFormValues = z.infer<typeof callingSchema>;
 
 const formatDateForInput = (value?: string | Date | null) => {
   if (!value) return "";
@@ -52,6 +61,13 @@ const formatDateForInput = (value?: string | Date | null) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const normalizeSexValue = (value?: string | null) => {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "masculino" || normalized === "m") return "M";
+  if (normalized === "femenino" || normalized === "f") return "F";
+  return value ?? "";
 };
 
 export default function DirectoryPage() {
@@ -73,6 +89,10 @@ export default function DirectoryPage() {
   const [sheetMember, setSheetMember] = useState<any>(null);
   const [sheetOffset, setSheetOffset] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [callingDialogOpen, setCallingDialogOpen] = useState(false);
+  const memberCallingsQuery = useMemberCallings(editingMember?.id, { enabled: Boolean(editingMember?.id) });
+  const createMemberCallingMutation = useCreateMemberCalling(editingMember?.id ?? "");
+  const deleteMemberCallingMutation = useDeleteMemberCalling(editingMember?.id ?? "");
   const pointerStartX = useRef(0);
   const pointerDragging = useRef(false);
   const longPressTimer = useRef<number | null>(null);
@@ -100,6 +120,17 @@ export default function DirectoryPage() {
       organizationId: "none",
     },
   });
+
+  const callingForm = useForm<CallingFormValues>({
+    resolver: zodResolver(callingSchema),
+    defaultValues: {
+      callingName: "",
+      organizationId: "",
+    },
+  });
+
+  const memberCallings = memberCallingsQuery.data ?? [];
+  const isCallingsLoading = memberCallingsQuery.isLoading;
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -136,6 +167,7 @@ export default function DirectoryPage() {
 
   const handleOpenCreate = () => {
     setEditingMember(null);
+    setCallingDialogOpen(false);
     form.reset({
       nameSurename: "",
       sex: "",
@@ -149,9 +181,10 @@ export default function DirectoryPage() {
 
   const handleEditMember = (member: any) => {
     setEditingMember(member);
+    setCallingDialogOpen(false);
     form.reset({
       nameSurename: member.nameSurename,
-      sex: member.sex,
+      sex: normalizeSexValue(member.sex),
       birthday: formatDateForInput(member.birthday),
       phone: member.phone ?? "",
       email: member.email ?? "",
@@ -163,6 +196,7 @@ export default function DirectoryPage() {
   const handleSubmitMember = (data: MemberFormValues) => {
     const payload = {
       ...data,
+      sex: normalizeSexValue(data.sex),
       birthday: new Date(data.birthday).toISOString(),
       phone: data.phone?.trim() || null,
       email: data.email?.trim() || null,
@@ -176,6 +210,7 @@ export default function DirectoryPage() {
           onSuccess: () => {
             setIsDialogOpen(false);
             setEditingMember(null);
+            setCallingDialogOpen(false);
             form.reset();
           },
         }
@@ -184,6 +219,7 @@ export default function DirectoryPage() {
       createMemberMutation.mutate(payload, {
         onSuccess: () => {
           setIsDialogOpen(false);
+          setCallingDialogOpen(false);
           form.reset();
         },
       });
@@ -203,6 +239,35 @@ export default function DirectoryPage() {
         setDeleteConfirmText("");
       },
     });
+  };
+
+  const handleOpenCallingDialog = () => {
+    callingForm.reset({
+      callingName: "",
+      organizationId: "",
+    });
+    setCallingDialogOpen(true);
+  };
+
+  const handleSubmitCalling = (data: CallingFormValues) => {
+    if (!editingMember?.id) return;
+    createMemberCallingMutation.mutate(
+      {
+        callingName: data.callingName.trim(),
+        organizationId: data.organizationId,
+      },
+      {
+        onSuccess: () => {
+          setCallingDialogOpen(false);
+          callingForm.reset();
+        },
+      }
+    );
+  };
+
+  const handleDeleteCalling = (callingId: string) => {
+    if (!editingMember?.id) return;
+    deleteMemberCallingMutation.mutate(callingId);
   };
 
   const resetSwipe = () => {
@@ -398,10 +463,10 @@ export default function DirectoryPage() {
                                 <SelectValue placeholder="Selecciona" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="masculino">Masculino</SelectItem>
-                              <SelectItem value="femenino">Femenino</SelectItem>
-                            </SelectContent>
+                          <SelectContent>
+                              <SelectItem value="M">Masculino (M)</SelectItem>
+                              <SelectItem value="F">Femenino (F)</SelectItem>
+                          </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
@@ -484,6 +549,59 @@ export default function DirectoryPage() {
                   </div>
                 </form>
               </Form>
+              {editingMember && (
+                <div className="mt-6 space-y-3 border-t border-white/10 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">Llamamientos</p>
+                      <p className="text-xs text-muted-foreground">
+                        Gestiona los llamamientos del miembro seleccionado.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleOpenCallingDialog}
+                    >
+                      Agregar
+                    </Button>
+                  </div>
+                  {isCallingsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  ) : memberCallings.length > 0 ? (
+                    <div className="space-y-2">
+                      {memberCallings.map((calling) => (
+                        <div
+                          key={calling.id}
+                          className="flex items-center justify-between rounded-[12px] border border-white/10 bg-[#101319] px-3 py-2"
+                        >
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium text-white">{calling.callingName}</p>
+                            <p className="text-xs text-[#9AA0A6]">
+                              {calling.organizationName ?? "Sin organización"}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-[#FF453A] hover:bg-white/10"
+                            onClick={() => handleDeleteCalling(calling.id)}
+                          >
+                            Quitar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#9AA0A6]">Sin llamamientos asignados.</p>
+                  )}
+                </div>
+              )}
             </DialogContent>
           </Dialog>
         </div>
@@ -730,6 +848,64 @@ export default function DirectoryPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={callingDialogOpen} onOpenChange={setCallingDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Agregar llamamiento</DialogTitle>
+            <DialogDescription>Asigna un llamamiento a este miembro.</DialogDescription>
+          </DialogHeader>
+          <Form {...callingForm}>
+            <form onSubmit={callingForm.handleSubmit(handleSubmitCalling)} className="space-y-4">
+              <FormField
+                control={callingForm.control}
+                name="callingName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Llamamiento</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Presidente del cuórum de élderes" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={callingForm.control}
+                name="organizationId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Organización</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona una organización" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {organizations.map((org: any) => (
+                          <SelectItem key={org.id} value={org.id}>
+                            {org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" type="button" onClick={() => setCallingDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createMemberCallingMutation.isPending}>
+                  Guardar llamamiento
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       <Button
         type="button"
