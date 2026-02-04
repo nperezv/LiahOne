@@ -482,6 +482,20 @@ export default function InterviewsPage() {
     }
   };
 
+  const handleStepAdvance = async () => {
+    if (step === 1) {
+      const valid = await form.trigger(["personName"]);
+      if (!valid) return;
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      const valid = await form.trigger(["date", "type"]);
+      if (!valid) return;
+      setStep(3);
+    }
+  };
+
   useEffect(() => {
     if (prefillHandled || !search) return;
     const params = new URLSearchParams(search);

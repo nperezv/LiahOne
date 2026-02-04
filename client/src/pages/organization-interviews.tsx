@@ -346,6 +346,20 @@ export default function OrganizationInterviewsPage() {
     }
   };
 
+  const handleStepAdvance = async () => {
+    if (step === 1) {
+      const valid = await form.trigger(["personName"]);
+      if (!valid) return;
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      const valid = await form.trigger(["date", "type"]);
+      if (!valid) return;
+      setStep(3);
+    }
+  };
+
   /* =========================
      Handlers
   ========================= */
