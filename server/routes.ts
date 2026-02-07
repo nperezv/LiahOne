@@ -3053,6 +3053,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ========================================
   // DIRECTORY MEMBERS
   // ========================================
+  app.get("/api/member-callings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      if (!isObispado) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const callings = await storage.getActiveMemberCallings();
+      res.json(callings);
+    } catch (error) {
+      console.error("Error fetching member callings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.get("/api/members", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
