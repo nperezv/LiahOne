@@ -821,6 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone,
         memberId,
         isActive,
+        callingName: callingNameOverride,
       } = req.body;
 
       if (!name || !role) {
@@ -891,7 +892,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (memberId && memberForCalling) {
-        const callingName = getCallingLabel(role, memberForCalling.sex);
+        const trimmedCallingOverride =
+          typeof callingNameOverride === "string" ? callingNameOverride.trim() : "";
+        const callingName = trimmedCallingOverride || getCallingLabel(role, memberForCalling.sex);
         if (callingName) {
           const obispadoOrganizationId = await getObispadoOrganizationId();
           const callingOrganizationId = OBISPADO_ROLES.has(role)
