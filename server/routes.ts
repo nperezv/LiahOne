@@ -907,19 +907,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               (calling.organizationId ?? null) === (callingOrganizationId ?? null)
           );
           if (!alreadyExists) {
-            const normalizedCalling = callingName.trim().toLowerCase();
-            const callingOrder = normalizedCalling.includes("primer consejero") ||
-              normalizedCalling.includes("primera consejera")
-              ? 1
-              : normalizedCalling.includes("segundo consejero") ||
-                normalizedCalling.includes("segunda consejera")
-                ? 2
-                : null;
             const callingPayload = insertMemberCallingSchema.parse({
               memberId,
               organizationId: callingOrganizationId,
               callingName,
-              callingOrder,
             });
             await storage.createMemberCalling(callingPayload);
           }
