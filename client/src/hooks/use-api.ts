@@ -85,9 +85,21 @@ export interface MemberCalling {
   createdAt: string;
 }
 
+export interface DirectoryMemberCallingWithMember extends MemberCalling {
+  memberName?: string | null;
+}
+
 export function useMembers(options?: { enabled?: boolean }) {
   return useQuery<DirectoryMember[]>({
     queryKey: ["/api/members"],
+    staleTime: 1000 * 60,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useAllMemberCallings(options?: { enabled?: boolean }) {
+  return useQuery<DirectoryMemberCallingWithMember[]>({
+    queryKey: ["/api/member-callings"],
     staleTime: 1000 * 60,
     enabled: options?.enabled ?? true,
   });
