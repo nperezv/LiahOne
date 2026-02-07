@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Edit, Trash2, Key, Check, ChevronDown, Search } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Key } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,14 +29,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -44,12 +36,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useMembers } from "@/hooks/use-api";
+import { useMemberCallings, useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { formatCallingLabel } from "@/lib/callings";
 import { cn, normalizeMemberName } from "@/lib/utils";
 
 const createUserSchema = z.object({
@@ -58,8 +50,9 @@ const createUserSchema = z.object({
   email: z.string().email("Email inválido"),
   phone: z.string().optional().or(z.literal("")),
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
-  organizationId: z.string().optional(),
+  organizationId: z.string().min(1, "Selecciona una organización"),
   memberId: z.string().min(1, "Selecciona un miembro"),
+  callingName: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
 
@@ -135,6 +128,93 @@ interface AccessLogEntry {
   reason?: string;
   createdAt: string;
 }
+
+type MemberOption = {
+  value: string;
+  id: string;
+};
+
+const filterMemberOptions = (options: MemberOption[], query: string) => {
+  const trimmed = query.trim();
+  if (!trimmed) return options;
+  const lowerQuery = trimmed.toLowerCase();
+  return options.filter((option) => option.value.toLowerCase().includes(lowerQuery));
+};
+
+const MemberAutocomplete = ({
+  value,
+  options,
+  placeholder,
+  onChange,
+  onSelect,
+  onBlur,
+  testId,
+  resetKey,
+}: {
+  value: string;
+  options: MemberOption[];
+  placeholder?: string;
+  onChange: (value: string) => void;
+  onSelect?: (option: MemberOption) => void;
+  onBlur?: () => void;
+  testId?: string;
+  resetKey?: string | boolean | number;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const filteredOptions = useMemo(() => filterMemberOptions(options, value), [options, value]);
+
+  useEffect(() => {
+    setIsOpen(false);
+  }, [resetKey]);
+
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => {
+          onBlur?.();
+          setTimeout(() => setIsOpen(false), 150);
+        }}
+        data-testid={testId}
+        autoComplete="off"
+      />
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-input bg-popover text-popover-foreground shadow-md">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+                    option.value === value && "bg-accent text-accent-foreground"
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onChange(option.value);
+                    onSelect?.(option);
+                    setIsOpen(false);
+                  }}
+                >
+                  {option.value}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface AccessRequest {
   id: string;
@@ -218,9 +298,7 @@ export default function AdminUsersPage() {
   const [deleteReason, setDeleteReason] = useState("");
   const [approveRequest, setApproveRequest] = useState<UserDeletionRequest | null>(null);
   const [prefilledRequestId, setPrefilledRequestId] = useState<string | null>(null);
-  const [memberPickerOpen, setMemberPickerOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
-  const [memberInputFocused, setMemberInputFocused] = useState(false);
 
   // Verificar que solo obispo/secretarios puedan acceder
   const isAdmin =
@@ -306,6 +384,7 @@ export default function AdminUsersPage() {
     role: "secretario",
     organizationId: "",
     memberId: "",
+    callingName: "",
     isActive: true,
   };
 
@@ -334,6 +413,7 @@ export default function AdminUsersPage() {
       role: "secretario",
       organizationId: "",
       memberId: "",
+      callingName: "",
       isActive: true,
     });
 
@@ -437,6 +517,11 @@ export default function AdminUsersPage() {
   const selectedRole = createForm.watch("role");
   const selectedEditRole = editUserForm.watch("role");
   const selectedMemberId = createForm.watch("memberId");
+  const selectedOrganizationId = createForm.watch("organizationId");
+  const selectedCallingName = createForm.watch("callingName");
+  const { data: selectedMemberCallings = [] } = useMemberCallings(selectedMemberId, {
+    enabled: Boolean(selectedMemberId),
+  });
   const linkedMemberIds = useMemo(
     () => new Set(users.map((u) => u.memberId).filter(Boolean)),
     [users]
@@ -447,26 +532,13 @@ export default function AdminUsersPage() {
     [members]
   );
   const selectedMember = selectedMemberId ? membersById.get(selectedMemberId) : undefined;
+  const selectedOrganization = organizations.find((org) => org.id === selectedOrganizationId);
+  const selectedOrganizationType = selectedOrganization?.type ?? "";
 
   const formatMemberLabel = (member: DirectoryMember) => {
     const orgLabel = member.organizationName ? ` (${member.organizationName})` : "";
     return `${member.nameSurename}${orgLabel}`;
   };
-
-  useEffect(() => {
-    if (selectedMember) {
-      setMemberSearch(formatMemberLabel(selectedMember));
-    } else if (!memberPickerOpen) {
-      setMemberSearch("");
-    }
-  }, [memberPickerOpen, selectedMember]);
-
-  useEffect(() => {
-    const shouldOpen = memberInputFocused && memberSearch.trim().length >= 2;
-    if (shouldOpen !== memberPickerOpen) {
-      setMemberPickerOpen(shouldOpen);
-    }
-  }, [memberInputFocused, memberPickerOpen, memberSearch]);
 
   const getAvailableMembers = (currentMemberId?: string | null) => {
     const availableMembers = (members as DirectoryMember[]).filter((member) => {
@@ -485,17 +557,189 @@ export default function AdminUsersPage() {
     return availableMembers;
   };
 
-  const filteredMembers = useMemo(() => {
-    const query = memberSearch.trim().toLowerCase();
-    const availableMembers = getAvailableMembers();
-    if (!query) return availableMembers;
-    return availableMembers.filter((member) => {
-      const label = formatMemberLabel(member).toLowerCase();
-      const email = member.email?.toLowerCase() ?? "";
-      const phone = member.phone?.toLowerCase() ?? "";
-      return label.includes(query) || email.includes(query) || phone.includes(query);
-    });
-  }, [memberSearch, members, linkedMemberIds]);
+  const memberOptions = useMemo(
+    () =>
+      getAvailableMembers().map((member) => ({
+        id: member.id,
+        value: formatMemberLabel(member),
+      })),
+    [members, linkedMemberIds]
+  );
+
+  const callingsByOrgType: Record<string, string[]> = {
+    obispado: [
+      "Obispo",
+      "Primer consejero",
+      "Segundo consejero",
+      "Secretario",
+      "Secretario Ejecutivo",
+      "Secretario Financiero",
+    ],
+    cuorum_elderes: [
+      "Presidente",
+      "Primer consejero",
+      "Segundo consejero",
+      "Secretario",
+      "Maestro",
+      "Líder de ministración",
+    ],
+    sociedad_socorro: [
+      "Presidenta",
+      "Primera consejera",
+      "Segunda consejera",
+      "Secretaria",
+      "Maestra",
+      "Coordinadora de ministración",
+    ],
+    mujeres_jovenes: [
+      "Presidenta",
+      "Primera consejera",
+      "Segunda consejera",
+      "Secretaria",
+      "Asesora de clases",
+      "Especialistas de Mujeres Jóvenes",
+    ],
+    hombres_jovenes: [
+      "Presidente del Sacerdocio Aarónico",
+      "Primer consejero del Sacerdocio Aarónico",
+      "Segundo consejero del Sacerdocio Aarónico",
+      "Asesor de Hombres Jóvenes",
+      "Especialista de Hombres Jóvenes",
+      "Presidente de quórum de diáconos",
+      "Primer consejero de quórum de diáconos",
+      "Segundo consejero de quórum de diáconos",
+      "Secretario de quórum de diáconos",
+      "Presidente de quórum de maestros",
+      "Primer consejero de quórum de maestros",
+      "Segundo consejero de quórum de maestros",
+      "Secretario de quórum de maestros",
+      "Presidente de quórum de presbíteros",
+      "Primer ayudante de quórum de presbíteros",
+      "Segundo ayudante de quórum de presbíteros",
+    ],
+    primaria: [
+      "Presidenta",
+      "Primera consejera",
+      "Segunda consejera",
+      "Secretaria",
+      "Líder de música",
+      "Pianista",
+      "Maestro",
+      "Maestra",
+      "Líder de guardería",
+    ],
+    escuela_dominical: [
+      "Presidente",
+      "Primer consejero",
+      "Segundo consejero",
+      "Secretario",
+      "Maestro",
+      "Maestra",
+    ],
+    jas: ["Líder"],
+    barrio: [
+      "Director de música del barrio",
+      "Directora de música del barrio",
+      "Pianista",
+      "Director de coro",
+      "Directora de coro",
+      "Pianista de coro",
+      "Lider de la Obra del Templo e Historia Familiar",
+      "Consultor de Historia Familiar",
+      "Coordinador de Historia Familiar",
+      "Líder misional del barrio",
+      "Misionero de Barrio",
+      "Misionera de Barrio",
+      "Maestro de preparación misional",
+      "Maestra de preparación misional",
+      "Especialista de tecnología",
+      "Líder de autosuficiencia",
+      "Representante de Comunicaciones",
+      "Coordinador de actividades",
+      "Coordinadora de actividades",
+      "Coordinador de servicio",
+      "Director de deportes",
+      "Representante de JustServe",
+      "Bibliotecario",
+      "Coordinador de limpieza",
+    ],
+  };
+
+  const orgCallings = useMemo(
+    () => callingsByOrgType[selectedOrganizationType] ?? [],
+    [selectedOrganizationType]
+  );
+
+  const roleOptions = useMemo(() => {
+    if (selectedOrganizationType === "obispado") {
+      return [
+        { value: "obispo", label: "Obispo" },
+        { value: "consejero_obispo", label: "Consejero del Obispo" },
+        { value: "secretario", label: "Secretario" },
+        { value: "secretario_ejecutivo", label: "Secretario Ejecutivo" },
+        { value: "secretario_financiero", label: "Secretario Financiero" },
+      ];
+    }
+    return [
+      { value: "presidente_organizacion", label: "Presidente de Organización" },
+      { value: "secretario_organizacion", label: "Secretario de Organización" },
+      { value: "consejero_organizacion", label: "Consejero de Organización" },
+    ];
+  }, [selectedOrganizationType]);
+
+  const inferRoleFromCalling = (callingName?: string, orgType?: string) => {
+    if (!callingName) return "";
+    const normalized = callingName.trim().toLowerCase();
+    if (orgType === "obispado") {
+      if (normalized === "obispo") return "obispo";
+      if (normalized.includes("consejero")) return "consejero_obispo";
+      if (normalized === "secretario") return "secretario";
+      if (normalized === "secretario ejecutivo") return "secretario_ejecutivo";
+      if (normalized === "secretario financiero") return "secretario_financiero";
+      return "";
+    }
+
+    if (normalized.startsWith("presidenta") || normalized.startsWith("presidente")) {
+      return "presidente_organizacion";
+    }
+    if (normalized.startsWith("secretaria") || normalized.startsWith("secretario")) {
+      return "secretario_organizacion";
+    }
+    if (normalized.includes("consejera") || normalized.includes("consejero")) {
+      return "consejero_organizacion";
+    }
+    return "";
+  };
+
+  useEffect(() => {
+    if (selectedMember) {
+      setMemberSearch(formatMemberLabel(selectedMember));
+    } else {
+      setMemberSearch("");
+    }
+  }, [selectedMember]);
+
+  useEffect(() => {
+    if (!selectedOrganizationId) {
+      if (selectedRole) createForm.setValue("role", "secretario");
+      if (selectedCallingName) createForm.setValue("callingName", "");
+      return;
+    }
+    if (selectedRole && !roleOptions.some((option) => option.value === selectedRole)) {
+      createForm.setValue("role", roleOptions[0]?.value ?? "secretario");
+    }
+    if (selectedCallingName && !orgCallings.includes(selectedCallingName)) {
+      createForm.setValue("callingName", "");
+    }
+  }, [selectedCallingName, selectedOrganizationId, selectedRole, orgCallings, roleOptions, createForm]);
+
+  useEffect(() => {
+    if (!selectedCallingName) return;
+    const inferredRole = inferRoleFromCalling(selectedCallingName, selectedOrganizationType);
+    if (inferredRole && inferredRole !== selectedRole) {
+      createForm.setValue("role", inferredRole);
+    }
+  }, [selectedCallingName, selectedOrganizationType, selectedRole, createForm]);
 
   useEffect(() => {
     if (!selectedMember) {
@@ -536,6 +780,7 @@ export default function AdminUsersPage() {
         email: data.email || undefined,
         phone: data.phone || undefined,
         memberId: data.memberId || undefined,
+        callingName: data.callingName || undefined,
         isActive: typeof data.isActive === "boolean" ? data.isActive : undefined,
         accessRequestId: accessRequest?.id,
       };
@@ -760,7 +1005,6 @@ export default function AdminUsersPage() {
             setIsCreateDialogOpen(open);
             if (!open) {
               createForm.reset(createFormDefaults);
-              setMemberPickerOpen(false);
             }
           }}
         >
@@ -799,84 +1043,46 @@ export default function AdminUsersPage() {
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Miembros</FormLabel>
-                        <Popover
-                          open={memberPickerOpen}
-                          onOpenChange={(open) => {
-                            setMemberPickerOpen(open);
-                            if (!open) {
-                              setMemberInputFocused(false);
-                              if (selectedMember) {
-                                setMemberSearch(formatMemberLabel(selectedMember));
-                              } else {
-                                setMemberSearch("");
+                        <FormControl>
+                          <MemberAutocomplete
+                            value={memberSearch}
+                            options={memberOptions}
+                            placeholder="Buscar miembro..."
+                            testId="select-create-member"
+                            resetKey={isCreateDialogOpen}
+                            onChange={(value) => {
+                              setMemberSearch(value);
+                              if (selectedMemberId && selectedMember && value !== formatMemberLabel(selectedMember)) {
+                                createForm.setValue("memberId", "");
                               }
-                            }
-                          }}
-                        >
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <div className="relative">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                  role="combobox"
-                                  value={memberSearch}
-                                  onChange={(event) => {
-                                    const nextValue = event.target.value;
-                                    setMemberSearch(nextValue);
-                                    if (selectedMemberId && selectedMember && nextValue !== formatMemberLabel(selectedMember)) {
-                                      createForm.setValue("memberId", "");
-                                    }
-                                  }}
-                                  onFocus={() => setMemberInputFocused(true)}
-                                  onBlur={() => setMemberInputFocused(false)}
-                                  placeholder="Buscar miembro..."
-                                  className={cn(
-                                    "h-12 w-full rounded-full border-muted/60 bg-muted/40 pl-10 pr-10 shadow-inner",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                  data-testid="select-create-member"
-                                />
-                                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
-                              </div>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-[--radix-popover-trigger-width] p-1"
-                            align="start"
-                            onOpenAutoFocus={(event) => event.preventDefault()}
-                            onMouseDown={(event) => event.preventDefault()}
-                          >
-                            <Command className="rounded-2xl bg-background">
-                              <CommandList className="max-h-[260px]">
-                                <CommandEmpty>No se encontraron miembros.</CommandEmpty>
-                                <CommandGroup>
-                                  {filteredMembers.map((member) => (
-                                    <CommandItem
-                                      key={member.id}
-                                      value={formatMemberLabel(member)}
-                                      onSelect={() => {
-                                        field.onChange(member.id);
-                                        setMemberSearch(formatMemberLabel(member));
-                                        setMemberPickerOpen(false);
-                                        setMemberInputFocused(false);
-                                      }}
-                                      className="flex items-center justify-between"
-                                    >
-                                      <span>{formatMemberLabel(member)}</span>
-                                      {field.value === member.id && (
-                                        <Check className="h-4 w-4 text-emerald-500" />
-                                      )}
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
+                            }}
+                            onSelect={(option) => {
+                              field.onChange(option.id);
+                              setMemberSearch(option.value);
+                            }}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  {selectedMember && (
+                    <div className="md:col-span-2 rounded-lg border border-muted-foreground/20 bg-muted/10 p-4 text-sm space-y-2">
+                      <div className="font-medium">Llamamientos del miembro</div>
+                      {selectedMemberCallings.length > 0 ? (
+                        <ul className="space-y-1 text-muted-foreground">
+                          {selectedMemberCallings.map((calling) => (
+                            <li key={calling.id}>
+                              {formatCallingLabel(calling.callingName, calling.organizationName) ||
+                                calling.callingName}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">Sin llamamientos registrados.</p>
+                      )}
+                    </div>
+                  )}
 
                   <FormField
                     control={createForm.control}
@@ -951,25 +1157,22 @@ export default function AdminUsersPage() {
 
                   <FormField
                     control={createForm.control}
-                    name="role"
+                    name="organizationId"
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
-                        <FormLabel>Rol</FormLabel>
+                        <FormLabel>Organización</FormLabel>
                         <Select value={field.value ?? ""} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger data-testid="select-create-role">
-                              <SelectValue />
+                            <SelectTrigger data-testid="select-create-organization">
+                              <SelectValue placeholder="Selecciona una organización" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="obispo">Obispo</SelectItem>
-                            <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
-                            <SelectItem value="secretario">Secretario</SelectItem>
-                            <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                            <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
-                            <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
-                            <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
-                            <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
+                            {organizations.map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -977,40 +1180,69 @@ export default function AdminUsersPage() {
                     )}
                   />
 
-                  {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
-                    selectedRole
-                  ) && (
-                    <FormField
-                      control={createForm.control}
-                      name="organizationId"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Organización</FormLabel>
-                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-create-organization">
-                                <SelectValue placeholder="Selecciona una organización" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {organizations.map((org) => (
-                                <SelectItem key={org.id} value={org.id}>
-                                  {org.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
+                  <FormField
+                    control={createForm.control}
+                    name="callingName"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Llamamiento</FormLabel>
+                        <Select
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                          disabled={!selectedOrganizationId}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-create-calling">
+                              <SelectValue placeholder="Selecciona un llamamiento" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {orgCallings.map((calling) => (
+                              <SelectItem key={calling} value={calling}>
+                                {calling}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Rol</FormLabel>
+                        <Select
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                          disabled={!selectedOrganizationId}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-create-role">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {roleOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <div className="flex gap-2 justify-end">
                   <Button
                     type="submit"
-                    disabled={!selectedMember}
+                    disabled={!selectedMember || !selectedOrganizationId}
                     data-testid="button-submit-create-user"
                   >
                     Crear Usuario
