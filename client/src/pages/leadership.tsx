@@ -6,6 +6,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useOrganizations, useUsers } from "@/hooks/use-api";
+import { formatCallingLabel } from "@/lib/callings";
 import { cn } from "@/lib/utils";
 
 interface UserSummary {
@@ -23,9 +24,9 @@ const roleLabels: Record<string, string> = {
   secretario: "Secretario",
   secretario_ejecutivo: "Secretario Ejecutivo",
   secretario_financiero: "Secretario Financiero",
-  presidente_organizacion: "Presidente de Organización",
-  secretario_organizacion: "Secretario de Organización",
-  consejero_organizacion: "Consejero de Organización",
+  presidente_organizacion: "Presidente",
+  secretario_organizacion: "Secretario",
+  consejero_organizacion: "Consejero",
 };
 
 const organizationLabels: Record<string, string> = {
@@ -48,6 +49,22 @@ const organizationOrder = [
   "cuorum_elderes",
 ];
 
+const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
+
+const getOrgRoleLabel = (role: string, orgType?: string | null) => {
+  if (orgType === "jas") {
+    return "Líder de JAS";
+  }
+
+  if (FEMALE_ORG_TYPES.has(orgType ?? "")) {
+    if (role === "presidente_organizacion") return "Presidenta";
+    if (role === "consejero_organizacion") return "Consejera";
+    if (role === "secretario_organizacion") return "Secretaria";
+  }
+
+  return roleLabels[role] ?? role;
+};
+
 const getInitials = (name?: string) => {
   if (!name) return "U";
   return name
@@ -61,11 +78,17 @@ const getInitials = (name?: string) => {
 function LeaderAvatar({
   user,
   sizeClassName = "h-9 w-9",
+  organizationName,
+  organizationType,
+  roleLabelOverride,
 }: {
   user: UserSummary;
   sizeClassName?: string;
+  organizationName?: string | null;
+  organizationType?: string | null;
+  roleLabelOverride?: string;
 }) {
-  const roleLabel = roleLabels[user.role] ?? user.role;
+  const roleLabel = roleLabelOverride ?? getOrgRoleLabel(user.role, organizationType);
   const phoneDigits = user.phone?.replace(/[^\d]/g, "") ?? "";
   const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
   const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
@@ -95,7 +118,9 @@ function LeaderAvatar({
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
           <p className="text-sm font-light">{user.name}</p>
-          <p className="text-xs text-muted-foreground">{roleLabel}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatCallingLabel(roleLabel, organizationName)}
+          </p>
           <div className="flex gap-2 pt-2">
             <a
               href={phoneHref}
@@ -128,7 +153,17 @@ function LeaderAvatar({
   );
 }
 
-function CounselorSlot({ counselor }: { counselor?: UserSummary | null }) {
+function CounselorSlot({
+  counselor,
+  organizationName,
+  organizationType,
+  roleLabelOverride,
+}: {
+  counselor?: UserSummary | null;
+  organizationName?: string | null;
+  organizationType?: string | null;
+  roleLabelOverride?: string;
+}) {
   if (!counselor) {
     return (
       <div className="flex flex-col items-center gap-2">
@@ -142,9 +177,15 @@ function CounselorSlot({ counselor }: { counselor?: UserSummary | null }) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <LeaderAvatar user={counselor} sizeClassName="h-14 w-14" />
+      <LeaderAvatar
+        user={counselor}
+        sizeClassName="h-14 w-14"
+        organizationName={organizationName}
+        organizationType={organizationType}
+        roleLabelOverride={roleLabelOverride}
+      />
       <span className="text-xs text-muted-foreground">
-        {roleLabels[counselor.role] ?? counselor.role}
+        {formatCallingLabel(roleLabelOverride ?? getOrgRoleLabel(counselor.role, organizationType), organizationName)}
       </span>
     </div>
   );
@@ -155,13 +196,24 @@ function LeadershipCluster({
   president,
   counselors,
   secretaries,
+  organizationType,
 }: {
   title: string;
   president?: UserSummary | null;
   counselors: UserSummary[];
   secretaries: UserSummary[];
+  organizationType?: string | null;
 }) {
   const [firstCounselor, secondCounselor] = counselors;
+  const organizationName =
+    title === "Obispado" || organizationType === "jas" ? undefined : title;
+  const counselorLabels = FEMALE_ORG_TYPES.has(organizationType ?? "")
+    ? ["Primera consejera", "Segunda consejera"]
+    : title === "Obispado"
+    ? ["Primer consejero del Obispado", "Segundo consejero del Obispado"]
+    : organizationType === "escuela_dominical"
+    ? ["Primer consejero", "Segundo consejero"]
+    : undefined;
 
   return (
     <Card>
@@ -170,13 +222,23 @@ function LeadershipCluster({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex items-end justify-center gap-6">
-          <CounselorSlot counselor={firstCounselor} />
+          <CounselorSlot
+            counselor={firstCounselor}
+            organizationName={organizationName}
+            organizationType={organizationType}
+            roleLabelOverride={counselorLabels?.[0]}
+          />
           <div className="flex flex-col items-center gap-2">
             {president ? (
               <>
-                <LeaderAvatar user={president} sizeClassName="h-20 w-20" />
+                <LeaderAvatar
+                  user={president}
+                  sizeClassName="h-20 w-20"
+                  organizationName={organizationName}
+                  organizationType={organizationType}
+                />
                 <span className="text-xs text-muted-foreground">
-                  {roleLabels[president.role] ?? president.role}
+                  {formatCallingLabel(getOrgRoleLabel(president.role, organizationType), organizationName)}
                 </span>
               </>
             ) : (
@@ -188,7 +250,12 @@ function LeadershipCluster({
               </>
             )}
           </div>
-          <CounselorSlot counselor={secondCounselor} />
+          <CounselorSlot
+            counselor={secondCounselor}
+            organizationName={organizationName}
+            organizationType={organizationType}
+            roleLabelOverride={counselorLabels?.[1]}
+          />
         </div>
         <div className="flex flex-col items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -197,7 +264,13 @@ function LeadershipCluster({
           {secretaries.length > 0 ? (
             <div className="flex flex-wrap justify-center gap-2">
               {secretaries.map((secretary) => (
-                <LeaderAvatar key={secretary.id} user={secretary} sizeClassName="h-8 w-8" />
+                <LeaderAvatar
+                  key={secretary.id}
+                  user={secretary}
+                  sizeClassName="h-8 w-8"
+                  organizationName={organizationName}
+                  organizationType={organizationType}
+                />
               ))}
             </div>
           ) : (
@@ -280,6 +353,7 @@ export default function LeadershipPage() {
                 president={president}
                 counselors={counselors}
                 secretaries={secretaries}
+                organizationType={org.type}
               />
             );
           })}

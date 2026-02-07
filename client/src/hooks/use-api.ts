@@ -78,6 +78,7 @@ export interface MemberCalling {
   organizationName?: string | null;
   callingName: string;
   callingType?: string | null;
+  callingOrder?: number | null;
   isActive: boolean;
   startDate?: string | null;
   endDate?: string | null;

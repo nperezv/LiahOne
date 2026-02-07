@@ -275,6 +275,7 @@ export const memberCallings = pgTable("member_callings", {
   organizationId: varchar("organization_id").references(() => organizations.id),
   callingName: text("calling_name").notNull(),
   callingType: text("calling_type"),
+  callingOrder: integer("calling_order"),
   isActive: boolean("is_active").notNull().default(true),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
