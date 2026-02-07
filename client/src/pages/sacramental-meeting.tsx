@@ -987,6 +987,9 @@ export default function SacramentalMeetingPage() {
                                 testId="input-music-director"
                               />
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Sortea entre Director(a) de música y/o Director(a) de coro.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1008,6 +1011,9 @@ export default function SacramentalMeetingPage() {
                                 testId="input-pianist"
                               />
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Sortea entre quienes tienen llamamiento de Pianista.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
