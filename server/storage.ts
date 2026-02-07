@@ -866,7 +866,6 @@ export class DatabaseStorage implements IStorage {
       .from(memberCallings)
       .leftJoin(members, eq(memberCallings.memberId, members.id))
       .leftJoin(organizations, eq(memberCallings.organizationId, organizations.id))
-      .where(eq(memberCallings.isActive, true))
       .orderBy(asc(members.nameSurename), asc(memberCallings.callingName));
   }
 

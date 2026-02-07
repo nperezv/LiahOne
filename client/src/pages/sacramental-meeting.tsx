@@ -320,9 +320,13 @@ export default function SacramentalMeetingPage() {
     );
   };
   const isPianistCalling = (value: string) => normalizeText(value).startsWith("pianista");
-  const activeMemberCallings = useMemo(
-    () => memberCallings.filter((calling) => calling.isActive && calling.memberName),
+  const memberCallingsWithMembers = useMemo(
+    () => memberCallings.filter((calling) => calling.memberName),
     [memberCallings]
+  );
+  const activeMemberCallings = useMemo(
+    () => memberCallingsWithMembers.filter((calling) => calling.isActive),
+    [memberCallingsWithMembers]
   );
   const musicDirectorCandidates = useMemo(() => {
     const names = activeMemberCallings
@@ -363,7 +367,7 @@ export default function SacramentalMeetingPage() {
     if (!orgId) return [];
     return Array.from(
       new Set(
-        activeMemberCallings
+        memberCallingsWithMembers
           .filter((calling) => calling.organizationId === orgId)
           .map((calling) => calling.callingName)
           .filter(Boolean)
@@ -380,37 +384,37 @@ export default function SacramentalMeetingPage() {
   const getMemberNameForCalling = useCallback((orgId?: string, callingName?: string) => {
     if (!orgId || !callingName) return "";
     const normalizedCalling = normalizeText(callingName);
-    const match = activeMemberCallings.find(
+    const match = memberCallingsWithMembers.find(
       (calling) =>
         calling.organizationId === orgId &&
         normalizeText(calling.callingName) === normalizedCalling
     );
     if (match?.memberName) return match.memberName;
-    const fallbackMatches = activeMemberCallings.filter(
+    const fallbackMatches = memberCallingsWithMembers.filter(
       (calling) => normalizeText(calling.callingName) === normalizedCalling
     );
     if (fallbackMatches.length === 1) {
       return fallbackMatches[0]?.memberName || "";
     }
     return "";
-  }, [activeMemberCallings]);
+  }, [memberCallingsWithMembers]);
   const getMemberCallingsByName = useCallback((memberName?: string) => {
     if (!memberName) return [];
     const normalizedName = normalizeText(memberName);
-    return activeMemberCallings.filter(
+    return memberCallingsWithMembers.filter(
       (calling) => normalizeText(calling.memberName || "") === normalizedName
     );
-  }, [activeMemberCallings]);
+  }, [memberCallingsWithMembers]);
   const getCallingsForMemberAndOrg = useCallback((memberName?: string, orgId?: string) => {
     if (!memberName || !orgId) return [];
     const normalizedName = normalizeText(memberName);
-    return activeMemberCallings.filter(
+    return memberCallingsWithMembers.filter(
       (calling) =>
         normalizeText(calling.memberName || "") === normalizedName &&
         calling.organizationId === orgId
     );
-  }, [activeMemberCallings]);
-  const getMatchingOrganizationId = (matches: typeof activeMemberCallings) => {
+  }, [memberCallingsWithMembers]);
+  const getMatchingOrganizationId = (matches: typeof memberCallingsWithMembers) => {
     const uniqueOrgIds = Array.from(
       new Set(matches.map((calling) => calling.organizationId).filter(Boolean))
     );
@@ -419,7 +423,7 @@ export default function SacramentalMeetingPage() {
     }
     return "";
   };
-  const getMatchingCallingName = (matches: typeof activeMemberCallings) => {
+  const getMatchingCallingName = (matches: typeof memberCallingsWithMembers) => {
     const uniqueCallings = Array.from(
       new Set(matches.map((calling) => calling.callingName).filter(Boolean))
     );
@@ -428,9 +432,6 @@ export default function SacramentalMeetingPage() {
     }
     return "";
   };
-  const pickRandomCandidate = (names: string[]) =>
-    names.length ? names[Math.floor(Math.random() * names.length)] : "";
-
   const { user } = useAuth();
   const { data: meetings = [] as any[], isLoading = false } = useSacramentalMeetings();
   const { data: organizations = [] as any[] } = useOrganizations();
@@ -745,7 +746,7 @@ export default function SacramentalMeetingPage() {
       });
       return changed ? next : prev;
     });
-  }, [activeMemberCallings, getMemberNameForCalling, isDialogOpen]);
+  }, [memberCallingsWithMembers, getMemberNameForCalling, isDialogOpen]);
 
   const onSubmit = (data: MeetingFormValues) => {
     if (!data.date) {
@@ -977,31 +978,14 @@ export default function SacramentalMeetingPage() {
                           <FormItem>
                             <FormLabel>Dirige la música</FormLabel>
                             <FormControl>
-                              <div className="flex flex-wrap gap-2">
-                                <MemberAutocomplete
-                                  value={field.value || ""}
-                                  options={uniqueMemberOptions}
-                                  placeholder="Nombre completo"
-                                  onChange={field.onChange}
-                                  onBlur={field.onBlur}
-                                  className="flex-1"
-                                  testId="input-music-director"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const selection = pickRandomCandidate(musicDirectorCandidates);
-                                    if (selection) {
-                                      form.setValue("musicDirector", selection, { shouldDirty: true });
-                                    }
-                                  }}
-                                  disabled={!musicDirectorCandidates.length}
-                                >
-                                  Sortear
-                                </Button>
-                              </div>
+                              <MemberAutocomplete
+                                value={field.value || ""}
+                                options={musicDirectorCandidates.map((value) => ({ value }))}
+                                placeholder="Nombre completo"
+                                onChange={field.onChange}
+                                onBlur={field.onBlur}
+                                testId="input-music-director"
+                              />
                             </FormControl>
                             <p className="text-xs text-muted-foreground">
                               Sortea entre Director(a) de música y/o Director(a) de coro.
@@ -1018,31 +1002,14 @@ export default function SacramentalMeetingPage() {
                           <FormItem>
                             <FormLabel>Acompaña al piano</FormLabel>
                             <FormControl>
-                              <div className="flex flex-wrap gap-2">
-                                <MemberAutocomplete
-                                  value={field.value || ""}
-                                  options={uniqueMemberOptions}
-                                  placeholder="Nombre completo"
-                                  onChange={field.onChange}
-                                  onBlur={field.onBlur}
-                                  className="flex-1"
-                                  testId="input-pianist"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const selection = pickRandomCandidate(pianistCandidates);
-                                    if (selection) {
-                                      form.setValue("pianist", selection, { shouldDirty: true });
-                                    }
-                                  }}
-                                  disabled={!pianistCandidates.length}
-                                >
-                                  Sortear
-                                </Button>
-                              </div>
+                              <MemberAutocomplete
+                                value={field.value || ""}
+                                options={pianistCandidates.map((value) => ({ value }))}
+                                placeholder="Nombre completo"
+                                onChange={field.onChange}
+                                onBlur={field.onBlur}
+                                testId="input-pianist"
+                              />
                             </FormControl>
                             <p className="text-xs text-muted-foreground">
                               Sortea entre quienes tienen llamamiento de Pianista.
