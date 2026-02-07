@@ -46,18 +46,30 @@ const memberSchema = z.object({
   organizationId: z.string().optional().or(z.literal("")),
 });
 
-const callingSchema = z.object({
-  callingName: z.string().min(1, "El llamamiento es requerido"),
-  organizationId: z.string().min(1, "La organización es requerida"),
-  callingOrder: z.preprocess(
-    (value) => {
-      if (value === "" || value === null || value === undefined) return undefined;
-      const parsed = Number(value);
-      return Number.isNaN(parsed) ? undefined : parsed;
-    },
-    z.number().int().positive().optional()
-  ),
-});
+const requiresCallingOrder = (callingName?: string) => /consejer[oa]/i.test(callingName ?? "");
+
+const callingSchema = z
+  .object({
+    callingName: z.string().min(1, "El llamamiento es requerido"),
+    organizationId: z.string().min(1, "La organización es requerida"),
+    callingOrder: z.preprocess(
+      (value) => {
+        if (value === "" || value === null || value === undefined) return undefined;
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? undefined : parsed;
+      },
+      z.number().int().positive().optional()
+    ),
+  })
+  .superRefine((data, ctx) => {
+    if (requiresCallingOrder(data.callingName) && !data.callingOrder) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El orden es requerido para consejeros/as.",
+        path: ["callingOrder"],
+      });
+    }
+  });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
 type CallingFormValues = z.infer<typeof callingSchema>;
@@ -243,6 +255,7 @@ export default function DirectoryPage() {
   const memberCallings = memberCallingsQuery.data ?? [];
   const isCallingsLoading = memberCallingsQuery.isLoading;
   const selectedCallingOrgId = callingForm.watch("organizationId");
+  const selectedCallingName = callingForm.watch("callingName");
   const selectedCallingOrg = useMemo(
     () => organizations.find((org: any) => org.id === selectedCallingOrgId),
     [organizations, selectedCallingOrgId]
@@ -251,6 +264,10 @@ export default function DirectoryPage() {
     if (!selectedCallingOrg?.type) return [];
     return callingsByOrgType[selectedCallingOrg.type] ?? [];
   }, [selectedCallingOrg]);
+  const showCallingOrder = useMemo(
+    () => requiresCallingOrder(selectedCallingName),
+    [selectedCallingName]
+  );
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -983,35 +1000,18 @@ export default function DirectoryPage() {
             <form onSubmit={callingForm.handleSubmit(handleSubmitCalling)} className="space-y-4">
               <FormField
                 control={callingForm.control}
-                name="callingName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Llamamiento</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Presidente del cuórum de élderes"
-                        list="calling-options"
-                        {...field}
-                      />
-                    </FormControl>
-                    {callingOptions.length > 0 && (
-                      <datalist id="calling-options">
-                        {callingOptions.map((calling) => (
-                          <option key={calling} value={calling} />
-                        ))}
-                      </datalist>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={callingForm.control}
                 name="organizationId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Organización</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        callingForm.setValue("callingName", "");
+                        callingForm.setValue("callingOrder", undefined);
+                      }}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona una organización" />
@@ -1031,23 +1031,58 @@ export default function DirectoryPage() {
               />
               <FormField
                 control={callingForm.control}
-                name="callingOrder"
+                name="callingName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Orden (opcional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="1"
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
+                    <FormLabel>Llamamiento</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        if (!requiresCallingOrder(value)) {
+                          callingForm.setValue("callingOrder", undefined);
+                        }
+                      }}
+                      disabled={!selectedCallingOrgId}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un llamamiento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {callingOptions.map((calling) => (
+                          <SelectItem key={calling} value={calling}>
+                            {calling}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {showCallingOrder && (
+                <FormField
+                  control={callingForm.control}
+                  name="callingOrder"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Orden</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="1"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" type="button" onClick={() => setCallingDialogOpen(false)}>
                   Cancelar
