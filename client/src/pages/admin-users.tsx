@@ -176,7 +176,7 @@ const MemberAutocomplete = ({
           onChange(event.target.value);
           setIsOpen(true);
         }}
-        onFocus={() => setIsOpen(true)}
+        onClick={() => setIsOpen(true)}
         onBlur={() => {
           onBlur?.();
           setTimeout(() => setIsOpen(false), 150);
@@ -688,17 +688,33 @@ export default function AdminUsersPage() {
   }, [selectedOrganizationType]);
 
   const inferRoleFromCalling = (callingName?: string, orgType?: string) => {
-    if (!callingName) return "";
+    if (!callingName || !orgType) return "";
     const normalized = callingName.trim().toLowerCase();
+    const obispadoMap: Record<string, string> = {
+      obispo: "obispo",
+      "primer consejero": "consejero_obispo",
+      "segundo consejero": "consejero_obispo",
+      secretario: "secretario",
+      "secretario ejecutivo": "secretario_ejecutivo",
+      "secretario financiero": "secretario_financiero",
+    };
+    const organizationMap: Record<string, string> = {
+      presidenta: "presidente_organizacion",
+      presidente: "presidente_organizacion",
+      "primera consejera": "consejero_organizacion",
+      "segunda consejera": "consejero_organizacion",
+      "primer consejero": "consejero_organizacion",
+      "segundo consejero": "consejero_organizacion",
+      secretaria: "secretario_organizacion",
+      secretario: "secretario_organizacion",
+    };
     if (orgType === "obispado") {
-      if (normalized === "obispo") return "obispo";
-      if (normalized.includes("consejero")) return "consejero_obispo";
-      if (normalized === "secretario") return "secretario";
-      if (normalized === "secretario ejecutivo") return "secretario_ejecutivo";
-      if (normalized === "secretario financiero") return "secretario_financiero";
-      return "";
+      return obispadoMap[normalized] ?? "";
     }
 
+    if (organizationMap[normalized]) {
+      return organizationMap[normalized];
+    }
     if (normalized.startsWith("presidenta") || normalized.startsWith("presidente")) {
       return "presidente_organizacion";
     }
