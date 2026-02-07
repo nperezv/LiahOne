@@ -345,16 +345,102 @@ export default function SacramentalMeetingPage() {
 
   // Calling mapping by organization type
   const callingsByOrgType: Record<string, string[]> = {
-    "hombres_jovenes": [
-      "Presidente de Cuórum de Diáconos",
-      "Presidente de Cuórum de Maestros",
-      "Presidente de Cuórum de Presbíteros",
+    "obispado": [
+      "Obispo",
+      "Primer consejero",
+      "Segundo consejero",
+      "Secretario",
+      "Secretario Ejecutivo",
+      "Secretario Financiero",
     ],
-    "mujeres_jovenes": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
-    "sociedad_socorro": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
-    "primaria": ["Presidenta", "1era. Consejera", "2da. Consejera", "Secretaria"],
-    "escuela_dominical": ["Presidente", "1er. Consejero", "2do. Consejero", "Secretario"],
-    "jas": ["Líder de JAS Varón", "Líder de JAS Mujer"],
+    "cuorum_elderes": [
+      "Presidente",
+      "Primer consejero",
+      "Segundo consejero",
+      "Secretario",
+      "Maestro",
+      "Líder de ministración",
+    ],
+    "sociedad_socorro": [
+      "Presidenta",
+      "Primera consejera",
+      "Segunda consejera",
+      "Secretaria",
+      "Maestra",
+      "Coordinadora de ministración",
+    ],
+    "mujeres_jovenes": [
+      "Presidenta",
+      "Primera consejera",
+      "Segunda consejera",
+      "Secretaria",
+      "Asesora de clases",
+      "Especialistas de Mujeres Jóvenes",
+    ],
+    "hombres_jovenes": [
+      "Presidente del Sacerdocio Aarónico",
+      "Primer consejero del Sacerdocio Aarónico",
+      "Segundo consejero del Sacerdocio Aarónico",
+      "Asesor de Hombres Jóvenes",
+      "Especialista de Hombres Jóvenes",
+      "Presidente de quórum de diáconos",
+      "Primer consejero de quórum de diáconos",
+      "Segundo consejero de quórum de diáconos",
+      "Secretario de quórum de diáconos",
+      "Presidente de quórum de maestros",
+      "Primer consejero de quórum de maestros",
+      "Segundo consejero de quórum de maestros",
+      "Secretario de quórum de maestros",
+      "Presidente de quórum de presbíteros",
+      "Primer ayudante de quórum de presbíteros",
+      "Segundo ayudante de quórum de presbíteros",
+    ],
+    "primaria": [
+      "Presidenta",
+      "Primera consejera",
+      "Segunda consejera",
+      "Secretaria",
+      "Líder de música",
+      "Pianista",
+      "Maestro",
+      "Maestra",
+      "Líder de guardería",
+    ],
+    "escuela_dominical": [
+      "Presidente",
+      "Primer consejero",
+      "Segundo consejero",
+      "Secretario",
+      "Maestro",
+      "Maestra",
+    ],
+    "jas": ["Líder"],
+    "barrio": [
+      "Director de música del barrio",
+      "Directora de música del barrio",
+      "Pianista",
+      "Director de coro",
+      "Directora de coro",
+      "Pianista de coro",
+      "Lider de la Obra del Templo e Historia Familiar",
+      "Consultor de Historia Familiar",
+      "Coordinador de Historia Familiar",
+      "Líder misional del barrio",
+      "Misionero de Barrio",
+      "Misionera de Barrio",
+      "Maestro de preparación misional",
+      "Maestra de preparación misional",
+      "Especialista de tecnología",
+      "Líder de autosuficiencia",
+      "Representante de Comunicaciones",
+      "Coordinador de actividades",
+      "Coordinadora de actividades",
+      "Coordinador de servicio",
+      "Director de deportes",
+      "Representante de JustServe",
+      "Bibliotecario",
+      "Coordinador de limpieza",
+    ],
   };
 
   // Filter organizations for releases and sustainments (exclude cuorum)
@@ -363,19 +449,49 @@ export default function SacramentalMeetingPage() {
       org.type !== "obispado");
   };
 
+  const getOrganizationsForSustainments = () => {
+    return (organizations as any[]).filter((org: any) => org.type !== "cuorum_elderes");
+  };
+
+  const getOrganizationType = (orgId?: string) => {
+    if (!orgId) return "";
+    return (organizations as any[]).find((org: any) => org.id === orgId)?.type || "";
+  };
+
   const getCallingsForOrg = (orgId?: string): string[] => {
     if (!orgId) return [];
     return Array.from(
       new Set(
-        memberCallingsWithMembers
+        activeMemberCallings
           .filter((calling) => calling.organizationId === orgId)
           .map((calling) => calling.callingName)
           .filter(Boolean)
       )
     );
   };
+  const getVacantCallingsForOrg = (orgId?: string): string[] => {
+    if (!orgId) return [];
+    const orgType = getOrganizationType(orgId);
+    const orgCallings = callingsByOrgType[orgType] || [];
+    if (!orgCallings.length) {
+      return [];
+    }
+    const assignedCallings = getCallingsForOrg(orgId).map((calling) => normalizeText(calling));
+    return Array.from(
+      new Set(
+        orgCallings.filter((calling) => !assignedCallings.includes(normalizeText(calling)))
+      )
+    );
+  };
   const getCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
     const callings = getCallingsForOrg(orgId);
+    if (currentCalling && !callings.includes(currentCalling)) {
+      return [...callings, currentCalling];
+    }
+    return callings;
+  };
+  const getVacantCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
+    const callings = getVacantCallingsForOrg(orgId);
     if (currentCalling && !callings.includes(currentCalling)) {
       return [...callings, currentCalling];
     }
@@ -1516,9 +1632,9 @@ export default function SacramentalMeetingPage() {
                                       <SelectValue placeholder="Seleccionar organización" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {getOrganizationsForReleases().map((org) => (
-                                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                                      ))}
+                                  {getOrganizationsForSustainments().map((org) => (
+                                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                                  ))}
                                     </SelectContent>
                                   </Select>
                                   {release.organizationId && (
@@ -1535,14 +1651,6 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
-                                  <MemberAutocomplete
-                                    value={release.name}
-                                    options={uniqueMemberOptions}
-                                    placeholder="Nombre"
-                                    onChange={(value) => updateReleaseName(index, value)}
-                                    testId={`input-release-name-${index}`}
-                                    className="flex-1 text-sm"
-                                  />
                                   <Select value={release.oldCalling || ""} onValueChange={(calling) => {
                                     updateReleaseCalling(index, calling);
                                   }}>
@@ -1555,6 +1663,14 @@ export default function SacramentalMeetingPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                  <MemberAutocomplete
+                                    value={release.name}
+                                    options={uniqueMemberOptions}
+                                    placeholder="Nombre"
+                                    onChange={(value) => updateReleaseName(index, value)}
+                                    testId={`input-release-name-${index}`}
+                                    className="flex-1 text-sm"
+                                  />
                                   {releases.length > 1 && (
                                     <Button
                                     type="button"
@@ -1598,7 +1714,7 @@ export default function SacramentalMeetingPage() {
                                       <SelectValue placeholder="Seleccionar organización" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {getOrganizationsForReleases().map((org) => (
+                                      {getOrganizationsForSustainments().map((org) => (
                                         <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                                       ))}
                                     </SelectContent>
@@ -1617,6 +1733,18 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
+                                  <Select value={sustainment.calling || ""} onValueChange={(calling) => {
+                                    updateSustainment(index, "calling", calling);
+                                  }}>
+                                    <SelectTrigger className="h-8 text-sm flex-1">
+                                      <SelectValue placeholder="Seleccionar llamamiento" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {getVacantCallingsForOrgWithCurrent(sustainment.organizationId, sustainment.calling).map((calling) => (
+                                        <SelectItem key={calling} value={calling}>{calling}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   <MemberAutocomplete
                                     value={sustainment.name}
                                     options={uniqueMemberOptions}
@@ -1625,18 +1753,6 @@ export default function SacramentalMeetingPage() {
                                     testId={`input-sustainment-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
-                                  <Select value={sustainment.calling || ""} onValueChange={(calling) => {
-                                    updateSustainment(index, "calling", calling);
-                                  }}>
-                                    <SelectTrigger className="h-8 text-sm flex-1">
-                                      <SelectValue placeholder="Seleccionar llamamiento" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {getCallingsForOrgWithCurrent(sustainment.organizationId, sustainment.calling).map((calling) => (
-                                        <SelectItem key={calling} value={calling}>{calling}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
                                   {sustainments.length > 1 && (
                                     <Button
                                       type="button"
