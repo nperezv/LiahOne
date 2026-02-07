@@ -122,9 +122,9 @@ function requireRole(...roles: string[]) {
 
 const CALLING_ROLE_LABELS: Record<string, { neutral: string; male?: string; female?: string }> = {
   obispo: { neutral: "Obispo" },
-  consejero_obispo: { neutral: "Consejero del obispo" },
+  consejero_obispo: { neutral: "Consejero" },
   secretario_ejecutivo: { neutral: "Secretario ejecutivo" },
-  secretario: { neutral: "Secretario del barrio" },
+  secretario: { neutral: "Secretario" },
   secretario_financiero: { neutral: "Secretario financiero" },
   presidente_organizacion: { neutral: "Presidente/Presidenta", male: "Presidente", female: "Presidenta" },
   consejero_organizacion: { neutral: "Consejero/Consejera", male: "Consejero", female: "Consejera" },
@@ -821,6 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone,
         memberId,
         isActive,
+        callingName: callingNameOverride,
       } = req.body;
 
       if (!name || !role) {
@@ -855,18 +856,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "organizationId is required for this role" });
       }
 
-      let memberForCalling: any = null;
-      if (memberId) {
-        const member = await storage.getMemberById(memberId);
-        if (!member) {
-          return res.status(400).json({ error: "Member not found" });
-        }
-        const memberAlreadyLinked = existingUsers.some((user) => user.memberId === memberId);
-        if (memberAlreadyLinked) {
-          return res.status(400).json({ error: "Member is already linked to another user" });
-        }
-        memberForCalling = member;
+      if (!memberId) {
+        return res.status(400).json({ error: "memberId is required to create a user" });
       }
+
+      let memberForCalling: any = null;
+      const member = await storage.getMemberById(memberId);
+      if (!member) {
+        return res.status(400).json({ error: "Member not found" });
+      }
+      const memberAlreadyLinked = existingUsers.some((user) => user.memberId === memberId);
+      if (memberAlreadyLinked) {
+        return res.status(400).json({ error: "Member is already linked to another user" });
+      }
+      memberForCalling = member;
 
       // Bishop-level roles automatically get the Obispado organizationId
       const bishopRoles = ["consejero_obispo", "secretario"];
@@ -889,7 +892,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (memberId && memberForCalling) {
-        const callingName = getCallingLabel(role, memberForCalling.sex);
+        const trimmedCallingOverride =
+          typeof callingNameOverride === "string" ? callingNameOverride.trim() : "";
+        const callingName = trimmedCallingOverride || getCallingLabel(role, memberForCalling.sex);
         if (callingName) {
           const obispadoOrganizationId = await getObispadoOrganizationId();
           const callingOrganizationId = OBISPADO_ROLES.has(role)
@@ -970,6 +975,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasMemberId = Object.prototype.hasOwnProperty.call(req.body ?? {}, "memberId");
       const normalizedMemberId =
         memberId === "" || memberId === null ? null : (memberId as string | undefined);
+
+      if (hasMemberId && !normalizedMemberId) {
+        return res.status(400).json({ error: "memberId is required" });
+      }
 
       if (hasMemberId && normalizedMemberId) {
         const member = await storage.getMemberById(normalizedMemberId);

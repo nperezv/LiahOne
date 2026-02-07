@@ -188,7 +188,7 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
 
   setBodyFont(ctx, 11, "normal");
 
-  const normalizeCallingLabel = (value: string) => (value === "Consejero" ? "Consejero del Obispado" : value);
+  const normalizeCallingLabel = (value: string) => value;
   const splitEntries = (value: string) =>
     value
       .split(",")
@@ -416,7 +416,7 @@ function formatPersonWithCalling(value?: string) {
   if (!value) return "";
   const [namePart, callingPart] = value.split("|").map((part) => part.trim());
   if (!callingPart) return namePart || "";
-  const normalizedCalling = callingPart === "Consejero" ? "Consejero del Obispado" : callingPart;
+  const normalizedCalling = callingPart;
   return `${namePart || ""} - ${normalizedCalling}`;
 }
 
