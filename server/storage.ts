@@ -872,6 +872,7 @@ export class DatabaseStorage implements IStorage {
         organizationId: memberCallings.organizationId,
         callingName: memberCallings.callingName,
         callingType: memberCallings.callingType,
+        callingOrder: memberCallings.callingOrder,
         isActive: memberCallings.isActive,
         startDate: memberCallings.startDate,
         endDate: memberCallings.endDate,
@@ -881,7 +882,10 @@ export class DatabaseStorage implements IStorage {
       .from(memberCallings)
       .leftJoin(organizations, eq(memberCallings.organizationId, organizations.id))
       .where(eq(memberCallings.memberId, memberId))
-      .orderBy(asc(memberCallings.callingName));
+      .orderBy(
+        asc(sql`coalesce(${memberCallings.callingOrder}, 9999)`),
+        asc(memberCallings.callingName)
+      );
   }
 
   async getMemberCallingById(id: string): Promise<MemberCalling | undefined> {

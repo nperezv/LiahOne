@@ -35,7 +35,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSacramentalMeetings, useCreateSacramentalMeeting, useUpdateSacramentalMeeting, useDeleteSacramentalMeeting, useOrganizations, useUsers, useHymns } from "@/hooks/use-api";
+import {
+  useSacramentalMeetings,
+  useCreateSacramentalMeeting,
+  useUpdateSacramentalMeeting,
+  useDeleteSacramentalMeeting,
+  useOrganizations,
+  useUsers,
+  useHymns,
+  useMembers,
+} from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
 import { exportSacramentalMeetings } from "@/lib/export";
@@ -44,6 +53,10 @@ type HymnOption = {
   value: string;
   number: number;
   title: string;
+};
+
+type MemberOption = {
+  value: string;
 };
 
 type HymnAutocompleteProps = {
@@ -132,6 +145,82 @@ const HymnAutocomplete = ({
   );
 };
 
+const filterMemberOptions = (options: MemberOption[], query: string) => {
+  const trimmed = query.trim();
+  if (!trimmed) return options;
+  const lowerQuery = trimmed.toLowerCase();
+  return options.filter((option) => option.value.toLowerCase().includes(lowerQuery));
+};
+
+const MemberAutocomplete = ({
+  value,
+  options,
+  placeholder,
+  onChange,
+  onBlur,
+  testId,
+  className,
+}: {
+  value: string;
+  options: MemberOption[];
+  placeholder?: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  testId?: string;
+  className?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const filteredOptions = useMemo(() => filterMemberOptions(options, value), [options, value]);
+
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => {
+          onBlur?.();
+          setTimeout(() => setIsOpen(false), 150);
+        }}
+        data-testid={testId}
+        className={className}
+        autoComplete="off"
+      />
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-input bg-popover text-popover-foreground shadow-md">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+                    option.value === value && "bg-accent text-accent-foreground"
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                >
+                  {option.value}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const meetingSchema = z.object({
   date: z.string().optional(),
   presider: z.string().optional(),
@@ -201,6 +290,18 @@ export default function SacramentalMeetingPage() {
   const [presiderAuthorityType, setPresiderAuthorityType] = useState("");
   const presiderAuthoritySelection = "autoridad_presidente";
   const directorAssignedSelection = "lider_asignado";
+  const { data: members = [] } = useMembers();
+  const memberOptions = useMemo(
+    () =>
+      members
+        .map((member) => member.nameSurename?.trim())
+        .filter((name): name is string => Boolean(name)),
+    [members]
+  );
+  const uniqueMemberOptions = useMemo(
+    () => Array.from(new Set(memberOptions)).map((value) => ({ value })),
+    [memberOptions]
+  );
 
   // Calling mapping by organization type
   const callingsByOrgType: Record<string, string[]> = {
@@ -986,7 +1087,14 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Ofrecida por</FormLabel>
                           <FormControl>
-                            <Input placeholder="Nombre de la persona" {...field} data-testid="input-opening-prayer" />
+                            <MemberAutocomplete
+                              value={field.value || ""}
+                              options={uniqueMemberOptions}
+                              placeholder="Nombre de la persona"
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              testId="input-opening-prayer"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1497,11 +1605,12 @@ export default function SacramentalMeetingPage() {
                           <div className="space-y-2 pb-4 border-b">
                             <div className="text-xs font-medium text-muted-foreground">Primer Mensaje</div>
                             <div className="flex gap-2">
-                              <Input
-                                placeholder="Nombre del orador"
+                              <MemberAutocomplete
                                 value={discourses[0].speaker}
-                                onChange={(e) => updateDiscourse(0, "speaker", e.target.value)}
-                                data-testid={`input-speaker-0`}
+                                options={uniqueMemberOptions}
+                                placeholder="Nombre del orador"
+                                onChange={(value) => updateDiscourse(0, "speaker", value)}
+                                testId={`input-speaker-0`}
                                 className="flex-1 text-sm"
                               />
                               <Input
@@ -1563,11 +1672,12 @@ export default function SacramentalMeetingPage() {
                                 <div key={index} className="space-y-2 border-l-2 border-cyan-300 pl-3">
                                   <div className="text-xs font-medium text-muted-foreground">Mensaje {index + 1}</div>
                                   <div className="flex gap-2">
-                                    <Input
-                                      placeholder="Nombre del orador"
+                                    <MemberAutocomplete
                                       value={discourse.speaker}
-                                      onChange={(e) => updateDiscourse(index, "speaker", e.target.value)}
-                                      data-testid={`input-speaker-${index}`}
+                                      options={uniqueMemberOptions}
+                                      placeholder="Nombre del orador"
+                                      onChange={(value) => updateDiscourse(index, "speaker", value)}
+                                      testId={`input-speaker-${index}`}
                                       className="flex-1 text-sm"
                                     />
                                     <Input
@@ -1659,7 +1769,14 @@ export default function SacramentalMeetingPage() {
                         <FormItem>
                           <FormLabel>Ofrecida por</FormLabel>
                           <FormControl>
-                            <Input placeholder="Nombre de la persona" {...field} data-testid="input-closing-prayer" />
+                            <MemberAutocomplete
+                              value={field.value || ""}
+                              options={uniqueMemberOptions}
+                              placeholder="Nombre de la persona"
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              testId="input-closing-prayer"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

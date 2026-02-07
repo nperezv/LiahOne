@@ -275,6 +275,7 @@ export const memberCallings = pgTable("member_callings", {
   organizationId: varchar("organization_id").references(() => organizations.id),
   callingName: text("calling_name").notNull(),
   callingType: text("calling_type"),
+  callingOrder: integer("calling_order"),
   isActive: boolean("is_active").notNull().default(true),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
@@ -880,8 +881,8 @@ export const insertMemberSchema = createInsertSchema(members, {
 export const selectMemberSchema = createSelectSchema(members);
 export type Member = typeof members.$inferSelect;
 export const insertMemberCallingSchema = createInsertSchema(memberCallings, {
-  startDate: dateSchema,
-  endDate: dateSchema,
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
 }).omit({
   id: true,
   createdAt: true,
