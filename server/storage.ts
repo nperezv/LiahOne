@@ -87,6 +87,10 @@ export type DirectoryMemberCalling = MemberCalling & {
   organizationName: string | null;
 };
 
+export type DirectoryMemberCallingWithMember = DirectoryMemberCalling & {
+  memberName: string | null;
+};
+
 export interface UserDeletionSummary {
   activitiesCreated: number;
   assignmentsAssignedTo: number;
@@ -195,6 +199,7 @@ export interface IStorage {
 
   // Member Callings
   getMemberCallings(memberId: string): Promise<DirectoryMemberCalling[]>;
+  getActiveMemberCallings(): Promise<DirectoryMemberCallingWithMember[]>;
   getMemberCallingById(id: string): Promise<MemberCalling | undefined>;
   createMemberCalling(data: InsertMemberCalling): Promise<MemberCalling>;
   updateMemberCalling(id: string, data: Partial<InsertMemberCalling>): Promise<MemberCalling | undefined>;
@@ -840,6 +845,29 @@ export class DatabaseStorage implements IStorage {
   async getMemberById(id: string): Promise<Member | undefined> {
     const [member] = await db.select().from(members).where(eq(members.id, id));
     return member || undefined;
+  }
+
+  async getActiveMemberCallings(): Promise<DirectoryMemberCallingWithMember[]> {
+    return await db
+      .select({
+        id: memberCallings.id,
+        memberId: memberCallings.memberId,
+        memberName: members.nameSurename,
+        organizationId: memberCallings.organizationId,
+        callingName: memberCallings.callingName,
+        callingType: memberCallings.callingType,
+        callingOrder: memberCallings.callingOrder,
+        isActive: memberCallings.isActive,
+        startDate: memberCallings.startDate,
+        endDate: memberCallings.endDate,
+        createdAt: memberCallings.createdAt,
+        organizationName: organizations.name,
+      })
+      .from(memberCallings)
+      .leftJoin(members, eq(memberCallings.memberId, members.id))
+      .leftJoin(organizations, eq(memberCallings.organizationId, organizations.id))
+      .where(eq(memberCallings.isActive, true))
+      .orderBy(asc(members.nameSurename), asc(memberCallings.callingName));
   }
 
   async createMember(insertMember: InsertMember): Promise<Member> {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -44,6 +44,7 @@ import {
   useUsers,
   useHymns,
   useMembers,
+  useAllMemberCallings,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
@@ -302,6 +303,41 @@ export default function SacramentalMeetingPage() {
     () => Array.from(new Set(memberOptions)).map((value) => ({ value })),
     [memberOptions]
   );
+  const { data: memberCallings = [] } = useAllMemberCallings();
+  const normalizeText = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .trim();
+  const isMusicDirectorCalling = (value: string) => {
+    const normalized = normalizeText(value);
+    return (
+      normalized.includes("director de musica") ||
+      normalized.includes("directora de musica") ||
+      normalized.includes("director de coro") ||
+      normalized.includes("directora de coro")
+    );
+  };
+  const isPianistCalling = (value: string) => normalizeText(value).startsWith("pianista");
+  const activeMemberCallings = useMemo(
+    () => memberCallings.filter((calling) => calling.isActive && calling.memberName),
+    [memberCallings]
+  );
+  const musicDirectorCandidates = useMemo(() => {
+    const names = activeMemberCallings
+      .filter((calling) => isMusicDirectorCalling(calling.callingName))
+      .map((calling) => calling.memberName || "")
+      .filter(Boolean);
+    return Array.from(new Set(names));
+  }, [activeMemberCallings]);
+  const pianistCandidates = useMemo(() => {
+    const names = activeMemberCallings
+      .filter((calling) => isPianistCalling(calling.callingName))
+      .map((calling) => calling.memberName || "")
+      .filter(Boolean);
+    return Array.from(new Set(names));
+  }, [activeMemberCallings]);
 
   // Calling mapping by organization type
   const callingsByOrgType: Record<string, string[]> = {
@@ -323,17 +359,37 @@ export default function SacramentalMeetingPage() {
       org.type !== "obispado");
   };
 
-  // Check if a calling should use custom text input
-  const isCustomCallingOrg = (orgId?: string): boolean => {
-    const org = (organizations as any[]).find((o: any) => o.id === orgId);
-    return org?.type === "barrio";
-  };
-
   const getCallingsForOrg = (orgId?: string): string[] => {
     if (!orgId) return [];
     const org = (organizations as any[]).find((o: any) => o.id === orgId);
+    const fromAssignments = activeMemberCallings
+      .filter((calling) => calling.organizationId === orgId)
+      .map((calling) => calling.callingName)
+      .filter(Boolean);
+    if (fromAssignments.length) {
+      return Array.from(new Set(fromAssignments));
+    }
     return org ? (callingsByOrgType[org.type] || []) : [];
   };
+  const getCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
+    const callings = getCallingsForOrg(orgId);
+    if (currentCalling && !callings.includes(currentCalling)) {
+      return [...callings, currentCalling];
+    }
+    return callings;
+  };
+  const getMemberNameForCalling = useCallback((orgId?: string, callingName?: string) => {
+    if (!orgId || !callingName) return "";
+    const normalizedCalling = normalizeText(callingName);
+    const match = activeMemberCallings.find(
+      (calling) =>
+        calling.organizationId === orgId &&
+        normalizeText(calling.callingName) === normalizedCalling
+    );
+    return match?.memberName || "";
+  }, [activeMemberCallings]);
+  const pickRandomCandidate = (names: string[]) =>
+    names.length ? names[Math.floor(Math.random() * names.length)] : "";
 
   const { user } = useAuth();
   const { data: meetings = [] as any[], isLoading = false } = useSacramentalMeetings();
@@ -636,6 +692,21 @@ export default function SacramentalMeetingPage() {
     }
   }, [authorityOptions, bishopricNamesKey, presiderAuthorityType, presiderCustomName, presiderSelection, presiderValue, isDialogOpen]);
 
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    setReleases((prev) => {
+      let changed = false;
+      const next = prev.map((release) => {
+        if (release.name || !release.organizationId || !release.oldCalling) return release;
+        const name = getMemberNameForCalling(release.organizationId, release.oldCalling);
+        if (!name) return release;
+        changed = true;
+        return { ...release, name };
+      });
+      return changed ? next : prev;
+    });
+  }, [activeMemberCallings, getMemberNameForCalling, isDialogOpen]);
+
   const onSubmit = (data: MeetingFormValues) => {
     if (!data.date) {
       form.setError("date", { message: "La fecha es requerida" });
@@ -757,9 +828,11 @@ export default function SacramentalMeetingPage() {
     setReleases(releases.filter((_, i) => i !== index));
   };
 
-  const updateRelease = (index: number, field: "name" | "oldCalling", value: string) => {
+  const updateReleaseCalling = (index: number, callingName: string) => {
     const updated = [...releases];
-    updated[index][field] = value;
+    const organizationId = updated[index].organizationId;
+    updated[index].oldCalling = callingName;
+    updated[index].name = getMemberNameForCalling(organizationId, callingName);
     setReleases(updated);
   };
 
@@ -832,8 +905,35 @@ export default function SacramentalMeetingPage() {
                           <FormItem>
                             <FormLabel>Dirige la música</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nombre completo" {...field} />
+                              <div className="flex flex-wrap gap-2">
+                                <MemberAutocomplete
+                                  value={field.value || ""}
+                                  options={uniqueMemberOptions}
+                                  placeholder="Nombre completo"
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  className="flex-1"
+                                  testId="input-music-director"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const selection = pickRandomCandidate(musicDirectorCandidates);
+                                    if (selection) {
+                                      form.setValue("musicDirector", selection, { shouldDirty: true });
+                                    }
+                                  }}
+                                  disabled={!musicDirectorCandidates.length}
+                                >
+                                  Sortear
+                                </Button>
+                              </div>
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Sortea entre Director(a) de música y/o Director(a) de coro.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -846,8 +946,35 @@ export default function SacramentalMeetingPage() {
                           <FormItem>
                             <FormLabel>Acompaña al piano</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nombre completo" {...field} />
+                              <div className="flex flex-wrap gap-2">
+                                <MemberAutocomplete
+                                  value={field.value || ""}
+                                  options={uniqueMemberOptions}
+                                  placeholder="Nombre completo"
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  className="flex-1"
+                                  testId="input-pianist"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const selection = pickRandomCandidate(pianistCandidates);
+                                    if (selection) {
+                                      form.setValue("pianist", selection, { shouldDirty: true });
+                                    }
+                                  }}
+                                  disabled={!pianistCandidates.length}
+                                >
+                                  Sortear
+                                </Button>
+                              </div>
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Sortea entre quienes tienen llamamiento de Pianista.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1342,6 +1469,8 @@ export default function SacramentalMeetingPage() {
                                   <Select value={release.organizationId || ""} onValueChange={(orgId) => {
                                     const updated = [...releases];
                                     updated[index].organizationId = orgId;
+                                    updated[index].oldCalling = "";
+                                    updated[index].name = "";
                                     setReleases(updated);
                                   }}>
                                     <SelectTrigger className="h-8 text-sm flex-1">
@@ -1370,32 +1499,22 @@ export default function SacramentalMeetingPage() {
                                   <Input
                                     placeholder="Nombre"
                                     value={release.name}
-                                    onChange={(e) => updateRelease(index, "name", e.target.value)}
+                                    readOnly
                                     data-testid={`input-release-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
-                                  {isCustomCallingOrg(release.organizationId) ? (
-                                    <Input
-                                      placeholder="Llamamiento personalizado"
-                                      value={release.oldCalling}
-                                      onChange={(e) => updateRelease(index, "oldCalling", e.target.value)}
-                                      data-testid={`input-release-calling-${index}`}
-                                      className="flex-1 text-sm"
-                                    />
-                                  ) : (
-                                    <Select value={release.oldCalling || ""} onValueChange={(calling) => {
-                                      updateRelease(index, "oldCalling", calling);
-                                    }}>
-                                      <SelectTrigger className="h-8 text-sm flex-1">
-                                        <SelectValue placeholder="Seleccionar llamamiento" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {getCallingsForOrg(release.organizationId).map((calling) => (
-                                          <SelectItem key={calling} value={calling}>{calling}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
+                                  <Select value={release.oldCalling || ""} onValueChange={(calling) => {
+                                    updateReleaseCalling(index, calling);
+                                  }}>
+                                    <SelectTrigger className="h-8 text-sm flex-1">
+                                      <SelectValue placeholder="Seleccionar llamamiento" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {getCallingsForOrgWithCurrent(release.organizationId, release.oldCalling).map((calling) => (
+                                        <SelectItem key={calling} value={calling}>{calling}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   {releases.length > 1 && (
                                     <Button
                                     type="button"
@@ -1432,6 +1551,7 @@ export default function SacramentalMeetingPage() {
                                   <Select value={sustainment.organizationId || ""} onValueChange={(orgId) => {
                                     const updated = [...sustainments];
                                     updated[index].organizationId = orgId;
+                                    updated[index].calling = "";
                                     setSustainments(updated);
                                   }}>
                                     <SelectTrigger className="h-8 text-sm flex-1">
@@ -1457,35 +1577,26 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
-                                  <Input
-                                    placeholder="Nombre"
+                                  <MemberAutocomplete
                                     value={sustainment.name}
-                                    onChange={(e) => updateSustainment(index, "name", e.target.value)}
-                                    data-testid={`input-sustainment-name-${index}`}
+                                    options={uniqueMemberOptions}
+                                    placeholder="Nombre"
+                                    onChange={(value) => updateSustainment(index, "name", value)}
+                                    testId={`input-sustainment-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
-                                  {isCustomCallingOrg(sustainment.organizationId) ? (
-                                    <Input
-                                      placeholder="Llamamiento personalizado"
-                                      value={sustainment.calling}
-                                      onChange={(e) => updateSustainment(index, "calling", e.target.value)}
-                                      data-testid={`input-sustainment-calling-${index}`}
-                                      className="flex-1 text-sm"
-                                    />
-                                  ) : (
-                                    <Select value={sustainment.calling || ""} onValueChange={(calling) => {
-                                      updateSustainment(index, "calling", calling);
-                                    }}>
-                                      <SelectTrigger className="h-8 text-sm flex-1">
-                                        <SelectValue placeholder="Seleccionar llamamiento" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {getCallingsForOrg(sustainment.organizationId).map((calling) => (
-                                          <SelectItem key={calling} value={calling}>{calling}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
+                                  <Select value={sustainment.calling || ""} onValueChange={(calling) => {
+                                    updateSustainment(index, "calling", calling);
+                                  }}>
+                                    <SelectTrigger className="h-8 text-sm flex-1">
+                                      <SelectValue placeholder="Seleccionar llamamiento" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {getCallingsForOrgWithCurrent(sustainment.organizationId, sustainment.calling).map((calling) => (
+                                        <SelectItem key={calling} value={calling}>{calling}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   {sustainments.length > 1 && (
                                     <Button
                                       type="button"
