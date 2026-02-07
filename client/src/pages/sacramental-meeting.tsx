@@ -365,14 +365,17 @@ export default function SacramentalMeetingPage() {
 
   const getCallingsForOrg = (orgId?: string): string[] => {
     if (!orgId) return [];
-    return Array.from(
-      new Set(
-        memberCallingsWithMembers
-          .filter((calling) => calling.organizationId === orgId)
-          .map((calling) => calling.callingName)
-          .filter(Boolean)
-      )
-    );
+    const organization = (organizations as any[]).find((org: any) => org.id === orgId);
+    const defaultCallings = organization?.type ? callingsByOrgType[organization.type] || [] : [];
+    const assignedCallings = memberCallingsWithMembers
+      .filter((calling) => calling.organizationId === orgId)
+      .map((calling) => calling.callingName)
+      .filter(Boolean);
+    const merged = [
+      ...defaultCallings,
+      ...assignedCallings.filter((calling) => !defaultCallings.includes(calling)),
+    ];
+    return Array.from(new Set(merged));
   };
   const getCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
     const callings = getCallingsForOrg(orgId);
@@ -1535,14 +1538,6 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
-                                  <MemberAutocomplete
-                                    value={release.name}
-                                    options={uniqueMemberOptions}
-                                    placeholder="Nombre"
-                                    onChange={(value) => updateReleaseName(index, value)}
-                                    testId={`input-release-name-${index}`}
-                                    className="flex-1 text-sm"
-                                  />
                                   <Select value={release.oldCalling || ""} onValueChange={(calling) => {
                                     updateReleaseCalling(index, calling);
                                   }}>
@@ -1555,6 +1550,14 @@ export default function SacramentalMeetingPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                  <MemberAutocomplete
+                                    value={release.name}
+                                    options={uniqueMemberOptions}
+                                    placeholder="Nombre"
+                                    onChange={(value) => updateReleaseName(index, value)}
+                                    testId={`input-release-name-${index}`}
+                                    className="flex-1 text-sm"
+                                  />
                                   {releases.length > 1 && (
                                     <Button
                                     type="button"
@@ -1617,14 +1620,6 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
-                                  <MemberAutocomplete
-                                    value={sustainment.name}
-                                    options={uniqueMemberOptions}
-                                    placeholder="Nombre"
-                                    onChange={(value) => updateSustainment(index, "name", value)}
-                                    testId={`input-sustainment-name-${index}`}
-                                    className="flex-1 text-sm"
-                                  />
                                   <Select value={sustainment.calling || ""} onValueChange={(calling) => {
                                     updateSustainment(index, "calling", calling);
                                   }}>
@@ -1637,6 +1632,14 @@ export default function SacramentalMeetingPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                  <MemberAutocomplete
+                                    value={sustainment.name}
+                                    options={uniqueMemberOptions}
+                                    placeholder="Nombre"
+                                    onChange={(value) => updateSustainment(index, "name", value)}
+                                    testId={`input-sustainment-name-${index}`}
+                                    className="flex-1 text-sm"
+                                  />
                                   {sustainments.length > 1 && (
                                     <Button
                                       type="button"
