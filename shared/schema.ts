@@ -881,8 +881,8 @@ export const insertMemberSchema = createInsertSchema(members, {
 export const selectMemberSchema = createSelectSchema(members);
 export type Member = typeof members.$inferSelect;
 export const insertMemberCallingSchema = createInsertSchema(memberCallings, {
-  startDate: dateSchema,
-  endDate: dateSchema,
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
 }).omit({
   id: true,
   createdAt: true,
