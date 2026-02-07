@@ -149,6 +149,7 @@ const MemberAutocomplete = ({
   onSelect,
   onBlur,
   testId,
+  resetKey,
 }: {
   value: string;
   options: MemberOption[];
@@ -157,9 +158,14 @@ const MemberAutocomplete = ({
   onSelect?: (option: MemberOption) => void;
   onBlur?: () => void;
   testId?: string;
+  resetKey?: string | boolean | number;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const filteredOptions = useMemo(() => filterMemberOptions(options, value), [options, value]);
+
+  useEffect(() => {
+    setIsOpen(false);
+  }, [resetKey]);
 
   return (
     <div className="relative">
@@ -681,6 +687,30 @@ export default function AdminUsersPage() {
     ];
   }, [selectedOrganizationType]);
 
+  const inferRoleFromCalling = (callingName?: string, orgType?: string) => {
+    if (!callingName) return "";
+    const normalized = callingName.trim().toLowerCase();
+    if (orgType === "obispado") {
+      if (normalized === "obispo") return "obispo";
+      if (normalized.includes("consejero")) return "consejero_obispo";
+      if (normalized === "secretario") return "secretario";
+      if (normalized === "secretario ejecutivo") return "secretario_ejecutivo";
+      if (normalized === "secretario financiero") return "secretario_financiero";
+      return "";
+    }
+
+    if (normalized.startsWith("presidenta") || normalized.startsWith("presidente")) {
+      return "presidente_organizacion";
+    }
+    if (normalized.startsWith("secretaria") || normalized.startsWith("secretario")) {
+      return "secretario_organizacion";
+    }
+    if (normalized.includes("consejera") || normalized.includes("consejero")) {
+      return "consejero_organizacion";
+    }
+    return "";
+  };
+
   useEffect(() => {
     if (selectedMember) {
       setMemberSearch(formatMemberLabel(selectedMember));
@@ -702,6 +732,14 @@ export default function AdminUsersPage() {
       createForm.setValue("callingName", "");
     }
   }, [selectedCallingName, selectedOrganizationId, selectedRole, orgCallings, roleOptions, createForm]);
+
+  useEffect(() => {
+    if (!selectedCallingName) return;
+    const inferredRole = inferRoleFromCalling(selectedCallingName, selectedOrganizationType);
+    if (inferredRole && inferredRole !== selectedRole) {
+      createForm.setValue("role", inferredRole);
+    }
+  }, [selectedCallingName, selectedOrganizationType, selectedRole, createForm]);
 
   useEffect(() => {
     if (!selectedMember) {
@@ -1011,6 +1049,7 @@ export default function AdminUsersPage() {
                             options={memberOptions}
                             placeholder="Buscar miembro..."
                             testId="select-create-member"
+                            resetKey={isCreateDialogOpen}
                             onChange={(value) => {
                               setMemberSearch(value);
                               if (selectedMemberId && selectedMember && value !== formatMemberLabel(selectedMember)) {
