@@ -324,9 +324,17 @@ export default function SacramentalMeetingPage() {
     () => memberCallings.filter((calling) => calling.memberName),
     [memberCallings]
   );
+  const memberCallingsWithoutMembers = useMemo(
+    () => memberCallings.filter((calling) => !calling.memberName),
+    [memberCallings]
+  );
   const activeMemberCallings = useMemo(
     () => memberCallingsWithMembers.filter((calling) => calling.isActive),
     [memberCallingsWithMembers]
+  );
+  const activeVacantCallings = useMemo(
+    () => memberCallingsWithoutMembers.filter((calling) => calling.isActive),
+    [memberCallingsWithoutMembers]
   );
   const musicDirectorCandidates = useMemo(() => {
     const names = activeMemberCallings
