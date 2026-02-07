@@ -47,9 +47,10 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useMembers } from "@/hooks/use-api";
+import { useMemberCallings, useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { formatCallingLabel } from "@/lib/callings";
 import { cn, normalizeMemberName } from "@/lib/utils";
 
 const createUserSchema = z.object({
@@ -437,6 +438,9 @@ export default function AdminUsersPage() {
   const selectedRole = createForm.watch("role");
   const selectedEditRole = editUserForm.watch("role");
   const selectedMemberId = createForm.watch("memberId");
+  const { data: selectedMemberCallings = [] } = useMemberCallings(selectedMemberId, {
+    enabled: Boolean(selectedMemberId),
+  });
   const linkedMemberIds = useMemo(
     () => new Set(users.map((u) => u.memberId).filter(Boolean)),
     [users]
@@ -877,6 +881,23 @@ export default function AdminUsersPage() {
                       </FormItem>
                     )}
                   />
+                  {selectedMember && (
+                    <div className="md:col-span-2 rounded-lg border border-muted-foreground/20 bg-muted/10 p-4 text-sm space-y-2">
+                      <div className="font-medium">Llamamientos del miembro</div>
+                      {selectedMemberCallings.length > 0 ? (
+                        <ul className="space-y-1 text-muted-foreground">
+                          {selectedMemberCallings.map((calling) => (
+                            <li key={calling.id}>
+                              {formatCallingLabel(calling.callingName, calling.organizationName) ||
+                                calling.callingName}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-muted-foreground">Sin llamamientos registrados.</p>
+                      )}
+                    </div>
+                  )}
 
                   <FormField
                     control={createForm.control}

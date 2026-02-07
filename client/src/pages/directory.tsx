@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { formatCallingLabel } from "@/lib/callings";
 import { normalizeMemberName } from "@/lib/utils";
 import {
   useCreateMember,
@@ -48,6 +49,14 @@ const memberSchema = z.object({
 const callingSchema = z.object({
   callingName: z.string().min(1, "El llamamiento es requerido"),
   organizationId: z.string().min(1, "La organización es requerida"),
+  callingOrder: z.preprocess(
+    (value) => {
+      if (value === "" || value === null || value === undefined) return undefined;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    },
+    z.number().int().positive().optional()
+  ),
 });
 
 type MemberFormValues = z.infer<typeof memberSchema>;
@@ -68,6 +77,107 @@ const normalizeSexValue = (value?: string | null) => {
   if (normalized === "masculino" || normalized === "m") return "M";
   if (normalized === "femenino" || normalized === "f") return "F";
   return value ?? "";
+};
+
+const callingsByOrgType: Record<string, string[]> = {
+  obispado: [
+    "Obispo",
+    "Primer consejero",
+    "Segundo consejero",
+    "Secretario",
+    "Secretario Ejecutivo",
+    "Secretario Financiero",
+  ],
+  cuorum_elderes: [
+    "Presidente",
+    "Primer consejero",
+    "Segundo consejero",
+    "Secretario",
+    "Maestro",
+    "Líder de ministración",
+  ],
+  sociedad_socorro: [
+    "Presidenta",
+    "Primera consejera",
+    "Segunda consejera",
+    "Secretaria",
+    "Maestra",
+    "Coordinadora de ministración",
+  ],
+  mujeres_jovenes: [
+    "Presidenta",
+    "Primera consejera",
+    "Segunda consejera",
+    "Secretaria",
+    "Asesora de clases",
+    "Especialistas de Mujeres Jóvenes",
+  ],
+  hombres_jovenes: [
+    "Presidente del Sacerdocio Aarónico",
+    "Primer consejero del Sacerdocio Aarónico",
+    "Segundo consejero del Sacerdocio Aarónico",
+    "Asesor de Hombres Jóvenes",
+    "Especialista de Hombres Jóvenes",
+    "Presidente de quórum de diáconos",
+    "Primer consejero de quórum de diáconos",
+    "Segundo consejero de quórum de diáconos",
+    "Secretario de quórum de diáconos",
+    "Presidente de quórum de maestros",
+    "Primer consejero de quórum de maestros",
+    "Segundo consejero de quórum de maestros",
+    "Secretario de quórum de maestros",
+    "Presidente de quórum de presbíteros",
+    "Primer ayudante de quórum de presbíteros",
+    "Segundo ayudante de quórum de presbíteros",
+  ],
+  primaria: [
+    "Presidenta",
+    "Primera consejera",
+    "Segunda consejera",
+    "Secretaria",
+    "Líder de música",
+    "Pianista",
+    "Maestro",
+    "Maestra",
+    "Líder de guardería",
+  ],
+  escuela_dominical: [
+    "Presidente",
+    "Primer consejero",
+    "Segundo consejero",
+    "Secretario",
+    "Maestro",
+    "Maestra",
+  ],
+  jas: [
+    "Líder",
+  ],
+  barrio: [
+    "Director de música del barrio",
+    "Directora de música del barrio",
+    "Pianista",
+    "Director de coro",
+    "Directora de coro",
+    "Pianista de coro",
+    "Lider de la Obra del Templo e Historia Familiar",
+    "Consultor de Historia Familiar",
+    "Coordinador de Historia Familiar",
+    "Líder misional del barrio",
+    "Misionero de Barrio",
+    "Misionera de Barrio",
+    "Maestro de preparación misional",
+    "Maestra de preparación misional",
+    "Especialista de tecnología",
+    "Líder de autosuficiencia",
+    "Representante de Comunicaciones",
+    "Coordinador de actividades",
+    "Coordinadora de actividades",
+    "Coordinador de servicio",
+    "Director de deportes",
+    "Representante de JustServe",
+    "Bibliotecario",
+    "Coordinador de limpieza",
+  ],
 };
 
 export default function DirectoryPage() {
@@ -126,11 +236,21 @@ export default function DirectoryPage() {
     defaultValues: {
       callingName: "",
       organizationId: "",
+      callingOrder: undefined,
     },
   });
 
   const memberCallings = memberCallingsQuery.data ?? [];
   const isCallingsLoading = memberCallingsQuery.isLoading;
+  const selectedCallingOrgId = callingForm.watch("organizationId");
+  const selectedCallingOrg = useMemo(
+    () => organizations.find((org: any) => org.id === selectedCallingOrgId),
+    [organizations, selectedCallingOrgId]
+  );
+  const callingOptions = useMemo(() => {
+    if (!selectedCallingOrg?.type) return [];
+    return callingsByOrgType[selectedCallingOrg.type] ?? [];
+  }, [selectedCallingOrg]);
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -245,6 +365,7 @@ export default function DirectoryPage() {
     callingForm.reset({
       callingName: "",
       organizationId: "",
+      callingOrder: undefined,
     });
     setCallingDialogOpen(true);
   };
@@ -255,6 +376,7 @@ export default function DirectoryPage() {
       {
         callingName: data.callingName.trim(),
         organizationId: data.organizationId,
+        callingOrder: data.callingOrder,
       },
       {
         onSuccess: () => {
@@ -580,7 +702,9 @@ export default function DirectoryPage() {
                           className="flex items-center justify-between rounded-[12px] border border-white/10 bg-[#101319] px-3 py-2"
                         >
                           <div className="space-y-0.5">
-                            <p className="text-sm font-medium text-white">{calling.callingName}</p>
+                            <p className="text-sm font-medium text-white">
+                              {formatCallingLabel(calling.callingName, calling.organizationName)}
+                            </p>
                             <p className="text-xs text-[#9AA0A6]">
                               {calling.organizationName ?? "Sin organización"}
                             </p>
@@ -864,8 +988,19 @@ export default function DirectoryPage() {
                   <FormItem>
                     <FormLabel>Llamamiento</FormLabel>
                     <FormControl>
-                      <Input placeholder="Presidente del cuórum de élderes" {...field} />
+                      <Input
+                        placeholder="Presidente del cuórum de élderes"
+                        list="calling-options"
+                        {...field}
+                      />
                     </FormControl>
+                    {callingOptions.length > 0 && (
+                      <datalist id="calling-options">
+                        {callingOptions.map((calling) => (
+                          <option key={calling} value={calling} />
+                        ))}
+                      </datalist>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -890,6 +1025,25 @@ export default function DirectoryPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={callingForm.control}
+                name="callingOrder"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Orden (opcional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="1"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
