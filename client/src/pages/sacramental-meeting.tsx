@@ -320,11 +320,6 @@ export default function SacramentalMeetingPage() {
     );
   };
   const isPianistCalling = (value: string) => normalizeText(value).startsWith("pianista");
-  const normalizeMemberInput = (value?: string | null) => {
-    const normalized = normalizeMemberName(value);
-    if (normalized) return normalized;
-    return value?.trim() || "";
-  };
   const memberCallingsWithMembers = useMemo(
     () => memberCallings.filter((calling) => calling.memberName),
     [memberCallings]
@@ -888,8 +883,8 @@ export default function SacramentalMeetingPage() {
       date: data.date,
       presider: data.presider || "",
       director: data.director || "",
-      musicDirector: normalizeMemberInput(data.musicDirector),
-      pianist: normalizeMemberInput(data.pianist),
+      musicDirector: data.musicDirector || "",
+      pianist: data.pianist || "",
       visitingAuthority: data.visitingAuthority || "",
       announcements: data.announcements || "",
       openingHymn: data.openingHymn || "",
@@ -901,32 +896,16 @@ export default function SacramentalMeetingPage() {
       closingPrayer: data.closingPrayer || "",
       isTestimonyMeeting: isTestimonyMeeting,
       discourses: isTestimonyMeeting ? [] : discourses,
-      releases: hasReleasesAndSustainments
-        ? releases
-          .map((release) => ({
-            ...release,
-            name: normalizeMemberInput(release.name),
-          }))
-          .filter((release) => release.name && release.oldCalling)
-          .map((release) => ({
-            name: release.name,
-            oldCalling: release.oldCalling,
-            ...(release.organizationId && { organizationId: release.organizationId }),
-          }))
-        : [],
-      sustainments: hasReleasesAndSustainments
-        ? sustainments
-          .map((sustainment) => ({
-            ...sustainment,
-            name: normalizeMemberInput(sustainment.name),
-          }))
-          .filter((sustainment) => sustainment.name && sustainment.calling)
-          .map((sustainment) => ({
-            name: sustainment.name,
-            calling: sustainment.calling,
-            ...(sustainment.organizationId && { organizationId: sustainment.organizationId }),
-          }))
-        : [],
+      releases: hasReleasesAndSustainments ? releases.filter(r => r.name && r.oldCalling).map(r => ({
+        name: r.name,
+        oldCalling: r.oldCalling,
+        ...(r.organizationId && { organizationId: r.organizationId })
+      })) : [],
+      sustainments: hasReleasesAndSustainments ? sustainments.filter(s => s.name && s.calling).map(s => ({
+        name: s.name,
+        calling: s.calling,
+        ...(s.organizationId && { organizationId: s.organizationId })
+      })) : [],
       newMembers: hasNewMembers ? newMembers.filter(m => m.trim()) : [],
       aaronicOrderings: hasOrderings ? aaronicOrderings.filter(o => o.trim()) : [],
       childBlessings: hasChildBlessings ? childBlessings.filter(b => b.trim()) : [],
@@ -1053,34 +1032,6 @@ export default function SacramentalMeetingPage() {
     }
     setReleases(updated);
   };
-  const normalizeReleaseName = (index: number) => {
-    setReleases((prev) => {
-      const current = prev[index];
-      if (!current) return prev;
-      const normalized = normalizeMemberInput(current.name);
-      if (!normalized || normalized === current.name) return prev;
-      const updated = [...prev];
-      updated[index] = { ...current, name: normalized };
-      return updated;
-    });
-  };
-  const normalizeSustainmentName = (index: number) => {
-    setSustainments((prev) => {
-      const current = prev[index];
-      if (!current) return prev;
-      const normalized = normalizeMemberInput(current.name);
-      if (!normalized || normalized === current.name) return prev;
-      const updated = [...prev];
-      updated[index] = { ...current, name: normalized };
-      return updated;
-    });
-  };
-  const applyMemberNormalization = (fieldName: keyof MeetingFormValues, value?: string | null) => {
-    const normalized = normalizeMemberInput(value);
-    if (normalized && normalized !== value) {
-      form.setValue(fieldName, normalized, { shouldDirty: true });
-    }
-  };
 
   if (isLoading) {
     return (
@@ -1156,13 +1107,13 @@ export default function SacramentalMeetingPage() {
                                 options={musicDirectorCandidates.map((value) => ({ value }))}
                                 placeholder="Nombre completo"
                                 onChange={field.onChange}
-                                onBlur={() => {
-                                  field.onBlur();
-                                  applyMemberNormalization("musicDirector", field.value);
-                                }}
+                                onBlur={field.onBlur}
                                 testId="input-music-director"
                               />
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Sortea entre Director(a) de música y/o Director(a) de coro.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1180,13 +1131,13 @@ export default function SacramentalMeetingPage() {
                                 options={pianistCandidates.map((value) => ({ value }))}
                                 placeholder="Nombre completo"
                                 onChange={field.onChange}
-                                onBlur={() => {
-                                  field.onBlur();
-                                  applyMemberNormalization("pianist", field.value);
-                                }}
+                                onBlur={field.onBlur}
                                 testId="input-pianist"
                               />
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Sortea entre quienes tienen llamamiento de Pianista.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1725,7 +1676,6 @@ export default function SacramentalMeetingPage() {
                                     options={uniqueMemberOptions}
                                     placeholder="Nombre"
                                     onChange={(value) => updateReleaseName(index, value)}
-                                    onBlur={() => normalizeReleaseName(index)}
                                     testId={`input-release-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
@@ -1808,7 +1758,6 @@ export default function SacramentalMeetingPage() {
                                     options={uniqueMemberOptions}
                                     placeholder="Nombre"
                                     onChange={(value) => updateSustainment(index, "name", value)}
-                                    onBlur={() => normalizeSustainmentName(index)}
                                     testId={`input-sustainment-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
@@ -2257,11 +2206,11 @@ export default function SacramentalMeetingPage() {
               </div>
               <div>
                 <span className="font-medium">Dirige la música:</span>{" "}
-                {normalizeMemberInput(detailsMeeting?.musicDirector) || "Sin definir"}
+                {detailsMeeting?.musicDirector || "Sin definir"}
               </div>
               <div>
                 <span className="font-medium">Acompaña al piano:</span>{" "}
-                {normalizeMemberInput(detailsMeeting?.pianist) || "Sin definir"}
+                {detailsMeeting?.pianist || "Sin definir"}
               </div>
               <div>
                 <span className="font-medium">Autoridad visitante:</span>{" "}
@@ -2328,8 +2277,7 @@ export default function SacramentalMeetingPage() {
                       <ul className="list-disc pl-5 space-y-1">
                         {detailsMeeting.releases.map((release: any, index: number) => (
                           <li key={`release-${index}`}>
-                            {normalizeMemberInput(release.name) || "Sin nombre"}
-                            {release.oldCalling ? ` — ${release.oldCalling}` : ""}
+                            {release.name || "Sin nombre"}{release.oldCalling ? ` — ${release.oldCalling}` : ""}
                           </li>
                         ))}
                       </ul>
@@ -2341,8 +2289,7 @@ export default function SacramentalMeetingPage() {
                       <ul className="list-disc pl-5 space-y-1">
                         {detailsMeeting.sustainments.map((sustainment: any, index: number) => (
                           <li key={`sustainment-${index}`}>
-                            {normalizeMemberInput(sustainment.name) || "Sin nombre"}
-                            {sustainment.calling ? ` — ${sustainment.calling}` : ""}
+                            {sustainment.name || "Sin nombre"}{sustainment.calling ? ` — ${sustainment.calling}` : ""}
                           </li>
                         ))}
                       </ul>
