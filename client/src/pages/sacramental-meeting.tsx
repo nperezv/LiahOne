@@ -340,14 +340,16 @@ export default function SacramentalMeetingPage() {
     const names = activeMemberCallings
       .filter((calling) => isMusicDirectorCalling(calling.callingName))
       .map((calling) => calling.memberName || "")
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((name) => normalizeMemberName(name) || name);
     return Array.from(new Set(names));
   }, [activeMemberCallings]);
   const pianistCandidates = useMemo(() => {
     const names = activeMemberCallings
       .filter((calling) => isPianistCalling(calling.callingName))
       .map((calling) => calling.memberName || "")
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((name) => normalizeMemberName(name) || name);
     return Array.from(new Set(names));
   }, [activeMemberCallings]);
 
@@ -654,6 +656,13 @@ export default function SacramentalMeetingPage() {
   const applyHymnNormalization = (fieldName: keyof MeetingFormValues, value: string) => {
     const normalized = normalizeHymnInput(value);
     if (normalized && normalized !== value) {
+      form.setValue(fieldName, normalized, { shouldDirty: true });
+    }
+  };
+  const applyMemberNormalization = (fieldName: keyof MeetingFormValues) => {
+    const currentValue = form.getValues(fieldName) || "";
+    const normalized = normalizeMemberName(currentValue);
+    if (normalized && normalized !== currentValue) {
       form.setValue(fieldName, normalized, { shouldDirty: true });
     }
   };
@@ -997,13 +1006,15 @@ export default function SacramentalMeetingPage() {
     const updated = [...releases];
     const organizationId = updated[index].organizationId;
     updated[index].oldCalling = callingName;
-    updated[index].name = getMemberNameForCalling(organizationId, callingName);
+    const resolvedName = getMemberNameForCalling(organizationId, callingName);
+    updated[index].name = normalizeMemberName(resolvedName || "") || resolvedName;
     setReleases(updated);
   };
   const updateReleaseName = (index: number, value: string) => {
     const updated = [...releases];
-    updated[index].name = value;
-    const matches = getMemberCallingsByName(value);
+    const normalizedName = normalizeMemberName(value) || value;
+    updated[index].name = normalizedName;
+    const matches = getMemberCallingsByName(normalizedName);
     if (matches.length === 1) {
       updated[index].organizationId = matches[0]?.organizationId;
       updated[index].oldCalling = matches[0]?.callingName || "";
@@ -1107,7 +1118,10 @@ export default function SacramentalMeetingPage() {
                                 options={musicDirectorCandidates.map((value) => ({ value }))}
                                 placeholder="Nombre completo"
                                 onChange={field.onChange}
-                                onBlur={field.onBlur}
+                                onBlur={() => {
+                                  field.onBlur();
+                                  applyMemberNormalization("musicDirector");
+                                }}
                                 testId="input-music-director"
                               />
                             </FormControl>
@@ -1131,7 +1145,10 @@ export default function SacramentalMeetingPage() {
                                 options={pianistCandidates.map((value) => ({ value }))}
                                 placeholder="Nombre completo"
                                 onChange={field.onChange}
-                                onBlur={field.onBlur}
+                                onBlur={() => {
+                                  field.onBlur();
+                                  applyMemberNormalization("pianist");
+                                }}
                                 testId="input-pianist"
                               />
                             </FormControl>
