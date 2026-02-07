@@ -1089,6 +1089,27 @@ export default function DirectoryPage() {
                   </FormItem>
                 )}
               />
+              {showCallingOrder && (
+                <FormField
+                  control={callingForm.control}
+                  name="callingOrder"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Orden</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="1"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" type="button" onClick={() => setCallingDialogOpen(false)}>
                   Cancelar
