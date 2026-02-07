@@ -340,14 +340,16 @@ export default function SacramentalMeetingPage() {
     const names = activeMemberCallings
       .filter((calling) => isMusicDirectorCalling(calling.callingName))
       .map((calling) => calling.memberName || "")
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((name) => normalizeMemberName(name) || name);
     return Array.from(new Set(names));
   }, [activeMemberCallings]);
   const pianistCandidates = useMemo(() => {
     const names = activeMemberCallings
       .filter((calling) => isPianistCalling(calling.callingName))
       .map((calling) => calling.memberName || "")
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((name) => normalizeMemberName(name) || name);
     return Array.from(new Set(names));
   }, [activeMemberCallings]);
 
