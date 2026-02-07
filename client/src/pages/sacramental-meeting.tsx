@@ -324,9 +324,17 @@ export default function SacramentalMeetingPage() {
     () => memberCallings.filter((calling) => calling.memberName),
     [memberCallings]
   );
+  const memberCallingsWithoutMembers = useMemo(
+    () => memberCallings.filter((calling) => !calling.memberName),
+    [memberCallings]
+  );
   const activeMemberCallings = useMemo(
     () => memberCallingsWithMembers.filter((calling) => calling.isActive),
     [memberCallingsWithMembers]
+  );
+  const activeVacantCallings = useMemo(
+    () => memberCallingsWithoutMembers.filter((calling) => calling.isActive),
+    [memberCallingsWithoutMembers]
   );
   const musicDirectorCandidates = useMemo(() => {
     const names = activeMemberCallings
@@ -374,8 +382,26 @@ export default function SacramentalMeetingPage() {
       )
     );
   };
+  const getVacantCallingsForOrg = (orgId?: string): string[] => {
+    if (!orgId) return [];
+    return Array.from(
+      new Set(
+        activeVacantCallings
+          .filter((calling) => calling.organizationId === orgId)
+          .map((calling) => calling.callingName)
+          .filter(Boolean)
+      )
+    );
+  };
   const getCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
     const callings = getCallingsForOrg(orgId);
+    if (currentCalling && !callings.includes(currentCalling)) {
+      return [...callings, currentCalling];
+    }
+    return callings;
+  };
+  const getVacantCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
+    const callings = getVacantCallingsForOrg(orgId);
     if (currentCalling && !callings.includes(currentCalling)) {
       return [...callings, currentCalling];
     }
@@ -1535,14 +1561,6 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
-                                  <MemberAutocomplete
-                                    value={release.name}
-                                    options={uniqueMemberOptions}
-                                    placeholder="Nombre"
-                                    onChange={(value) => updateReleaseName(index, value)}
-                                    testId={`input-release-name-${index}`}
-                                    className="flex-1 text-sm"
-                                  />
                                   <Select value={release.oldCalling || ""} onValueChange={(calling) => {
                                     updateReleaseCalling(index, calling);
                                   }}>
@@ -1555,6 +1573,14 @@ export default function SacramentalMeetingPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                  <MemberAutocomplete
+                                    value={release.name}
+                                    options={uniqueMemberOptions}
+                                    placeholder="Nombre"
+                                    onChange={(value) => updateReleaseName(index, value)}
+                                    testId={`input-release-name-${index}`}
+                                    className="flex-1 text-sm"
+                                  />
                                   {releases.length > 1 && (
                                     <Button
                                     type="button"
@@ -1617,6 +1643,18 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
+                                  <Select value={sustainment.calling || ""} onValueChange={(calling) => {
+                                    updateSustainment(index, "calling", calling);
+                                  }}>
+                                    <SelectTrigger className="h-8 text-sm flex-1">
+                                      <SelectValue placeholder="Seleccionar llamamiento" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {getVacantCallingsForOrgWithCurrent(sustainment.organizationId, sustainment.calling).map((calling) => (
+                                        <SelectItem key={calling} value={calling}>{calling}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   <MemberAutocomplete
                                     value={sustainment.name}
                                     options={uniqueMemberOptions}
@@ -1625,18 +1663,6 @@ export default function SacramentalMeetingPage() {
                                     testId={`input-sustainment-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
-                                  <Select value={sustainment.calling || ""} onValueChange={(calling) => {
-                                    updateSustainment(index, "calling", calling);
-                                  }}>
-                                    <SelectTrigger className="h-8 text-sm flex-1">
-                                      <SelectValue placeholder="Seleccionar llamamiento" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {getCallingsForOrgWithCurrent(sustainment.organizationId, sustainment.calling).map((calling) => (
-                                        <SelectItem key={calling} value={calling}>{calling}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
                                   {sustainments.length > 1 && (
                                     <Button
                                       type="button"
