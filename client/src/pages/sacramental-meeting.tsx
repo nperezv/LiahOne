@@ -361,15 +361,14 @@ export default function SacramentalMeetingPage() {
 
   const getCallingsForOrg = (orgId?: string): string[] => {
     if (!orgId) return [];
-    const org = (organizations as any[]).find((o: any) => o.id === orgId);
-    const fromAssignments = activeMemberCallings
-      .filter((calling) => calling.organizationId === orgId)
-      .map((calling) => calling.callingName)
-      .filter(Boolean);
-    if (fromAssignments.length) {
-      return Array.from(new Set(fromAssignments));
-    }
-    return org ? (callingsByOrgType[org.type] || []) : [];
+    return Array.from(
+      new Set(
+        activeMemberCallings
+          .filter((calling) => calling.organizationId === orgId)
+          .map((calling) => calling.callingName)
+          .filter(Boolean)
+      )
+    );
   };
   const getCallingsForOrgWithCurrent = (orgId?: string, currentCalling?: string) => {
     const callings = getCallingsForOrg(orgId);
@@ -386,8 +385,49 @@ export default function SacramentalMeetingPage() {
         calling.organizationId === orgId &&
         normalizeText(calling.callingName) === normalizedCalling
     );
-    return match?.memberName || "";
+    if (match?.memberName) return match.memberName;
+    const fallbackMatches = activeMemberCallings.filter(
+      (calling) => normalizeText(calling.callingName) === normalizedCalling
+    );
+    if (fallbackMatches.length === 1) {
+      return fallbackMatches[0]?.memberName || "";
+    }
+    return "";
   }, [activeMemberCallings]);
+  const getMemberCallingsByName = useCallback((memberName?: string) => {
+    if (!memberName) return [];
+    const normalizedName = normalizeText(memberName);
+    return activeMemberCallings.filter(
+      (calling) => normalizeText(calling.memberName || "") === normalizedName
+    );
+  }, [activeMemberCallings]);
+  const getCallingsForMemberAndOrg = useCallback((memberName?: string, orgId?: string) => {
+    if (!memberName || !orgId) return [];
+    const normalizedName = normalizeText(memberName);
+    return activeMemberCallings.filter(
+      (calling) =>
+        normalizeText(calling.memberName || "") === normalizedName &&
+        calling.organizationId === orgId
+    );
+  }, [activeMemberCallings]);
+  const getMatchingOrganizationId = (matches: typeof activeMemberCallings) => {
+    const uniqueOrgIds = Array.from(
+      new Set(matches.map((calling) => calling.organizationId).filter(Boolean))
+    );
+    if (uniqueOrgIds.length === 1) {
+      return uniqueOrgIds[0] || "";
+    }
+    return "";
+  };
+  const getMatchingCallingName = (matches: typeof activeMemberCallings) => {
+    const uniqueCallings = Array.from(
+      new Set(matches.map((calling) => calling.callingName).filter(Boolean))
+    );
+    if (uniqueCallings.length === 1) {
+      return uniqueCallings[0] || "";
+    }
+    return "";
+  };
   const pickRandomCandidate = (names: string[]) =>
     names.length ? names[Math.floor(Math.random() * names.length)] : "";
 
@@ -833,6 +873,38 @@ export default function SacramentalMeetingPage() {
     const organizationId = updated[index].organizationId;
     updated[index].oldCalling = callingName;
     updated[index].name = getMemberNameForCalling(organizationId, callingName);
+    setReleases(updated);
+  };
+  const updateReleaseName = (index: number, value: string) => {
+    const updated = [...releases];
+    updated[index].name = value;
+    const matches = getMemberCallingsByName(value);
+    if (matches.length === 1) {
+      updated[index].organizationId = matches[0]?.organizationId;
+      updated[index].oldCalling = matches[0]?.callingName || "";
+      setReleases(updated);
+      return;
+    }
+    if (matches.length > 1) {
+      const currentOrgId = updated[index].organizationId;
+      if (currentOrgId) {
+        const orgMatches = getCallingsForMemberAndOrg(value, currentOrgId);
+        if (orgMatches.length === 1) {
+          updated[index].oldCalling = orgMatches[0]?.callingName || "";
+          setReleases(updated);
+          return;
+        }
+      }
+      const inferredOrgId = getMatchingOrganizationId(matches);
+      if (inferredOrgId) {
+        updated[index].organizationId = inferredOrgId;
+        const inferredCallings = getCallingsForMemberAndOrg(value, inferredOrgId);
+        const inferredCallingName = getMatchingCallingName(inferredCallings);
+        if (inferredCallingName) {
+          updated[index].oldCalling = inferredCallingName;
+        }
+      }
+    }
     setReleases(updated);
   };
 
@@ -1496,11 +1568,12 @@ export default function SacramentalMeetingPage() {
                                   )}
                                 </div>
                                 <div className="flex gap-2">
-                                  <Input
-                                    placeholder="Nombre"
+                                  <MemberAutocomplete
                                     value={release.name}
-                                    readOnly
-                                    data-testid={`input-release-name-${index}`}
+                                    options={uniqueMemberOptions}
+                                    placeholder="Nombre"
+                                    onChange={(value) => updateReleaseName(index, value)}
+                                    testId={`input-release-name-${index}`}
                                     className="flex-1 text-sm"
                                   />
                                   <Select value={release.oldCalling || ""} onValueChange={(calling) => {
