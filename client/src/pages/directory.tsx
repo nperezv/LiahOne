@@ -26,6 +26,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCallingLabel } from "@/lib/callings";
 import { normalizeMemberName } from "@/lib/utils";
 import {
+  type MemberCalling,
   useCreateMember,
   useDeleteMember,
   useMembers,
@@ -34,6 +35,7 @@ import {
   useDeleteMemberCalling,
   useOrganizations,
   useUpdateMember,
+  useUpdateMemberCalling,
 } from "@/hooks/use-api";
 import { Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
 
@@ -49,15 +51,15 @@ const memberSchema = z.object({
 const callingSchema = z.object({
   callingName: z.string().min(1, "El llamamiento es requerido"),
   organizationId: z.string().min(1, "La organización es requerida"),
-  callingOrder: z.preprocess(
-    (value) => {
-      if (value === "" || value === null || value === undefined) return undefined;
-      const parsed = Number(value);
-      return Number.isNaN(parsed) ? undefined : parsed;
-    },
-    z.number().int().positive().optional()
-  ),
 });
+
+const inferCallingOrder = (callingName?: string | null) => {
+  if (!callingName) return null;
+  const normalized = callingName.trim().toLowerCase();
+  if (normalized.includes("primer consejero") || normalized.includes("primera consejera")) return 1;
+  if (normalized.includes("segundo consejero") || normalized.includes("segunda consejera")) return 2;
+  return null;
+};
 
 type MemberFormValues = z.infer<typeof memberSchema>;
 type CallingFormValues = z.infer<typeof callingSchema>;
@@ -200,8 +202,10 @@ export default function DirectoryPage() {
   const [sheetOffset, setSheetOffset] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [callingDialogOpen, setCallingDialogOpen] = useState(false);
+  const [editingCalling, setEditingCalling] = useState<MemberCalling | null>(null);
   const memberCallingsQuery = useMemberCallings(editingMember?.id, { enabled: Boolean(editingMember?.id) });
   const createMemberCallingMutation = useCreateMemberCalling(editingMember?.id ?? "");
+  const updateMemberCallingMutation = useUpdateMemberCalling(editingMember?.id ?? "");
   const deleteMemberCallingMutation = useDeleteMemberCalling(editingMember?.id ?? "");
   const pointerStartX = useRef(0);
   const pointerDragging = useRef(false);
@@ -236,13 +240,13 @@ export default function DirectoryPage() {
     defaultValues: {
       callingName: "",
       organizationId: "",
-      callingOrder: undefined,
     },
   });
 
   const memberCallings = memberCallingsQuery.data ?? [];
   const isCallingsLoading = memberCallingsQuery.isLoading;
   const selectedCallingOrgId = callingForm.watch("organizationId");
+  const selectedCallingName = callingForm.watch("callingName");
   const selectedCallingOrg = useMemo(
     () => organizations.find((org: any) => org.id === selectedCallingOrgId),
     [organizations, selectedCallingOrgId]
@@ -251,6 +255,11 @@ export default function DirectoryPage() {
     if (!selectedCallingOrg?.type) return [];
     return callingsByOrgType[selectedCallingOrg.type] ?? [];
   }, [selectedCallingOrg]);
+  const callingOptionsWithSelected = useMemo(() => {
+    if (!selectedCallingName) return callingOptions;
+    if (callingOptions.includes(selectedCallingName)) return callingOptions;
+    return [selectedCallingName, ...callingOptions];
+  }, [callingOptions, selectedCallingName]);
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -362,29 +371,49 @@ export default function DirectoryPage() {
   };
 
   const handleOpenCallingDialog = () => {
+    setEditingCalling(null);
     callingForm.reset({
       callingName: "",
       organizationId: "",
-      callingOrder: undefined,
     });
     setCallingDialogOpen(true);
   };
 
   const handleSubmitCalling = (data: CallingFormValues) => {
     if (!editingMember?.id) return;
-    createMemberCallingMutation.mutate(
-      {
-        callingName: data.callingName.trim(),
-        organizationId: data.organizationId,
-        callingOrder: data.callingOrder,
+    const payload = {
+      callingName: data.callingName.trim(),
+      organizationId: data.organizationId,
+      callingOrder: inferCallingOrder(data.callingName.trim()),
+    };
+    if (editingCalling) {
+      updateMemberCallingMutation.mutate(
+        { callingId: editingCalling.id, payload },
+        {
+          onSuccess: () => {
+            setCallingDialogOpen(false);
+            setEditingCalling(null);
+            callingForm.reset();
+          },
+        }
+      );
+      return;
+    }
+    createMemberCallingMutation.mutate(payload, {
+      onSuccess: () => {
+        setCallingDialogOpen(false);
+        callingForm.reset();
       },
-      {
-        onSuccess: () => {
-          setCallingDialogOpen(false);
-          callingForm.reset();
-        },
-      }
-    );
+    });
+  };
+
+  const handleEditCalling = (calling: MemberCalling) => {
+    setEditingCalling(calling);
+    callingForm.reset({
+      callingName: calling.callingName ?? "",
+      organizationId: calling.organizationId ?? "",
+    });
+    setCallingDialogOpen(true);
   };
 
   const handleDeleteCalling = (callingId: string) => {
@@ -709,15 +738,26 @@ export default function DirectoryPage() {
                               {calling.organizationName ?? "Sin organización"}
                             </p>
                           </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="text-[#FF453A] hover:bg-white/10"
-                            onClick={() => handleDeleteCalling(calling.id)}
-                          >
-                            Quitar
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-[#0A84FF] hover:bg-white/10"
+                              onClick={() => handleEditCalling(calling)}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-[#FF453A] hover:bg-white/10"
+                              onClick={() => handleDeleteCalling(calling.id)}
+                            >
+                              Quitar
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -973,45 +1013,37 @@ export default function DirectoryPage() {
         </div>
       )}
 
-      <Dialog open={callingDialogOpen} onOpenChange={setCallingDialogOpen}>
+      <Dialog
+        open={callingDialogOpen}
+        onOpenChange={(open) => {
+          setCallingDialogOpen(open);
+          if (!open) {
+            setEditingCalling(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Agregar llamamiento</DialogTitle>
-            <DialogDescription>Asigna un llamamiento a este miembro.</DialogDescription>
+            <DialogTitle>{editingCalling ? "Editar llamamiento" : "Agregar llamamiento"}</DialogTitle>
+            <DialogDescription>
+              {editingCalling ? "Actualiza el llamamiento de este miembro." : "Asigna un llamamiento a este miembro."}
+            </DialogDescription>
           </DialogHeader>
           <Form {...callingForm}>
             <form onSubmit={callingForm.handleSubmit(handleSubmitCalling)} className="space-y-4">
-              <FormField
-                control={callingForm.control}
-                name="callingName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Llamamiento</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Presidente del cuórum de élderes"
-                        list="calling-options"
-                        {...field}
-                      />
-                    </FormControl>
-                    {callingOptions.length > 0 && (
-                      <datalist id="calling-options">
-                        {callingOptions.map((calling) => (
-                          <option key={calling} value={calling} />
-                        ))}
-                      </datalist>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={callingForm.control}
                 name="organizationId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Organización</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        callingForm.setValue("callingName", "");
+                      }}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona una organización" />
@@ -1031,19 +1063,28 @@ export default function DirectoryPage() {
               />
               <FormField
                 control={callingForm.control}
-                name="callingOrder"
+                name="callingName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Orden (opcional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="1"
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
+                    <FormLabel>Llamamiento</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={!selectedCallingOrgId}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un llamamiento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {callingOptionsWithSelected.map((calling) => (
+                          <SelectItem key={calling} value={calling}>
+                            {calling}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1052,8 +1093,11 @@ export default function DirectoryPage() {
                 <Button variant="outline" type="button" onClick={() => setCallingDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={createMemberCallingMutation.isPending}>
-                  Guardar llamamiento
+                <Button
+                  type="submit"
+                  disabled={createMemberCallingMutation.isPending || updateMemberCallingMutation.isPending}
+                >
+                  {editingCalling ? "Guardar cambios" : "Guardar llamamiento"}
                 </Button>
               </div>
             </form>

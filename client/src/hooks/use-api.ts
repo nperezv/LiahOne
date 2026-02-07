@@ -199,6 +199,30 @@ export function useCreateMemberCalling(memberId: string) {
   });
 }
 
+export function useUpdateMemberCalling(memberId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: { callingId: string; payload: any }) =>
+      apiRequest("PUT", `/api/members/${memberId}/callings/${data.callingId}`, data.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members", memberId, "callings"] });
+      toast({
+        title: "Llamamiento actualizado",
+        description: "El llamamiento ha sido actualizado exitosamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el llamamiento. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 export function useDeleteMemberCalling(memberId: string) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
