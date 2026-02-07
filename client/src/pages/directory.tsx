@@ -48,30 +48,18 @@ const memberSchema = z.object({
   organizationId: z.string().optional().or(z.literal("")),
 });
 
-const requiresCallingOrder = (callingName?: string) => /consejer[oa]/i.test(callingName ?? "");
+const callingSchema = z.object({
+  callingName: z.string().min(1, "El llamamiento es requerido"),
+  organizationId: z.string().min(1, "La organización es requerida"),
+});
 
-const callingSchema = z
-  .object({
-    callingName: z.string().min(1, "El llamamiento es requerido"),
-    organizationId: z.string().min(1, "La organización es requerida"),
-    callingOrder: z.preprocess(
-      (value) => {
-        if (value === "" || value === null || value === undefined) return undefined;
-        const parsed = Number(value);
-        return Number.isNaN(parsed) ? undefined : parsed;
-      },
-      z.number().int().positive().optional()
-    ),
-  })
-  .superRefine((data, ctx) => {
-    if (requiresCallingOrder(data.callingName) && !data.callingOrder) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El orden es requerido para consejeros/as.",
-        path: ["callingOrder"],
-      });
-    }
-  });
+const inferCallingOrder = (callingName?: string | null) => {
+  if (!callingName) return null;
+  const normalized = callingName.trim().toLowerCase();
+  if (normalized.includes("primer consejero") || normalized.includes("primera consejera")) return 1;
+  if (normalized.includes("segundo consejero") || normalized.includes("segunda consejera")) return 2;
+  return null;
+};
 
 type MemberFormValues = z.infer<typeof memberSchema>;
 type CallingFormValues = z.infer<typeof callingSchema>;
@@ -252,7 +240,6 @@ export default function DirectoryPage() {
     defaultValues: {
       callingName: "",
       organizationId: "",
-      callingOrder: undefined,
     },
   });
 
@@ -273,10 +260,6 @@ export default function DirectoryPage() {
     if (callingOptions.includes(selectedCallingName)) return callingOptions;
     return [selectedCallingName, ...callingOptions];
   }, [callingOptions, selectedCallingName]);
-  const showCallingOrder = useMemo(
-    () => requiresCallingOrder(selectedCallingName),
-    [selectedCallingName]
-  );
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -392,7 +375,6 @@ export default function DirectoryPage() {
     callingForm.reset({
       callingName: "",
       organizationId: "",
-      callingOrder: undefined,
     });
     setCallingDialogOpen(true);
   };
@@ -402,7 +384,7 @@ export default function DirectoryPage() {
     const payload = {
       callingName: data.callingName.trim(),
       organizationId: data.organizationId,
-      callingOrder: data.callingOrder,
+      callingOrder: inferCallingOrder(data.callingName.trim()),
     };
     if (editingCalling) {
       updateMemberCallingMutation.mutate(
@@ -430,7 +412,6 @@ export default function DirectoryPage() {
     callingForm.reset({
       callingName: calling.callingName ?? "",
       organizationId: calling.organizationId ?? "",
-      callingOrder: calling.callingOrder ?? undefined,
     });
     setCallingDialogOpen(true);
   };
@@ -1061,7 +1042,6 @@ export default function DirectoryPage() {
                       onValueChange={(value) => {
                         field.onChange(value);
                         callingForm.setValue("callingName", "");
-                        callingForm.setValue("callingOrder", undefined);
                       }}
                     >
                       <FormControl>
@@ -1089,12 +1069,7 @@ export default function DirectoryPage() {
                     <FormLabel>Llamamiento</FormLabel>
                     <Select
                       value={field.value}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        if (!requiresCallingOrder(value)) {
-                          callingForm.setValue("callingOrder", undefined);
-                        }
-                      }}
+                      onValueChange={field.onChange}
                       disabled={!selectedCallingOrgId}
                     >
                       <FormControl>
