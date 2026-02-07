@@ -6,7 +6,7 @@ import { Plus, FileText, Edit, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, normalizeMemberName } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -294,7 +294,7 @@ export default function SacramentalMeetingPage() {
   const memberOptions = useMemo(
     () =>
       members
-        .map((member) => member.nameSurename?.trim())
+        .map((member) => normalizeMemberName(member.nameSurename))
         .filter((name): name is string => Boolean(name)),
     [members]
   );
