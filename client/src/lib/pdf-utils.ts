@@ -772,7 +772,7 @@ export async function generateSacramentalMeetingPDF(
         rels.forEach((r: any) => {
           const callingWithOrg = formatCallingWithOrganization(r.oldCalling, org);
           const value = callingWithOrg || r.oldCalling;
-          bullets.push(`${r.name}, venía sirviendo como ${value}.`);
+          bullets.push(`${r.name}, que venía sirviendo como ${value}.`);
         });
       });
 
