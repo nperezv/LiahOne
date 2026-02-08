@@ -788,9 +788,9 @@ export async function generateSacramentalMeetingPDF(
     drawLabelLine(ctx, "Oración", String(normalizedMeeting.openingPrayer), { italicValue: true });
   }
 
-  // --- ANUNCIOS Y ASUNTOS DE BARRIO ---
+  // --- ANUNCIOS Y ASUNTOS ---
   ctx.y += 4; // ESPACIO ENTRE SECCIONES
-  drawSectionHeader(ctx, "ANUNCIOS Y ASUNTOS DE BARRIO");
+  drawSectionHeader(ctx, "ANUNCIOS Y ASUNTOS");
 
   setBodyFont(ctx, 11, "bold");
   ctx.doc.text("Anuncios:", ctx.marginX, ctx.y);
@@ -810,6 +810,14 @@ export async function generateSacramentalMeetingPDF(
     }
   } else {
     drawParagraph(ctx, "—", { indent: 14 });
+  }
+
+  if (normalizedMeeting.stakeBusiness && String(normalizedMeeting.stakeBusiness).trim()) {
+    ctx.y += 2;
+    setBodyFont(ctx, 11, "bold");
+    ctx.doc.text("Asuntos de estaca:", ctx.marginX, ctx.y);
+    ctx.y += 6;
+    drawParagraph(ctx, String(normalizedMeeting.stakeBusiness), { indent: 14 });
   }
 
   const filteredReleases = Array.isArray(normalizedMeeting.releases)
@@ -939,14 +947,6 @@ export async function generateSacramentalMeetingPDF(
       const bullets = childBlessings.map((n: string) => `${n}`);
       drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
     }
-  }
-
-  // --- ASUNTOS Y ANUNCIOS DE ESTACA ---
-  if (normalizedMeeting.stakeBusiness && String(normalizedMeeting.stakeBusiness).trim()) {
-    ctx.y += 4; // ESPACIO ENTRE SECCIONES
-    drawSectionHeader(ctx, "ASUNTOS Y ANUNCIOS DE ESTACA");
-    drawParagraph(ctx, String(normalizedMeeting.stakeBusiness), { indent: 6 });
-    drawParagraph(ctx, "***", { indent: 0 });
   }
 
   // --- SANTA CENA ---

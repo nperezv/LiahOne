@@ -1376,27 +1376,9 @@ export default function SacramentalMeetingPage() {
                     </div>
                   </div>
 
-                  {/* ========== SECTION 4: ANNOUNCEMENTS ========== */}
-                  <div className="border rounded-md p-4 bg-amber-50 dark:bg-amber-950/30">
-                    <h3 className="text-sm font-semibold mb-3">4. Anuncios</h3>
-                    <FormField
-                      control={form.control}
-                      name="announcements"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Anuncios del Barrio o la Estaca</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="Ingresa los anuncios..." {...field} data-testid="input-announcements" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* ========== SECTION 5: OPENING HYMN ========== */}
+                  {/* ========== SECTION 4: OPENING HYMN ========== */}
                   <div className="border rounded-md p-4 bg-green-50 dark:bg-green-950/30">
-                    <h3 className="text-sm font-semibold mb-3">5. Primer Himno</h3>
+                    <h3 className="text-sm font-semibold mb-3">4. Primer Himno</h3>
                     <FormField
                       control={form.control}
                       name="openingHymn"
@@ -1420,9 +1402,9 @@ export default function SacramentalMeetingPage() {
                     />
                   </div>
 
-                  {/* ========== SECTION 6: OPENING PRAYER ========== */}
+                  {/* ========== SECTION 5: OPENING PRAYER ========== */}
                   <div className="border rounded-md p-4 bg-red-50 dark:bg-red-950/30">
-                    <h3 className="text-sm font-semibold mb-3">6. Primera Oración</h3>
+                    <h3 className="text-sm font-semibold mb-3">5. Primera Oración</h3>
                     <FormField
                       control={form.control}
                       name="openingPrayer"
@@ -1445,9 +1427,55 @@ export default function SacramentalMeetingPage() {
                     />
                   </div>
 
-                  {/* ========== SECTION 7: WARD BUSINESS ========== */}
-                  <div className="border rounded-md p-4 bg-purple-50 dark:bg-purple-950/30">
-                    <h3 className="text-sm font-semibold mb-3">7. Asuntos de Barrio</h3>
+                  {/* ========== SECTION 6: ANNOUNCEMENTS & BUSINESS ========== */}
+                  <div className="border rounded-md p-4 bg-amber-50 dark:bg-amber-950/30">
+                    <h3 className="text-sm font-semibold mb-3">6. Anuncios y Asuntos</h3>
+                    <FormField
+                      control={form.control}
+                      name="announcements"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Anuncios del Barrio o la Estaca</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Ingresa los anuncios..." {...field} data-testid="input-announcements" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Stake Business */}
+                    <div className="mt-4 mb-4 border rounded p-3 bg-white dark:bg-slate-900">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium">Asuntos de Estaca</h4>
+                        <Checkbox
+                          checked={hasStakeBusiness}
+                          onCheckedChange={(checked) => setHasStakeBusiness(checked as boolean)}
+                          data-testid="checkbox-stake-business"
+                        />
+                      </div>
+                      {hasStakeBusiness && (
+                        <FormField
+                          control={form.control}
+                          name="stakeBusiness"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Describe los asuntos de la Estaca..."
+                                  {...field}
+                                  className="text-sm"
+                                  data-testid="input-stake-business"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+
+                    <h4 className="text-sm font-medium mb-3">Asuntos de Barrio</h4>
 
                     {/* Confirmations - MOVED FIRST */}
                     <div className="mb-4 border rounded p-3 bg-white dark:bg-slate-900">
@@ -1844,36 +1872,11 @@ export default function SacramentalMeetingPage() {
                       )}
                     </div>
 
-                    {/* Stake Business */}
-                    <div className="mb-4 border rounded p-3 bg-white dark:bg-slate-900">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium">Asuntos de Estaca</h4>
-                        <Checkbox
-                          checked={hasStakeBusiness}
-                          onCheckedChange={(checked) => setHasStakeBusiness(checked as boolean)}
-                          data-testid="checkbox-stake-business"
-                        />
-                      </div>
-                      {hasStakeBusiness && (
-                        <FormField
-                          control={form.control}
-                          name="stakeBusiness"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Textarea placeholder="Describe los asuntos de la Estaca..." {...field} className="text-sm" data-testid="input-stake-business" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </div>
                   </div>
 
-                  {/* ========== SECTION 8: SACRAMENT HYMN ========== */}
+                  {/* ========== SECTION 7: SACRAMENT HYMN ========== */}
                   <div className="border rounded-md p-4 bg-indigo-50 dark:bg-indigo-950/30">
-                    <h3 className="text-sm font-semibold mb-3">8. Himno Sacramental y Santa Cena</h3>
+                    <h3 className="text-sm font-semibold mb-3">7. Himno Sacramental y Santa Cena</h3>
                     <FormField
                       control={form.control}
                       name="sacramentHymn"
@@ -1897,10 +1900,10 @@ export default function SacramentalMeetingPage() {
                     />
                   </div>
 
-                  {/* ========== SECTION 9: DISCOURSES ========== */}
+                  {/* ========== SECTION 8: DISCOURSES ========== */}
                   <div className="border rounded-md p-4 bg-cyan-50 dark:bg-cyan-950/30">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold">9. Mensajes del Evangelio y Música</h3>
+                      <h3 className="text-sm font-semibold">8. Mensajes del Evangelio y Música</h3>
                     </div>
 
                     <FormField
@@ -2061,9 +2064,9 @@ export default function SacramentalMeetingPage() {
                     )}
                   </div>
 
-                  {/* ========== SECTION 10: CLOSING HYMN ========== */}
+                  {/* ========== SECTION 9: CLOSING HYMN ========== */}
                   <div className="border rounded-md p-4 bg-orange-50 dark:bg-orange-950/30">
-                    <h3 className="text-sm font-semibold mb-3">10. Último Himno</h3>
+                    <h3 className="text-sm font-semibold mb-3">9. Último Himno</h3>
                     <FormField
                       control={form.control}
                       name="closingHymn"
@@ -2087,9 +2090,9 @@ export default function SacramentalMeetingPage() {
                     />
                   </div>
 
-                  {/* ========== SECTION 11: CLOSING PRAYER ========== */}
+                  {/* ========== SECTION 10: CLOSING PRAYER ========== */}
                   <div className="border rounded-md p-4 bg-rose-50 dark:bg-rose-950/30">
-                    <h3 className="text-sm font-semibold mb-3">11. Última Oración</h3>
+                    <h3 className="text-sm font-semibold mb-3">10. Última Oración</h3>
                     <FormField
                       control={form.control}
                       name="closingPrayer"
