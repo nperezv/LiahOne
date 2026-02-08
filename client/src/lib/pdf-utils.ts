@@ -176,7 +176,8 @@ function drawSectionHeader(ctx: PdfCtx, title: string) {
 
 function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>, itemsRight: Array<[string, string]>) {
   const colLeftX = ctx.marginX;
-  const colRightX = 110;
+  const hasRightItems = itemsRight.some(([, value]) => Boolean(value));
+  const colRightX = hasRightItems ? 110 : ctx.pageWidth - ctx.marginX;
   const colGap = 6;
 
   const maxLeftW = (colRightX - colGap) - colLeftX;
