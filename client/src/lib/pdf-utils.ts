@@ -368,6 +368,11 @@ function parsePersonName(value?: string) {
   return namePart || "";
 }
 
+function normalizeSingleLine(value?: string) {
+  if (!value) return "";
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function normalizeMeeting(meeting: any) {
   const normalizedMeeting = { ...meeting };
 
@@ -429,10 +434,18 @@ function groupBy<T>(arr: T[], keyFn: (t: T) => string): Record<string, T[]> {
   }, {} as Record<string, T[]>);
 }
 
-function orgNameById(organizations: any[], id: string) {
-  if (!id || id === "sin-organizacion") return "";
-  const org = organizations.find((o: any) => o.id === id);
-  return org?.name || "";
+function formatBishopricCalling(calling?: string, role?: string) {
+  const trimmed = calling?.trim();
+  if (trimmed) {
+    const lower = trimmed.toLowerCase();
+    if (lower.includes("consejero") && !lower.includes("obispado")) {
+      return `${trimmed} del Obispado`;
+    }
+    return trimmed;
+  }
+  if (role === "obispo") return "Obispo";
+  if (role === "consejero_obispo") return "Consejero del Obispado";
+  return "";
 }
 
 function drawInlineLabelValue(
@@ -614,7 +627,10 @@ export async function generateSacramentalMeetingPDF(
   const leftItems: Array<[string, string]> = [];
   const rightItems: Array<[string, string]> = [];
 
-  if (normalizedMeeting.presider) leftItems.push(["Preside", String(normalizedMeeting.presider)]);
+  if (normalizedMeeting.presider) {
+    const presider = normalizeSingleLine(String(normalizedMeeting.presider));
+    if (presider) leftItems.push(["Preside", presider]);
+  }
 
   const manualRecognitionEntries = typeof normalizedMeeting.visitingAuthority === "string"
     ? normalizedMeeting.visitingAuthority
@@ -635,8 +651,7 @@ export async function generateSacramentalMeetingPDF(
       if (!memberName) return;
       if (parsePersonName(memberName) === directorName) return;
       if (presiderName && parsePersonName(memberName) === presiderName) return;
-      const calling = member.calling?.trim()
-        || (member.role === "obispo" ? "Obispo" : "Consejero del Obispado");
+      const calling = formatBishopricCalling(member.calling, member.role);
       autoRecognitionEntries.push(calling ? `${memberName} | ${calling}` : memberName);
     });
   }
@@ -652,10 +667,19 @@ export async function generateSacramentalMeetingPDF(
     });
     if (deduped.length) leftItems.push(["Reconocimiento", deduped.join(", ")]);
   }
-  if (normalizedMeeting.musicDirector) leftItems.push(["Dirección de la música", String(normalizedMeeting.musicDirector)]);
+  if (normalizedMeeting.musicDirector) {
+    const musicDirector = normalizeSingleLine(String(normalizedMeeting.musicDirector));
+    if (musicDirector) leftItems.push(["Dirección de la música", musicDirector]);
+  }
 
-  if (normalizedMeeting.director) rightItems.push(["Dirige", String(normalizedMeeting.director)]);
-  if (normalizedMeeting.pianist) rightItems.push(["Acompañamiento en el Piano", String(normalizedMeeting.pianist)]);
+  if (normalizedMeeting.director) {
+    const director = normalizeSingleLine(String(normalizedMeeting.director));
+    if (director) rightItems.push(["Dirige", director]);
+  }
+  if (normalizedMeeting.pianist) {
+    const pianist = normalizeSingleLine(String(normalizedMeeting.pianist));
+    if (pianist) rightItems.push(["Acompañamiento en el Piano", pianist]);
+  }
 
   drawKeyValueTwoColumns(ctx, leftItems, rightItems);
 
@@ -721,11 +745,9 @@ export async function generateSacramentalMeetingPDF(
       const grouped = groupBy(filteredReleases, (r: any) => r.organizationId || "sin-organizacion");
 
       const bullets: string[] = [];
-      Object.entries(grouped).forEach(([orgId, rels]) => {
-        const orgName = orgNameById(organizations, orgId);
+      Object.values(grouped).forEach((rels) => {
         rels.forEach((r: any) => {
-          const suffix = orgName ? ` del ${orgName}.` : ".";
-          bullets.push(`${r.name}, venía sirviendo como ${r.oldCalling}${suffix}`);
+          bullets.push(`${r.name}, venía sirviendo como ${r.oldCalling}.`);
         });
       });
 
@@ -746,11 +768,9 @@ export async function generateSacramentalMeetingPDF(
       const grouped = groupBy(filteredSustainments, (s: any) => s.organizationId || "sin-organizacion");
 
       const bullets: string[] = [];
-      Object.entries(grouped).forEach(([orgId, sus]) => {
-        const orgName = orgNameById(organizations, orgId);
+      Object.values(grouped).forEach((sus) => {
         sus.forEach((s: any) => {
-          const suffix = orgName ? ` del ${orgName}.` : ".";
-          bullets.push(`${s.name}, como ${s.calling}${suffix}`);
+          bullets.push(`${s.name}, como ${s.calling}.`);
         });
       });
 
