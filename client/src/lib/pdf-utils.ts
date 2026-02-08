@@ -176,7 +176,8 @@ function drawSectionHeader(ctx: PdfCtx, title: string) {
 
 function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>, itemsRight: Array<[string, string]>) {
   const colLeftX = ctx.marginX;
-  const colRightX = 110;
+  const hasRightItems = itemsRight.some(([, value]) => Boolean(value));
+  const colRightX = hasRightItems ? 110 : ctx.pageWidth - ctx.marginX;
   const colGap = 6;
 
   const maxLeftW = (colRightX - colGap) - colLeftX;
@@ -266,8 +267,70 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
     return currentY;
   };
 
+  const measureOne = (x: number, y: number, label: string, value: string, maxW: number) => {
+    if (!value) return y;
+
+    setBodyFont(ctx, 11, "bold");
+    const labelW = ctx.doc.getTextWidth(`${label}:`);
+    const isRecognition = label === "Reconocimiento";
+    const valueX = isRecognition ? x : x + labelW + 4;
+
+    const entries = splitEntries(value);
+    const availableW = Math.max(10, maxW - (valueX - x));
+
+    let currentY = isRecognition ? y + ctx.lineHeight : y;
+    const stackCalling = label === "Preside" || label === "Dirige";
+
+    entries.forEach((entry, index) => {
+      const [namePart, callingPartRaw] = entry.split("|").map((part) => part.trim());
+      const callingPart = callingPartRaw ? normalizeCallingLabel(callingPartRaw) : "";
+      const nameText = namePart || entry;
+
+      setBodyFont(ctx, 11, "normal");
+      const lines = wrapLines(ctx, nameText, availableW);
+      if (lines.length === 0) {
+        currentY += ctx.lineHeight;
+        return;
+      }
+
+      currentY += ctx.lineHeight * (lines.length - 1);
+
+      if (callingPart) {
+        setBodyFont(ctx, 11, "normal");
+        const lastLine = lines[lines.length - 1] || "";
+        const lastLineW = ctx.doc.getTextWidth(lastLine);
+        const callingText = ` ${callingPart}`;
+        setBodyFont(ctx, 9, "italic");
+        const callingW = ctx.doc.getTextWidth(callingText);
+        const inlineX = valueX + lastLineW + 2;
+        const fitsInline = !stackCalling && inlineX + callingW <= x + maxW;
+
+        if (!fitsInline) {
+          currentY += ctx.lineHeight;
+        }
+        setBodyFont(ctx, 11, "normal");
+      }
+
+      currentY += ctx.lineHeight;
+      if (index < entries.length - 1) {
+        currentY += 1;
+      }
+    });
+
+    return currentY;
+  };
+
+  let rightEndY = startY;
+  if (hasRightItems) {
+    itemsRight.forEach(([k, v]) => {
+      rightEndY = measureOne(colRightX, rightEndY, k, v, maxRightW);
+    });
+  }
+
   itemsLeft.forEach(([k, v]) => {
-    leftY = drawOne(colLeftX, leftY, k, v, maxLeftW);
+    const canExpand = hasRightItems && leftY >= rightEndY;
+    const expandedLeftW = ctx.pageWidth - ctx.marginX - colLeftX;
+    leftY = drawOne(colLeftX, leftY, k, v, canExpand ? expandedLeftW : maxLeftW);
   });
 
   itemsRight.forEach(([k, v]) => {
