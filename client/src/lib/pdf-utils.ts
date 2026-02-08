@@ -218,10 +218,20 @@ function drawKeyValueTwoColumns(ctx: PdfCtx, itemsLeft: Array<[string, string]>,
       const nameText = namePart || entry;
 
       setBodyFont(ctx, 11, "normal");
-      const lines = wrapLines(ctx, nameText, availableW);
+      const keepSingleLine = label === "Dirección de la música";
+      let lines = keepSingleLine ? [nameText] : wrapLines(ctx, nameText, availableW);
       if (lines.length === 0) {
         currentY += ctx.lineHeight;
         return;
+      }
+
+      if (keepSingleLine) {
+        let fontSize = 11;
+        setBodyFont(ctx, fontSize, "normal");
+        while (fontSize > 8 && ctx.doc.getTextWidth(nameText) > availableW) {
+          fontSize -= 0.5;
+          setBodyFont(ctx, fontSize, "normal");
+        }
       }
 
       lines.forEach((line, lineIndex) => {
@@ -726,10 +736,7 @@ export async function generateSacramentalMeetingPDF(
   }
   if (normalizedMeeting.musicDirector) {
     const musicDirector = normalizeSingleLine(normalizePersonListValue(String(normalizedMeeting.musicDirector)));
-    if (musicDirector) {
-      const noWrapName = musicDirector.replace(/ /g, "\u00A0");
-      leftItems.push(["Dirección de la música", noWrapName]);
-    }
+    if (musicDirector) leftItems.push(["Dirección de la música", musicDirector]);
   }
 
   if (normalizedMeeting.director) {

@@ -1049,12 +1049,12 @@ export default function SacramentalMeetingPage() {
     const organizationId = updated[index].organizationId;
     updated[index].oldCalling = callingName;
     const resolvedName = getMemberNameForCalling(organizationId, callingName);
-    updated[index].name = normalizeMemberName(resolvedName || "") || resolvedName;
+    updated[index].name = normalizeMemberIfComma(resolvedName || "");
     setReleases(updated);
   };
   const updateReleaseName = (index: number, value: string) => {
     const updated = [...releases];
-    const normalizedName = normalizeMemberName(value) || value;
+    const normalizedName = normalizeMemberIfComma(value);
     updated[index].name = normalizedName;
     const matches = getMemberCallingsByName(normalizedName);
     if (matches.length === 1) {
