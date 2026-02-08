@@ -747,7 +747,7 @@ export async function generateSacramentalMeetingPDF(
       const bullets: string[] = [];
       Object.values(grouped).forEach((rels) => {
         rels.forEach((r: any) => {
-          bullets.push(`${r.name}, venía sirviendo como ${r.oldCalling}.`);
+          bullets.push(`${r.name}, que venía sirviendo como ${r.oldCalling}.`);
         });
       });
 
