@@ -831,8 +831,6 @@ export default function SacramentalMeetingPage() {
 
   const directorValue = useWatch({ control: form.control, name: "director" });
   const presiderValue = useWatch({ control: form.control, name: "presider" });
-  const visitingAuthorityValue = useWatch({ control: form.control, name: "visitingAuthority" });
-
   useEffect(() => {
     if (!isDialogOpen || editingId) return;
     const currentPresider = form.getValues("presider")?.trim();
@@ -848,16 +846,19 @@ export default function SacramentalMeetingPage() {
     const parsedDirector = parsePersonValue(directorValue);
     const trimmedDirector = parsedDirector.name.trim();
     if (!trimmedDirector || !bishopricNames.includes(trimmedDirector)) return;
-    const currentNames = (visitingAuthorityValue || "")
+    const currentNames = (form.getValues("visitingAuthority") || "")
       .split(",")
       .map((name) => name.trim())
       .filter(Boolean);
     const manualNames = currentNames.filter((name) => !bishopricNames.includes(name));
-    const nextValue = manualNames.join(", ");
-    if (nextValue !== visitingAuthorityValue) {
-      form.setValue("visitingAuthority", nextValue, { shouldDirty: true });
+    const hasBishopricNames = currentNames.length !== manualNames.length;
+    if (hasBishopricNames) {
+      const nextValue = manualNames.join(", ");
+      if (nextValue !== form.getValues("visitingAuthority")) {
+        form.setValue("visitingAuthority", nextValue, { shouldDirty: true });
+      }
     }
-  }, [bishopricNamesKey, directorValue, form, visitingAuthorityValue]);
+  }, [bishopricNamesKey, directorValue, form]);
 
   useEffect(() => {
     if (!isDialogOpen) return;
