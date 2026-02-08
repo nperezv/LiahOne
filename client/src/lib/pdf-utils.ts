@@ -805,9 +805,13 @@ export async function generateSacramentalMeetingPDF(
       const grouped = groupBy(filteredReleases, (r: any) => r.organizationId || "sin-organizacion");
 
       const bullets: string[] = [];
+      const organizationById = new Map(organizations.map((org: any) => [org.id, org.name || ""]));
       Object.values(grouped).forEach((rels) => {
         rels.forEach((r: any) => {
-          bullets.push(`${r.name}, que venía sirviendo como ${r.oldCalling}.`);
+          const orgName = organizationById.get(r.organizationId) || "";
+          const name = normalizeMemberName(r.name) || r.name;
+          const calling = formatCallingWithOrganization(r.oldCalling, orgName);
+          bullets.push(`${name}, que venía sirviendo como ${calling}.`);
         });
       });
 
@@ -828,9 +832,13 @@ export async function generateSacramentalMeetingPDF(
       const grouped = groupBy(filteredSustainments, (s: any) => s.organizationId || "sin-organizacion");
 
       const bullets: string[] = [];
+      const organizationById = new Map(organizations.map((org: any) => [org.id, org.name || ""]));
       Object.values(grouped).forEach((sus) => {
         sus.forEach((s: any) => {
-          bullets.push(`${s.name}, como ${s.calling}.`);
+          const orgName = organizationById.get(s.organizationId) || "";
+          const name = normalizeMemberName(s.name) || s.name;
+          const calling = formatCallingWithOrganization(s.calling, orgName);
+          bullets.push(`${name}, como ${calling}.`);
         });
       });
 
