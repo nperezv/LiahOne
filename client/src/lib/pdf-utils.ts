@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { apiRequest } from "./queryClient";
+import { normalizeMemberName } from "./utils";
 
 interface PdfTemplate {
   wardName: string;
@@ -365,12 +366,68 @@ type BishopricMember = {
 function parsePersonName(value?: string) {
   if (!value) return "";
   const [namePart] = value.split("|").map((part) => part.trim());
-  return namePart || "";
+  if (!namePart) return "";
+  return namePart.includes(",") ? normalizeMemberName(namePart) || namePart : namePart;
 }
 
 function normalizeSingleLine(value?: string) {
   if (!value) return "";
   return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeCompareText(value?: string) {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function normalizePersonListValue(value?: string) {
+  if (!value) return "";
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const normalizedEntries = entries.map((entry) => {
+    const [namePart, callingPart] = entry.split("|").map((part) => part.trim());
+    const normalizedName = namePart.includes(",")
+      ? normalizeMemberName(namePart) || namePart
+      : namePart;
+    if (!callingPart) return normalizedName || entry;
+    return `${normalizedName} | ${callingPart}`.trim();
+  });
+
+  return normalizedEntries.join(", ");
+}
+
+function formatOrganizationConnector(orgName: string) {
+  const normalized = normalizeCompareText(orgName);
+  if (!normalized) return "de";
+  if (normalized.includes("mujeres jovenes")) return "de las";
+  if (normalized.includes("hombres jovenes")) return "de los";
+  if (normalized.includes("cuorum") || normalized.includes("barrio")) return "del";
+  if (
+    normalized.includes("sociedad") ||
+    normalized.includes("escuela") ||
+    normalized.includes("primaria")
+  ) {
+    return "de la";
+  }
+  return "de";
+}
+
+function formatCallingWithOrganization(calling?: string, orgName?: string) {
+  const trimmedCalling = normalizeSingleLine(calling);
+  if (!trimmedCalling) return "";
+  if (!orgName) return trimmedCalling;
+  const normalizedCalling = normalizeCompareText(trimmedCalling);
+  const normalizedOrg = normalizeCompareText(orgName);
+  if (normalizedCalling.includes(normalizedOrg)) return trimmedCalling;
+  const connector = formatOrganizationConnector(orgName);
+  return `${trimmedCalling} ${connector} ${orgName}`.trim();
 }
 
 function normalizeMeeting(meeting: any) {
@@ -628,7 +685,7 @@ export async function generateSacramentalMeetingPDF(
   const rightItems: Array<[string, string]> = [];
 
   if (normalizedMeeting.presider) {
-    const presider = normalizeSingleLine(String(normalizedMeeting.presider));
+    const presider = normalizeSingleLine(normalizePersonListValue(String(normalizedMeeting.presider)));
     if (presider) leftItems.push(["Preside", presider]);
   }
 
@@ -668,16 +725,19 @@ export async function generateSacramentalMeetingPDF(
     if (deduped.length) leftItems.push(["Reconocimiento", deduped.join(", ")]);
   }
   if (normalizedMeeting.musicDirector) {
-    const musicDirector = normalizeSingleLine(String(normalizedMeeting.musicDirector));
-    if (musicDirector) leftItems.push(["Dirección de la música", musicDirector]);
+    const musicDirector = normalizeSingleLine(normalizePersonListValue(String(normalizedMeeting.musicDirector)));
+    if (musicDirector) {
+      const noWrapName = musicDirector.replace(/ /g, "\u00A0");
+      leftItems.push(["Dirección de la música", noWrapName]);
+    }
   }
 
   if (normalizedMeeting.director) {
-    const director = normalizeSingleLine(String(normalizedMeeting.director));
+    const director = normalizeSingleLine(normalizePersonListValue(String(normalizedMeeting.director)));
     if (director) rightItems.push(["Dirige", director]);
   }
   if (normalizedMeeting.pianist) {
-    const pianist = normalizeSingleLine(String(normalizedMeeting.pianist));
+    const pianist = normalizeSingleLine(normalizePersonListValue(String(normalizedMeeting.pianist)));
     if (pianist) rightItems.push(["Acompañamiento en el Piano", pianist]);
   }
 
