@@ -693,6 +693,7 @@ export default function SacramentalMeetingPage() {
       form.setValue(fieldName, normalized, { shouldDirty: true });
     }
   };
+  const normalizeMemberField = (value?: string) => normalizeMemberName(value || "") || value || "";
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
 
@@ -923,8 +924,8 @@ export default function SacramentalMeetingPage() {
       date: data.date,
       presider: data.presider || "",
       director: data.director || "",
-      musicDirector: data.musicDirector || "",
-      pianist: data.pianist || "",
+      musicDirector: normalizeMemberField(data.musicDirector),
+      pianist: normalizeMemberField(data.pianist),
       visitingAuthority: data.visitingAuthority || "",
       announcements: data.announcements || "",
       openingHymn: data.openingHymn || "",
