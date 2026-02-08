@@ -608,10 +608,37 @@ export default function SacramentalMeetingPage() {
   const bishopricNamesKey = bishopricNames.join("|");
   const bishopName = bishopricMembers.find((member: any) => member.role === "obispo");
   const bishopLabel = getMemberLabel(bishopName);
+  const obispadoOrgId = useMemo(
+    () => (organizations as any[]).find((org: any) => org.type === "obispado")?.id,
+    [organizations]
+  );
+  const obispadoCallingNames = useMemo(
+    () => callingsByOrgType.obispado.map((calling) => normalizeText(calling)),
+    [normalizeText]
+  );
+  const normalizeMemberLabel = (value?: string) => normalizeMemberName(value || "") || value || "";
+  const formatBishopricCalling = (calling?: string, role?: string) => {
+    const trimmed = calling?.trim();
+    if (trimmed) {
+      const lower = trimmed.toLowerCase();
+      if (lower.includes("consejero") && !lower.includes("obispado")) {
+        return `${trimmed} del Obispado`;
+      }
+      return trimmed;
+    }
+    return role === "obispo" ? "Obispo" : "Consejero del Obispado";
+  };
   const getBishopricCalling = (name: string) => {
     const member = bishopricByName.get(name);
     if (!member) return "";
-    return member.role === "obispo" ? "Obispo" : "Consejero del Obispado";
+    const normalizedName = normalizeMemberLabel(name);
+    const callingMatch = memberCallingsWithMembers.find(
+      (calling) =>
+        normalizeMemberLabel(calling.memberName || "") === normalizedName &&
+        (!obispadoOrgId || calling.organizationId === obispadoOrgId) &&
+        obispadoCallingNames.includes(normalizeText(calling.callingName || ""))
+    );
+    return formatBishopricCalling(callingMatch?.callingName, member.role);
   };
   const isTestimonyValue = (value: any) =>
     typeof value === "string" ? value === "true" : Boolean(value);
@@ -755,10 +782,14 @@ export default function SacramentalMeetingPage() {
 
   const handleGeneratePDF = async (meeting: any) => {
     const recognitionMembers = bishopricMembers
-      .map((member: any) => ({
-        name: getMemberLabel(member),
-        role: member.role,
-      }))
+      .map((member: any) => {
+        const name = getMemberLabel(member);
+        return {
+          name,
+          role: member.role,
+          calling: name ? getBishopricCalling(name) : "",
+        };
+      })
       .filter((member: any) => member.name);
     const doc = await generateSacramentalMeetingPDF(meeting, organizations as any[], recognitionMembers);
     const date = new Date(meeting.date).toISOString().split('T')[0];
