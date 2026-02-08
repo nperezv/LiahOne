@@ -726,7 +726,10 @@ export async function generateSacramentalMeetingPDF(
   }
   if (normalizedMeeting.musicDirector) {
     const musicDirector = normalizeSingleLine(normalizePersonListValue(String(normalizedMeeting.musicDirector)));
-    if (musicDirector) leftItems.push(["Dirección de la música", musicDirector]);
+    if (musicDirector) {
+      const noWrapName = musicDirector.replace(/ /g, "\u00A0");
+      leftItems.push(["Dirección de la música", noWrapName]);
+    }
   }
 
   if (normalizedMeeting.director) {
