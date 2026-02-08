@@ -691,14 +691,19 @@ export default function SacramentalMeetingPage() {
       form.setValue(fieldName, normalized, { shouldDirty: true });
     }
   };
+  const normalizeMemberIfComma = (value?: string) => {
+    const currentValue = value || "";
+    if (!currentValue.includes(",")) return currentValue;
+    return normalizeMemberName(currentValue) || currentValue;
+  };
   const applyMemberNormalization = (fieldName: keyof MeetingFormValues) => {
     const currentValue = form.getValues(fieldName) || "";
-    const normalized = normalizeMemberName(currentValue);
+    const normalized = normalizeMemberIfComma(currentValue);
     if (normalized && normalized !== currentValue) {
       form.setValue(fieldName, normalized, { shouldDirty: true });
     }
   };
-  const normalizeMemberField = (value?: string) => normalizeMemberName(value || "") || value || "";
+  const normalizeMemberField = (value?: string) => normalizeMemberIfComma(value);
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
 

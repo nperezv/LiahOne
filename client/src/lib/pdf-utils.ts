@@ -366,7 +366,8 @@ type BishopricMember = {
 function parsePersonName(value?: string) {
   if (!value) return "";
   const [namePart] = value.split("|").map((part) => part.trim());
-  return normalizeMemberName(namePart) || namePart || "";
+  if (!namePart) return "";
+  return namePart.includes(",") ? normalizeMemberName(namePart) || namePart : namePart;
 }
 
 function normalizeSingleLine(value?: string) {
@@ -392,7 +393,9 @@ function normalizePersonListValue(value?: string) {
 
   const normalizedEntries = entries.map((entry) => {
     const [namePart, callingPart] = entry.split("|").map((part) => part.trim());
-    const normalizedName = normalizeMemberName(namePart) || namePart;
+    const normalizedName = namePart.includes(",")
+      ? normalizeMemberName(namePart) || namePart
+      : namePart;
     if (!callingPart) return normalizedName || entry;
     return `${normalizedName} | ${callingPart}`.trim();
   });
