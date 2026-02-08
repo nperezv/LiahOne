@@ -373,6 +373,31 @@ function normalizeSingleLine(value?: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function normalizeCompareText(value?: string) {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function formatOrganizationConnector(orgName: string) {
+  const normalized = normalizeCompareText(orgName);
+  if (!normalized) return "de";
+  if (normalized.includes("mujeres jovenes")) return "de las";
+  if (normalized.includes("hombres jovenes")) return "de los";
+  if (normalized.includes("cuorum") || normalized.includes("barrio")) return "del";
+  if (
+    normalized.includes("sociedad") ||
+    normalized.includes("escuela") ||
+    normalized.includes("primaria")
+  ) {
+    return "de la";
+  }
+  return "de";
+}
+
 function normalizeMeeting(meeting: any) {
   const normalizedMeeting = { ...meeting };
 
@@ -440,29 +465,15 @@ function orgById(organizations: any[], id: string) {
 }
 
 function formatCallingWithOrganization(calling: string, organization?: any) {
-  const trimmedCalling = calling?.trim();
+  const trimmedCalling = normalizeSingleLine(calling);
   if (!trimmedCalling) return "";
-  if (!organization) return trimmedCalling;
-  const orgName = organization.name?.trim();
-  const orgType = organization.type?.trim();
+  const orgName = organization?.name?.trim();
   if (!orgName) return trimmedCalling;
-
-  switch (orgType) {
-    case "primaria":
-    case "escuela_dominical":
-    case "sociedad_socorro":
-      return `${trimmedCalling} de la ${orgName}`;
-    case "hombres_jovenes":
-      return `${trimmedCalling} de los ${orgName}`;
-    case "mujeres_jovenes":
-      return `${trimmedCalling} de las ${orgName}`;
-    case "jas":
-      return `${trimmedCalling} de ${orgName}`;
-    case "barrio":
-      return `${trimmedCalling} del Barrio`;
-    default:
-      return `${trimmedCalling} de ${orgName}`;
-  }
+  const normalizedCalling = normalizeCompareText(trimmedCalling);
+  const normalizedOrg = normalizeCompareText(orgName);
+  if (normalizedCalling.includes(normalizedOrg)) return trimmedCalling;
+  const connector = formatOrganizationConnector(orgName);
+  return `${trimmedCalling} ${connector} ${orgName}`.trim();
 }
 
 function formatBishopricCalling(calling?: string, role?: string) {
