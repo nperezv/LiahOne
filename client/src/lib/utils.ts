@@ -64,6 +64,7 @@ export const normalizeMemberName = (value?: string | null) => {
 
   const parts = cleaned.split(" ");
   if (parts.length < 2) return cleaned;
+  if (parts.length === 2) return cleaned;
 
   const lowerTokens = parts.map((part) => part.toLowerCase());
   const hasParticles = lowerTokens.some((token) => isSurnameParticle(token));

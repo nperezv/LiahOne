@@ -617,14 +617,19 @@ export default function SacramentalMeetingPage() {
     [normalizeText]
   );
   const normalizeMemberLabel = (value?: string) => normalizeMemberName(value || "") || value || "";
-  const formatBishopricCalling = (calling?: string, role?: string) => {
+  const formatBishopricCalling = (calling?: string, role?: string, callingOrder?: number | null) => {
     const trimmed = calling?.trim();
     if (trimmed) {
       const lower = trimmed.toLowerCase();
-      if (lower.includes("consejero") && !lower.includes("obispado")) {
-        return `${trimmed} del Obispado`;
+      let label = trimmed;
+      if (lower.includes("consejero") && !lower.includes("primer") && !lower.includes("segundo")) {
+        if (callingOrder === 1) label = "Primer consejero";
+        if (callingOrder === 2) label = "Segundo consejero";
       }
-      return trimmed;
+      if (label.toLowerCase().includes("consejero") && !label.toLowerCase().includes("obispado")) {
+        return `${label} del Obispado`;
+      }
+      return label;
     }
     return role === "obispo" ? "Obispo" : "Consejero del Obispado";
   };
@@ -638,7 +643,7 @@ export default function SacramentalMeetingPage() {
         (!obispadoOrgId || calling.organizationId === obispadoOrgId) &&
         obispadoCallingNames.includes(normalizeText(calling.callingName || ""))
     );
-    return formatBishopricCalling(callingMatch?.callingName, member.role);
+    return formatBishopricCalling(callingMatch?.callingName, member.role, callingMatch?.callingOrder);
   };
   const isTestimonyValue = (value: any) =>
     typeof value === "string" ? value === "true" : Boolean(value);
@@ -686,13 +691,19 @@ export default function SacramentalMeetingPage() {
       form.setValue(fieldName, normalized, { shouldDirty: true });
     }
   };
+  const normalizeMemberIfComma = (value?: string) => {
+    const currentValue = value || "";
+    if (!currentValue.includes(",")) return currentValue;
+    return normalizeMemberName(currentValue) || currentValue;
+  };
   const applyMemberNormalization = (fieldName: keyof MeetingFormValues) => {
     const currentValue = form.getValues(fieldName) || "";
-    const normalized = normalizeMemberName(currentValue);
+    const normalized = normalizeMemberIfComma(currentValue);
     if (normalized && normalized !== currentValue) {
       form.setValue(fieldName, normalized, { shouldDirty: true });
     }
   };
+  const normalizeMemberField = (value?: string) => normalizeMemberIfComma(value);
   const authorityCallingByValue = (value: string) =>
     authorityOptions.find((option) => option.value === value)?.calling || "";
 
@@ -923,8 +934,8 @@ export default function SacramentalMeetingPage() {
       date: data.date,
       presider: data.presider || "",
       director: data.director || "",
-      musicDirector: data.musicDirector || "",
-      pianist: data.pianist || "",
+      musicDirector: normalizeMemberField(data.musicDirector),
+      pianist: normalizeMemberField(data.pianist),
       visitingAuthority: data.visitingAuthority || "",
       announcements: data.announcements || "",
       openingHymn: data.openingHymn || "",
@@ -1038,13 +1049,13 @@ export default function SacramentalMeetingPage() {
     const organizationId = updated[index].organizationId;
     updated[index].oldCalling = callingName;
     const resolvedName = getMemberNameForCalling(organizationId, callingName);
-    updated[index].name = normalizeMemberName(resolvedName || "") || resolvedName;
+    updated[index].name = resolvedName || "";
     setReleases(updated);
   };
   const updateReleaseName = (index: number, value: string) => {
     const updated = [...releases];
-    const normalizedName = normalizeMemberName(value) || value;
-    updated[index].name = normalizedName;
+    updated[index].name = value;
+    const normalizedName = normalizeMemberIfComma(value);
     const matches = getMemberCallingsByName(normalizedName);
     if (matches.length === 1) {
       updated[index].organizationId = matches[0]?.organizationId;
