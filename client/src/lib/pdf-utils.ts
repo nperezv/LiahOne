@@ -434,37 +434,6 @@ function groupBy<T>(arr: T[], keyFn: (t: T) => string): Record<string, T[]> {
   }, {} as Record<string, T[]>);
 }
 
-function orgById(organizations: any[], id: string) {
-  if (!id || id === "sin-organizacion") return null;
-  return organizations.find((o: any) => o.id === id) ?? null;
-}
-
-function formatCallingWithOrganization(calling: string, organization?: any) {
-  const trimmedCalling = calling?.trim();
-  if (!trimmedCalling) return "";
-  if (!organization) return trimmedCalling;
-  const orgName = organization.name?.trim();
-  const orgType = organization.type?.trim();
-  if (!orgName) return trimmedCalling;
-
-  switch (orgType) {
-    case "primaria":
-    case "escuela_dominical":
-    case "sociedad_socorro":
-      return `${trimmedCalling} de la ${orgName}`;
-    case "hombres_jovenes":
-      return `${trimmedCalling} de los ${orgName}`;
-    case "mujeres_jovenes":
-      return `${trimmedCalling} de las ${orgName}`;
-    case "jas":
-      return `${trimmedCalling} de ${orgName}`;
-    case "barrio":
-      return `${trimmedCalling} del Barrio`;
-    default:
-      return `${trimmedCalling} de ${orgName}`;
-  }
-}
-
 function formatBishopricCalling(calling?: string, role?: string) {
   const trimmed = calling?.trim();
   if (trimmed) {
@@ -658,7 +627,10 @@ export async function generateSacramentalMeetingPDF(
   const leftItems: Array<[string, string]> = [];
   const rightItems: Array<[string, string]> = [];
 
-  if (normalizedMeeting.presider) leftItems.push(["Preside", String(normalizedMeeting.presider)]);
+  if (normalizedMeeting.presider) {
+    const presider = normalizeSingleLine(String(normalizedMeeting.presider));
+    if (presider) leftItems.push(["Preside", presider]);
+  }
 
   const manualRecognitionEntries = typeof normalizedMeeting.visitingAuthority === "string"
     ? normalizedMeeting.visitingAuthority
@@ -700,8 +672,14 @@ export async function generateSacramentalMeetingPDF(
     if (musicDirector) leftItems.push(["Dirección de la música", musicDirector]);
   }
 
-  if (normalizedMeeting.director) rightItems.push(["Dirige", String(normalizedMeeting.director)]);
-  if (normalizedMeeting.pianist) rightItems.push(["Acompañamiento en el Piano", String(normalizedMeeting.pianist)]);
+  if (normalizedMeeting.director) {
+    const director = normalizeSingleLine(String(normalizedMeeting.director));
+    if (director) rightItems.push(["Dirige", director]);
+  }
+  if (normalizedMeeting.pianist) {
+    const pianist = normalizeSingleLine(String(normalizedMeeting.pianist));
+    if (pianist) rightItems.push(["Acompañamiento en el Piano", pianist]);
+  }
 
   drawKeyValueTwoColumns(ctx, leftItems, rightItems);
 
@@ -767,12 +745,9 @@ export async function generateSacramentalMeetingPDF(
       const grouped = groupBy(filteredReleases, (r: any) => r.organizationId || "sin-organizacion");
 
       const bullets: string[] = [];
-      Object.entries(grouped).forEach(([orgId, rels]) => {
-        const org = orgById(organizations, orgId);
+      Object.values(grouped).forEach((rels) => {
         rels.forEach((r: any) => {
-          const callingWithOrg = formatCallingWithOrganization(r.oldCalling, org);
-          const value = callingWithOrg || r.oldCalling;
-          bullets.push(`${r.name}, que venía sirviendo como ${value}.`);
+          bullets.push(`${r.name}, que venía sirviendo como ${r.oldCalling}.`);
         });
       });
 
@@ -793,12 +768,9 @@ export async function generateSacramentalMeetingPDF(
       const grouped = groupBy(filteredSustainments, (s: any) => s.organizationId || "sin-organizacion");
 
       const bullets: string[] = [];
-      Object.entries(grouped).forEach(([orgId, sus]) => {
-        const org = orgById(organizations, orgId);
+      Object.values(grouped).forEach((sus) => {
         sus.forEach((s: any) => {
-          const callingWithOrg = formatCallingWithOrganization(s.calling, org);
-          const value = callingWithOrg || s.calling;
-          bullets.push(`${s.name}, como ${value}.`);
+          bullets.push(`${s.name}, como ${s.calling}.`);
         });
       });
 
