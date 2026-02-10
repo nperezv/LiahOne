@@ -2451,19 +2451,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const wardName = template?.wardName;
 
       const interviewRecipients: Array<{ email: string; name: string }> = [];
+      let intervieweeRecipient: { email: string; name: string } | null = null;
       const member = interview.memberId ? await storage.getMemberById(interview.memberId) : null;
       const normalizedPersonName = normalizeComparableName(interview.personName);
       const personUser = (await storage.getAllUsers()).find((u) => normalizeComparableName(u.name) === normalizedPersonName);
       if (member?.email) {
-        interviewRecipients.push({
+        intervieweeRecipient = {
           email: member.email,
           name: normalizeMemberName(member.nameSurename),
-        });
+        };
+        interviewRecipients.push(intervieweeRecipient);
       } else if (personUser?.email) {
-        interviewRecipients.push({
+        intervieweeRecipient = {
           email: personUser.email,
           name: normalizeMemberName(personUser.name),
-        });
+        };
+        interviewRecipients.push(intervieweeRecipient);
       }
 
       if (currentInterviewer?.email) {
@@ -2490,6 +2493,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const recipient of uniqueRecipients) {
         if (wasCancelledNow) {
+          if (!intervieweeRecipient || recipient.email !== intervieweeRecipient.email) {
+            continue;
+          }
           await sendInterviewCancelledEmail({
             toEmail: recipient.email,
             recipientName: recipient.name,
@@ -2526,13 +2532,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
       }
   
-      if (interviewData.date || interviewData.status === "completada") {
+      if (interviewData.date || interviewData.status === "completada" || interviewData.status === "cancelada") {
         const assignments = await storage.getAllAssignments();
         const relatedAssignment = assignments.find(
           (assignment: any) => assignment.relatedTo === `interview:${interview.id}`
         );
 
         if (relatedAssignment) {
+          if (interviewData.status === "cancelada") {
+            await storage.deleteAssignment(relatedAssignment.id);
+          } else {
           const updateAssignmentData: any = {};
 
           if (interviewData.date) {
@@ -2564,6 +2573,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (Object.keys(updateAssignmentData).length > 0) {
             await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
           }
+          }
+        } else if (interview.status === "programada" && interview.assignedToId) {
+          const interviewDateValue = new Date(interview.date);
+          const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          });
+          const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+          const assignmentTitle = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
+          const descriptionParts = [
+            `Entrevista programada con ${currentInterviewer?.name || "el obispado"} el ${interviewDate}.`,
+          ];
+          if (interview.notes) {
+            descriptionParts.push(`Notas: ${interview.notes}`);
+          }
+
+          await storage.createAssignment({
+            title: assignmentTitle,
+            description: descriptionParts.join(" "),
+            assignedTo: interview.assignedToId,
+            assignedBy: interview.assignedBy,
+            dueDate: interview.date,
+            status: "pendiente",
+            relatedTo: `interview:${interview.id}`,
+          });
         }
       }
 
@@ -2616,6 +2660,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const interview = await storage.getInterview(id);
         if (!interview) {
           return res.status(404).json({ error: "Interview not found" });
+        }
+
+        const assignments = await storage.getAllAssignments();
+        const relatedAssignment = assignments.find(
+          (assignment: any) => assignment.relatedTo === `interview:${id}`
+        );
+        if (relatedAssignment) {
+          await storage.deleteAssignment(relatedAssignment.id);
         }
     
         await storage.deleteInterview(id);

@@ -529,8 +529,7 @@ export function useApproveBudgetRequest() {
 export function useInterviews() {
   return useQuery<any>({
     queryKey: ["/api/interviews"],
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: false,
+    ...REALTIME_QUERY_OPTIONS,
     refetchOnMount: true,
   });
 }
