@@ -15,6 +15,7 @@ import {
   Edit,
   Archive,
   Trash2,
+  X,
   Copy,
   Send,
   Mail,
@@ -934,8 +935,21 @@ export default function InterviewsPage() {
     );
   };
 
-  const handleCancelDelete = (interviewId: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar esta entrevista?")) return;
+  const handleCancelInterview = (interviewId: string) => {
+    if (!window.confirm("¿Está seguro de que desea cancelar esta entrevista?")) return;
+    updateMutation.mutate(
+      { id: interviewId, status: "cancelada" },
+      {
+        onSuccess: () =>
+          toast({ title: "Cancelada", description: "La entrevista se ha cancelado." }),
+        onError: () =>
+          toast({ title: "Error", description: "No se pudo cancelar.", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleDeleteInterview = (interviewId: string) => {
+    if (!window.confirm("¿Está seguro de que desea eliminar esta entrevista cancelada?")) return;
     deleteMutation.mutate(interviewId, {
       onSuccess: () =>
         toast({ title: "Eliminada", description: "La entrevista se ha eliminado." }),
@@ -1754,6 +1768,7 @@ export default function InterviewsPage() {
                   const interviewer = userById.get(interview.interviewerId);
                   const isCompleted = interview.status === "completada";
                   const isPending = interview.status === "programada";
+                  const isCancelled = interview.status === "cancelada";
 
                   return (
                     <TableRow
@@ -1838,14 +1853,28 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {/* ✅ Eliminar / Cancelar solo obispo (opcional) y solo si NO completada */}
-                            {canCancel && !isCompleted && (
+                            {canCancel && !isCompleted && !isCancelled && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleCancelInterview(interview.id);
+                                }}
+                                disabled={updateMutation.isPending}
+                              >
+                                <X className="h-4 w-4 lg:mr-1" />
+                                <span className="sr-only lg:not-sr-only">Cancelar</span>
+                              </Button>
+                            )}
+
+                            {canCancel && isCancelled && (
                               <Button
                                 size="sm"
                                 variant="destructive"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  handleCancelDelete(interview.id);
+                                  handleDeleteInterview(interview.id);
                                 }}
                                 disabled={deleteMutation.isPending}
                               >

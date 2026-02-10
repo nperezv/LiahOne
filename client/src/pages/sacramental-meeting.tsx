@@ -239,9 +239,15 @@ const meetingSchema = z.object({
   closingPrayer: z.string().optional(),
   stakeBusiness: z.string().optional(),
   isTestimonyMeeting: z.boolean().default(false),
+  assignments: z.array(z.object({
+    name: z.string(),
+    assignment: z.string(),
+  })).optional(),
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+type MemberFieldName = "musicDirector" | "pianist" | "openingPrayer" | "closingPrayer";
+
 
 const formatDateForInput = (value?: string | Date | null) => {
   if (!value) return "";
@@ -271,6 +277,9 @@ export default function SacramentalMeetingPage() {
   const [hasStakeBusiness, setHasStakeBusiness] = useState(false);
   const [discourses, setDiscourses] = useState<Array<{ speaker: string; topic: string }>>([
     { speaker: "", topic: "" },
+  ]);
+  const [assignments, setAssignments] = useState<Array<{ name: string; assignment: string }>>([
+    { name: "", assignment: "" },
   ]);
   const [releases, setReleases] = useState<Array<{ name: string; oldCalling: string; organizationId?: string }>>([
     { name: "", oldCalling: "" },
@@ -696,7 +705,7 @@ export default function SacramentalMeetingPage() {
     if (!currentValue.includes(",")) return currentValue;
     return normalizeMemberName(currentValue) || currentValue;
   };
-  const applyMemberNormalization = (fieldName: keyof MeetingFormValues) => {
+  const applyMemberNormalization = (fieldName: MemberFieldName) => {
     const currentValue = form.getValues(fieldName) || "";
     const normalized = normalizeMemberIfComma(currentValue);
     if (normalized && normalized !== currentValue) {
@@ -757,6 +766,7 @@ export default function SacramentalMeetingPage() {
     });
     setIsTestimonyMeeting(meeting.isTestimonyMeeting);
     setDiscourses(meeting.discourses || [{ speaker: "", topic: "" }]);
+    setAssignments(meeting.assignments && meeting.assignments.length > 0 ? meeting.assignments : [{ name: "", assignment: "" }]);
     setReleases(meeting.releases && meeting.releases.length > 0 ? meeting.releases : [{ name: "", oldCalling: "" }]);
     setSustainments(meeting.sustainments && meeting.sustainments.length > 0 ? meeting.sustainments : [{ name: "", calling: "" }]);
     setNewMembers(meeting.newMembers || [""]);
@@ -948,6 +958,7 @@ export default function SacramentalMeetingPage() {
       closingPrayer: data.closingPrayer || "",
       isTestimonyMeeting: isTestimonyMeeting,
       discourses: isTestimonyMeeting ? [] : discourses,
+      assignments: assignments.filter((item) => item.name.trim() && item.assignment.trim()),
       releases: hasReleasesAndSustainments ? releases.filter(r => r.name && r.oldCalling).map(r => ({
         name: r.name,
         oldCalling: r.oldCalling,
@@ -982,6 +993,7 @@ export default function SacramentalMeetingPage() {
           setIsDialogOpen(false);
           form.reset();
           setDiscourses([{ speaker: "", topic: "" }]);
+          setAssignments([{ name: "", assignment: "" }]);
           setReleases([{ name: "", oldCalling: "" }]);
           setSustainments([{ name: "", calling: "" }]);
           setNewMembers([""]);
@@ -1013,6 +1025,20 @@ export default function SacramentalMeetingPage() {
     const updated = [...discourses];
     updated[index][field] = value;
     setDiscourses(updated);
+  };
+
+  const addAssignment = () => {
+    setAssignments([...assignments, { name: "", assignment: "" }]);
+  };
+
+  const removeAssignment = (index: number) => {
+    setAssignments(assignments.filter((_, i) => i !== index));
+  };
+
+  const updateAssignment = (index: number, field: "name" | "assignment", value: string) => {
+    const updated = [...assignments];
+    updated[index][field] = value;
+    setAssignments(updated);
   };
 
   const addSustainment = () => {
@@ -2065,6 +2091,59 @@ export default function SacramentalMeetingPage() {
                     )}
                   </div>
 
+
+                  {/* ========== SECTION 8.5: ADDITIONAL ASSIGNMENTS ========== */}
+                  <div className="border rounded-md p-4 bg-violet-50 dark:bg-violet-950/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold">8.5 Asignaciones</h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      {assignments.map((assignmentItem, index) => (
+                        <div key={`assignment-${index}`} className="flex gap-2 items-start">
+                          <MemberAutocomplete
+                            value={assignmentItem.name}
+                            options={uniqueMemberOptions}
+                            placeholder="Nombre del miembro"
+                            onChange={(value) => updateAssignment(index, "name", value)}
+                            testId={`input-assignment-name-${index}`}
+                            className="flex-1 text-sm"
+                          />
+                          <Input
+                            value={assignmentItem.assignment}
+                            placeholder="Asignación"
+                            onChange={(event) => updateAssignment(index, "assignment", event.target.value)}
+                            className="flex-1 text-sm"
+                            data-testid={`input-assignment-text-${index}`}
+                          />
+                          {assignments.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeAssignment(index)}
+                              className="h-9"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addAssignment}
+                        className="w-full text-xs"
+                        data-testid="button-add-assignment"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Agregar Asignación
+                      </Button>
+                    </div>
+                  </div>
+
                   {/* ========== SECTION 9: CLOSING HYMN ========== */}
                   <div className="border rounded-md p-4 bg-orange-50 dark:bg-orange-950/30">
                     <h3 className="text-sm font-semibold mb-3">9. Último Himno</h3>
@@ -2321,6 +2400,21 @@ export default function SacramentalMeetingPage() {
                 </ul>
               ) : (
                 <span>Sin discursos</span>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <span className="font-medium">Asignaciones adicionales:</span>
+              {detailsMeeting?.assignments?.length ? (
+                <ul className="list-disc pl-5 space-y-1">
+                  {detailsMeeting.assignments.map((item: any, index: number) => (
+                    <li key={`assignment-detail-${index}`}>
+                      {item.name || "Sin nombre"}{item.assignment ? ` — ${item.assignment}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span>Sin asignaciones adicionales</span>
               )}
             </div>
 
