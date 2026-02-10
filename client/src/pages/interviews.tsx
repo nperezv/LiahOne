@@ -432,6 +432,7 @@ export default function InterviewsPage() {
   const [editTypeSheetOpen, setEditTypeSheetOpen] = useState(false);
   const [editInterviewerSheetOpen, setEditInterviewerSheetOpen] = useState(false);
   const [editDateDraft, setEditDateDraft] = useState({ date: "", time: "" });
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
 
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
@@ -577,6 +578,11 @@ export default function InterviewsPage() {
   // ✅ Métricas (sobre no-archivadas)
   const pendingInterviews = filteredInterviews.filter((i: any) => i.status === "programada");
   const completedInterviews = filteredInterviews.filter((i: any) => i.status === "completada");
+  const highlightInterviewId = useMemo(() => {
+    if (!search) return "";
+    const params = new URLSearchParams(search);
+    return params.get("highlight")?.trim() ?? "";
+  }, [search]);
 
   // ✅ Form create
   const form = useForm<InterviewFormValues>({
@@ -694,6 +700,31 @@ export default function InterviewsPage() {
     setPrefillHandled(true);
     setLocation("/interviews");
   }, [prefillHandled, search, members, form, setLocation, canUseDirectory]);
+
+  useEffect(() => {
+    if (!highlightInterviewId) {
+      setActiveHighlightId(null);
+      return;
+    }
+
+    setActiveHighlightId(highlightInterviewId);
+
+    const rafId = window.requestAnimationFrame(() => {
+      const element = document.querySelector<HTMLElement>(`[data-interview-id="${highlightInterviewId}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveHighlightId((current) => (current === highlightInterviewId ? null : current));
+    }, 3800);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [highlightInterviewId]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
@@ -1749,6 +1780,140 @@ export default function InterviewsPage() {
         </CardHeader>
 
         <CardContent>
+          <div className="space-y-3 md:hidden">
+            {filteredInterviews.length > 0 ? (
+              filteredInterviews.map((interview: any) => {
+                const interviewer = userById.get(interview.interviewerId);
+                const isCompleted = interview.status === "completada";
+                const isPending = interview.status === "programada";
+                const isCancelled = interview.status === "cancelada";
+                const isHighlighted = activeHighlightId === interview.id;
+
+                return (
+                  <Card
+                    key={interview.id}
+                    data-testid={`card-interview-${interview.id}`}
+                    data-interview-id={interview.id}
+                    onClick={() => handleOpenDetails(interview)}
+                    className={`cursor-pointer rounded-2xl border bg-card/95 backdrop-blur transition-all duration-500 ${
+                      isHighlighted
+                        ? "border-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.55),0_0_28px_hsl(var(--primary)/0.38)]"
+                        : "border-border/70"
+                    }`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-semibold leading-tight">
+                            {normalizeMemberName(interview.personName)}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatInterviewType(interview.type)}
+                          </p>
+                        </div>
+                        {getStatusBadge(interview.status)}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground">
+                        <p>
+                          <span className="font-medium text-foreground/85">Fecha:</span>{" "}
+                          {new Date(interview.date).toLocaleDateString("es-ES", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        <p>
+                          <span className="font-medium text-foreground/85">Entrevistador:</span>{" "}
+                          {interviewer?.name ?? "—"}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        {getPriorityBadge(!!interview.urgent)}
+                        {(canManage || canCancel) && (
+                          <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                            {isObispado && isPending && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  updateMutation.mutate({
+                                    id: interview.id,
+                                    status: "completada",
+                                  })
+                                }
+                                disabled={updateMutation.isPending}
+                                title="Completar"
+                              >
+                                <CheckCircle2 className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {isObispado && isCompleted && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleArchive(interview.id)}
+                                disabled={updateMutation.isPending}
+                                title="Archivar"
+                              >
+                                <Archive className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {isObispado && !isCompleted && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditClick(interview)}
+                                disabled={updateMutation.isPending}
+                                title="Editar"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {canCancel && !isCompleted && !isCancelled && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCancelInterview(interview.id)}
+                                disabled={updateMutation.isPending}
+                                title="Cancelar"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {canCancel && isCancelled && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteInterview(interview.id)}
+                                disabled={deleteMutation.isPending}
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                {isOrgMember ? "No hay solicitudes de entrevista" : "No hay entrevistas"}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1774,7 +1939,12 @@ export default function InterviewsPage() {
                     <TableRow
                       key={interview.id}
                       data-testid={`row-interview-${interview.id}`}
-                      className="cursor-pointer"
+                      data-interview-id={interview.id}
+                      className={`cursor-pointer transition-shadow duration-500 ${
+                        activeHighlightId === interview.id
+                          ? "shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.7),0_0_24px_hsl(var(--primary)/0.28)]"
+                          : ""
+                      }`}
                       onClick={() => handleOpenDetails(interview)}
                     >
                       <TableCell className="font-medium">
@@ -1897,6 +2067,7 @@ export default function InterviewsPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
