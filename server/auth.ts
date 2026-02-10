@@ -8,6 +8,28 @@ const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
 
+
+const createSmtpTransport = () => {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+
+  if (!host || !port || !user || !pass) {
+    return null;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  return { transporter, from };
+};
+
 export function getAccessTokenSecret() {
   if (!process.env.ACCESS_TOKEN_SECRET) {
     throw new Error("ACCESS_TOKEN_SECRET environment variable is required");
@@ -346,6 +368,128 @@ export async function sendInterviewScheduledEmail(payload: {
     ]
       .filter((line) => line !== null && line !== undefined)
       .join("\n"),
+  });
+}
+
+
+export async function sendInterviewUpdatedEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  interviewDate: string;
+  interviewTime: string;
+  interviewerName?: string | null;
+  wardName?: string | null;
+  changeLines: string[];
+  secretaryName?: string | null;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Interview updated:", payload);
+    return;
+  }
+
+  const changeLines = payload.changeLines.length > 0
+    ? payload.changeLines.map((line) => `• ${line}`)
+    : ["• Se actualizó la información de la entrevista."];
+
+  const secretaryLine = payload.secretaryName?.trim()
+    ? `Si necesitas apoyo para coordinar, comunícate con el secretario ${payload.secretaryName.trim()}.`
+    : "Si necesitas apoyo para coordinar, comunícate con el secretario ejecutivo.";
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Actualización de tu entrevista",
+    text: [
+      `Querido(a) hermano(a) ${payload.recipientName},`,
+      "",
+      "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
+      ...changeLines,
+      "",
+      `Fecha: ${payload.interviewDate}`,
+      `Hora: ${payload.interviewTime} hrs.`,
+      payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
+      "",
+      "Gracias por tu disposición y tu fe.",
+      secretaryLine,
+      "",
+      "Con cariño fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].filter((line): line is string => Boolean(line)).join("\n"),
+  });
+}
+
+export async function sendInterviewCancelledEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  interviewDate: string;
+  interviewTime: string;
+  wardName?: string | null;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Interview cancelled:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Aviso de cancelación de entrevista",
+    text: [
+      `Querido(a) hermano(a) ${payload.recipientName},`,
+      "",
+      "Con cariño te informamos que la entrevista programada ha sido cancelada por ahora.",
+      `Fecha original: ${payload.interviewDate}`,
+      `Hora original: ${payload.interviewTime} hrs.`,
+      "",
+      "Agradecemos mucho tu disposición. Si deseas, con gusto coordinamos una nueva fecha.",
+      "",
+      "Con aprecio fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].join("\n"),
+  });
+}
+
+export async function sendSacramentalAssignmentEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  meetingDate: string;
+  meetingTime: string;
+  assignmentLines: string[];
+  wardName?: string | null;
+  isUpdate?: boolean;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Sacramental assignment:", payload);
+    return;
+  }
+
+  const subject = payload.isUpdate
+    ? "Actualización de tu participación en la reunión sacramental"
+    : "Tu participación en la próxima reunión sacramental";
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject,
+    text: [
+      `Querido(a) hermano(a) ${payload.recipientName},`,
+      "",
+      payload.isUpdate
+        ? "Con cariño te compartimos una actualización de tu participación:"
+        : "Con mucho aprecio te compartimos tu participación en la próxima reunión sacramental:",
+      ...payload.assignmentLines.map((line) => `• ${line}`),
+      "",
+      `Fecha: ${payload.meetingDate}`,
+      `Hora: ${payload.meetingTime} hrs.`,
+      "",
+      "Gracias por tu disposición para servir.",
+      "",
+      "Con cariño fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].join("\n"),
   });
 }
 

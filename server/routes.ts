@@ -50,6 +50,9 @@ import {
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
   sendInterviewScheduledEmail,
+  sendInterviewUpdatedEmail,
+  sendInterviewCancelledEmail,
+  sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
   verifyAccessToken,
 } from "./auth";
@@ -246,6 +249,7 @@ const normalizeMemberName = (value?: string | null) => {
 
   const parts = cleaned.split(" ");
   if (parts.length < 2) return cleaned;
+  if (parts.length === 2) return cleaned;
 
   const lowerTokens = parts.map((part) => part.toLowerCase());
   const hasParticles = lowerTokens.some((token) => isSurnameParticle(token));
@@ -284,6 +288,71 @@ const formatInterviewerTitle = (role?: string | null) => {
     secretario_ejecutivo: "Secretario Ejecutivo",
   };
   return map[role] ?? "";
+};
+
+
+const formatDateTimeLabels = (value: string | Date) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { dateLabel: String(value), timeLabel: "" };
+  }
+
+  const dateLabel = date.toLocaleDateString("es-ES", {
+    year: "numeric",
+    month: "long",
+    day: "2-digit",
+  });
+  const timeLabel = date.toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return { dateLabel, timeLabel };
+};
+
+const normalizeComparableName = (value?: string | null) =>
+  normalizeMemberName(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const buildSacramentalRoleLines = (meeting: any) => {
+  const map = new Map<string, string[]>();
+  const pushLine = (name: string | undefined | null, line: string) => {
+    const normalized = normalizeComparableName(name);
+    if (!normalized) return;
+    if (!map.has(normalized)) map.set(normalized, []);
+    map.get(normalized)!.push(line);
+  };
+
+  pushLine(meeting.openingPrayer, "Oración de apertura");
+  pushLine(meeting.closingPrayer, "Oración de clausura");
+
+  const discourses = Array.isArray(meeting.discourses) ? meeting.discourses : [];
+  discourses.forEach((item: any) => {
+    const speaker = typeof item?.speaker === "string" ? item.speaker : "";
+    const topic = typeof item?.topic === "string" ? item.topic.trim() : "";
+    const line = topic ? `Discurso: ${topic}` : "Discurso";
+    pushLine(speaker, line);
+  });
+
+  const assignments = Array.isArray(meeting.assignments) ? meeting.assignments : [];
+  assignments.forEach((item: any) => {
+    const name = typeof item?.name === "string" ? item.name : "";
+    const assignment = typeof item?.assignment === "string" ? item.assignment.trim() : "";
+    if (!assignment) return;
+    pushLine(name, `Asignación: ${assignment}`);
+  });
+
+  return map;
+};
+
+const areStringArraysEqual = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
 };
 
 async function hasInterviewCollision({
@@ -1442,50 +1511,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const notifySacramentalParticipants = async (
+    meeting: any,
+    options?: {
+      previousMeeting?: any;
+    }
+  ) => {
+    const users = await storage.getAllUsers();
+    const members = await storage.getAllMembers();
+    const template = await storage.getPdfTemplate();
+    const wardName = template?.wardName;
+    const rolesByName = buildSacramentalRoleLines(meeting);
+    const previousRolesByName = options?.previousMeeting
+      ? buildSacramentalRoleLines(options.previousMeeting)
+      : null;
+
+    const roleEntries = Array.from(rolesByName.entries());
+    for (const [normalizedName, lines] of roleEntries) {
+      const member = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
+      const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName);
+      const toEmail = matchedUser?.email || member?.email;
+      const recipientName = normalizeMemberName(matchedUser?.name || member?.nameSurename || normalizedName);
+
+      if (!toEmail) continue;
+
+      if (previousRolesByName) {
+        const previousLines = previousRolesByName.get(normalizedName) || [];
+        const rolesChanged = !areStringArraysEqual(lines, previousLines);
+        const previousDate = options?.previousMeeting?.date;
+        const dateChanged = String(previousDate || "") !== String(meeting.date || "");
+        if (!rolesChanged && !dateChanged) {
+          continue;
+        }
+      }
+
+      const { dateLabel, timeLabel } = formatDateTimeLabels(meeting.date);
+      await sendSacramentalAssignmentEmail({
+        toEmail,
+        recipientName,
+        meetingDate: dateLabel,
+        meetingTime: timeLabel,
+        assignmentLines: lines,
+        wardName,
+        isUpdate: Boolean(previousRolesByName),
+      });
+    }
+  };
+
   app.post("/api/sacramental-meetings", requireAuth, async (req: Request, res: Response) => {
     try {
-      console.log("=== SACRAMENTAL MEETING CREATE START ===");
-      console.log("Raw request body keys:", Object.keys(req.body));
-      console.log("Raw body.discourses exists:", "discourses" in req.body);
-      console.log("Raw body.discourses value:", req.body.discourses);
-      console.log("Raw body.isTestimonyMeeting exists:", "isTestimonyMeeting" in req.body);
-      console.log("Raw body.isTestimonyMeeting type:", typeof req.body.isTestimonyMeeting);
-      console.log("Raw body.isTestimonyMeeting value:", req.body.isTestimonyMeeting);
-      
       const dataToValidate = {
         ...req.body,
         createdBy: req.session.userId,
       };
-      console.log("Data to validate keys:", Object.keys(dataToValidate));
-      console.log("Data to validate.discourses:", dataToValidate.discourses);
-      
+
       const meetingData = insertSacramentalMeetingSchema.parse(dataToValidate);
-      console.log("After Zod parse - discourses:", meetingData.discourses);
-      console.log("After Zod parse - isTestimonyMeeting:", meetingData.isTestimonyMeeting);
-      console.log("=== SACRAMENTAL MEETING CREATE END ===");
-      
+
       const meeting = await storage.createSacramentalMeeting(meetingData);
+      await notifySacramentalParticipants(meeting);
       res.status(201).json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.error("Zod validation error:", error.errors);
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Sacramental meeting creation error:", error instanceof Error ? error.message : String(error));
-      console.error("Full error:", error);
-      res.status(500).json({ error: "Internal server error", details: String(error) });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
   app.patch("/api/sacramental-meetings/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const currentMeeting = await storage.getSacramentalMeeting(id);
+      if (!currentMeeting) {
+        return res.status(404).json({ error: "Meeting not found" });
+      }
       const meetingData = insertSacramentalMeetingSchema.partial().parse(req.body);
 
       const meeting = await storage.updateSacramentalMeeting(id, meetingData);
       if (!meeting) {
         return res.status(404).json({ error: "Meeting not found" });
       }
+
+      await notifySacramentalParticipants(meeting, { previousMeeting: currentMeeting });
 
       res.json(meeting);
     } catch (error) {
@@ -2342,7 +2449,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!interview) {
         return res.status(404).json({ error: "Interview not found" });
       }
-  
+
+      const { dateLabel: previousDateLabel, timeLabel: previousTimeLabel } = formatDateTimeLabels(currentInterview.date);
+      const { dateLabel: currentDateLabel, timeLabel: currentTimeLabel } = formatDateTimeLabels(interview.date);
+      const previousInterviewer = await storage.getUser(currentInterview.interviewerId);
+      const currentInterviewer = await storage.getUser(interview.interviewerId);
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+
+      const interviewRecipients: Array<{ email: string; name: string }> = [];
+      let intervieweeRecipient: { email: string; name: string } | null = null;
+      const member = interview.memberId ? await storage.getMemberById(interview.memberId) : null;
+      const normalizedPersonName = normalizeComparableName(interview.personName);
+      const personUser = (await storage.getAllUsers()).find((u) => normalizeComparableName(u.name) === normalizedPersonName);
+      if (member?.email) {
+        intervieweeRecipient = {
+          email: member.email,
+          name: normalizeMemberName(member.nameSurename),
+        };
+        interviewRecipients.push(intervieweeRecipient);
+      } else if (personUser?.email) {
+        intervieweeRecipient = {
+          email: personUser.email,
+          name: normalizeMemberName(personUser.name),
+        };
+        interviewRecipients.push(intervieweeRecipient);
+      }
+
+      if (currentInterviewer?.email) {
+        interviewRecipients.push({
+          email: currentInterviewer.email,
+          name: normalizeMemberName(currentInterviewer.name),
+        });
+      }
+
+      const uniqueRecipients = interviewRecipients.filter(
+        (recipient, index, arr) => arr.findIndex((item) => item.email === recipient.email) === index
+      );
+
+      const wasCancelledNow = currentInterview.status !== "cancelada" && interview.status === "cancelada";
+      const changeLines: string[] = [];
+      if (String(currentInterview.date) !== String(interview.date)) {
+        changeLines.push(`Fecha/Hora: ${previousDateLabel} ${previousTimeLabel} → ${currentDateLabel} ${currentTimeLabel}`);
+      }
+      if (currentInterview.interviewerId !== interview.interviewerId) {
+        changeLines.push(
+          `Entrevistador: ${normalizeMemberName(previousInterviewer?.name || "Sin asignar")} → ${normalizeMemberName(currentInterviewer?.name || "Sin asignar")}`
+        );
+      }
+
+      for (const recipient of uniqueRecipients) {
+        if (wasCancelledNow) {
+          if (!intervieweeRecipient || recipient.email !== intervieweeRecipient.email) {
+            continue;
+          }
+          await sendInterviewCancelledEmail({
+            toEmail: recipient.email,
+            recipientName: recipient.name,
+            interviewDate: currentDateLabel,
+            interviewTime: currentTimeLabel,
+            wardName,
+          });
+          continue;
+        }
+
+        if (changeLines.length > 0) {
+          await sendInterviewUpdatedEmail({
+            toEmail: recipient.email,
+            recipientName: recipient.name,
+            interviewDate: currentDateLabel,
+            interviewTime: currentTimeLabel,
+            interviewerName: normalizeMemberName(currentInterviewer?.name || ""),
+            wardName,
+            changeLines,
+          });
+        }
+      }
+
       // 🔔 Si cambia la fecha → actualizar eventDate
       if (interviewData.date) {
         await db
@@ -2356,13 +2539,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
       }
   
-      if (interviewData.date || interviewData.status === "completada") {
+      if (interviewData.date || interviewData.status === "completada" || interviewData.status === "cancelada") {
         const assignments = await storage.getAllAssignments();
         const relatedAssignment = assignments.find(
           (assignment: any) => assignment.relatedTo === `interview:${interview.id}`
         );
 
         if (relatedAssignment) {
+          if (interviewData.status === "cancelada") {
+            await storage.deleteAssignment(relatedAssignment.id);
+          } else {
           const updateAssignmentData: any = {};
 
           if (interviewData.date) {
@@ -2394,6 +2580,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (Object.keys(updateAssignmentData).length > 0) {
             await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
           }
+          }
+        } else if (interview.status === "programada" && interview.assignedToId) {
+          const interviewDateValue = new Date(interview.date);
+          const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          });
+          const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+          const assignmentTitle = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
+          const descriptionParts = [
+            `Entrevista programada con ${currentInterviewer?.name || "el obispado"} el ${interviewDate}.`,
+          ];
+          if (interview.notes) {
+            descriptionParts.push(`Notas: ${interview.notes}`);
+          }
+
+          await storage.createAssignment({
+            title: assignmentTitle,
+            description: descriptionParts.join(" "),
+            assignedTo: interview.assignedToId,
+            assignedBy: interview.assignedBy,
+            dueDate: interview.date,
+            status: "pendiente",
+            relatedTo: `interview:${interview.id}`,
+          });
         }
       }
 
@@ -2446,6 +2667,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const interview = await storage.getInterview(id);
         if (!interview) {
           return res.status(404).json({ error: "Interview not found" });
+        }
+
+        const assignments = await storage.getAllAssignments();
+        const relatedAssignment = assignments.find(
+          (assignment: any) => assignment.relatedTo === `interview:${id}`
+        );
+        if (relatedAssignment) {
+          await storage.deleteAssignment(relatedAssignment.id);
         }
     
         await storage.deleteInterview(id);

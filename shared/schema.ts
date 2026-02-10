@@ -317,6 +317,7 @@ export const sacramentalMeetings = pgTable("sacramental_meetings", {
   sacramentHymn: text("sacrament_hymn"),
   // Section 9: Discourses and music
   discourses: jsonb("discourses").$type<{speaker: string, topic: string}[]>().default([]),
+  assignments: jsonb("assignments").$type<{name: string, assignment: string}[]>().default([]),
   // Section 10-11: Closing hymn and prayer
   closingHymn: text("closing_hymn"),
   closingPrayer: text("closing_prayer"),
@@ -780,6 +781,10 @@ export const insertSacramentalMeetingSchema = createInsertSchema(sacramentalMeet
   discourses: z.array(z.object({
     speaker: z.string(),
     topic: z.string(),
+  })).optional(),
+  assignments: z.array(z.object({
+    name: z.string(),
+    assignment: z.string(),
   })).optional(),
 });
 
