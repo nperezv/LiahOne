@@ -2123,15 +2123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resolvedMemberId = undefined;
       }
       const requestingUser = await storage.getUser(req.session.userId!);
-      const isRequestFromObispado = ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(
-        requestingUser?.role || ""
-      );
-      const isAssignedOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
-        assignedUser?.role || ""
-      );
-      const shouldCreateAssignment = Boolean(
-        isRequestFromObispado && assignedToId && isAssignedOrgMember
-      );  
+      
       const interviewData = insertInterviewSchema.parse({
         personName: resolvedPersonName,
         ...rest,
@@ -2236,7 +2228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
   
       // 🔔 Notificar entrevistado (si existe usuario)
-      if (assignedToId && !shouldCreateAssignment && assignedToId !== interview.interviewerId) {      
+      if (assignedToId && assignedToId !== interview.interviewerId) {
         const notification = await storage.createNotification({
           userId: assignedToId,
           type: "upcoming_interview",
@@ -2259,7 +2251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
  
-      if (shouldCreateAssignment && assignedToId) {
+      if (interview.interviewerId) {
         const interviewer = await storage.getUser(interview.interviewerId);
         const interviewDateValue = new Date(interview.date);
         const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
@@ -2279,7 +2271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         const assignmentTitle = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
         const descriptionParts = [
-          `Entrevista programada con ${interviewer?.name || "el obispado"} el ${interviewDate}.`,
+          `Entrevista con ${normalizeMemberName(interview.personName)} programada para el ${interviewDate}.`,
+          `Entrevistador: ${interviewer?.name || "Obispado"}.`,
         ];
         if (rest.notes) {
           descriptionParts.push(`Notas: ${rest.notes}`);
@@ -2288,7 +2281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const assignment = await storage.createAssignment({
           title: assignmentTitle,
           description: descriptionParts.join(" "),
-          assignedTo: assignedToId,
+          assignedTo: interview.interviewerId,
           assignedBy: req.session.userId!,
           dueDate: interview.date,
           status: "pendiente",
@@ -2296,7 +2289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         const notification = await storage.createNotification({
-          userId: assignedToId,
+          userId: interview.interviewerId,
           type: "assignment_created",
           title: "Nueva Asignación",
           description: `Se te ha asignado: "${assignment.title}"`,
@@ -2305,7 +2298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         if (isPushConfigured()) {
-          await sendPushNotification(assignedToId, {
+          await sendPushNotification(interview.interviewerId, {
             title: "Nueva Asignación",
             body: `Se te ha asignado: "${assignment.title}"`,
             url: "/assignments",

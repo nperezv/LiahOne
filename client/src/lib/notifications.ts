@@ -26,7 +26,9 @@ export const formatNotificationTime = (notification: Notification) => {
 export const getNotificationDestination = (notification: Notification) => {
   switch (notification.type) {
     case "upcoming_interview":
-      return "/interviews";
+      return notification.relatedId
+        ? `/interviews?highlight=${encodeURIComponent(notification.relatedId)}`
+        : "/interviews";
     case "assignment_created":
       return "/assignments";
     case "budget_approved":
