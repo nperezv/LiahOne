@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric, date } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1025,10 +1025,27 @@ export const organizationWeeklyAttendance = pgTable("organization_weekly_attenda
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull().references(() => organizations.id),
   weekStartDate: timestamp("week_start_date").notNull(),
+  weekKey: date("week_key").notNull(),
   attendeesCount: integer("attendees_count").notNull().default(0),
   attendeeMemberIds: jsonb("attendee_member_ids").$type<string[]>().notNull().default([]),
   totalMembers: integer("total_members").notNull().default(0),
   createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const organizationAttendanceMonthlySnapshots = pgTable("organization_attendance_monthly_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  weeksInMonth: integer("weeks_in_month").notNull().default(0),
+  weeksReported: integer("weeks_reported").notNull().default(0),
+  presentTotal: integer("present_total").notNull().default(0),
+  capacityTotal: integer("capacity_total").notNull().default(0),
+  attendancePercent: numeric("attendance_percent", { precision: 5, scale: 2 }).notNull().default("0"),
+  closedAt: timestamp("closed_at").defaultNow().notNull(),
+  closedBy: varchar("closed_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -1049,6 +1066,17 @@ export const organizationWeeklyAttendanceRelations = relations(organizationWeekl
   }),
   creator: one(users, {
     fields: [organizationWeeklyAttendance.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const organizationAttendanceMonthlySnapshotsRelations = relations(organizationAttendanceMonthlySnapshots, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationAttendanceMonthlySnapshots.organizationId],
+    references: [organizations.id],
+  }),
+  closer: one(users, {
+    fields: [organizationAttendanceMonthlySnapshots.closedBy],
     references: [users.id],
   }),
 }));
@@ -1077,8 +1105,18 @@ export const insertOrganizationWeeklyAttendanceSchema = createInsertSchema(organ
 
 export const selectOrganizationWeeklyAttendanceSchema = createSelectSchema(organizationWeeklyAttendance);
 
+export const insertOrganizationAttendanceMonthlySnapshotSchema = createInsertSchema(organizationAttendanceMonthlySnapshots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectOrganizationAttendanceMonthlySnapshotSchema = createSelectSchema(organizationAttendanceMonthlySnapshots);
+
 export type OrganizationWeeklyAttendance = typeof organizationWeeklyAttendance.$inferSelect;
 export type InsertOrganizationWeeklyAttendance = z.infer<typeof insertOrganizationWeeklyAttendanceSchema>;
+export type OrganizationAttendanceMonthlySnapshot = typeof organizationAttendanceMonthlySnapshots.$inferSelect;
+export type InsertOrganizationAttendanceMonthlySnapshot = z.infer<typeof insertOrganizationAttendanceMonthlySnapshotSchema>;
 
 export type WardBudget = typeof wardBudgets.$inferSelect;
 export type InsertWardBudget = z.infer<typeof insertWardBudgetSchema>;
