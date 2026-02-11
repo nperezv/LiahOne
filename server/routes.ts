@@ -4174,6 +4174,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ORGANIZATION WEEKLY ATTENDANCE
   // ========================================
 
+  const ADMIN_ATTENDANCE_ROLES = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"] as const;
+  const ORG_ATTENDANCE_ROLES = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"] as const;
+
+  const normalizeWeekKey = (value: string): string | null => {
+    const trimmed = value.trim();
+    const datePart = trimmed.includes("T") ? trimmed.split("T")[0] : trimmed;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
+    return datePart;
+  };
+
+  const getMonthSundaysCountUTC = (year: number, month: number): number => {
+    const cursor = new Date(Date.UTC(year, month - 1, 1));
+    const offset = (7 - cursor.getUTCDay()) % 7;
+    cursor.setUTCDate(cursor.getUTCDate() + offset);
+    let count = 0;
+    while (cursor.getUTCMonth() === month - 1) {
+      count += 1;
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
+    }
+    return count;
+  };
+
+  const closeAttendanceMonth = async ({
+    organizationId,
+    year,
+    month,
+    closedBy,
+  }: {
+    organizationId: string;
+    year: number;
+    month: number;
+    closedBy: string;
+  }) => {
+    const allAttendance = await storage.getOrganizationWeeklyAttendance(organizationId);
+    const monthEntries = allAttendance.filter((entry: any) => {
+      const key = typeof entry.weekKey === "string" ? entry.weekKey : String(entry.weekKey ?? "");
+      return key.startsWith(`${year}-${String(month).padStart(2, "0")}-`);
+    });
+
+    const presentTotal = monthEntries.reduce((sum: number, row: any) => sum + Number(row.attendeesCount ?? 0), 0);
+    const capacityTotal = monthEntries.reduce((sum: number, row: any) => sum + Math.max(0, Number(row.totalMembers ?? 0)), 0);
+    const distinctWeeks = new Set(monthEntries.map((row: any) => String(row.weekKey)));
+    const weeksReported = distinctWeeks.size;
+    const weeksInMonth = getMonthSundaysCountUTC(year, month);
+    const attendancePercent = capacityTotal > 0 ? Number(((presentTotal / capacityTotal) * 100).toFixed(2)) : 0;
+
+    await storage.upsertOrganizationAttendanceMonthlySnapshot({
+      organizationId,
+      year,
+      month,
+      weeksInMonth,
+      weeksReported,
+      presentTotal,
+      capacityTotal,
+      attendancePercent: String(attendancePercent),
+      closedAt: new Date(),
+      closedBy,
+    });
+  };
+
   app.get("/api/organization-attendance", requireAuth, requireRole("secretario", "obispo", "consejero_obispo"), async (_req: Request, res: Response) => {
     try {
       const attendance = await storage.getAllOrganizationWeeklyAttendance();
@@ -4205,6 +4265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/organization-attendance", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
+      const RETROACTIVE_CAPTURE_GRACE_DAYS = Number(process.env.ORG_ATTENDANCE_RETROACTIVE_DAYS ?? 10);
       const parsed = z.object({
         organizationId: z.string().min(1),
         weekStartDate: z.string().min(1),
@@ -4217,10 +4278,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: parsed.error.errors });
       }
 
-      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role);
-      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
+      const isObispado = ADMIN_ATTENDANCE_ROLES.includes(user.role);
+      const isOrgMember = ORG_ATTENDANCE_ROLES.includes(user.role);
       if (!isObispado && !(isOrgMember && user.organizationId === parsed.data.organizationId)) {
         return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const weekKey = normalizeWeekKey(parsed.data.weekStartDate);
+      if (!weekKey) {
+        return res.status(400).json({ error: "Invalid weekStartDate" });
+      }
+
+      const weekStartDate = new Date(`${weekKey}T00:00:00.000Z`);
+      const now = new Date();
+      const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const startOfCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+      if (weekStartDate > startOfToday) {
+        return res.status(400).json({ error: "No se permite registrar asistencia de semanas futuras." });
+      }
+
+      const isRetroactiveMonth = weekStartDate < startOfCurrentMonth;
+      if (isRetroactiveMonth) {
+        if (!isObispado) {
+          return res.status(403).json({ error: "Solo secretaría u obispado puede registrar meses anteriores." });
+        }
+
+        if (weekStartDate.getUTCFullYear() !== now.getUTCFullYear()) {
+          return res.status(400).json({ error: "Solo se permite registro retroactivo dentro del año en curso." });
+        }
+
+        const monthCloseDate = new Date(Date.UTC(weekStartDate.getUTCFullYear(), weekStartDate.getUTCMonth() + 1, 0));
+        const captureDeadline = new Date(monthCloseDate);
+        captureDeadline.setUTCDate(captureDeadline.getUTCDate() + RETROACTIVE_CAPTURE_GRACE_DAYS);
+
+        if (startOfToday > captureDeadline) {
+          return res.status(400).json({
+            error: `La ventana retroactiva de ${RETROACTIVE_CAPTURE_GRACE_DAYS} días para ese mes ya cerró.`,
+          });
+        }
       }
 
       const uniqueMemberIds = Array.from(new Set(parsed.data.attendeeMemberIds ?? []));
@@ -4229,7 +4325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const payload = {
         organizationId: parsed.data.organizationId,
-        weekStartDate: new Date(parsed.data.weekStartDate),
+        weekStartDate,
+        weekKey,
         attendeesCount,
         attendeeMemberIds: uniqueMemberIds,
         totalMembers,
@@ -4237,7 +4334,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const attendance = await storage.upsertOrganizationWeeklyAttendance(payload);
+
+      // If the affected month is already closed by date, keep/update a monthly snapshot.
+      const monthEnd = new Date(Date.UTC(weekStartDate.getUTCFullYear(), weekStartDate.getUTCMonth() + 1, 0));
+      if (startOfToday > monthEnd) {
+        await closeAttendanceMonth({
+          organizationId: parsed.data.organizationId,
+          year: weekStartDate.getUTCFullYear(),
+          month: weekStartDate.getUTCMonth() + 1,
+          closedBy: req.session.userId!,
+        });
+      }
+
       res.status(201).json(attendance);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/organization-attendance-snapshots/:organizationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { organizationId } = req.params;
+      const requestedYear = typeof req.query.year === "string" ? Number(req.query.year) : undefined;
+
+      const isObispado = ADMIN_ATTENDANCE_ROLES.includes(user.role);
+      const isOrgMember = ORG_ATTENDANCE_ROLES.includes(user.role);
+
+      if (!isObispado && !(isOrgMember && user.organizationId === organizationId)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      if (typeof requestedYear === "number" && Number.isNaN(requestedYear)) {
+        return res.status(400).json({ error: "Invalid year" });
+      }
+
+      const snapshots = await storage.getOrganizationAttendanceMonthlySnapshots(organizationId, requestedYear);
+      res.json(snapshots);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
