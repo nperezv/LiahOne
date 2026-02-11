@@ -21,6 +21,7 @@ import {
   pdfTemplates,
   wardBudgets,
   organizationBudgets,
+  organizationWeeklyAttendance,
   notifications,
   pushSubscriptions,
   userDevices,
@@ -64,6 +65,8 @@ import {
   type InsertWardBudget,
   type OrganizationBudget,
   type InsertOrganizationBudget,
+  type OrganizationWeeklyAttendance,
+  type InsertOrganizationWeeklyAttendance,
   type Notification,
   type InsertNotification,
   type PushSubscription,
@@ -248,6 +251,11 @@ export interface IStorage {
   getOrganizationBudgetByQuarter(organizationId: string, year: number, quarter: number): Promise<OrganizationBudget | undefined>;
   createOrganizationBudget(budget: InsertOrganizationBudget): Promise<OrganizationBudget>;
   updateOrganizationBudget(id: string, data: Partial<InsertOrganizationBudget>): Promise<OrganizationBudget | undefined>;
+
+  // Organization Weekly Attendance
+  getAllOrganizationWeeklyAttendance(): Promise<OrganizationWeeklyAttendance[]>;
+  getOrganizationWeeklyAttendance(organizationId: string): Promise<OrganizationWeeklyAttendance[]>;
+  upsertOrganizationWeeklyAttendance(data: InsertOrganizationWeeklyAttendance): Promise<OrganizationWeeklyAttendance>;
 
   // Notifications
   getNotificationsByUser(userId: string): Promise<Notification[]>;
@@ -1195,6 +1203,51 @@ export class DatabaseStorage implements IStorage {
       .where(eq(organizationBudgets.id, id))
       .returning();
     return budget || undefined;
+  }
+
+  // ========================================
+  // ORGANIZATION WEEKLY ATTENDANCE
+  // ========================================
+
+  async getAllOrganizationWeeklyAttendance(): Promise<OrganizationWeeklyAttendance[]> {
+    return await db.select().from(organizationWeeklyAttendance).orderBy(desc(organizationWeeklyAttendance.weekStartDate));
+  }
+
+  async getOrganizationWeeklyAttendance(organizationId: string): Promise<OrganizationWeeklyAttendance[]> {
+    return await db
+      .select()
+      .from(organizationWeeklyAttendance)
+      .where(eq(organizationWeeklyAttendance.organizationId, organizationId))
+      .orderBy(desc(organizationWeeklyAttendance.weekStartDate));
+  }
+
+  async upsertOrganizationWeeklyAttendance(data: InsertOrganizationWeeklyAttendance): Promise<OrganizationWeeklyAttendance> {
+    const [existing] = await db
+      .select()
+      .from(organizationWeeklyAttendance)
+      .where(
+        and(
+          eq(organizationWeeklyAttendance.organizationId, data.organizationId),
+          eq(organizationWeeklyAttendance.weekStartDate, data.weekStartDate as any)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      const [updated] = await db
+        .update(organizationWeeklyAttendance)
+        .set({
+          attendeesCount: data.attendeesCount,
+          createdBy: data.createdBy,
+          updatedAt: new Date(),
+        })
+        .where(eq(organizationWeeklyAttendance.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db.insert(organizationWeeklyAttendance).values(data).returning();
+    return created;
   }
 
   // ========================================

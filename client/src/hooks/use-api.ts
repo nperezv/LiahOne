@@ -1279,3 +1279,48 @@ export function useUpdateOrganizationBudget() {
     },
   });
 }
+
+
+export function useOrganizationAttendance() {
+  return useQuery<any[]>({
+    queryKey: ["/api/organization-attendance"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useOrganizationAttendanceByOrg(organizationId?: string) {
+  return useQuery<any[]>({
+    queryKey: ["/api/organization-attendance", organizationId],
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      return apiRequest("GET", `/api/organization-attendance/${organizationId}`);
+    },
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useUpsertOrganizationAttendance() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: { organizationId: string; weekStartDate: string; attendeesCount: number }) =>
+      apiRequest("POST", "/api/organization-attendance", data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance", variables.organizationId] });
+      toast({
+        title: "Asistencia guardada",
+        description: "Se registró la asistencia semanal.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la asistencia.",
+        variant: "destructive",
+      });
+    },
+  });
+}

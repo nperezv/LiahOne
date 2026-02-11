@@ -39,6 +39,8 @@ import {
   useBudgetRequests,
   useOrganizationBudgets,
   useOrganizationMembers,
+  useActivities,
+  useOrganizationAttendanceByOrg,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -124,6 +126,8 @@ export default function PresidencyMeetingsPage() {
   const { data: budgetRequests = [] } = useBudgetRequests();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
   const { data: organizationMembers = [] } = useOrganizationMembers(organizationId);
+  const { data: activities = [] } = useActivities();
+  const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const { toast } = useToast();
 
@@ -174,6 +178,7 @@ export default function PresidencyMeetingsPage() {
 
     const now = new Date();
     const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
     const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
     const currentOrgBudget = (organizationBudgets as any[]).find(
       (budget: any) => budget.year === currentYear && budget.quarter === currentQuarter
@@ -188,6 +193,31 @@ export default function PresidencyMeetingsPage() {
 
     const spentBudget = approvedRequests.reduce((sum: number, request: any) => sum + Number(request.amount ?? 0), 0);
     const budgetUsage = assignedBudget > 0 ? Math.min(100, (spentBudget / assignedBudget) * 100) : 0;
+
+    const monthStart = new Date(currentYear, currentMonth, 1);
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+
+    const monthMeetings = meetings.filter((meeting: any) => {
+      const meetingDate = new Date(meeting.date);
+      return meetingDate >= monthStart && meetingDate <= monthEnd;
+    }).length;
+
+    const weeksInMonth = Math.ceil(monthEnd.getDate() / 7);
+
+    const monthlyActivities = (activities as any[]).filter((activity: any) => {
+      if (activity.organizationId !== organizationId) return false;
+      const activityDate = new Date(activity.date);
+      return activityDate >= monthStart && activityDate <= monthEnd;
+    }).length;
+
+    const attendanceInMonth = (attendance as any[]).filter((entry: any) => {
+      const weekDate = new Date(entry.weekStartDate);
+      return weekDate >= monthStart && weekDate <= monthEnd;
+    });
+
+    const totalAttendanceInMonth = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
+    const attendanceCapacity = Math.max(1, organizationMembers.length * weeksInMonth);
+    const monthlyAttendancePercent = Math.min(100, (totalAttendanceInMonth / attendanceCapacity) * 100);
 
     const byCategory = approvedRequests.reduce(
       (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
@@ -209,8 +239,12 @@ export default function PresidencyMeetingsPage() {
       availableBudget: Math.max(0, assignedBudget - spentBudget),
       byCategory,
       membersCount: organizationMembers.length,
+      monthlyActivities,
+      monthMeetings,
+      weeksInMonth,
+      monthlyAttendancePercent,
     };
-  }, [budgetRequests, meetings, organizationBudgets, organizationId, organizationMembers.length]);
+  }, [activities, attendance, budgetRequests, meetings, organizationBudgets, organizationId, organizationMembers.length]);
 
   const handleExportMeetingPDF = (meeting: any) => {
     const meetingDate = new Date(meeting.date).toLocaleDateString("es-ES", {
@@ -398,79 +432,77 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
       </motion.div>
 
       <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="text-base">Resumen</CardTitle>
-            <CardDescription>Actividad de presidencia</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
-              <button
-                type="button"
-                onClick={() => setMembersDialogOpen(true)}
-                className="w-full rounded-2xl bg-muted/40 p-3 text-left transition-colors hover:bg-muted/60"
-                data-testid="button-org-members-card"
-              >
-                <p className="text-xs text-muted-foreground">Miembros</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <p className="text-2xl font-semibold">{dashboardStats.membersCount}</p>
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </button>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Directorio de {orgName}</DialogTitle>
-                  <DialogDescription>Miembros asignados a esta organización</DialogDescription>
-                </DialogHeader>
-                <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-                  {organizationMembers.length > 0 ? (
-                    organizationMembers.map((member) => (
-                      <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
-                        <p className="text-sm font-medium">{member.nameSurename}</p>
-                        <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No hay miembros asignados a esta organización.</p>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-            <div className="rounded-2xl bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">Este mes</p>
-              <p className="text-2xl font-semibold">{dashboardStats.currentMonthMeetings}</p>
-            </div>
-            <div className="rounded-2xl bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">Con detalles</p>
-              <p className="text-2xl font-semibold">{dashboardStats.meetingsWithDetails}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-7">
+          <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
+            <button
+              type="button"
+              onClick={() => setMembersDialogOpen(true)}
+              className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+              data-testid="button-org-members-card"
+            >
+              <p className="text-xs text-muted-foreground">Miembros de la organización</p>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-3xl font-semibold">{dashboardStats.membersCount}</p>
+                <Users className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </button>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Directorio de {orgName}</DialogTitle>
+                <DialogDescription>Miembros asignados a esta organización</DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+                {organizationMembers.length > 0 ? (
+                  organizationMembers.map((member) => (
+                    <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
+                      <p className="text-sm font-medium">{member.nameSurename}</p>
+                      <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No hay miembros asignados a esta organización.</p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-4">
-          <CardHeader>
-            <CardTitle className="text-base">Metas cumplidas</CardTitle>
-            <CardDescription>Calidad de registro y seguimiento</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CircularGauge
-              value={dashboardStats.detailRate}
-              label="Metas cumplidas"
-              subtitle={`${dashboardStats.meetingsWithDetails} de ${Math.max(1, dashboardStats.totalMeetings)} reuniones`}
-              gradientId="goals"
-            />
-          </CardContent>
-        </Card>
+          <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Calendario</CardTitle>
+              <CardDescription>Actividades del mes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold">{dashboardStats.monthlyActivities}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm sm:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Reuniones de presidencia</CardTitle>
+              <CardDescription>Seguimiento mensual y asistencia sacramental</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-2xl bg-muted/40 p-3">
+                <p className="text-xs text-muted-foreground">Cumplimiento mensual</p>
+                <p className="text-2xl font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</p>
+              </div>
+              <div className="rounded-2xl bg-muted/40 p-3">
+                <p className="text-xs text-muted-foreground">Asistencia reunión sacramental</p>
+                <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
           <CardHeader>
-            <CardTitle className="text-base">Presupuesto de presidencia</CardTitle>
-            <CardDescription>Estimación de uso por actividad anual</CardDescription>
+            <CardTitle className="text-base">Presupuesto de organización</CardTitle>
+            <CardDescription>Uso del trimestre actual</CardDescription>
           </CardHeader>
           <CardContent>
             <CircularGauge
               value={dashboardStats.budgetUsage}
-              label="Uso estimado"
+              label="Uso trimestral"
               subtitle={`Disponible €${dashboardStats.availableBudget.toFixed(2)}`}
               gradientId="budget"
             />
