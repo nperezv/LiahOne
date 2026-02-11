@@ -389,8 +389,10 @@ export default function PresidencyMeetingsPage() {
     const reportedWeeks = reportedWeekKeys.size;
     const todayIso = formatLocalDateKey(now);
     const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
-    const attendanceCapacity = Math.max(1, organizationMembers.length * elapsedWeeks);
-    const monthlyAttendancePercent = Math.min(100, (totalAttendanceInMonth / attendanceCapacity) * 100);
+    const averageWeeklyAttendance = elapsedWeeks > 0 ? totalAttendanceInMonth / elapsedWeeks : 0;
+    const monthlyAttendancePercent = organizationMembers.length > 0
+      ? Math.min(100, (averageWeeklyAttendance / organizationMembers.length) * 100)
+      : 0;
     const reportedElapsedWeeks = sundaysInMonth
       .map((sunday) => formatLocalDateKey(sunday))
       .filter((iso) => iso <= todayIso && reportedWeekKeys.has(iso)).length;
@@ -449,6 +451,7 @@ export default function PresidencyMeetingsPage() {
       monthMeetings,
       weeksInMonth,
       monthlyAttendancePercent,
+      averageWeeklyAttendance,
       reportedWeeks,
       reportedElapsedWeeks,
       elapsedWeeks,
@@ -784,8 +787,28 @@ export default function PresidencyMeetingsPage() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Asistencia a clases</p>
-            <p className="mt-1 text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
-            <p className="text-xs text-muted-foreground">Semanas registradas: {dashboardStats.reportedElapsedWeeks}/{dashboardStats.elapsedWeeks} ({Math.round(dashboardStats.attendanceLoadPercent)}%)</p>
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <p className="text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
+              <div className="relative h-12 w-12 shrink-0" data-testid="mini-gauge-attendance-classes">
+                <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90">
+                  <circle cx="24" cy="24" r="18" fill="none" stroke="hsl(var(--muted) / 0.55)" strokeWidth="5" />
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="18"
+                    fill="none"
+                    stroke="hsl(var(--chart-4))"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 18}`}
+                    strokeDashoffset={`${2 * Math.PI * 18 * (1 - Math.max(0, Math.min(100, dashboardStats.monthlyAttendancePercent)) / 100)}`}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-foreground">
+                  {Math.round(dashboardStats.monthlyAttendancePercent)}
+                </span>
+              </div>
+            </div>
           </div>
         </button>
 

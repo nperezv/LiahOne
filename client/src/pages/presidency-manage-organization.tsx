@@ -154,14 +154,16 @@ export default function PresidencyManageOrganizationPage() {
     const reportedWeekKeys = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10))));
     const reportedWeeks = reportedWeekKeys.size;
     const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
-    const capacity = organizationMembers.length * elapsedWeeks;
-    const attendancePercent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
+    const averageWeeklyAttendance = elapsedWeeks > 0 ? present / elapsedWeeks : 0;
+    const attendancePercent = organizationMembers.length > 0
+      ? Math.min(100, (averageWeeklyAttendance / organizationMembers.length) * 100)
+      : 0;
     const reportedElapsedWeeks = sundaysInMonth
       .map((sunday) => formatLocalDateKey(sunday))
       .filter((iso) => iso <= todayIso && reportedWeekKeys.has(iso)).length;
     const compliancePercent = elapsedWeeks > 0 ? Math.min(100, (reportedElapsedWeeks / elapsedWeeks) * 100) : 0;
 
-    return { present, capacity, attendancePercent, reportedWeeks, reportedElapsedWeeks, elapsedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
+    return { present, averageWeeklyAttendance, attendancePercent, reportedWeeks, reportedElapsedWeeks, elapsedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
   }, [attendance, organizationMembers.length, selectedMonth, selectedYear, sundaysInMonth, todayIso]);
 
   useEffect(() => {
@@ -339,7 +341,8 @@ export default function PresidencyManageOrganizationPage() {
               <p className="text-sm">Asistencia mensual</p>
               <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
               <Progress value={monthlyAttendanceStats.attendancePercent} className="mt-2 h-2" />
-              <p className="mt-1 text-xs text-muted-foreground">{monthlyAttendanceStats.present}/{monthlyAttendanceStats.capacity || 0} registros de presencia</p>
+              <p className="mt-1 text-xs text-muted-foreground">Promedio semanal: {Math.round(monthlyAttendanceStats.averageWeeklyAttendance)} de {organizationMembers.length} miembros</p>
+              <p className="text-xs text-muted-foreground">Total acumulado del mes: {monthlyAttendanceStats.present}</p>
             </div>
 
             <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
