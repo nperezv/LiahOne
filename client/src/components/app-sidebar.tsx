@@ -94,7 +94,16 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Presupuestos",
     url: "/budget",
     icon: Euro,
-    roles: ["obispo", "consejero_obispo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"],
+    roles: [
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+      "presidente_organizacion",
+      "secretario_organizacion",
+      "consejero_organizacion",
+    ],
   },
   {
     title: "Entrevistas",
