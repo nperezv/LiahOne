@@ -81,10 +81,15 @@ function CircularGauge({
   gradientStops?: [string, string, string];
 }) {
   const size = 180;
-  const stroke = 14;
+  const stroke = 12;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.max(0, Math.min(100, value)) / 100) * circumference;
+  const sweepAngle = 300;
+  const arcLength = (sweepAngle / 360) * circumference;
+  const clamped = Math.max(0, Math.min(100, value));
+  const offset = arcLength - (clamped / 100) * arcLength;
+
+  const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
 
   const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
 
@@ -98,7 +103,17 @@ function CircularGauge({
             <stop offset="100%" stopColor={endColor} />
           </linearGradient>
         </defs>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} strokeLinecap="round" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="hsl(var(--muted) / 0.5)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${arcLength} ${circumference}`}
+          transform={`rotate(120 ${size / 2} ${size / 2})`}
+        />
         <motion.circle
           cx={size / 2}
           cy={size / 2}
@@ -107,17 +122,16 @@ function CircularGauge({
           stroke={`url(#${gradientId}-gradient)`}
           strokeWidth={stroke}
           strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
+          strokeDasharray={`${arcLength} ${circumference}`}
+          initial={{ strokeDashoffset: arcLength }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ type: "spring", stiffness: 80, damping: 16 }}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          transition={{ type: "spring", stiffness: 90, damping: 18 }}
+          transform={`rotate(120 ${size / 2} ${size / 2})`}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <p className="text-4xl font-bold leading-none">{Math.round(value)}%</p>
-        <p className="mt-2 text-sm font-medium text-foreground/90">{label}</p>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <p className="text-[2.2rem] font-bold leading-none text-foreground">{label}</p>
+        <p className="mt-1 text-sm font-medium text-foreground/90">{subtitle}</p>
       </div>
     </div>
   );
@@ -151,6 +165,8 @@ export default function PresidencyMeetingsPage() {
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
   const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
+  const goalDragStartX = useRef<number | null>(null);
+  const budgetDragStartX = useRef<number | null>(null);
 
   const { data: organizations = [] } = useOrganizations();
   const { data: meetings = [], isLoading } = usePresidencyMeetings(organizationId);
@@ -447,12 +463,36 @@ export default function PresidencyMeetingsPage() {
   const activeGoal = dashboardStats.goalsWithPercentage[goalSlideIndex] ?? null;
   const activeBudgetSlide = dashboardStats.budgetSlides[budgetSlideIndex] ?? dashboardStats.budgetSlides[0];
   const goalGradients: [string, string, string][] = [
-    ["hsl(var(--chart-1))", "hsl(var(--chart-4))", "hsl(var(--chart-2))"],
-    ["hsl(var(--chart-2))", "hsl(var(--chart-5))", "hsl(var(--chart-3))"],
-    ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-5))"],
-    ["hsl(var(--chart-3))", "hsl(var(--chart-2))", "hsl(var(--chart-1))"],
+    ["#F5CF74", "#E3AF45", "#1F8795"],
+    ["#C5E8C6", "#56C2BD", "#4E9D63"],
+    ["#A0C8FF", "#5BB8F7", "#4B7BE5"],
+    ["#FBC4AB", "#F08080", "#EF476F"],
   ];
   const activeGoalGradient = goalGradients[goalSlideIndex % goalGradients.length];
+
+  const moveGoalSlide = (direction: "next" | "prev") => {
+    setGoalSlideIndex((prev) => {
+      if (dashboardStats.goalsWithPercentage.length <= 1) return 0;
+      return direction === "next"
+        ? Math.min(prev + 1, dashboardStats.goalsWithPercentage.length - 1)
+        : Math.max(prev - 1, 0);
+    });
+  };
+
+  const moveBudgetSlide = (direction: "next" | "prev") => {
+    setBudgetSlideIndex((prev) => (
+      direction === "next"
+        ? Math.min(prev + 1, dashboardStats.budgetSlides.length - 1)
+        : Math.max(prev - 1, 0)
+    ));
+  };
+
+  const handleSwipe = (startX: number | null, endX: number, onPrev: () => void, onNext: () => void) => {
+    if (startX === null) return;
+    const delta = endX - startX;
+    if (delta > 35) onPrev();
+    if (delta < -35) onNext();
+  };
 
   if (isLoading || !organizationId) {
     return (
@@ -588,30 +628,40 @@ export default function PresidencyMeetingsPage() {
             <CardTitle className="text-base">Metas de organización</CardTitle>
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
+            onPointerDown={(event) => { goalDragStartX.current = event.clientX; }}
+            onPointerUp={(event) => handleSwipe(goalDragStartX.current, event.clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
+            onTouchStart={(event) => { goalDragStartX.current = event.touches[0].clientX; }}
+            onTouchEnd={(event) => handleSwipe(goalDragStartX.current, event.changedTouches[0].clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
+          >
+            <div className="mb-1 flex items-baseline gap-2">
+              <span className="text-4xl font-bold leading-none">{Math.round(activeGoal ? activeGoal.percentage : dashboardStats.goalProgress)}%</span>
+              <span className="text-base font-medium text-muted-foreground">Metas cumplidas</span>
+            </div>
             <CircularGauge
               value={activeGoal ? activeGoal.percentage : dashboardStats.goalProgress}
-              label={activeGoal ? activeGoal.title : "Metas cumplidas"}
-              subtitle={activeGoal ? `${activeGoal.current} / ${Math.max(1, activeGoal.target)}` : `${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas`}
+              label={`${Math.round(activeGoal ? activeGoal.percentage : dashboardStats.goalProgress)}%`}
+              subtitle={activeGoal?.title || "Metas cumplidas"}
               gradientId="goals"
               gradientStops={activeGoalGradient}
             />
+            <p className="mt-1 text-center text-sm text-muted-foreground">
+              {activeGoal ? `${activeGoal.current} de ${Math.max(1, activeGoal.target)} metas logradas` : `${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas logradas`}
+            </p>
             {dashboardStats.goalsWithPercentage.length > 1 && (
-              <motion.div
-                className="mt-3 flex cursor-grab justify-center gap-2 active:cursor-grabbing"
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                onDragEnd={(_, info) => {
-                  if (info.offset.x < -40) setGoalSlideIndex((prev) => Math.min(prev + 1, dashboardStats.goalsWithPercentage.length - 1));
-                  if (info.offset.x > 40) setGoalSlideIndex((prev) => Math.max(prev - 1, 0));
-                }}
-              >
+              <div className="mt-3 flex justify-center gap-2" data-testid="goal-dots">
                 {dashboardStats.goalsWithPercentage.map((_: any, index: number) => (
-                  <span key={index} className={`h-2 w-2 rounded-full ${goalSlideIndex === index ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => setGoalSlideIndex(index)}
+                    className={`h-2.5 w-2.5 rounded-full transition-all ${goalSlideIndex === index ? "bg-primary w-5" : "bg-muted-foreground/30"}`}
+                    aria-label={`Ir a meta ${index + 1}`}
+                  />
                 ))}
-              </motion.div>
+              </div>
             )}
-            <Button className="mt-4 w-full" onClick={() => setLocation("/goals?tab=organizacion")} data-testid="button-goals-from-gauge">Ver metas</Button>
+            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => setLocation("/goals?tab=organizacion")} data-testid="button-goals-from-gauge">+ Ver metas</Button>
           </CardContent>
         </Card>
       </div>
@@ -622,29 +672,38 @@ export default function PresidencyMeetingsPage() {
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
             <CardDescription>Uso del trimestre actual</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent
+            className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
+            onPointerDown={(event) => { budgetDragStartX.current = event.clientX; }}
+            onPointerUp={(event) => handleSwipe(budgetDragStartX.current, event.clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
+            onTouchStart={(event) => { budgetDragStartX.current = event.touches[0].clientX; }}
+            onTouchEnd={(event) => handleSwipe(budgetDragStartX.current, event.changedTouches[0].clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
+          >
+            <div className="mb-1">
+              <p className="text-4xl font-bold leading-none">{Math.round(activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage)}% usado</p>
+              <p className="mt-1 text-lg font-medium">€{(activeBudgetSlide?.amount ?? dashboardStats.spentBudget).toFixed(2)} usados</p>
+              <p className="text-sm text-muted-foreground">de €{dashboardStats.assignedBudget.toFixed(2)}</p>
+            </div>
             <CircularGauge
               value={activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage}
-              label={activeBudgetSlide?.title ?? "Uso trimestral"}
-              subtitle={activeBudgetSlide ? `€${activeBudgetSlide.amount.toFixed(2)}` : `Disponible €${dashboardStats.availableBudget.toFixed(2)}`}
+              label={`€${(activeBudgetSlide?.amount ?? dashboardStats.spentBudget).toFixed(0)}`}
+              subtitle={`${activeBudgetSlide?.title ?? "usados"}`}
               gradientId="budget"
               gradientStops={activeBudgetSlide?.gradientStops}
             />
-            <motion.div
-              className="mt-3 flex cursor-grab justify-center gap-2 active:cursor-grabbing"
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              onDragEnd={(_, info) => {
-                if (info.offset.x < -40) setBudgetSlideIndex((prev) => Math.min(prev + 1, dashboardStats.budgetSlides.length - 1));
-                if (info.offset.x > 40) setBudgetSlideIndex((prev) => Math.max(prev - 1, 0));
-              }}
-            >
+            <div className="mt-3 flex justify-center gap-2" data-testid="budget-dots">
               {dashboardStats.budgetSlides.map((_: any, index: number) => (
-                <span key={index} className={`h-2 w-2 rounded-full ${budgetSlideIndex === index ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setBudgetSlideIndex(index)}
+                  className={`h-2.5 w-2.5 rounded-full transition-all ${budgetSlideIndex === index ? "bg-primary w-5" : "bg-muted-foreground/30"}`}
+                  aria-label={`Ir a concepto ${index + 1}`}
+                />
               ))}
-            </motion.div>
-            <Button className="mt-4 w-full" variant="outline" onClick={() => setIsBudgetRequestDialogOpen(true)} data-testid="button-request-budget-from-card">
-              Solicitar presupuesto
+            </div>
+            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => setIsBudgetRequestDialogOpen(true)} data-testid="button-request-budget-from-card">
+              Ver movimientos / Solicitar presupuesto
             </Button>
             <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
               <div className="flex items-center justify-between"><span className="text-muted-foreground">Asignado</span><span className="font-medium">€{dashboardStats.assignedBudget.toFixed(2)}</span></div>
