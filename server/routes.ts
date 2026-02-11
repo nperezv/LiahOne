@@ -5462,6 +5462,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let emailsSent = 0;
       for (const birthday of todayBirthdays) {
         if (!birthday.email) continue;
+
+        const alreadySent = await storage.hasBirthdayEmailBeenSentToday(birthday.id, todayKey);
+        if (alreadySent) {
+          continue;
+        }
+
         const normalizedBirthdayName = normalizeComparableName(birthday.name);
         const matchedMember = members.find((member) =>
           (birthday.email && member.email && member.email.toLowerCase() === birthday.email.toLowerCase()) ||
@@ -5478,6 +5484,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recipientSex: matchedMember?.sex,
           recipientOrganizationType: organization?.type,
           wardName,
+        });
+        await storage.createBirthdayEmailSend({
+          birthdayId: birthday.id,
+          dayKey: todayKey,
+          recipientEmail: birthday.email,
         });
         emailsSent += 1;
       }

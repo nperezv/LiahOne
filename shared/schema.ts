@@ -505,6 +505,14 @@ export const birthdays = pgTable("birthdays", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const birthdayEmailSends = pgTable("birthday_email_sends", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  birthdayId: varchar("birthday_id").notNull().references(() => birthdays.id, { onDelete: "cascade" }),
+  dayKey: text("day_key").notNull(),
+  recipientEmail: text("recipient_email").notNull(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+});
+
 // Assignments
 export const assignments = pgTable("assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -933,6 +941,14 @@ export const insertBirthdaySchema = createInsertSchema(birthdays, {
 
 export const selectBirthdaySchema = createSelectSchema(birthdays);
 export type Birthday = typeof birthdays.$inferSelect;
+
+export const insertBirthdayEmailSendSchema = createInsertSchema(birthdayEmailSends).omit({
+  id: true,
+  sentAt: true,
+});
+export const selectBirthdayEmailSendSchema = createSelectSchema(birthdayEmailSends);
+export type BirthdayEmailSend = typeof birthdayEmailSends.$inferSelect;
+export type InsertBirthdayEmailSend = z.infer<typeof insertBirthdayEmailSendSchema>;
 
 export const insertMemberSchema = createInsertSchema(members, {
   birthday: dateSchema,
