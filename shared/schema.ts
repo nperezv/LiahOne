@@ -163,6 +163,18 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "completada",
 ]);
 
+export const presidencyResourceCategoryEnum = pgEnum("presidency_resource_category", [
+  "manuales",
+  "plantillas",
+  "capacitacion",
+]);
+
+export const presidencyResourceTypeEnum = pgEnum("presidency_resource_type", [
+  "documento",
+  "video",
+  "plantilla",
+]);
+
 // ========================================
 // TABLES
 // ========================================
@@ -402,6 +414,22 @@ export const presidencyMeetings = pgTable("presidency_meetings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Presidency Resources (global library)
+export const presidencyResources = pgTable("presidency_resources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  placeholderName: text("placeholder_name").notNull(),
+  description: text("description"),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  category: presidencyResourceCategoryEnum("category").notNull(),
+  resourceType: presidencyResourceTypeEnum("resource_type").notNull(),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Budget Requests
 export const budgetRequests = pgTable("budget_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -636,6 +664,17 @@ export const presidencyMeetingsRelations = relations(presidencyMeetings, ({ one 
   }),
 }));
 
+export const presidencyResourcesRelations = relations(presidencyResources, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [presidencyResources.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [presidencyResources.createdBy],
+    references: [users.id],
+  }),
+}));
+
 export const budgetRequestsRelations = relations(budgetRequests, ({ one }) => ({
   organization: one(organizations, {
     fields: [budgetRequests.organizationId],
@@ -820,6 +859,14 @@ export const insertPresidencyMeetingSchema = createInsertSchema(presidencyMeetin
 });
 
 export const selectPresidencyMeetingSchema = createSelectSchema(presidencyMeetings);
+
+export const insertPresidencyResourceSchema = createInsertSchema(presidencyResources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectPresidencyResourceSchema = createSelectSchema(presidencyResources);
 
 // Budget Requests
 export const insertBudgetRequestSchema = createInsertSchema(budgetRequests).omit({
@@ -1064,6 +1111,9 @@ export type InsertWardCouncil = z.infer<typeof insertWardCouncilSchema>;
 
 export type PresidencyMeeting = typeof presidencyMeetings.$inferSelect;
 export type InsertPresidencyMeeting = z.infer<typeof insertPresidencyMeetingSchema>;
+
+export type PresidencyResource = typeof presidencyResources.$inferSelect;
+export type InsertPresidencyResource = z.infer<typeof insertPresidencyResourceSchema>;
 
 export type BudgetRequest = typeof budgetRequests.$inferSelect;
 export type InsertBudgetRequest = z.infer<typeof insertBudgetRequestSchema>;

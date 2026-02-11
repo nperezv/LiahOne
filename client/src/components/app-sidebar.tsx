@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield } from "lucide-react";
+import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -89,6 +89,20 @@ const ALL_MENU_ITEMS: MenuItem[] = [
       { title: "Cuórum de Élderes", url: "/presidency/cuorum-elderes" },
     ],
     presidentOnly: true, // Presidents only see their own presidency
+  },
+  {
+    title: "Biblioteca de recursos",
+    url: "/resources-library",
+    icon: Library,
+    roles: [
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "presidente_organizacion",
+      "consejero_organizacion",
+      "secretario_organizacion",
+    ],
   },
   {
     title: "Presupuestos",

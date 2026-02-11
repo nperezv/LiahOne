@@ -1,6 +1,6 @@
 // Reference: javascript_database blueprint
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, asc } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, asc, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   users,
@@ -9,6 +9,7 @@ import {
   sacramentalMeetings,
   wardCouncils,
   presidencyMeetings,
+  presidencyResources,
   budgetRequests,
   interviews,
   organizationInterviews,
@@ -41,6 +42,8 @@ import {
   type InsertWardCouncil,
   type PresidencyMeeting,
   type InsertPresidencyMeeting,
+  type PresidencyResource,
+  type InsertPresidencyResource,
   type BudgetRequest,
   type InsertBudgetRequest,
   type Interview,
@@ -164,6 +167,12 @@ export interface IStorage {
   createPresidencyMeeting(meeting: InsertPresidencyMeeting): Promise<PresidencyMeeting>;
   updatePresidencyMeeting(id: string, data: Partial<InsertPresidencyMeeting>): Promise<PresidencyMeeting | undefined>;
   deletePresidencyMeeting(id: string): Promise<void>;
+
+  // Presidency Resources (global library)
+  getPresidencyResources(filters?: { organizationId?: string; category?: "manuales" | "plantillas" | "capacitacion" }): Promise<PresidencyResource[]>;
+  getPresidencyResource(id: string): Promise<PresidencyResource | undefined>;
+  createPresidencyResource(resource: InsertPresidencyResource): Promise<PresidencyResource>;
+  deletePresidencyResource(id: string): Promise<void>;
 
   // Budget Requests
   getAllBudgetRequests(): Promise<BudgetRequest[]>;
@@ -674,6 +683,49 @@ export class DatabaseStorage implements IStorage {
 
   async deletePresidencyMeeting(id: string): Promise<void> {
     await db.delete(presidencyMeetings).where(eq(presidencyMeetings.id, id));
+  }
+
+
+  async getPresidencyResources(filters?: { organizationId?: string; category?: "manuales" | "plantillas" | "capacitacion" }): Promise<PresidencyResource[]> {
+    const orgId = filters?.organizationId;
+    const category = filters?.category;
+
+    const whereConditions: SQLWrapper[] = [];
+
+    if (orgId) {
+      whereConditions.push(sql`${presidencyResources.organizationId} is null OR ${presidencyResources.organizationId} = ${orgId}`);
+    }
+
+    if (category) {
+      whereConditions.push(eq(presidencyResources.category, category));
+    }
+
+    const baseQuery = db
+      .select()
+      .from(presidencyResources)
+      .orderBy(desc(presidencyResources.createdAt));
+
+    if (whereConditions.length === 0) {
+      return await baseQuery;
+    }
+
+    return await baseQuery.where(and(...whereConditions));
+  }
+
+  async getPresidencyResource(id: string): Promise<PresidencyResource | undefined> {
+    const [resource] = await db.select().from(presidencyResources).where(eq(presidencyResources.id, id));
+    return resource || undefined;
+  }
+
+  async createPresidencyResource(insertResource: InsertPresidencyResource): Promise<PresidencyResource> {
+    const resourceData: typeof presidencyResources.$inferInsert =
+      insertResource as typeof presidencyResources.$inferInsert;
+    const [resource] = await db.insert(presidencyResources).values(resourceData).returning();
+    return resource;
+  }
+
+  async deletePresidencyResource(id: string): Promise<void> {
+    await db.delete(presidencyResources).where(eq(presidencyResources.id, id));
   }
 
   // ========================================
