@@ -230,10 +230,24 @@ const normalizeRecipientName = (value?: string | null) => {
   const cleaned = value.trim().replace(/\s+/g, " ");
   if (!cleaned) return "";
 
+  if (cleaned.includes("|")) {
+    const [namePart] = cleaned.split("|").map((part) => part.trim());
+    return namePart || "";
+  }
+
   if (cleaned.includes(",")) {
     const [surnamePart, namePart] = cleaned.split(",").map((part) => part.trim());
     if (namePart && surnamePart) {
       return `${namePart} ${surnamePart}`.trim();
+    }
+  }
+
+  const parts = cleaned.split(" ");
+  if (parts.length === 4) {
+    const [surname1, surname2, name1, name2] = parts;
+    const hasOnlyWords = [surname1, surname2, name1, name2].every((part) => /^[A-Za-zÀ-ÿ'-]+$/.test(part));
+    if (hasOnlyWords) {
+      return `${name1} ${name2} ${surname1} ${surname2}`.trim();
     }
   }
 
@@ -258,6 +272,8 @@ const formatInterviewType = (type?: string | null) => {
 const getGenderFromSex = (sex?: string | null): RecipientGender => {
   const normalized = sex?.trim().toLowerCase();
   if (!normalized) return "unknown";
+  if (["f", "female", "femenino", "femenina"].includes(normalized)) return "female";
+  if (["m", "male", "masculino", "masculina"].includes(normalized)) return "male";
   if (normalized.includes("mujer") || normalized.includes("femen")) return "female";
   if (normalized.includes("hombre") || normalized.includes("mascul")) return "male";
   return "unknown";
