@@ -77,6 +77,7 @@ const budgetSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
   amount: z.string().min(1, "El monto es requerido"),
   category: z.enum(["actividades", "materiales", "otros"]),
+  requestType: z.enum(["reembolso", "pago_adelantado"]),
   notes: z.string().optional(),
   receiptFile: z
     .instanceof(File)
@@ -85,10 +86,27 @@ const budgetSchema = z.object({
       message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
     }),
   activityPlanFile: z
-    .instanceof(File, { message: "El plan de actividades es requerido." })
-    .refine(isAllowedDocument, {
+    .instanceof(File)
+    .optional()
+    .refine((file) => !file || isAllowedDocument(file), {
       message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
     }),
+}).superRefine((data, ctx) => {
+  if (data.requestType === "reembolso" && !data.receiptFile) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["receiptFile"],
+      message: "Adjunta el comprobante para solicitudes de reembolso.",
+    });
+  }
+
+  if (data.requestType === "pago_adelantado" && !data.activityPlanFile) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["activityPlanFile"],
+      message: "Adjunta la solicitud de gasto para pagos por adelantado.",
+    });
+  }
 });
 
 const expenseReceiptsSchema = z.object({
@@ -241,6 +259,7 @@ export default function BudgetPage() {
       description: "",
       amount: "",
       category: "otros",
+      requestType: "pago_adelantado",
       notes: "",
       receiptFile: undefined,
       activityPlanFile: undefined,
@@ -295,6 +314,8 @@ export default function BudgetPage() {
     wardBudgetForm.setValue("q4Amount", formatBudgetValue(q4), { shouldDirty: true });
   }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
 
+  const budgetRequestType = budgetForm.watch("requestType");
+
   const orgBudgetForm = useForm<OrgBudgetAssignValues>({
     resolver: zodResolver(orgBudgetAssignSchema),
     defaultValues: {
@@ -305,7 +326,7 @@ export default function BudgetPage() {
   const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
     const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
-    if (data.receiptFile) {
+    if (data.requestType === "reembolso" && data.receiptFile) {
       try {
         const uploadedReceipt = await uploadReceiptFile(data.receiptFile);
         uploadedReceipts.push({
@@ -320,7 +341,7 @@ export default function BudgetPage() {
       }
     }
 
-    if (data.activityPlanFile) {
+    if (data.requestType === "pago_adelantado" && data.activityPlanFile) {
       try {
         const uploadedPlan = await uploadReceiptFile(data.activityPlanFile);
         uploadedReceipts.push({
@@ -330,7 +351,7 @@ export default function BudgetPage() {
         });
       } catch (error) {
         console.error(error);
-        alert("No se pudo subir el plan de actividades. Intenta nuevamente.");
+        alert("No se pudo subir la solicitud de gasto. Intenta nuevamente.");
         return;
       }
     }
@@ -838,6 +859,28 @@ export default function BudgetPage() {
 
                   <FormField
                     control={budgetForm.control}
+                    name="requestType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de solicitud</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-request-type">
+                              <SelectValue placeholder="Selecciona un tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="reembolso">Reembolso</SelectItem>
+                            <SelectItem value="pago_adelantado">Pago por adelantado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={budgetForm.control}
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
@@ -854,79 +897,83 @@ export default function BudgetPage() {
                     )}
                   />
 
-                  <FormField
-                    control={budgetForm.control}
-                    name="receiptFile"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Comprobantes de compra (Opcional)</FormLabel>
-                        <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <Input
-                              id="budget-receipt-file"
-                              type="file"
-                              accept={allowedDocumentExtensions.join(",")}
-                              onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
-                              onBlur={field.onBlur}
-                              ref={field.ref}
-                              className="hidden"
-                              data-testid="input-receipt-file"
-                            />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="budget-receipt-file" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" />
-                                Seleccionar comprobante
-                              </label>
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                              {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
-                            </span>
-                          </div>
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">
-                          Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {budgetRequestType === "reembolso" && (
+                    <FormField
+                      control={budgetForm.control}
+                      name="receiptFile"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Adjuntar comprobantes</FormLabel>
+                          <FormControl>
+                            <div className="flex flex-col gap-2">
+                              <Input
+                                id="budget-receipt-file"
+                                type="file"
+                                accept={allowedDocumentExtensions.join(",")}
+                                onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
+                                onBlur={field.onBlur}
+                                ref={field.ref}
+                                className="hidden"
+                                data-testid="input-receipt-file"
+                              />
+                              <Button type="button" variant="outline" className="w-fit" asChild>
+                                <label htmlFor="budget-receipt-file" className="cursor-pointer">
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Seleccionar comprobante
+                                </label>
+                              </Button>
+                              <span className="text-xs text-muted-foreground">
+                                {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
+                              </span>
+                            </div>
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para reembolso.
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                  <FormField
-                    control={budgetForm.control}
-                    name="activityPlanFile"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Plan de actividades</FormLabel>
-                        <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <Input
-                              id="budget-activity-plan-file"
-                              type="file"
-                              accept={allowedDocumentExtensions.join(",")}
-                              onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
-                              onBlur={field.onBlur}
-                              ref={field.ref}
-                              className="hidden"
-                              data-testid="input-activity-plan-file"
-                            />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="budget-activity-plan-file" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" />
-                                Subir plan de actividades
-                              </label>
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                              {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
-                            </span>
-                          </div>
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">
-                          Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio.
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {budgetRequestType === "pago_adelantado" && (
+                    <FormField
+                      control={budgetForm.control}
+                      name="activityPlanFile"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Solicitud de gasto</FormLabel>
+                          <FormControl>
+                            <div className="flex flex-col gap-2">
+                              <Input
+                                id="budget-activity-plan-file"
+                                type="file"
+                                accept={allowedDocumentExtensions.join(",")}
+                                onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
+                                onBlur={field.onBlur}
+                                ref={field.ref}
+                                className="hidden"
+                                data-testid="input-activity-plan-file"
+                              />
+                              <Button type="button" variant="outline" className="w-fit" asChild>
+                                <label htmlFor="budget-activity-plan-file" className="cursor-pointer">
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Subir solicitud de gasto
+                                </label>
+                              </Button>
+                              <span className="text-xs text-muted-foreground">
+                                {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
+                              </span>
+                            </div>
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para pago por adelantado.
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <div className="flex justify-end gap-2">
                     <Button
