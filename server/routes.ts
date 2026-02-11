@@ -5339,6 +5339,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
+  const birthdaySendHour = 8;
+  const getServerDayKey = (date: Date) => date.toDateString();
+
+  const startHourlyAlignedTask = (task: () => Promise<void>) => {
+    const scheduleNextHour = () => {
+      const now = new Date();
+      const delayMs = (60 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
+
+      setTimeout(() => {
+        void task();
+        setInterval(() => {
+          void task();
+        }, 60 * 60 * 1000);
+      }, delayMs);
+    };
+
+    scheduleNextHour();
+  };
+
   // ========================================
   // AUTOMATIC BIRTHDAY NOTIFICATIONS
   // ========================================
@@ -5346,6 +5365,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Function to send birthday notifications
   async function sendAutomaticBirthdayNotifications() {
     try {
+      const currentHour = new Date().getHours();
+      if (currentHour !== birthdaySendHour) {
+        return;
+      }
+
       const todayBirthdays = await storage.getTodayBirthdays();
       
       if (todayBirthdays.length === 0) {
@@ -5367,10 +5391,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Check if notification already sent today for this birthday
           const existingNotifications = await storage.getNotificationsByUser(recipient.id);
+          const todayKey = getServerDayKey(new Date());
           const alreadyNotified = existingNotifications.some(
-            n => n.type === "birthday_today" && 
-                 n.relatedId === birthday.id && 
-                 new Date(n.createdAt).toDateString() === new Date().toDateString()
+            (n) =>
+              n.type === "birthday_today" &&
+              n.relatedId === birthday.id &&
+              getServerDayKey(new Date(n.createdAt)) === todayKey,
           );
           
           if (alreadyNotified) continue;
@@ -5410,7 +5436,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function sendAutomaticBirthdayEmails() {
     try {
-      const todayKey = new Date().toDateString();
+      const now = new Date();
+      const currentHour = now.getHours();
+      const todayKey = getServerDayKey(now);
+
+      if (currentHour !== birthdaySendHour) {
+        return;
+      }
+
       if (lastBirthdayEmailDate === todayKey) {
         return;
       }
@@ -5456,16 +5489,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Schedule birthday notifications check every hour
-  // This ensures notifications are sent even if server restarts
-  setInterval(sendAutomaticBirthdayNotifications, 60 * 60 * 1000); // Every hour
-  
-  // Also run once on startup (with a small delay to ensure DB is ready)
-  setTimeout(sendAutomaticBirthdayNotifications, 10000); // 10 seconds after startup
-
-  // Schedule birthday emails once per day (24 hours)
-  setInterval(sendAutomaticBirthdayEmails, 24 * 60 * 60 * 1000);
-  setTimeout(sendAutomaticBirthdayEmails, 15000);
+  // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
+  startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
+  startHourlyAlignedTask(sendAutomaticBirthdayEmails);
 
   return httpServer;
 }
