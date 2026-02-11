@@ -50,6 +50,13 @@ function getSundaysForMonth(date: Date) {
   return sundays;
 }
 
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const organizationSlugs: Record<string, string> = {
   "hombres-jovenes": "hombres_jovenes",
   "mujeres-jovenes": "mujeres_jovenes",
@@ -88,6 +95,8 @@ export default function PresidencyManageOrganizationPage() {
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, string[]>>({});
   const [attendanceEditorDate, setAttendanceEditorDate] = useState<string | null>(null);
   const [isCreateMeetingOpen, setIsCreateMeetingOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const { toast } = useToast();
 
   const { data: organizations = [] } = useOrganizations();
@@ -112,8 +121,9 @@ export default function PresidencyManageOrganizationPage() {
   }, [params?.org, organizations]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Organización";
-  const currentDate = new Date();
-  const sundaysInMonth = useMemo(() => getSundaysForMonth(currentDate), [currentDate.getMonth(), currentDate.getFullYear()]);
+  const todayIso = formatLocalDateKey(new Date());
+  const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
+  const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
 
   const leadership = useMemo(() => {
     const organizationUsers = (users as any[]).filter((user) => user.organizationId === organizationId);
@@ -127,26 +137,34 @@ export default function PresidencyManageOrganizationPage() {
   }, [organizationId, users]);
 
   const monthlyAttendanceStats = useMemo(() => {
-    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999);
-
+    const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-`;
     const attendanceInMonth = (attendance as any[]).filter((entry: any) => {
-      const weekDate = new Date(entry.weekStartDate);
-      return weekDate >= monthStart && weekDate <= monthEnd;
+      const key = typeof entry.weekKey === "string"
+        ? entry.weekKey
+        : String(entry.weekStartDate ?? "").slice(0, 10);
+      return key.startsWith(monthPrefix);
     });
 
     const present = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
     const capacity = attendanceInMonth.reduce((sum: number, entry: any) => sum + Math.max(0, Number(entry.totalMembers ?? organizationMembers.length)), 0);
-    const percent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
+    const attendancePercent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
+    const reportedWeeks = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10)))).size;
+    const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
+    const compliancePercent = elapsedWeeks > 0 ? Math.min(100, (reportedWeeks / elapsedWeeks) * 100) : 0;
 
-    return { present, capacity, percent };
-  }, [attendance, currentDate, organizationMembers.length]);
+    return { present, capacity, attendancePercent, reportedWeeks, elapsedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
+  }, [attendance, organizationMembers.length, selectedMonth, selectedYear, sundaysInMonth, todayIso]);
 
   useEffect(() => {
     const nextDrafts: Record<string, string[]> = {};
     sundaysInMonth.forEach((sunday) => {
-      const iso = sunday.toISOString().slice(0, 10);
-      const existing = (attendance as any[]).find((entry: any) => entry.weekStartDate?.slice(0, 10) === iso);
+      const iso = formatLocalDateKey(sunday);
+      const existing = (attendance as any[]).find((entry: any) => {
+        const key = typeof entry.weekKey === "string"
+          ? entry.weekKey
+          : String(entry.weekStartDate ?? "").slice(0, 10);
+        return key === iso;
+      });
       const ids = Array.isArray(existing?.attendeeMemberIds)
         ? existing.attendeeMemberIds.filter((id: unknown): id is string => typeof id === "string")
         : [];
@@ -165,7 +183,10 @@ export default function PresidencyManageOrganizationPage() {
     });
   };
 
+  const canEditWeek = (isoDate: string) => isoDate <= todayIso;
+
   const handleSaveAttendance = (isoDate: string) => {
+    if (!canEditWeek(isoDate)) return;
     if (!organizationId) return;
     const attendeeMemberIds = attendanceDrafts[isoDate] ?? [];
     upsertAttendanceMutation.mutate({
@@ -302,27 +323,42 @@ export default function PresidencyManageOrganizationPage() {
         <Card className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader>
             <CardTitle>Control de asistencia (domingo a domingo)</CardTitle>
-            <CardDescription>{new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</CardDescription>
+            <CardDescription>{selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
               <p className="text-sm">Asistencia mensual</p>
-              <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.percent)}%</p>
-              <Progress value={monthlyAttendanceStats.percent} className="mt-2 h-2" />
+              <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
+              <Progress value={monthlyAttendanceStats.attendancePercent} className="mt-2 h-2" />
               <p className="mt-1 text-xs text-muted-foreground">{monthlyAttendanceStats.present}/{monthlyAttendanceStats.capacity || 0} registros de presencia</p>
+            </div>
+
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+              <p className="text-sm">Cumplimiento semanal de registro</p>
+              <p className="text-xl font-semibold">{monthlyAttendanceStats.elapsedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas transcurridas</p>
+              <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
+              <Progress value={monthlyAttendanceStats.compliancePercent} className="mt-2 h-2" />
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input type="number" min={2020} max={2100} value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value) || new Date().getFullYear())} />
+              <Input type="number" min={1} max={12} value={selectedMonth + 1} onChange={(event) => {
+                const month = Number(event.target.value);
+                if (!Number.isNaN(month) && month >= 1 && month <= 12) setSelectedMonth(month - 1);
+              }} />
             </div>
 
             <div className="space-y-2">
               {sundaysInMonth.map((sunday) => {
-                const iso = sunday.toISOString().slice(0, 10);
+                const iso = formatLocalDateKey(sunday);
                 return (
                   <div key={iso} className="grid items-center gap-2 rounded-xl border border-border/70 bg-background/80 p-3 sm:grid-cols-[1fr_180px_100px]">
                     <p className="text-sm font-medium">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
-                    <Button variant="outline" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-management-${iso}`}>
+                    <Button variant="outline" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-management-${iso}`} disabled={!canEditWeek(iso)}>
                       {(attendanceDrafts[iso] ?? []).length}/{organizationMembers.length} asistentes
                     </Button>
-                    <Button variant="outline" onClick={() => handleSaveAttendance(iso)} data-testid={`button-save-attendance-management-${iso}`}>
-                      <Check className="mr-2 h-4 w-4" />Guardar
+                    <Button variant="outline" onClick={() => handleSaveAttendance(iso)} data-testid={`button-save-attendance-management-${iso}`} disabled={!canEditWeek(iso)}>
+                      <Check className="mr-2 h-4 w-4" />{canEditWeek(iso) ? "Guardar" : "Bloqueado"}
                     </Button>
                   </div>
                 );
