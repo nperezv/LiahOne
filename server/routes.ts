@@ -3321,6 +3321,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/organizations/:organizationId/members", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { organizationId } = req.params;
+
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      const isOrgMember = [
+        "presidente_organizacion",
+        "secretario_organizacion",
+        "consejero_organizacion",
+      ].includes(user.role);
+
+      if (!isObispado && !(isOrgMember && user.organizationId === organizationId)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const members = await storage.getAllMembers();
+      const organizationMembers = members.filter((member: any) => member.organizationId === organizationId);
+      res.json(organizationMembers);
+    } catch (error) {
+      console.error("Error fetching organization members:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/members", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;

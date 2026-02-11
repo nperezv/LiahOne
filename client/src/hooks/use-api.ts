@@ -97,6 +97,18 @@ export function useMembers(options?: { enabled?: boolean }) {
   });
 }
 
+export function useOrganizationMembers(organizationId?: string, options?: { enabled?: boolean }) {
+  return useQuery<DirectoryMember[]>({
+    queryKey: ["/api/organizations", organizationId, "members"],
+    enabled: options?.enabled ?? Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      return apiRequest("GET", `/api/organizations/${organizationId}/members`);
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
 export function useAllMemberCallings(options?: { enabled?: boolean }) {
   return useQuery<DirectoryMemberCallingWithMember[]>({
     queryKey: ["/api/member-callings"],
@@ -1206,10 +1218,15 @@ export function useUpdateWardBudget() {
 // ORGANIZATION BUDGETS
 // ========================================
 
-export function useOrganizationBudgets(organizationId: string) {
+export function useOrganizationBudgets(organizationId?: string) {
   return useQuery<any>({
     queryKey: ["/api/organization-budgets", organizationId],
-    ...REALTIME_QUERY_OPTIONS,    
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      return apiRequest("GET", `/api/organization-budgets/${organizationId}`);
+    },
+    ...REALTIME_QUERY_OPTIONS,
   });
 }
 

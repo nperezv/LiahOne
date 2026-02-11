@@ -124,6 +124,12 @@ export const budgetStatusEnum = pgEnum("budget_status", [
   "completado",
 ]);
 
+export const budgetCategoryEnum = pgEnum("budget_category", [
+  "actividades",
+  "materiales",
+  "otros",
+]);
+
 export const userDeletionRequestStatusEnum = pgEnum("user_deletion_request_status", [
   "pendiente",
   "aprobada",
@@ -403,6 +409,7 @@ export const budgetRequests = pgTable("budget_requests", {
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   description: text("description").notNull(),
   amount: integer("amount").notNull(),
+  category: budgetCategoryEnum("category").notNull().default("otros"),
   status: budgetStatusEnum("status").notNull().default("solicitado"),
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
