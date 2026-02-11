@@ -182,6 +182,8 @@ export async function sendNewUserCredentialsEmail(payload: {
   name: string;
   username: string;
   temporaryPassword: string;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -206,7 +208,11 @@ export async function sendNewUserCredentialsEmail(payload: {
     to: payload.toEmail,
     subject: "Credenciales de tu nueva cuenta",
     text: [
-      `Hola ${payload.name},`,
+      buildPastoralGreeting({
+        recipientName: payload.name,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+      }),
       "",
       "Tu cuenta ha sido creada. Usa estas credenciales para iniciar sesión:",
       `Usuario: ${payload.username}`,
@@ -218,6 +224,21 @@ export async function sendNewUserCredentialsEmail(payload: {
 }
 
 type RecipientGender = "male" | "female" | "unknown";
+
+const normalizeRecipientName = (value?: string | null) => {
+  if (!value) return "";
+  const cleaned = value.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+
+  if (cleaned.includes(",")) {
+    const [surnamePart, namePart] = cleaned.split(",").map((part) => part.trim());
+    if (namePart && surnamePart) {
+      return `${namePart} ${surnamePart}`.trim();
+    }
+  }
+
+  return cleaned;
+};
 
 const formatInterviewType = (type?: string | null) => {
   if (!type) return "";
@@ -263,11 +284,26 @@ const getRecipientSalutation = (sex?: string | null, organizationType?: string |
   return "apreciado hermano";
 };
 
+const buildPastoralGreeting = (options: {
+  recipientName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+  timeLabel?: string;
+}) => {
+  const greeting = getTimeGreeting(options.timeLabel);
+  const salutation = getRecipientSalutation(options.recipientSex, options.recipientOrganizationType);
+  const normalizedName = normalizeRecipientName(options.recipientName);
+  const prefix = [greeting, salutation].filter(Boolean).join(" ");
+  return normalizedName
+    ? `${prefix} ${normalizedName},`
+    : `${prefix},`;
+};
+
 const getTimeGreeting = (timeLabel?: string) => {
-  if (!timeLabel) return "Estimado(a)";
+  if (!timeLabel) return "";
   const hourMatch = timeLabel.match(/(\d{1,2})/);
   const hour = hourMatch ? Number(hourMatch[1]) : null;
-  if (hour === null) return "Estimado(a)";
+  if (hour === null) return "";
   if (hour < 12) return "Buenos días";
   if (hour < 19) return "Buenas tardes";
   return "Buenas noches";
@@ -335,8 +371,6 @@ export async function sendInterviewScheduledEmail(payload: {
   const notesLine = payload.notes?.trim()
     ? `Notas adicionales: ${payload.notes.trim()}`
     : null;
-  const greeting = getTimeGreeting(payload.interviewTime);
-  const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
   const secretaryName = payload.secretaryName?.trim();
   const rescheduleLine = secretaryName
     ? `Si necesitas reprogramar, comunícate con el secretario ${secretaryName}.`
@@ -351,7 +385,12 @@ export async function sendInterviewScheduledEmail(payload: {
     to: payload.toEmail,
     subject: "Entrevista programada",
     text: [
-      `${greeting} ${salutation} ${payload.recipientName},`,
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.interviewTime,
+      }),
       "",
       `Se ha programado una entrevista con ${interviewerLine}.`,
       `Fecha: ${payload.interviewDate}`,
@@ -381,6 +420,8 @@ export async function sendInterviewUpdatedEmail(payload: {
   wardName?: string | null;
   changeLines: string[];
   secretaryName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
 }) {
   const smtp = createSmtpTransport();
   if (!smtp) {
@@ -401,7 +442,12 @@ export async function sendInterviewUpdatedEmail(payload: {
     to: payload.toEmail,
     subject: "Actualización de tu entrevista",
     text: [
-      `Querido(a) hermano(a) ${payload.recipientName},`,
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.interviewTime,
+      }),
       "",
       "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
       ...changeLines,
@@ -425,6 +471,8 @@ export async function sendInterviewCancelledEmail(payload: {
   interviewDate: string;
   interviewTime: string;
   wardName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
 }) {
   const smtp = createSmtpTransport();
   if (!smtp) {
@@ -437,7 +485,12 @@ export async function sendInterviewCancelledEmail(payload: {
     to: payload.toEmail,
     subject: "Aviso de cancelación de entrevista",
     text: [
-      `Querido(a) hermano(a) ${payload.recipientName},`,
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.interviewTime,
+      }),
       "",
       "Con cariño te informamos que la entrevista programada ha sido cancelada por ahora.",
       `Fecha original: ${payload.interviewDate}`,
@@ -459,6 +512,8 @@ export async function sendSacramentalAssignmentEmail(payload: {
   assignmentLines: string[];
   wardName?: string | null;
   isUpdate?: boolean;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
 }) {
   const smtp = createSmtpTransport();
   if (!smtp) {
@@ -475,7 +530,12 @@ export async function sendSacramentalAssignmentEmail(payload: {
     to: payload.toEmail,
     subject,
     text: [
-      `Querido(a) hermano(a) ${payload.recipientName},`,
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.meetingTime,
+      }),
       "",
       payload.isUpdate
         ? "Con cariño te compartimos una actualización de tu participación:"
@@ -498,6 +558,9 @@ export async function sendBirthdayGreetingEmail(payload: {
   name: string;
   age?: number | null;
   message?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+  wardName?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -521,19 +584,24 @@ export async function sendBirthdayGreetingEmail(payload: {
   const messageLine = payload.message?.trim()
     ? payload.message.trim()
     : "Que tengas un día lleno de alegría y bendiciones.";
+  const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
+  const normalizedName = normalizeRecipientName(payload.name);
+  const headerLine = normalizedName
+    ? `${salutation.charAt(0).toUpperCase()}${salutation.slice(1)} ${normalizedName},`
+    : `${salutation.charAt(0).toUpperCase()}${salutation.slice(1)},`;
 
   await transporter.sendMail({
     from,
     to: payload.toEmail,
     subject: "¡Feliz cumpleaños!",
     text: [
-      `Hola ${payload.name},`,
+      headerLine,
       "",
       ageLine,
       messageLine,
       "",
       "Con cariño,",
-      "Tu barrio",
+      payload.wardName?.trim() || "Tu barrio",
     ].join("\n"),
   });
 }
