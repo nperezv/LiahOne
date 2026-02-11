@@ -91,7 +91,6 @@ function CircularGauge({
 
   const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
 
-  const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
 
   return (
     <div className="relative mx-auto flex w-full max-w-[220px] items-center justify-center" data-testid={`gauge-${gradientId}`}>
