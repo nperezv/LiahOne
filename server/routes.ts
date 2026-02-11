@@ -13,6 +13,7 @@ import {
   insertSacramentalMeetingSchema,
   insertWardCouncilSchema,
   insertPresidencyMeetingSchema,
+  insertPresidencyResourceSchema,
   insertBudgetRequestSchema,
   insertInterviewSchema,
   insertOrganizationInterviewSchema,
@@ -140,6 +141,13 @@ const OBISPADO_ROLES = new Set([
   "secretario",
   "secretario_ejecutivo",
   "secretario_financiero",
+]);
+
+const RESOURCES_LIBRARY_ADMIN_ROLES = new Set([
+  "obispo",
+  "consejero_obispo",
+  "secretario",
+  "secretario_ejecutivo",
 ]);
 
 const normalizeSexValue = (value?: string | null) => {
@@ -1783,6 +1791,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       await storage.deletePresidencyMeeting(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+
+  // ========================================
+  // PRESIDENCY RESOURCES LIBRARY
+  // ========================================
+
+  app.get("/api/presidency-resources", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const requestedOrganizationId = typeof req.query.organizationId === "string" ? req.query.organizationId : undefined;
+      const category = z.enum(["manuales", "plantillas", "capacitacion"]).optional().parse(
+        typeof req.query.category === "string" ? req.query.category : undefined
+      );
+      const isOrgRole = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(user.role);
+
+      if (isOrgRole) {
+        const organizationId = user.organizationId;
+        if (!organizationId) {
+          return res.json([]);
+        }
+
+        const resources = await storage.getPresidencyResources({ organizationId, category });
+        return res.json(resources);
+      }
+
+      if (requestedOrganizationId) {
+        const resources = await storage.getPresidencyResources({ organizationId: requestedOrganizationId, category });
+        return res.json(resources);
+      }
+
+      const resources = await storage.getPresidencyResources({ category });
+      res.json(resources);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/presidency-resources", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!RESOURCES_LIBRARY_ADMIN_ROLES.has(user.role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const payload = insertPresidencyResourceSchema
+        .pick({
+          placeholderName: true,
+          description: true,
+          fileName: true,
+          fileUrl: true,
+          category: true,
+          resourceType: true,
+          organizationId: true,
+        })
+        .extend({
+          organizationId: z.string().uuid().optional().nullable(),
+        })
+        .parse(req.body);
+
+      const resource = await storage.createPresidencyResource({
+        ...payload,
+        title: payload.placeholderName,
+        organizationId: payload.organizationId ?? null,
+        createdBy: req.session.userId!,
+      });
+
+      res.status(201).json(resource);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/presidency-resources/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!RESOURCES_LIBRARY_ADMIN_ROLES.has(user.role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const resource = await storage.getPresidencyResource(req.params.id);
+      if (!resource) {
+        return res.status(404).json({ error: "Resource not found" });
+      }
+
+      await storage.deletePresidencyResource(req.params.id);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
