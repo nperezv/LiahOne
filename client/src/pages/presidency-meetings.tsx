@@ -257,6 +257,11 @@ export default function PresidencyMeetingsPage() {
     organizationId,
     category: selectedResourcesCategory,
   });
+
+  const strictSectionResources = useMemo(
+    () => sectionResources.filter((resource: any) => resource.category === selectedResourcesCategory),
+    [sectionResources, selectedResourcesCategory]
+  );
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const createBudgetRequestMutation = useCreateBudgetRequest();
@@ -1091,10 +1096,10 @@ export default function PresidencyMeetingsPage() {
           <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
             {isLoadingSectionResources ? (
               <p className="text-sm text-muted-foreground">Cargando recursos...</p>
-            ) : sectionResources.length === 0 ? (
+            ) : strictSectionResources.length === 0 ? (
               <p className="text-sm text-muted-foreground">No hay recursos disponibles en esta sección.</p>
             ) : (
-              sectionResources.map((resource: any) => (
+              strictSectionResources.map((resource: any) => (
                 <div key={resource.id} className="rounded-xl border border-border/70 bg-background/80 p-4">
                   <p className="text-sm font-semibold">{resource.placeholderName || resource.title}</p>
                   {resource.description ? (
