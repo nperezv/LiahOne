@@ -318,6 +318,90 @@ const formatDateTimeLabels = (value: string | Date) => {
   return { dateLabel, timeLabel };
 };
 
+const parseMeetingDateParts = (value: string | Date) => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return {
+        year: Number(match[1]),
+        month: Number(match[2]),
+        day: Number(match[3]),
+      };
+    }
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+};
+
+const parseTimeParts = (value?: string | null) => {
+  const trimmed = value?.trim() || "";
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return { hours, minutes };
+};
+
+const formatMeetingLabels = (
+  dateValue: string | Date,
+  configuredTime?: string | null
+) => {
+  const parsedDate = parseMeetingDateParts(dateValue);
+  if (!parsedDate) {
+    return formatDateTimeLabels(dateValue);
+  }
+
+  const calendarDate = new Date(
+    Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day)
+  );
+  const dateLabel = calendarDate.toLocaleDateString("es-ES", {
+    year: "numeric",
+    month: "long",
+    day: "2-digit",
+    timeZone: "UTC",
+  });
+
+  const configured = parseTimeParts(configuredTime);
+  if (configured) {
+    return {
+      dateLabel,
+      timeLabel: `${String(configured.hours).padStart(2, "0")}:${String(
+        configured.minutes
+      ).padStart(2, "0")}`,
+    };
+  }
+
+  if (typeof dateValue === "string") {
+    const dateTimeMatch = dateValue.trim().match(/T(\d{2}):(\d{2})/);
+    if (dateTimeMatch) {
+      return { dateLabel, timeLabel: `${dateTimeMatch[1]}:${dateTimeMatch[2]}` };
+    }
+  }
+
+  return { dateLabel, timeLabel: "" };
+};
+
+const extractParticipantName = (value?: string | null) => {
+  const normalized = normalizeMemberName(value);
+  if (!normalized) return "";
+
+  if (normalized.includes("|")) {
+    return normalized.split("|")[0]?.trim() || "";
+  }
+
+  return normalized;
+};
+
 const normalizeComparableName = (value?: string | null) =>
   normalizeMemberName(value)
     .normalize("NFD")
@@ -334,12 +418,12 @@ const buildSacramentalRoleLines = (meeting: any) => {
     map.get(normalized)!.push(line);
   };
 
-  pushLine(meeting.openingPrayer, "Oración de apertura");
-  pushLine(meeting.closingPrayer, "Oración de clausura");
+  pushLine(extractParticipantName(meeting.openingPrayer), "Oración de apertura");
+  pushLine(extractParticipantName(meeting.closingPrayer), "Oración de clausura");
 
   const discourses = Array.isArray(meeting.discourses) ? meeting.discourses : [];
   discourses.forEach((item: any) => {
-    const speaker = typeof item?.speaker === "string" ? item.speaker : "";
+    const speaker = extractParticipantName(item?.speaker);
     const topic = typeof item?.topic === "string" ? item.topic.trim() : "";
     const line = topic ? `Discurso: ${topic}` : "Discurso";
     pushLine(speaker, line);
@@ -347,7 +431,7 @@ const buildSacramentalRoleLines = (meeting: any) => {
 
   const assignments = Array.isArray(meeting.assignments) ? meeting.assignments : [];
   assignments.forEach((item: any) => {
-    const name = typeof item?.name === "string" ? item.name : "";
+    const name = extractParticipantName(item?.name);
     const assignment = typeof item?.assignment === "string" ? item.assignment.trim() : "";
     if (!assignment) return;
     pushLine(name, `Asignación: ${assignment}`);
@@ -1530,6 +1614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const members = await storage.getAllMembers();
     const template = await storage.getPdfTemplate();
     const wardName = template?.wardName;
+    const sacramentMeetingTime = template?.sacramentMeetingTime;
     const rolesByName = buildSacramentalRoleLines(meeting);
     const previousRolesByName = options?.previousMeeting
       ? buildSacramentalRoleLines(options.previousMeeting)
@@ -1537,10 +1622,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const roleEntries = Array.from(rolesByName.entries());
     for (const [normalizedName, lines] of roleEntries) {
-      const member = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
       const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName);
-      const toEmail = matchedUser?.email || member?.email;
-      const recipientName = normalizeMemberName(matchedUser?.name || member?.nameSurename || normalizedName);
+      const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
+      const matchedUserEmail = matchedUser?.email?.toLowerCase();
+      const memberByUserEmail = matchedUserEmail
+        ? members.find((m) => (m.email || "").toLowerCase() === matchedUserEmail)
+        : undefined;
+      const member = memberByName || memberByUserEmail;
+
+      const toEmail = member?.email || matchedUser?.email;
+      const recipientName = normalizeMemberName(member?.nameSurename || matchedUser?.name || normalizedName);
 
       if (!toEmail) continue;
 
@@ -1554,7 +1645,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const { dateLabel, timeLabel } = formatDateTimeLabels(meeting.date);
+      const { dateLabel, timeLabel } = formatMeetingLabels(
+        meeting.date,
+        sacramentMeetingTime
+      );
       await sendSacramentalAssignmentEmail({
         toEmail,
         recipientName,
