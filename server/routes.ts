@@ -1070,6 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: normalizedName,
         username: derivedUsername,
         temporaryPassword,
+        recipientSex: memberForCalling?.sex,
       });
 
       const { password: _, ...userWithoutPassword } = user;
@@ -1562,6 +1563,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assignmentLines: lines,
         wardName,
         isUpdate: Boolean(previousRolesByName),
+        recipientSex: member?.sex,
+        recipientOrganizationType: member?.organizationId
+          ? (await storage.getOrganization(member.organizationId))?.type
+          : undefined,
       });
     }
   };
@@ -2297,7 +2302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (assignedUser?.email) {
         recipients.push({
           email: assignedUser.email,
-          name: assignedUser.name,
+          name: normalizeMemberName(assignedUser.name),
         });
       }
 
@@ -2554,15 +2559,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName;
 
-      const interviewRecipients: Array<{ email: string; name: string }> = [];
-      let intervieweeRecipient: { email: string; name: string } | null = null;
+      const interviewRecipients: Array<{
+        email: string;
+        name: string;
+        sex?: string;
+        organizationType?: string;
+      }> = [];
+      let intervieweeRecipient: {
+        email: string;
+        name: string;
+        sex?: string;
+        organizationType?: string;
+      } | null = null;
       const member = interview.memberId ? await storage.getMemberById(interview.memberId) : null;
+      const memberOrganization = member?.organizationId
+        ? await storage.getOrganization(member.organizationId)
+        : null;
       const normalizedPersonName = normalizeComparableName(interview.personName);
       const personUser = (await storage.getAllUsers()).find((u) => normalizeComparableName(u.name) === normalizedPersonName);
       if (member?.email) {
         intervieweeRecipient = {
           email: member.email,
           name: normalizeMemberName(member.nameSurename),
+          sex: member.sex,
+          organizationType: memberOrganization?.type,
         };
         interviewRecipients.push(intervieweeRecipient);
       } else if (personUser?.email) {
@@ -2606,6 +2626,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             interviewDate: currentDateLabel,
             interviewTime: currentTimeLabel,
             wardName,
+            recipientSex: recipient.sex,
+            recipientOrganizationType: recipient.organizationType,
           });
           continue;
         }
@@ -2619,6 +2641,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             interviewerName: normalizeMemberName(currentInterviewer?.name || ""),
             wardName,
             changeLines,
+            recipientSex: recipient.sex,
+            recipientOrganizationType: recipient.organizationType,
           });
         }
       }
@@ -5150,20 +5174,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const todayBirthdays = await storage.getTodayBirthdays();
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
       if (todayBirthdays.length === 0) {
         lastBirthdayEmailDate = todayKey;
         console.log("[Birthday Emails] No birthdays today");
         return;
       }
 
+      const members = await storage.getAllMembers();
+
       let emailsSent = 0;
       for (const birthday of todayBirthdays) {
         if (!birthday.email) continue;
+        const normalizedBirthdayName = normalizeComparableName(birthday.name);
+        const matchedMember = members.find((member) =>
+          (birthday.email && member.email && member.email.toLowerCase() === birthday.email.toLowerCase()) ||
+          normalizeComparableName(member.nameSurename) === normalizedBirthdayName
+        );
+        const organization = matchedMember?.organizationId
+          ? await storage.getOrganization(matchedMember.organizationId)
+          : null;
         const age = new Date().getFullYear() - new Date(birthday.birthDate).getFullYear();
         await sendBirthdayGreetingEmail({
           toEmail: birthday.email,
-          name: birthday.name,
+          name: normalizeMemberName(birthday.name),
           age,
+          recipientSex: matchedMember?.sex,
+          recipientOrganizationType: organization?.type,
+          wardName,
         });
         emailsSent += 1;
       }
