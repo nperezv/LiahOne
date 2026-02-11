@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,6 +7,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useOrganizations, useOrganizationAttendance, useUpsertOrganizationAttendance } from "@/hooks/use-api";
 
 const attendanceSchema = z.object({
@@ -21,6 +22,9 @@ export default function SecretaryDashboardPage() {
   const { data: organizations = [] } = useOrganizations();
   const { data: attendance = [] } = useOrganizationAttendance();
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
+  const [selectedOrg, setSelectedOrg] = useState<string>("all");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const form = useForm<AttendanceFormValues>({
     resolver: zodResolver(attendanceSchema),
@@ -39,6 +43,24 @@ export default function SecretaryDashboardPage() {
     });
     return map;
   }, [attendance]);
+
+
+  const weeklyRecords = useMemo(() => {
+    return attendance
+      .filter((entry: any) => selectedOrg === "all" || entry.organizationId === selectedOrg)
+      .filter((entry: any) => {
+        const d = new Date(entry.weekStartDate);
+        return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+      })
+      .sort((a: any, b: any) => new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime());
+  }, [attendance, selectedMonth, selectedOrg, selectedYear]);
+
+  const monthlySummary = useMemo(() => {
+    const present = weeklyRecords.reduce((acc: number, row: any) => acc + Number(row.attendeesCount ?? 0), 0);
+    const capacity = weeklyRecords.reduce((acc: number, row: any) => acc + Math.max(0, Number(row.totalMembers ?? 0)), 0);
+    const percent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
+    return { present, capacity, percent };
+  }, [weeklyRecords]);
 
   const onSubmit = (values: AttendanceFormValues) => {
     upsertAttendanceMutation.mutate(values, {
@@ -139,6 +161,63 @@ export default function SecretaryDashboardPage() {
             ))}
         </CardContent>
       </Card>
+
+      <Card className="rounded-3xl">
+        <CardHeader>
+          <CardTitle>Asistencia semanal para Secretaría</CardTitle>
+          <CardDescription>Histórico por domingo de cada mes</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">Organización</p>
+              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+                <SelectTrigger data-testid="secretary-filter-organization"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {organizations.filter((org: any) => org.type !== "obispado").map((org: any) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">Mes</p>
+              <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                <SelectTrigger data-testid="secretary-filter-month"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }).map((_, index) => (
+                    <SelectItem key={index} value={String(index)}>{new Date(2024, index, 1).toLocaleDateString("es-ES", { month: "long" })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">Año</p>
+              <Input type="number" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value) || new Date().getFullYear())} data-testid="secretary-filter-year" />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
+            <p>
+              Resumen del mes: <span className="font-semibold">{monthlySummary.present}/{monthlySummary.capacity || 0}</span> · {Math.round(monthlySummary.percent)}%
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {weeklyRecords.length > 0 ? weeklyRecords.map((entry: any) => (
+              <div key={entry.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-xl border border-border/70 px-3 py-2">
+                <span className="text-sm font-medium">{new Date(entry.weekStartDate).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</span>
+                <span className="text-sm">{Number(entry.attendeesCount ?? 0)}/{Number(entry.totalMembers ?? 0)}</span>
+                <Badge variant="secondary">{Math.round((Number(entry.totalMembers ?? 0) > 0 ? (Number(entry.attendeesCount ?? 0) / Number(entry.totalMembers)) * 100 : 0))}%</Badge>
+              </div>
+            )) : (
+              <p className="text-sm text-muted-foreground">No hay asistencias registradas para este período.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

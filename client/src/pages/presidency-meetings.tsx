@@ -18,7 +18,6 @@ import {
   Users,
   Phone,
   Mail,
-  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
 import {
   usePresidencyMeetings,
@@ -47,7 +47,6 @@ import {
   useActivities,
   useGoals,
   useOrganizationAttendanceByOrg,
-  useUpsertOrganizationAttendance,
   usePresidencyResources,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -233,14 +232,12 @@ export default function PresidencyMeetingsPage() {
   const [, params] = useRoute("/presidency/:org");
   const [, setLocation] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isOperationsModalOpen, setIsOperationsModalOpen] = useState(false);
   const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
   const [isBudgetMovementsDialogOpen, setIsBudgetMovementsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false);
   const [selectedResourcesCategory, setSelectedResourcesCategory] = useState<"manuales" | "plantillas" | "capacitacion">("manuales");
   const [organizationId, setOrganizationId] = useState<string | undefined>();
-  const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
   const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
   const goalDragStartX = React.useRef<number | null>(null);
@@ -265,7 +262,6 @@ export default function PresidencyMeetingsPage() {
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const createBudgetRequestMutation = useCreateBudgetRequest();
-  const upsertAttendanceMutation = useUpsertOrganizationAttendance();
   const { toast } = useToast();
 
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
@@ -375,8 +371,10 @@ export default function PresidencyMeetingsPage() {
     });
 
     const totalAttendanceInMonth = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
-    const attendanceCapacity = Math.max(1, organizationMembers.length * weeksInMonth);
+    const totalMembersBase = attendanceInMonth.reduce((sum: number, entry: any) => sum + Math.max(0, Number(entry.totalMembers ?? 0)), 0);
+    const attendanceCapacity = Math.max(1, totalMembersBase || (organizationMembers.length * weeksInMonth));
     const monthlyAttendancePercent = Math.min(100, (totalAttendanceInMonth / attendanceCapacity) * 100);
+    const monthMeetingProgress = Math.min(100, (monthMeetings / Math.max(1, weeksInMonth)) * 100);
 
     const byCategory = approvedRequests.reduce(
       (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
@@ -430,6 +428,7 @@ export default function PresidencyMeetingsPage() {
       monthMeetings,
       weeksInMonth,
       monthlyAttendancePercent,
+      monthMeetingProgress,
       latestMeeting,
       budgetSlides,
     };
@@ -441,16 +440,6 @@ export default function PresidencyMeetingsPage() {
       setGoalSlideIndex(maxGoalSlide);
     }
   }, [dashboardStats.goalsWithPercentage.length, goalSlideIndex]);
-
-  useEffect(() => {
-    const nextDrafts: Record<string, number> = {};
-    sundaysInMonth.forEach((sunday) => {
-      const iso = sunday.toISOString().slice(0, 10);
-      const existing = (attendance as any[]).find((entry: any) => entry.weekStartDate?.slice(0, 10) === iso);
-      nextDrafts[iso] = Number(existing?.attendeesCount ?? 0);
-    });
-    setAttendanceDrafts(nextDrafts);
-  }, [attendance, sundaysInMonth]);
 
   const handleExportMeetingPDF = (meeting: any) => {
     const meetingDate = new Date(meeting.date).toLocaleDateString("es-ES", {
@@ -550,15 +539,6 @@ export default function PresidencyMeetingsPage() {
     } catch {
       toast({ title: "Error", description: "No se pudo eliminar la reunión", variant: "destructive" });
     }
-  };
-
-  const handleSaveAttendance = (isoDate: string) => {
-    if (!organizationId) return;
-    upsertAttendanceMutation.mutate({
-      organizationId,
-      weekStartDate: isoDate,
-      attendeesCount: Number(attendanceDrafts[isoDate] ?? 0),
-    });
   };
 
   const onSubmitBudgetRequest = async (values: BudgetRequestFormValues) => {
@@ -668,6 +648,9 @@ export default function PresidencyMeetingsPage() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 18 }}>
         <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{pageTitle}</h1>
+        <div className="mt-3">
+          <Button className="rounded-full" onClick={() => setLocation(`/presidency/${params?.org ?? ""}/manage`)} data-testid="button-manage-organization">Gestionar Organización</Button>
+        </div>
       </motion.div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -765,16 +748,17 @@ export default function PresidencyMeetingsPage() {
 
         <button
           type="button"
-          onClick={() => setIsOperationsModalOpen(true)}
+          onClick={() => setLocation(`/presidency/${params?.org ?? ""}/manage`)}
           className="col-span-1 flex min-h-[220px] flex-col justify-between rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
           data-testid="button-presidency-meetings-overview"
         >
           <div>
             <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
             <p className="mt-2 text-2xl font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</p>
+            <Progress value={dashboardStats.monthMeetingProgress} className="mt-2 h-2" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Asistencia reunión sacramental</p>
+            <p className="text-xs text-muted-foreground">Asistencia a clases</p>
             <p className="mt-1 text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
           </div>
         </button>
@@ -880,45 +864,6 @@ export default function PresidencyMeetingsPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={isOperationsModalOpen} onOpenChange={setIsOperationsModalOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Gestión de reuniones y asistencia</DialogTitle>
-            <DialogDescription>Domingos del mes, cumplimiento y programación</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="rounded-2xl bg-muted/30 p-3 text-sm">
-              <p>
-                Cumplimiento del mes: <span className="font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</span>
-              </p>
-            </div>
-            {sundaysInMonth.map((sunday) => {
-              const iso = sunday.toISOString().slice(0, 10);
-              return (
-                <div key={iso} className="grid items-center gap-2 rounded-xl border border-border/70 bg-background/80 p-3 sm:grid-cols-[1fr_120px_100px]">
-                  <p className="text-sm font-medium">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={attendanceDrafts[iso] ?? 0}
-                    onChange={(event) => setAttendanceDrafts((prev) => ({ ...prev, [iso]: Number(event.target.value) }))}
-                    data-testid={`input-attendance-${iso}`}
-                  />
-                  <Button variant="outline" onClick={() => handleSaveAttendance(iso)} data-testid={`button-save-attendance-${iso}`}>
-                    <Check className="mr-2 h-4 w-4" />Guardar
-                  </Button>
-                </div>
-              );
-            })}
-            {canCreate && (
-              <Button className="w-full" onClick={() => setIsDialogOpen(true)} data-testid="button-schedule-meeting-from-operations">
-                <Plus className="mr-2 h-4 w-4" />Programar reunión
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isBudgetMovementsDialogOpen} onOpenChange={setIsBudgetMovementsDialogOpen}>
         <DialogContent className="max-w-2xl">
