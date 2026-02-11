@@ -258,8 +258,8 @@ export default function PresidencyManageOrganizationPage() {
     <div className="space-y-6 p-4 md:p-6 xl:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-muted-foreground">Presidencia de {orgName}</p>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Gestionar Organización</h1>
+          <p className="text-sm text-muted-foreground">Gestión de {orgName}</p>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{orgName}</h1>
         </div>
         <Button variant="outline" className="rounded-full" onClick={() => setLocation(`/presidency/${params?.org ?? ""}`)} data-testid="button-back-presidency-panel">
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
@@ -331,13 +331,13 @@ export default function PresidencyManageOrganizationPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
           <CardHeader>
-            <CardTitle>Control de asistencia (domingo a domingo)</CardTitle>
+            <CardTitle>Registro de asistencia</CardTitle>
             <CardDescription>{selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+            <div className="rounded-2xl border border-border/70 bg-background/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
               <p className="text-sm">Asistencia mensual</p>
               <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
               <Progress value={monthlyAttendanceStats.attendancePercent} className="mt-2 h-2" />
@@ -345,7 +345,7 @@ export default function PresidencyManageOrganizationPage() {
               <p className="text-xs text-muted-foreground">Total acumulado del mes: {monthlyAttendanceStats.present}</p>
             </div>
 
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+            <div className="rounded-2xl border border-border/70 bg-background/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
               <p className="text-sm">Cumplimiento semanal de registro</p>
               <p className="text-xl font-semibold">{monthlyAttendanceStats.elapsedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas transcurridas</p>
               <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedElapsedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
@@ -354,8 +354,8 @@ export default function PresidencyManageOrganizationPage() {
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <Input type="number" min={2020} max={2100} value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value) || new Date().getFullYear())} />
-              <Input type="number" min={1} max={12} value={selectedMonth + 1} onChange={(event) => {
+              <Input className="rounded-xl border-border/70 bg-background/80" type="number" min={2020} max={2100} value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value) || new Date().getFullYear())} />
+              <Input className="rounded-xl border-border/70 bg-background/80" type="number" min={1} max={12} value={selectedMonth + 1} onChange={(event) => {
                 const month = Number(event.target.value);
                 if (!Number.isNaN(month) && month >= 1 && month <= 12) setSelectedMonth(month - 1);
               }} />
@@ -364,14 +364,18 @@ export default function PresidencyManageOrganizationPage() {
             <div className="space-y-2">
               {sundaysInMonth.map((sunday) => {
                 const iso = formatLocalDateKey(sunday);
+                const isEditable = canEditWeek(iso);
                 return (
-                  <div key={iso} className="grid items-center gap-2 rounded-xl border border-border/70 bg-background/80 p-3 sm:grid-cols-[1fr_180px_100px]">
-                    <p className="text-sm font-medium">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
-                    <Button variant="outline" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-management-${iso}`} disabled={!canEditWeek(iso)}>
+                  <div key={iso} className={`grid items-center gap-2 rounded-2xl border border-border/70 bg-background/70 p-3 transition-opacity sm:grid-cols-[1fr_190px] ${isEditable ? "" : "opacity-50"}`}>
+                    <p className="text-sm font-medium capitalize">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl border-border/70 bg-background/80"
+                      onClick={() => setAttendanceEditorDate(iso)}
+                      data-testid={`button-edit-attendance-management-${iso}`}
+                      disabled={!isEditable}
+                    >
                       {(attendanceDrafts[iso] ?? []).length}/{organizationMembers.length} asistentes
-                    </Button>
-                    <Button variant="outline" onClick={() => handleSaveAttendance(iso)} data-testid={`button-save-attendance-management-${iso}`} disabled={!canEditWeek(iso)}>
-                      <Check className="mr-2 h-4 w-4" />{canEditWeek(iso) ? "Guardar" : "Bloqueado"}
                     </Button>
                   </div>
                 );
