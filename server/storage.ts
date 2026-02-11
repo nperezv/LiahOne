@@ -23,6 +23,7 @@ import {
   wardBudgets,
   organizationBudgets,
   organizationWeeklyAttendance,
+  organizationAttendanceMonthlySnapshots,
   notifications,
   pushSubscriptions,
   userDevices,
@@ -70,6 +71,8 @@ import {
   type InsertOrganizationBudget,
   type OrganizationWeeklyAttendance,
   type InsertOrganizationWeeklyAttendance,
+  type OrganizationAttendanceMonthlySnapshot,
+  type InsertOrganizationAttendanceMonthlySnapshot,
   type Notification,
   type InsertNotification,
   type PushSubscription,
@@ -265,6 +268,8 @@ export interface IStorage {
   getAllOrganizationWeeklyAttendance(): Promise<OrganizationWeeklyAttendance[]>;
   getOrganizationWeeklyAttendance(organizationId: string): Promise<OrganizationWeeklyAttendance[]>;
   upsertOrganizationWeeklyAttendance(data: InsertOrganizationWeeklyAttendance): Promise<OrganizationWeeklyAttendance>;
+  getOrganizationAttendanceMonthlySnapshots(organizationId: string, year?: number): Promise<OrganizationAttendanceMonthlySnapshot[]>;
+  upsertOrganizationAttendanceMonthlySnapshot(data: InsertOrganizationAttendanceMonthlySnapshot): Promise<OrganizationAttendanceMonthlySnapshot>;
 
   // Notifications
   getNotificationsByUser(userId: string): Promise<Notification[]>;
@@ -1262,7 +1267,7 @@ export class DatabaseStorage implements IStorage {
   // ========================================
 
   async getAllOrganizationWeeklyAttendance(): Promise<OrganizationWeeklyAttendance[]> {
-    return await db.select().from(organizationWeeklyAttendance).orderBy(desc(organizationWeeklyAttendance.weekStartDate));
+    return await db.select().from(organizationWeeklyAttendance).orderBy(desc(organizationWeeklyAttendance.weekKey));
   }
 
   async getOrganizationWeeklyAttendance(organizationId: string): Promise<OrganizationWeeklyAttendance[]> {
@@ -1270,7 +1275,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(organizationWeeklyAttendance)
       .where(eq(organizationWeeklyAttendance.organizationId, organizationId))
-      .orderBy(desc(organizationWeeklyAttendance.weekStartDate));
+      .orderBy(desc(organizationWeeklyAttendance.weekKey));
   }
 
   async upsertOrganizationWeeklyAttendance(data: InsertOrganizationWeeklyAttendance): Promise<OrganizationWeeklyAttendance> {
@@ -1280,7 +1285,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(organizationWeeklyAttendance.organizationId, data.organizationId),
-          eq(organizationWeeklyAttendance.weekStartDate, data.weekStartDate as any)
+          eq(organizationWeeklyAttendance.weekKey, data.weekKey)
         )
       )
       .limit(1);
@@ -1289,6 +1294,8 @@ export class DatabaseStorage implements IStorage {
       const [updated] = await db
         .update(organizationWeeklyAttendance)
         .set({
+          weekStartDate: data.weekStartDate,
+          weekKey: data.weekKey,
           attendeesCount: data.attendeesCount,
           attendeeMemberIds: (data.attendeeMemberIds as string[] | undefined) ?? [],
           totalMembers: data.totalMembers ?? 0,
@@ -1305,6 +1312,48 @@ export class DatabaseStorage implements IStorage {
       attendeeMemberIds: (data.attendeeMemberIds as string[] | undefined) ?? [],
       totalMembers: data.totalMembers ?? 0,
     }).returning();
+    return created;
+  }
+
+  async getOrganizationAttendanceMonthlySnapshots(organizationId: string, year?: number): Promise<OrganizationAttendanceMonthlySnapshot[]> {
+    const conditions: SQLWrapper[] = [eq(organizationAttendanceMonthlySnapshots.organizationId, organizationId)];
+    if (typeof year === "number") {
+      conditions.push(eq(organizationAttendanceMonthlySnapshots.year, year));
+    }
+
+    return await db
+      .select()
+      .from(organizationAttendanceMonthlySnapshots)
+      .where(and(...conditions))
+      .orderBy(desc(organizationAttendanceMonthlySnapshots.year), desc(organizationAttendanceMonthlySnapshots.month));
+  }
+
+  async upsertOrganizationAttendanceMonthlySnapshot(data: InsertOrganizationAttendanceMonthlySnapshot): Promise<OrganizationAttendanceMonthlySnapshot> {
+    const [existing] = await db
+      .select()
+      .from(organizationAttendanceMonthlySnapshots)
+      .where(
+        and(
+          eq(organizationAttendanceMonthlySnapshots.organizationId, data.organizationId),
+          eq(organizationAttendanceMonthlySnapshots.year, data.year),
+          eq(organizationAttendanceMonthlySnapshots.month, data.month)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      const [updated] = await db
+        .update(organizationAttendanceMonthlySnapshots)
+        .set({
+          ...data,
+          updatedAt: new Date(),
+        })
+        .where(eq(organizationAttendanceMonthlySnapshots.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db.insert(organizationAttendanceMonthlySnapshots).values(data).returning();
     return created;
   }
 

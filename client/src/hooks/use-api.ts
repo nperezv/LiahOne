@@ -1395,6 +1395,20 @@ export function useOrganizationAttendanceByOrg(organizationId?: string) {
   });
 }
 
+
+export function useOrganizationAttendanceSnapshots(organizationId?: string, year?: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/organization-attendance-snapshots", organizationId, year],
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const query = typeof year === "number" ? `?year=${year}` : "";
+      return apiRequest("GET", `/api/organization-attendance-snapshots/${organizationId}${query}`);
+    },
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
 export function useUpsertOrganizationAttendance() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -1405,6 +1419,7 @@ export function useUpsertOrganizationAttendance() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance"] });
       queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance", variables.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance-snapshots", variables.organizationId] });
       toast({
         title: "Asistencia guardada",
         description: "Se registró la asistencia semanal.",
