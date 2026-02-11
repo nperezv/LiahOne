@@ -450,6 +450,101 @@ export function useCreatePresidencyMeeting(organizationId?: string) {
   });
 }
 
+
+export interface PresidencyResource {
+  id: string;
+  title: string;
+  placeholderName: string;
+  description?: string | null;
+  fileName: string;
+  fileUrl: string;
+  category: "manuales" | "plantillas" | "capacitacion";
+  resourceType: "documento" | "video" | "plantilla";
+  organizationId?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PresidencyResourcesFilters {
+  organizationId?: string;
+  category?: "manuales" | "plantillas" | "capacitacion";
+}
+
+export interface CreatePresidencyResourcePayload {
+  placeholderName: string;
+  description?: string;
+  fileName: string;
+  fileUrl: string;
+  category: "manuales" | "plantillas" | "capacitacion";
+  resourceType: "documento" | "video" | "plantilla";
+  organizationId?: string | null;
+}
+
+const buildPresidencyResourcesUrl = (filters?: PresidencyResourcesFilters) => {
+  const params = new URLSearchParams();
+  if (filters?.organizationId) params.set("organizationId", filters.organizationId);
+  if (filters?.category) params.set("category", filters.category);
+  const query = params.toString();
+  return query ? `/api/presidency-resources?${query}` : "/api/presidency-resources";
+};
+
+export function usePresidencyResources(filters?: PresidencyResourcesFilters) {
+  return useQuery<PresidencyResource[]>({
+    queryKey: ["/api/presidency-resources", filters?.organizationId ?? "all", filters?.category ?? "all"],
+    queryFn: () => apiRequest("GET", buildPresidencyResourcesUrl(filters)),
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useCreatePresidencyResource(filters?: PresidencyResourcesFilters) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: CreatePresidencyResourcePayload) => apiRequest("POST", "/api/presidency-resources", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/presidency-resources"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/presidency-resources", filters?.organizationId ?? "all", filters?.category ?? "all"] });
+      toast({
+        title: "Recurso publicado",
+        description: "El recurso se publicó correctamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo publicar el recurso.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeletePresidencyResource(filters?: PresidencyResourcesFilters) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (resourceId: string) => apiRequest("DELETE", `/api/presidency-resources/${resourceId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/presidency-resources"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/presidency-resources", filters?.organizationId ?? "all", filters?.category ?? "all"] });
+      toast({
+        title: "Recurso eliminado",
+        description: "El recurso se eliminó correctamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el recurso.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 // ========================================
 // BUDGET REQUESTS
 // ========================================

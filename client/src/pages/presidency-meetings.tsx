@@ -48,6 +48,7 @@ import {
   useGoals,
   useOrganizationAttendanceByOrg,
   useUpsertOrganizationAttendance,
+  usePresidencyResources,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -236,6 +237,8 @@ export default function PresidencyMeetingsPage() {
   const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
   const [isBudgetMovementsDialogOpen, setIsBudgetMovementsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false);
+  const [selectedResourcesCategory, setSelectedResourcesCategory] = useState<"manuales" | "plantillas" | "capacitacion">("manuales");
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
@@ -250,6 +253,15 @@ export default function PresidencyMeetingsPage() {
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
   const { data: organizationMembers = [] } = useOrganizationMembers(organizationId);
   const { data: activities = [] } = useActivities();
+  const { data: sectionResources = [], isLoading: isLoadingSectionResources } = usePresidencyResources({
+    organizationId,
+    category: selectedResourcesCategory,
+  });
+
+  const strictSectionResources = useMemo(
+    () => sectionResources.filter((resource: any) => resource.category === selectedResourcesCategory),
+    [sectionResources, selectedResourcesCategory]
+  );
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const createBudgetRequestMutation = useCreateBudgetRequest();
@@ -279,6 +291,18 @@ export default function PresidencyMeetingsPage() {
     "escuela-dominical": "Escuela Dominical",
     jas: "JAS",
     "cuorum-elderes": "Cuórum de Élderes",
+  };
+
+
+  const resourcesCategoryLabels: Record<"manuales" | "plantillas" | "capacitacion", string> = {
+    manuales: "Manuales",
+    plantillas: "Plantillas",
+    capacitacion: "Capacitación",
+  };
+
+  const openResourcesModal = (category: "manuales" | "plantillas" | "capacitacion") => {
+    setSelectedResourcesCategory(category);
+    setIsResourcesModalOpen(true);
   };
 
   useEffect(() => {
@@ -1060,6 +1084,42 @@ export default function PresidencyMeetingsPage() {
         </Card>
       )}
 
+
+
+      <Dialog open={isResourcesModalOpen} onOpenChange={setIsResourcesModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Recursos: {resourcesCategoryLabels[selectedResourcesCategory]}</DialogTitle>
+            <DialogDescription>Recursos disponibles para {orgName} en esta sección.</DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+            {isLoadingSectionResources ? (
+              <p className="text-sm text-muted-foreground">Cargando recursos...</p>
+            ) : strictSectionResources.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay recursos disponibles en esta sección.</p>
+            ) : (
+              strictSectionResources.map((resource: any) => (
+                <div key={resource.id} className="rounded-xl border border-border/70 bg-background/80 p-4">
+                  <p className="text-sm font-semibold">{resource.placeholderName || resource.title}</p>
+                  {resource.description ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{resource.description}</p>
+                  ) : null}
+                  <Button
+                    className="mt-3"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(resource.fileUrl, "_blank", "noopener,noreferrer")}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Descargar
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid gap-4 xl:grid-cols-12">
         <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm xl:col-span-8">
           <CardHeader>
@@ -1134,12 +1194,24 @@ export default function PresidencyMeetingsPage() {
             <CardTitle>Recursos</CardTitle>
             <CardDescription>Acceso rápido para presidencias</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><BookOpen className="mb-2 h-5 w-5 text-chart-1" /><p className="text-sm font-medium">Manuales</p></button>
-              <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><FileText className="mb-2 h-5 w-5 text-chart-2" /><p className="text-sm font-medium">Plantillas</p></button>
-              <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><PlayCircle className="mb-2 h-5 w-5 text-chart-4" /><p className="text-sm font-medium">Capacitación</p></button>
-              <button type="button" onClick={() => setIsBudgetRequestDialogOpen(true)} className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><Wallet className="mb-2 h-5 w-5 text-chart-3" /><p className="text-sm font-medium">Presupuesto</p></button>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => openResourcesModal("manuales")}
+                className="rounded-2xl border border-border/70 bg-background/80 p-4 text-left"
+              ><BookOpen className="mb-2 h-5 w-5 text-chart-1" /><p className="text-sm font-medium">Manuales</p></button>
+              <button
+                type="button"
+                onClick={() => openResourcesModal("plantillas")}
+                className="rounded-2xl border border-border/70 bg-background/80 p-4 text-left"
+              ><FileText className="mb-2 h-5 w-5 text-chart-2" /><p className="text-sm font-medium">Plantillas</p></button>
+              <button
+                type="button"
+                onClick={() => openResourcesModal("capacitacion")}
+                className="rounded-2xl border border-border/70 bg-background/80 p-4 text-left"
+              ><PlayCircle className="mb-2 h-5 w-5 text-chart-4" /><p className="text-sm font-medium">Capacitación</p></button>
+              <button type="button" onClick={() => setIsBudgetRequestDialogOpen(true)} className="rounded-2xl border border-border/70 bg-background/80 p-4 text-left"><Wallet className="mb-2 h-5 w-5 text-chart-3" /><p className="text-sm font-medium">Presupuesto</p></button>
             </div>
           </CardContent>
         </Card>
