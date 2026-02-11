@@ -1026,6 +1026,8 @@ export const organizationWeeklyAttendance = pgTable("organization_weekly_attenda
   organizationId: varchar("organization_id").notNull().references(() => organizations.id),
   weekStartDate: timestamp("week_start_date").notNull(),
   attendeesCount: integer("attendees_count").notNull().default(0),
+  attendeeMemberIds: jsonb("attendee_member_ids").$type<string[]>().notNull().default([]),
+  totalMembers: integer("total_members").notNull().default(0),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

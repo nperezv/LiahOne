@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
 import {
   usePresidencyMeetings,
@@ -240,7 +241,8 @@ export default function PresidencyMeetingsPage() {
   const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false);
   const [selectedResourcesCategory, setSelectedResourcesCategory] = useState<"manuales" | "plantillas" | "capacitacion">("manuales");
   const [organizationId, setOrganizationId] = useState<string | undefined>();
-  const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
+  const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, string[]>>({});
+  const [attendanceEditorDate, setAttendanceEditorDate] = useState<string | null>(null);
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
   const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
   const goalDragStartX = React.useRef<number | null>(null);
@@ -375,8 +377,10 @@ export default function PresidencyMeetingsPage() {
     });
 
     const totalAttendanceInMonth = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
-    const attendanceCapacity = Math.max(1, organizationMembers.length * weeksInMonth);
+    const totalMembersBase = attendanceInMonth.reduce((sum: number, entry: any) => sum + Math.max(0, Number(entry.totalMembers ?? 0)), 0);
+    const attendanceCapacity = Math.max(1, totalMembersBase || (organizationMembers.length * weeksInMonth));
     const monthlyAttendancePercent = Math.min(100, (totalAttendanceInMonth / attendanceCapacity) * 100);
+    const monthMeetingProgress = Math.min(100, (monthMeetings / Math.max(1, weeksInMonth)) * 100);
 
     const byCategory = approvedRequests.reduce(
       (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
@@ -430,6 +434,7 @@ export default function PresidencyMeetingsPage() {
       monthMeetings,
       weeksInMonth,
       monthlyAttendancePercent,
+      monthMeetingProgress,
       latestMeeting,
       budgetSlides,
     };
@@ -443,11 +448,14 @@ export default function PresidencyMeetingsPage() {
   }, [dashboardStats.goalsWithPercentage.length, goalSlideIndex]);
 
   useEffect(() => {
-    const nextDrafts: Record<string, number> = {};
+    const nextDrafts: Record<string, string[]> = {};
     sundaysInMonth.forEach((sunday) => {
       const iso = sunday.toISOString().slice(0, 10);
       const existing = (attendance as any[]).find((entry: any) => entry.weekStartDate?.slice(0, 10) === iso);
-      nextDrafts[iso] = Number(existing?.attendeesCount ?? 0);
+      const ids = Array.isArray(existing?.attendeeMemberIds)
+        ? existing.attendeeMemberIds.filter((id: unknown): id is string => typeof id === "string")
+        : [];
+      nextDrafts[iso] = ids;
     });
     setAttendanceDrafts(nextDrafts);
   }, [attendance, sundaysInMonth]);
@@ -554,10 +562,24 @@ export default function PresidencyMeetingsPage() {
 
   const handleSaveAttendance = (isoDate: string) => {
     if (!organizationId) return;
+    const attendeeMemberIds = attendanceDrafts[isoDate] ?? [];
     upsertAttendanceMutation.mutate({
       organizationId,
       weekStartDate: isoDate,
-      attendeesCount: Number(attendanceDrafts[isoDate] ?? 0),
+      attendeeMemberIds,
+      attendeesCount: attendeeMemberIds.length,
+      totalMembers: organizationMembers.length,
+    });
+  };
+
+
+  const toggleAttendanceMember = (isoDate: string, memberId: string) => {
+    setAttendanceDrafts((prev) => {
+      const current = prev[isoDate] ?? [];
+      const next = current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId];
+      return { ...prev, [isoDate]: next };
     });
   };
 
@@ -668,6 +690,9 @@ export default function PresidencyMeetingsPage() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 18 }}>
         <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{pageTitle}</h1>
+        <div className="mt-3">
+          <Button className="rounded-full" onClick={() => setIsOperationsModalOpen(true)} data-testid="button-manage-organization">Gestionar Organización</Button>
+        </div>
       </motion.div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -772,9 +797,10 @@ export default function PresidencyMeetingsPage() {
           <div>
             <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
             <p className="mt-2 text-2xl font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</p>
+            <Progress value={dashboardStats.monthMeetingProgress} className="mt-2 h-2" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Asistencia reunión sacramental</p>
+            <p className="text-xs text-muted-foreground">Asistencia a clases</p>
             <p className="mt-1 text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
           </div>
         </button>
@@ -896,15 +922,11 @@ export default function PresidencyMeetingsPage() {
             {sundaysInMonth.map((sunday) => {
               const iso = sunday.toISOString().slice(0, 10);
               return (
-                <div key={iso} className="grid items-center gap-2 rounded-xl border border-border/70 bg-background/80 p-3 sm:grid-cols-[1fr_120px_100px]">
+                <div key={iso} className="grid items-center gap-2 rounded-xl border border-border/70 bg-background/80 p-3 sm:grid-cols-[1fr_170px_100px]">
                   <p className="text-sm font-medium">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={attendanceDrafts[iso] ?? 0}
-                    onChange={(event) => setAttendanceDrafts((prev) => ({ ...prev, [iso]: Number(event.target.value) }))}
-                    data-testid={`input-attendance-${iso}`}
-                  />
+                  <Button variant="outline" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-${iso}`}>
+                    {`${(attendanceDrafts[iso] ?? []).length}/${organizationMembers.length}`} asistentes
+                  </Button>
                   <Button variant="outline" onClick={() => handleSaveAttendance(iso)} data-testid={`button-save-attendance-${iso}`}>
                     <Check className="mr-2 h-4 w-4" />Guardar
                   </Button>
@@ -916,6 +938,43 @@ export default function PresidencyMeetingsPage() {
                 <Plus className="mr-2 h-4 w-4" />Programar reunión
               </Button>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
+      <Dialog open={Boolean(attendanceEditorDate)} onOpenChange={(open) => { if (!open) setAttendanceEditorDate(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Lista de asistencia</DialogTitle>
+            <DialogDescription>
+              {attendanceEditorDate ? new Date(`${attendanceEditorDate}T00:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long" }) : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {organizationMembers.map((member) => {
+              const selected = attendanceEditorDate ? (attendanceDrafts[attendanceEditorDate] ?? []).includes(member.id) : false;
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => attendanceEditorDate && toggleAttendanceMember(attendanceEditorDate, member.id)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border/70 bg-muted/20 hover:bg-muted/40"}`}
+                  data-testid={`attendance-member-${member.id}`}
+                >
+                  <span className="text-sm font-medium">{member.nameSurename}</span>
+                  {selected ? <Check className="h-4 w-4 text-primary" /> : <span className="text-xs text-muted-foreground">Tap para marcar</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAttendanceEditorDate(null)}>Cerrar</Button>
+            {attendanceEditorDate ? (
+              <Button onClick={() => { handleSaveAttendance(attendanceEditorDate); setAttendanceEditorDate(null); }}>
+                Guardar asistencia
+              </Button>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
