@@ -178,12 +178,12 @@ export default function ResourcesLibraryPage() {
       </div>
 
       {isLibraryAdmin && (
-        <Card>
-          <CardHeader>
+        <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
+          <CardHeader className="pb-4">
             <CardTitle>Publicar recurso</CardTitle>
             <CardDescription>Solo se permiten categorías Manuales, Plantillas y Capacitación.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField control={form.control} name="placeholderName" render={({ field }) => (
@@ -285,14 +285,14 @@ export default function ResourcesLibraryPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
+      <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
+        <CardHeader className="pb-4">
           <CardTitle>Recursos disponibles</CardTitle>
           <CardDescription>
             {categoryFilter ? `Mostrando: ${categoryLabel[categoryFilter]}.` : "Listado de todas las secciones."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando recursos...</p>
           ) : resources.length === 0 ? (
@@ -304,7 +304,7 @@ export default function ResourcesLibraryPage() {
                 : "General";
 
               return (
-                <div key={resource.id} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+                <div key={resource.id} className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/80 p-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="font-semibold">{resource.placeholderName || resource.title}</h3>
                     {resource.description && <p className="text-sm text-muted-foreground">{resource.description}</p>}
