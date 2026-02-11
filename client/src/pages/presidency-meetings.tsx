@@ -14,6 +14,7 @@ import {
   FileText,
   PlayCircle,
   Wallet,
+  Upload,
   Users,
   Phone,
   Mail,
@@ -50,6 +51,7 @@ import {
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
@@ -62,10 +64,46 @@ const budgetRequestSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
   amount: z.string().min(1, "El monto es requerido"),
   category: z.enum(["actividades", "materiales", "otros"]),
+  requestType: z.enum(["reembolso", "pago_adelantado"]),
   notes: z.string().optional(),
+  receiptFile: z
+    .instanceof(File)
+    .optional()
+    .refine((file) => !file || isAllowedDocument(file), {
+      message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
+    }),
+  activityPlanFile: z
+    .instanceof(File)
+    .optional()
+    .refine((file) => !file || isAllowedDocument(file), {
+      message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
+    }),
+}).superRefine((data, ctx) => {
+  if (data.requestType === "reembolso" && !data.receiptFile) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["receiptFile"],
+      message: "Adjunta el comprobante para solicitudes de reembolso.",
+    });
+  }
+
+  if (data.requestType === "pago_adelantado" && !data.activityPlanFile) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["activityPlanFile"],
+      message: "Adjunta la solicitud de gasto para pagos por adelantado.",
+    });
+  }
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const isAllowedDocument = (file: File) => {
+  const fileName = file.name.toLowerCase();
+  return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
+};
+
 type BudgetRequestFormValues = z.infer<typeof budgetRequestSchema>;
 
 function CircularGauge({
@@ -420,9 +458,31 @@ export default function PresidencyMeetingsPage() {
       description: "",
       amount: "",
       category: "otros",
+      requestType: "pago_adelantado",
       notes: "",
+      receiptFile: undefined,
+      activityPlanFile: undefined,
     },
   });
+
+  const budgetRequestType = budgetRequestForm.watch("requestType");
+
+  const uploadReceiptFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/uploads", {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudo subir el archivo");
+    }
+
+    return response.json() as Promise<{ filename: string; url: string }>;
+  };
 
   const onSubmit = (data: MeetingFormValues) => {
     if (!organizationId) return;
@@ -469,8 +529,30 @@ export default function PresidencyMeetingsPage() {
     });
   };
 
-  const onSubmitBudgetRequest = (values: BudgetRequestFormValues) => {
+  const onSubmitBudgetRequest = async (values: BudgetRequestFormValues) => {
     if (!organizationId) return;
+
+    const uploadedReceipts: { filename: string; url: string; category: "receipt" | "plan" }[] = [];
+
+    if (values.requestType === "reembolso" && values.receiptFile) {
+      try {
+        const uploadedReceipt = await uploadReceiptFile(values.receiptFile);
+        uploadedReceipts.push({ filename: uploadedReceipt.filename, url: uploadedReceipt.url, category: "receipt" });
+      } catch {
+        toast({ title: "Error", description: "No se pudo subir el comprobante", variant: "destructive" });
+        return;
+      }
+    }
+
+    if (values.requestType === "pago_adelantado" && values.activityPlanFile) {
+      try {
+        const uploadedPlan = await uploadReceiptFile(values.activityPlanFile);
+        uploadedReceipts.push({ filename: uploadedPlan.filename, url: uploadedPlan.url, category: "plan" });
+      } catch {
+        toast({ title: "Error", description: "No se pudo subir la solicitud de gasto", variant: "destructive" });
+        return;
+      }
+    }
 
     createBudgetRequestMutation.mutate(
       {
@@ -480,6 +562,7 @@ export default function PresidencyMeetingsPage() {
         notes: values.notes || "",
         organizationId,
         status: "solicitado",
+        receipts: uploadedReceipts,
       },
       {
         onSuccess: () => {
@@ -872,6 +955,64 @@ export default function PresidencyMeetingsPage() {
                   <FormMessage />
                 </FormItem>
               )} />
+
+              <FormField control={budgetRequestForm.control} name="requestType" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de solicitud</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-budget-request-type">
+                        <SelectValue placeholder="Selecciona un tipo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="reembolso">Reembolso</SelectItem>
+                      <SelectItem value="pago_adelantado">Pago por adelantado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              {budgetRequestType === "reembolso" && (
+                <FormField control={budgetRequestForm.control} name="receiptFile" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Adjuntar comprobantes</FormLabel>
+                    <FormControl>
+                      <div className="flex flex-col gap-2">
+                        <Input id="presidency-budget-receipt-file" type="file" accept={allowedDocumentExtensions.join(",")} onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)} onBlur={field.onBlur} ref={field.ref} className="hidden" data-testid="input-budget-request-receipt-file" />
+                        <Button type="button" variant="outline" className="w-fit" asChild>
+                          <label htmlFor="presidency-budget-receipt-file" className="cursor-pointer">
+                            <Upload className="mr-2 h-4 w-4" />Seleccionar comprobante
+                          </label>
+                        </Button>
+                        <span className="text-xs text-muted-foreground">{field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}</span>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+
+              {budgetRequestType === "pago_adelantado" && (
+                <FormField control={budgetRequestForm.control} name="activityPlanFile" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Solicitud de gasto</FormLabel>
+                    <FormControl>
+                      <div className="flex flex-col gap-2">
+                        <Input id="presidency-budget-plan-file" type="file" accept={allowedDocumentExtensions.join(",")} onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)} onBlur={field.onBlur} ref={field.ref} className="hidden" data-testid="input-budget-request-plan-file" />
+                        <Button type="button" variant="outline" className="w-fit" asChild>
+                          <label htmlFor="presidency-budget-plan-file" className="cursor-pointer">
+                            <Upload className="mr-2 h-4 w-4" />Subir solicitud de gasto
+                          </label>
+                        </Button>
+                        <span className="text-xs text-muted-foreground">{field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}</span>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
 
               <FormField control={budgetRequestForm.control} name="notes" render={({ field }) => (
                 <FormItem>
