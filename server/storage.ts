@@ -1290,6 +1290,8 @@ export class DatabaseStorage implements IStorage {
         .update(organizationWeeklyAttendance)
         .set({
           attendeesCount: data.attendeesCount,
+          attendeeMemberIds: (data.attendeeMemberIds as string[] | undefined) ?? [],
+          totalMembers: data.totalMembers ?? 0,
           createdBy: data.createdBy,
           updatedAt: new Date(),
         })
@@ -1298,7 +1300,11 @@ export class DatabaseStorage implements IStorage {
       return updated;
     }
 
-    const [created] = await db.insert(organizationWeeklyAttendance).values(data).returning();
+    const [created] = await db.insert(organizationWeeklyAttendance).values({
+      ...data,
+      attendeeMemberIds: (data.attendeeMemberIds as string[] | undefined) ?? [],
+      totalMembers: data.totalMembers ?? 0,
+    }).returning();
     return created;
   }
 

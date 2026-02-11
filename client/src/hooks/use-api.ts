@@ -1400,7 +1400,7 @@ export function useUpsertOrganizationAttendance() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: { organizationId: string; weekStartDate: string; attendeesCount: number }) =>
+    mutationFn: (data: { organizationId: string; weekStartDate: string; attendeesCount: number; attendeeMemberIds?: string[]; totalMembers?: number }) =>
       apiRequest("POST", "/api/organization-attendance", data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance"] });

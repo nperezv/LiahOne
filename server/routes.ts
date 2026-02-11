@@ -4202,22 +4202,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/organization-attendance", requireAuth, requireRole("secretario", "obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+  app.post("/api/organization-attendance", requireAuth, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const parsed = z.object({
         organizationId: z.string().min(1),
         weekStartDate: z.string().min(1),
         attendeesCount: z.number().int().min(0),
+        attendeeMemberIds: z.array(z.string().min(1)).optional(),
+        totalMembers: z.number().int().min(0).optional(),
       }).safeParse(req.body);
 
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.errors });
       }
 
+      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
+      if (!isObispado && !(isOrgMember && user.organizationId === parsed.data.organizationId)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const uniqueMemberIds = Array.from(new Set(parsed.data.attendeeMemberIds ?? []));
+      const attendeesCount = uniqueMemberIds.length > 0 ? uniqueMemberIds.length : parsed.data.attendeesCount;
+      const totalMembers = parsed.data.totalMembers ?? 0;
+
       const payload = {
         organizationId: parsed.data.organizationId,
         weekStartDate: new Date(parsed.data.weekStartDate),
-        attendeesCount: parsed.data.attendeesCount,
+        attendeesCount,
+        attendeeMemberIds: uniqueMemberIds,
+        totalMembers,
         createdBy: req.session.userId!,
       };
 
