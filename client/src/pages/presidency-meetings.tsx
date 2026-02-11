@@ -74,12 +74,14 @@ function CircularGauge({
   subtitle,
   gradientId,
   gradientStops,
+  segments,
 }: {
   value: number;
   label: string;
   subtitle: string;
   gradientId: string;
   gradientStops?: [string, string, string];
+  segments?: Array<{ value: number; color: string }>;
 }) {
   const size = 180;
   const stroke = 12;
@@ -91,6 +93,7 @@ function CircularGauge({
   const offset = arcLength - (clamped / 100) * arcLength;
 
   const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
+  let consumedLength = 0;
 
   return (
     <div className="relative mx-auto flex w-full max-w-[220px] items-center justify-center" data-testid={`gauge-${gradientId}`}>
@@ -113,20 +116,46 @@ function CircularGauge({
           strokeDasharray={`${arcLength} ${circumference}`}
           transform={`rotate(120 ${size / 2} ${size / 2})`}
         />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={`url(#${gradientId}-gradient)`}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${arcLength} ${circumference}`}
-          initial={{ strokeDashoffset: arcLength }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ type: "spring", stiffness: 90, damping: 18 }}
-          transform={`rotate(120 ${size / 2} ${size / 2})`}
-        />
+        {segments && segments.length > 0 ? (
+          segments
+            .filter((segment) => Number(segment.value) > 0)
+            .map((segment, index) => {
+              const segmentLength = (Math.min(100, Math.max(0, Number(segment.value))) / 100) * arcLength;
+              const currentOffset = -consumedLength;
+              consumedLength += segmentLength;
+
+              return (
+                <circle
+                  key={`${gradientId}-segment-${index}`}
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={segment.color}
+                  strokeWidth={stroke}
+                  strokeLinecap="round"
+                  strokeDasharray={`${segmentLength} ${circumference}`}
+                  strokeDashoffset={currentOffset}
+                  transform={`rotate(120 ${size / 2} ${size / 2})`}
+                />
+              );
+            })
+        ) : (
+          <motion.circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={`url(#${gradientId}-gradient)`}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={`${arcLength} ${circumference}`}
+            initial={{ strokeDashoffset: arcLength }}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ type: "spring", stiffness: 90, damping: 18 }}
+            transform={`rotate(120 ${size / 2} ${size / 2})`}
+          />
+        )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <p className="text-[2.2rem] font-bold leading-none text-foreground">{label}</p>
@@ -336,8 +365,9 @@ export default function PresidencyMeetingsPage() {
   }, [activities, attendance, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationMembers.length, sundaysInMonth.length]);
 
   useEffect(() => {
-    if (goalSlideIndex > 0 && goalSlideIndex >= dashboardStats.goalsWithPercentage.length) {
-      setGoalSlideIndex(Math.max(0, dashboardStats.goalsWithPercentage.length - 1));
+    const maxGoalSlide = dashboardStats.goalsWithPercentage.length;
+    if (goalSlideIndex > maxGoalSlide) {
+      setGoalSlideIndex(maxGoalSlide);
     }
   }, [dashboardStats.goalsWithPercentage.length, goalSlideIndex]);
 
@@ -459,7 +489,7 @@ export default function PresidencyMeetingsPage() {
     );
   };
 
-  const activeGoal = dashboardStats.goalsWithPercentage[goalSlideIndex] ?? null;
+  const activeGoal = goalSlideIndex === 0 ? null : (dashboardStats.goalsWithPercentage[goalSlideIndex - 1] ?? null);
   const activeBudgetSlide = dashboardStats.budgetSlides[budgetSlideIndex] ?? dashboardStats.budgetSlides[0];
   const goalGradients: [string, string, string][] = [
     ["#F5CF74", "#E3AF45", "#1F8795"],
@@ -467,13 +497,18 @@ export default function PresidencyMeetingsPage() {
     ["#A0C8FF", "#5BB8F7", "#4B7BE5"],
     ["#FBC4AB", "#F08080", "#EF476F"],
   ];
-  const activeGoalGradient = goalGradients[goalSlideIndex % goalGradients.length];
+  const activeGoalGradient = goalGradients[Math.max(0, goalSlideIndex - 1) % goalGradients.length];
+  const goalSummarySegments = dashboardStats.goalsWithPercentage.map((goal: any, index: number) => ({
+    value: dashboardStats.goalsWithPercentage.length > 0 ? goal.percentage / dashboardStats.goalsWithPercentage.length : 0,
+    color: goalGradients[index % goalGradients.length][2],
+  }));
 
   const moveGoalSlide = (direction: "next" | "prev") => {
     setGoalSlideIndex((prev) => {
-      if (dashboardStats.goalsWithPercentage.length <= 1) return 0;
+      const maxSlide = dashboardStats.goalsWithPercentage.length;
+      if (maxSlide === 0) return 0;
       return direction === "next"
-        ? Math.min(prev + 1, dashboardStats.goalsWithPercentage.length - 1)
+        ? Math.min(prev + 1, maxSlide)
         : Math.max(prev - 1, 0);
     });
   };
@@ -637,28 +672,34 @@ export default function PresidencyMeetingsPage() {
             onTouchEnd={(event) => handleSwipe(goalDragStartX.current, getTouchEndX(event), () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
           >
             <div className="mb-1 flex items-baseline gap-2">
-              <span className="text-4xl font-bold leading-none">{Math.round(activeGoal ? activeGoal.percentage : dashboardStats.goalProgress)}%</span>
+              <span className="text-4xl font-bold leading-none">{Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%</span>
               <span className="text-base font-medium text-muted-foreground">Metas cumplidas</span>
             </div>
             <CircularGauge
-              value={activeGoal ? activeGoal.percentage : dashboardStats.goalProgress}
-              label={`${Math.round(activeGoal ? activeGoal.percentage : dashboardStats.goalProgress)}%`}
-              subtitle={activeGoal?.title || "Metas cumplidas"}
+              value={goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0)}
+              label={`${Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%`}
+              subtitle={goalSlideIndex === 0 ? "Avance total" : (activeGoal?.title || "Metas cumplidas")}
               gradientId="goals"
               gradientStops={activeGoalGradient}
+              segments={goalSlideIndex === 0 ? goalSummarySegments : undefined}
             />
-            <p className="mt-1 text-center text-sm text-muted-foreground">
-              {activeGoal ? `${activeGoal.current} de ${Math.max(1, activeGoal.target)} metas logradas` : `${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas logradas`}
-            </p>
-            {dashboardStats.goalsWithPercentage.length > 1 && (
+            <div className="mt-1 text-center text-sm text-muted-foreground">
+              {goalSlideIndex === 0 ? (
+                <p>{`${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas completadas`}</p>
+              ) : (
+                <p>{`Progreso de la meta: ${activeGoal?.current ?? 0} de ${Math.max(1, activeGoal?.target ?? 0)}`}</p>
+              )}
+              <p>{`Avance total: ${Math.round(dashboardStats.goalProgress)}%`}</p>
+            </div>
+            {dashboardStats.goalsWithPercentage.length > 0 && (
               <div className="mt-3 flex justify-center gap-2" data-testid="goal-dots">
-                {dashboardStats.goalsWithPercentage.map((_: any, index: number) => (
+                {Array.from({ length: dashboardStats.goalsWithPercentage.length + 1 }).map((_, index: number) => (
                   <button
                     key={index}
                     type="button"
                     onClick={() => setGoalSlideIndex(index)}
                     className={`h-2.5 w-2.5 rounded-full transition-all ${goalSlideIndex === index ? "bg-primary w-5" : "bg-muted-foreground/30"}`}
-                    aria-label={`Ir a meta ${index + 1}`}
+                    aria-label={index === 0 ? "Ir al resumen total" : `Ir a meta ${index}`}
                   />
                 ))}
               </div>
