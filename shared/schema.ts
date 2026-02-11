@@ -124,6 +124,12 @@ export const budgetStatusEnum = pgEnum("budget_status", [
   "completado",
 ]);
 
+export const budgetCategoryEnum = pgEnum("budget_category", [
+  "actividades",
+  "materiales",
+  "otros",
+]);
+
 export const userDeletionRequestStatusEnum = pgEnum("user_deletion_request_status", [
   "pendiente",
   "aprobada",
@@ -403,6 +409,7 @@ export const budgetRequests = pgTable("budget_requests", {
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   description: text("description").notNull(),
   amount: integer("amount").notNull(),
+  category: budgetCategoryEnum("category").notNull().default("otros"),
   status: budgetStatusEnum("status").notNull().default("solicitado"),
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
@@ -967,12 +974,33 @@ export const organizationBudgets = pgTable("organization_budgets", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const organizationWeeklyAttendance = pgTable("organization_weekly_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  weekStartDate: timestamp("week_start_date").notNull(),
+  attendeesCount: integer("attendees_count").notNull().default(0),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const wardBudgetsRelations = relations(wardBudgets, () => ({}));
 
 export const organizationBudgetsRelations = relations(organizationBudgets, ({ one }) => ({
   organization: one(organizations, {
     fields: [organizationBudgets.organizationId],
     references: [organizations.id],
+  }),
+}));
+
+export const organizationWeeklyAttendanceRelations = relations(organizationWeeklyAttendance, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationWeeklyAttendance.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [organizationWeeklyAttendance.createdBy],
+    references: [users.id],
   }),
 }));
 
@@ -991,6 +1019,17 @@ export const insertOrganizationBudgetSchema = createInsertSchema(organizationBud
 });
 
 export const selectOrganizationBudgetSchema = createSelectSchema(organizationBudgets);
+
+export const insertOrganizationWeeklyAttendanceSchema = createInsertSchema(organizationWeeklyAttendance).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectOrganizationWeeklyAttendanceSchema = createSelectSchema(organizationWeeklyAttendance);
+
+export type OrganizationWeeklyAttendance = typeof organizationWeeklyAttendance.$inferSelect;
+export type InsertOrganizationWeeklyAttendance = z.infer<typeof insertOrganizationWeeklyAttendanceSchema>;
 
 export type WardBudget = typeof wardBudgets.$inferSelect;
 export type InsertWardBudget = z.infer<typeof insertWardBudgetSchema>;

@@ -97,6 +97,18 @@ export function useMembers(options?: { enabled?: boolean }) {
   });
 }
 
+export function useOrganizationMembers(organizationId?: string, options?: { enabled?: boolean }) {
+  return useQuery<DirectoryMember[]>({
+    queryKey: ["/api/organizations", organizationId, "members"],
+    enabled: options?.enabled ?? Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      return apiRequest("GET", `/api/organizations/${organizationId}/members`);
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
 export function useAllMemberCallings(options?: { enabled?: boolean }) {
   return useQuery<DirectoryMemberCallingWithMember[]>({
     queryKey: ["/api/member-callings"],
@@ -1206,10 +1218,15 @@ export function useUpdateWardBudget() {
 // ORGANIZATION BUDGETS
 // ========================================
 
-export function useOrganizationBudgets(organizationId: string) {
+export function useOrganizationBudgets(organizationId?: string) {
   return useQuery<any>({
     queryKey: ["/api/organization-budgets", organizationId],
-    ...REALTIME_QUERY_OPTIONS,    
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      return apiRequest("GET", `/api/organization-budgets/${organizationId}`);
+    },
+    ...REALTIME_QUERY_OPTIONS,
   });
 }
 
@@ -1257,6 +1274,51 @@ export function useUpdateOrganizationBudget() {
       toast({
         title: "Error",
         description: "No se pudo actualizar el presupuesto.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+
+export function useOrganizationAttendance() {
+  return useQuery<any[]>({
+    queryKey: ["/api/organization-attendance"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useOrganizationAttendanceByOrg(organizationId?: string) {
+  return useQuery<any[]>({
+    queryKey: ["/api/organization-attendance", organizationId],
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+      return apiRequest("GET", `/api/organization-attendance/${organizationId}`);
+    },
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useUpsertOrganizationAttendance() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: { organizationId: string; weekStartDate: string; attendeesCount: number }) =>
+      apiRequest("POST", "/api/organization-attendance", data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organization-attendance", variables.organizationId] });
+      toast({
+        title: "Asistencia guardada",
+        description: "Se registró la asistencia semanal.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la asistencia.",
         variant: "destructive",
       });
     },
