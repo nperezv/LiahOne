@@ -15,6 +15,7 @@ import {
   organizationInterviews,
   goals,
   birthdays,
+  birthdayEmailSends,
   members,
   memberCallings,
   activities,
@@ -55,6 +56,8 @@ import {
   type InsertGoal,
   type Birthday,
   type InsertBirthday,
+  type BirthdayEmailSend,
+  type InsertBirthdayEmailSend,
   type Member,
   type InsertMember,
   type MemberCalling,
@@ -234,6 +237,8 @@ export interface IStorage {
   createBirthday(birthday: InsertBirthday): Promise<Birthday>;
   updateBirthday(id: string, data: Partial<InsertBirthday>): Promise<Birthday | undefined>;
   deleteBirthday(id: string): Promise<void>;
+  hasBirthdayEmailBeenSentToday(birthdayId: string, dayKey: string): Promise<boolean>;
+  createBirthdayEmailSend(data: InsertBirthdayEmailSend): Promise<BirthdayEmailSend>;
 
   // Activities
   getAllActivities(): Promise<Activity[]>;
@@ -1078,6 +1083,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBirthday(id: string): Promise<void> {
     await db.delete(birthdays).where(eq(birthdays.id, id));
+  }
+
+  async hasBirthdayEmailBeenSentToday(birthdayId: string, dayKey: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: birthdayEmailSends.id })
+      .from(birthdayEmailSends)
+      .where(and(eq(birthdayEmailSends.birthdayId, birthdayId), eq(birthdayEmailSends.dayKey, dayKey)))
+      .limit(1);
+
+    return Boolean(row);
+  }
+
+  async createBirthdayEmailSend(data: InsertBirthdayEmailSend): Promise<BirthdayEmailSend> {
+    const [send] = await db.insert(birthdayEmailSends).values(data).returning();
+    return send;
   }
 
   // ========================================
