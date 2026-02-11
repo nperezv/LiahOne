@@ -43,7 +43,7 @@ import {
   useOrganizations,
   useBudgetRequests,
   useOrganizationBudgets,
-  useOrganizationMembers,
+  useMembers,
   useActivities,
   useGoals,
   useOrganizationAttendanceByOrg,
@@ -255,7 +255,7 @@ export default function PresidencyMeetingsPage() {
   const { data: budgetRequests = [] } = useBudgetRequests();
   const { data: goals = [] } = useGoals();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
-  const { data: organizationMembers = [] } = useOrganizationMembers(organizationId);
+  const { data: members = [] } = useMembers({ enabled: Boolean(organizationId) });
   const { data: activities = [] } = useActivities();
   const { data: sectionResources = [], isLoading: isLoadingSectionResources } = usePresidencyResources({
     organizationId,
@@ -265,6 +265,10 @@ export default function PresidencyMeetingsPage() {
   const strictSectionResources = useMemo(
     () => sectionResources.filter((resource: any) => resource.category === selectedResourcesCategory),
     [sectionResources, selectedResourcesCategory]
+  );
+  const organizationMembers = useMemo(
+    () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
+    [members, organizationId]
   );
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
@@ -381,13 +385,16 @@ export default function PresidencyMeetingsPage() {
     });
 
     const totalAttendanceInMonth = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
-    const totalMembersBase = attendanceInMonth.reduce((sum: number, entry: any) => sum + Math.max(0, Number(entry.totalMembers ?? 0)), 0);
-    const attendanceCapacity = Math.max(1, totalMembersBase || (organizationMembers.length * weeksInMonth));
+    const attendanceCapacity = Math.max(1, organizationMembers.length * weeksInMonth);
     const monthlyAttendancePercent = Math.min(100, (totalAttendanceInMonth / attendanceCapacity) * 100);
-    const reportedWeeks = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10)))).size;
+    const reportedWeekKeys = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10))));
+    const reportedWeeks = reportedWeekKeys.size;
     const todayIso = formatLocalDateKey(now);
     const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
-    const attendanceLoadPercent = Math.min(100, (reportedWeeks / Math.max(1, elapsedWeeks)) * 100);
+    const reportedElapsedWeeks = sundaysInMonth
+      .map((sunday) => formatLocalDateKey(sunday))
+      .filter((iso) => iso <= todayIso && reportedWeekKeys.has(iso)).length;
+    const attendanceLoadPercent = Math.min(100, (reportedElapsedWeeks / Math.max(1, elapsedWeeks)) * 100);
     const monthMeetingProgress = Math.min(100, (monthMeetings / Math.max(1, weeksInMonth)) * 100);
 
     const byCategory = approvedRequests.reduce(
@@ -443,13 +450,14 @@ export default function PresidencyMeetingsPage() {
       weeksInMonth,
       monthlyAttendancePercent,
       reportedWeeks,
+      reportedElapsedWeeks,
       elapsedWeeks,
       attendanceLoadPercent,
       monthMeetingProgress,
       latestMeeting,
       budgetSlides,
     };
-  }, [activities, attendance, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationMembers.length, sundaysInMonth.length]);
+  }, [activities, attendance, budgetRequests, goals, meetings, members, organizationBudgets, organizationId, sundaysInMonth.length]);
 
   useEffect(() => {
     const maxGoalSlide = dashboardStats.goalsWithPercentage.length;
@@ -777,7 +785,7 @@ export default function PresidencyMeetingsPage() {
           <div>
             <p className="text-xs text-muted-foreground">Asistencia a clases</p>
             <p className="mt-1 text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
-            <p className="text-xs text-muted-foreground">Semanas registradas: {dashboardStats.reportedWeeks}/{dashboardStats.elapsedWeeks} ({Math.round(dashboardStats.attendanceLoadPercent)}%)</p>
+            <p className="text-xs text-muted-foreground">Semanas registradas: {dashboardStats.reportedElapsedWeeks}/{dashboardStats.elapsedWeeks} ({Math.round(dashboardStats.attendanceLoadPercent)}%)</p>
           </div>
         </button>
 

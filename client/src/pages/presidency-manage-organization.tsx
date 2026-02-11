@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
   useOrganizations,
-  useOrganizationMembers,
+  useMembers,
   useOrganizationAttendanceByOrg,
   useUpsertOrganizationAttendance,
   usePresidencyMeetings,
@@ -102,7 +102,7 @@ export default function PresidencyManageOrganizationPage() {
   const { data: organizations = [] } = useOrganizations();
   const { data: users = [] } = useUsers();
   const { data: meetings = [], isLoading: meetingsLoading } = usePresidencyMeetings(organizationId);
-  const { data: organizationMembers = [], isLoading: membersLoading } = useOrganizationMembers(organizationId);
+  const { data: members = [], isLoading: membersLoading } = useMembers({ enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
@@ -136,6 +136,11 @@ export default function PresidencyManageOrganizationPage() {
     return { presidents, counselors, secretaries, otherCallings };
   }, [organizationId, users]);
 
+  const organizationMembers = useMemo(
+    () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
+    [members, organizationId]
+  );
+
   const monthlyAttendanceStats = useMemo(() => {
     const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-`;
     const attendanceInMonth = (attendance as any[]).filter((entry: any) => {
@@ -146,13 +151,17 @@ export default function PresidencyManageOrganizationPage() {
     });
 
     const present = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
-    const capacity = attendanceInMonth.reduce((sum: number, entry: any) => sum + Math.max(0, Number(entry.totalMembers ?? organizationMembers.length)), 0);
+    const capacity = organizationMembers.length * sundaysInMonth.length;
     const attendancePercent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
-    const reportedWeeks = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10)))).size;
+    const reportedWeekKeys = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10))));
+    const reportedWeeks = reportedWeekKeys.size;
     const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
-    const compliancePercent = elapsedWeeks > 0 ? Math.min(100, (reportedWeeks / elapsedWeeks) * 100) : 0;
+    const reportedElapsedWeeks = sundaysInMonth
+      .map((sunday) => formatLocalDateKey(sunday))
+      .filter((iso) => iso <= todayIso && reportedWeekKeys.has(iso)).length;
+    const compliancePercent = elapsedWeeks > 0 ? Math.min(100, (reportedElapsedWeeks / elapsedWeeks) * 100) : 0;
 
-    return { present, capacity, attendancePercent, reportedWeeks, elapsedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
+    return { present, capacity, attendancePercent, reportedWeeks, reportedElapsedWeeks, elapsedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
   }, [attendance, organizationMembers.length, selectedMonth, selectedYear, sundaysInMonth, todayIso]);
 
   useEffect(() => {
@@ -336,7 +345,8 @@ export default function PresidencyManageOrganizationPage() {
             <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
               <p className="text-sm">Cumplimiento semanal de registro</p>
               <p className="text-xl font-semibold">{monthlyAttendanceStats.elapsedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas transcurridas</p>
-              <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
+              <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedElapsedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
+              <p className="text-xs text-muted-foreground">Total mes registrado: {monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.weeksInMonth}</p>
               <Progress value={monthlyAttendanceStats.compliancePercent} className="mt-2 h-2" />
             </div>
 
