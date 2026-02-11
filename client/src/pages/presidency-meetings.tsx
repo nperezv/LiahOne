@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -91,7 +92,6 @@ function CircularGauge({
 
   const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
 
-
   return (
     <div className="relative mx-auto flex w-full max-w-[220px] items-center justify-center" data-testid={`gauge-${gradientId}`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="drop-shadow-sm">
@@ -164,8 +164,8 @@ export default function PresidencyMeetingsPage() {
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
   const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
-  const goalDragStartX = useRef<number | null>(null);
-  const budgetDragStartX = useRef<number | null>(null);
+  const goalDragStartX = React.useRef<number | null>(null);
+  const budgetDragStartX = React.useRef<number | null>(null);
 
   const { data: organizations = [] } = useOrganizations();
   const { data: meetings = [], isLoading } = usePresidencyMeetings(organizationId);
@@ -486,12 +486,15 @@ export default function PresidencyMeetingsPage() {
     ));
   };
 
-  const handleSwipe = (startX: number | null, endX: number, onPrev: () => void, onNext: () => void) => {
-    if (startX === null) return;
+  const handleSwipe = (startX: number | null, endX: number | null, onPrev: () => void, onNext: () => void) => {
+    if (startX === null || endX === null) return;
     const delta = endX - startX;
     if (delta > 35) onPrev();
     if (delta < -35) onNext();
   };
+
+  const getTouchStartX = (event: any) => event.touches?.[0]?.clientX ?? null;
+  const getTouchEndX = (event: any) => event.changedTouches?.[0]?.clientX ?? null;
 
   if (isLoading || !organizationId) {
     return (
@@ -630,8 +633,8 @@ export default function PresidencyMeetingsPage() {
           <CardContent className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
             onPointerDown={(event) => { goalDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(goalDragStartX.current, event.clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
-            onTouchStart={(event) => { goalDragStartX.current = event.touches[0].clientX; }}
-            onTouchEnd={(event) => handleSwipe(goalDragStartX.current, event.changedTouches[0].clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
+            onTouchStart={(event) => { goalDragStartX.current = getTouchStartX(event); }}
+            onTouchEnd={(event) => handleSwipe(goalDragStartX.current, getTouchEndX(event), () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
           >
             <div className="mb-1 flex items-baseline gap-2">
               <span className="text-4xl font-bold leading-none">{Math.round(activeGoal ? activeGoal.percentage : dashboardStats.goalProgress)}%</span>
@@ -675,8 +678,8 @@ export default function PresidencyMeetingsPage() {
             className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
             onPointerDown={(event) => { budgetDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(budgetDragStartX.current, event.clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
-            onTouchStart={(event) => { budgetDragStartX.current = event.touches[0].clientX; }}
-            onTouchEnd={(event) => handleSwipe(budgetDragStartX.current, event.changedTouches[0].clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
+            onTouchStart={(event) => { budgetDragStartX.current = getTouchStartX(event); }}
+            onTouchEnd={(event) => handleSwipe(budgetDragStartX.current, getTouchEndX(event), () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
           >
             <div className="mb-1">
               <p className="text-4xl font-bold leading-none">{Math.round(activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage)}% usado</p>
