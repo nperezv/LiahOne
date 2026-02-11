@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import { useRoute, useLocation } from "wouter";
 import {
   Plus,
-  Target,
   Download,
   Trash2,
   CalendarDays,
@@ -15,6 +14,8 @@ import {
   PlayCircle,
   Wallet,
   Users,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -119,6 +119,7 @@ export default function PresidencyMeetingsPage() {
   const [, setLocation] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [meetingsOverviewOpen, setMeetingsOverviewOpen] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | undefined>();
 
   const { data: organizations = [] } = useOrganizations();
@@ -344,95 +345,76 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 120, damping: 18 }}
-        className="rounded-3xl border border-border/70 bg-card/85 p-5 shadow-sm backdrop-blur md:p-7"
       >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{pageTitle}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Administración y guía de la organización</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => setLocation("/goals")} data-testid="button-org-goals">
-              <Target className="mr-2 h-4 w-4" />
-              Metas
-            </Button>
-            {canCreate && (
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button data-testid="button-create-meeting">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Nueva reunión
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Crear reunión de presidencia</DialogTitle>
-                    <DialogDescription>Registra la reunión de presidencia de {orgName}</DialogDescription>
-                  </DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} data-testid="input-date" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="agenda"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Agenda (opcional)</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder="Puntos a tratar en la reunión" {...field} data-testid="textarea-agenda" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Notas (opcional)</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder="Notas de la reunión" {...field} data-testid="textarea-notes" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel">
-                          Cancelar
-                        </Button>
-                        <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
-                          {createMutation.isPending ? "Creando..." : "Crear reunión"}
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{pageTitle}</h1>
       </motion.div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-7">
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crear reunión de presidencia</DialogTitle>
+            <DialogDescription>Registra la reunión de presidencia de {orgName}</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fecha</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} data-testid="input-date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="agenda"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Agenda (opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Puntos a tratar en la reunión" {...field} data-testid="textarea-agenda" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notas (opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Notas de la reunión" {...field} data-testid="textarea-notes" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel">
+                  Cancelar
+                </Button>
+                <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Creando..." : "Crear reunión"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-12">
+        <div className="col-span-1 flex flex-col gap-3 md:gap-4 lg:col-span-4">
           <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
             <button
               type="button"
@@ -442,7 +424,7 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
             >
               <p className="text-xs text-muted-foreground">Miembros de la organización</p>
               <div className="mt-2 flex items-center justify-between">
-                <p className="text-3xl font-semibold">{dashboardStats.membersCount}</p>
+                <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.membersCount}</p>
                 <Users className="h-5 w-5 text-muted-foreground" />
               </div>
             </button>
@@ -455,8 +437,24 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
                 {organizationMembers.length > 0 ? (
                   organizationMembers.map((member) => (
                     <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
-                      <p className="text-sm font-medium">{member.nameSurename}</p>
-                      <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">{member.nameSurename}</p>
+                          <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {member.phone && (
+                            <a href={`tel:${member.phone}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70">
+                              <Phone className="h-4 w-4" />
+                            </a>
+                          )}
+                          {member.email && (
+                            <a href={`mailto:${member.email}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70">
+                              <Mail className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -466,34 +464,80 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
             </DialogContent>
           </Dialog>
 
-          <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Calendario</CardTitle>
-              <CardDescription>Actividades del mes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold">{dashboardStats.monthlyActivities}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm sm:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Reuniones de presidencia</CardTitle>
-              <CardDescription>Seguimiento mensual y asistencia sacramental</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-2xl bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground">Cumplimiento mensual</p>
-                <p className="text-2xl font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</p>
-              </div>
-              <div className="rounded-2xl bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground">Asistencia reunión sacramental</p>
-                <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
-              </div>
-            </CardContent>
-          </Card>
+          <button
+            type="button"
+            onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)}
+            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            data-testid="button-org-calendar-card"
+          >
+            <p className="text-xs text-muted-foreground">Calendario</p>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.monthlyActivities}</p>
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Actividades del mes</p>
+          </button>
         </div>
 
+        <div className="col-span-1 lg:col-span-3">
+          <Dialog open={meetingsOverviewOpen} onOpenChange={setMeetingsOverviewOpen}>
+            <button
+              type="button"
+              onClick={() => setMeetingsOverviewOpen(true)}
+              className="flex h-full min-h-[196px] w-full flex-col justify-between rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+              data-testid="button-presidency-meetings-overview"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
+                <p className="mt-2 text-2xl font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Asistencia reunión sacramental</p>
+                <p className="mt-1 text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
+              </div>
+            </button>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Cumplimiento mensual</DialogTitle>
+                <DialogDescription>
+                  {dashboardStats.monthMeetings} reuniones registradas de {dashboardStats.weeksInMonth} esperadas en el mes actual.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="rounded-xl bg-muted/40 p-3 text-sm">
+                  <p>Asistencia sacramental mensual: <span className="font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</span></p>
+                </div>
+                {canCreate && (
+                  <Button className="w-full" onClick={() => { setMeetingsOverviewOpen(false); setIsDialogOpen(true); }} data-testid="button-schedule-meeting-from-overview">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Programar reunión
+                  </Button>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card className="col-span-2 rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
+          <CardHeader>
+            <CardTitle className="text-base">Metas de organización</CardTitle>
+            <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CircularGauge
+              value={dashboardStats.detailRate}
+              label="Metas cumplidas"
+              subtitle={`${dashboardStats.meetingsWithDetails} de ${Math.max(1, dashboardStats.totalMeetings)} reuniones`}
+              gradientId="goals"
+            />
+            <Button className="mt-4 w-full" onClick={() => setLocation('/goals')} data-testid="button-goals-from-gauge">
+              Ver metas
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-12">
         <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
           <CardHeader>
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
