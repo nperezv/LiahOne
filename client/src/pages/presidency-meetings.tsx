@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import * as React from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -163,8 +164,8 @@ export default function PresidencyMeetingsPage() {
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
   const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
-  const goalDragStartX = useRef<number | null>(null);
-  const budgetDragStartX = useRef<number | null>(null);
+  const goalDragStartX = React.useRef<number | null>(null);
+  const budgetDragStartX = React.useRef<number | null>(null);
 
   const { data: organizations = [] } = useOrganizations();
   const { data: meetings = [], isLoading } = usePresidencyMeetings(organizationId);
