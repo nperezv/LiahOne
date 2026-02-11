@@ -151,11 +151,11 @@ export default function PresidencyManageOrganizationPage() {
     });
 
     const present = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
-    const capacity = organizationMembers.length * sundaysInMonth.length;
-    const attendancePercent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
     const reportedWeekKeys = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10))));
     const reportedWeeks = reportedWeekKeys.size;
     const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
+    const capacity = organizationMembers.length * elapsedWeeks;
+    const attendancePercent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
     const reportedElapsedWeeks = sundaysInMonth
       .map((sunday) => formatLocalDateKey(sunday))
       .filter((iso) => iso <= todayIso && reportedWeekKeys.has(iso)).length;
