@@ -17,6 +17,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -75,6 +76,7 @@ const isAllowedDocument = (file: File) => {
 const budgetSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
   amount: z.string().min(1, "El monto es requerido"),
+  category: z.enum(["actividades", "materiales", "otros"]),
   notes: z.string().optional(),
   receiptFile: z
     .instanceof(File)
@@ -121,6 +123,7 @@ interface BudgetRequest {
   id: string;
   description: string;
   amount: number;
+  category?: "actividades" | "materiales" | "otros";
   status: "solicitado" | "aprobado" | "en_proceso" | "completado";
   requestedBy: string;
   approvedBy?: string;
@@ -237,6 +240,7 @@ export default function BudgetPage() {
     defaultValues: {
       description: "",
       amount: "",
+      category: "otros",
       notes: "",
       receiptFile: undefined,
       activityPlanFile: undefined,
@@ -335,6 +339,7 @@ export default function BudgetPage() {
       {
         description: data.description,
         amount: parseFloat(data.amount),
+        category: data.category,
         status: "solicitado",
         notes: data.notes || "",
         receipts: uploadedReceipts,
@@ -803,6 +808,29 @@ export default function BudgetPage() {
                             data-testid="input-amount"
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={budgetForm.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoría</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-budget-category">
+                              <SelectValue placeholder="Selecciona categoría" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="actividades">Actividades</SelectItem>
+                            <SelectItem value="materiales">Materiales</SelectItem>
+                            <SelectItem value="otros">Otros</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
