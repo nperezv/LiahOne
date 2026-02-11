@@ -188,6 +188,7 @@ export default function PresidencyMeetingsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isOperationsModalOpen, setIsOperationsModalOpen] = useState(false);
   const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
+  const [isBudgetMovementsDialogOpen, setIsBudgetMovementsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
@@ -491,6 +492,9 @@ export default function PresidencyMeetingsPage() {
 
   const activeGoal = goalSlideIndex === 0 ? null : (dashboardStats.goalsWithPercentage[goalSlideIndex - 1] ?? null);
   const activeBudgetSlide = dashboardStats.budgetSlides[budgetSlideIndex] ?? dashboardStats.budgetSlides[0];
+  const organizationBudgetMovements = (budgetRequests as any[])
+    .filter((request: any) => request.organizationId === organizationId)
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const goalGradients: [string, string, string][] = [
     ["#F5CF74", "#E3AF45", "#1F8795"],
     ["#C5E8C6", "#56C2BD", "#4E9D63"],
@@ -660,7 +664,11 @@ export default function PresidencyMeetingsPage() {
           </div>
         </button>
 
-        <Card className="col-span-2 rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+
+        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Metas de organización</CardTitle>
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
@@ -707,10 +715,8 @@ export default function PresidencyMeetingsPage() {
             <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => setLocation("/goals?tab=organizacion")} data-testid="button-goals-from-gauge">+ Ver metas</Button>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
+        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
             <CardDescription>Uso del trimestre actual</CardDescription>
@@ -745,12 +751,16 @@ export default function PresidencyMeetingsPage() {
                 />
               ))}
             </div>
-            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => setIsBudgetRequestDialogOpen(true)} data-testid="button-request-budget-from-card">
-              Ver movimientos / Solicitar presupuesto
-            </Button>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <Button className="w-full rounded-full" variant="secondary" onClick={() => setIsBudgetMovementsDialogOpen(true)} data-testid="button-view-budget-movements-from-card">
+                Ver movimientos
+              </Button>
+              <Button className="w-full rounded-full" variant="outline" onClick={() => setIsBudgetRequestDialogOpen(true)} data-testid="button-request-budget-from-card">
+                Solicitar presupuesto
+              </Button>
+            </div>
             <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
-              <div className="flex items-center justify-between"><span className="text-muted-foreground">Asignado</span><span className="font-medium">€{dashboardStats.assignedBudget.toFixed(2)}</span></div>
-              <div className="mt-1 flex items-center justify-between"><span className="text-muted-foreground">Disponible</span><span className="font-medium">€{dashboardStats.availableBudget.toFixed(2)}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Disponible</span><span className="font-medium">€{dashboardStats.availableBudget.toFixed(2)}</span></div>
             </div>
           </CardContent>
         </Card>
@@ -790,6 +800,31 @@ export default function PresidencyMeetingsPage() {
               <Button className="w-full" onClick={() => setIsDialogOpen(true)} data-testid="button-schedule-meeting-from-operations">
                 <Plus className="mr-2 h-4 w-4" />Programar reunión
               </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBudgetMovementsDialogOpen} onOpenChange={setIsBudgetMovementsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Movimientos de presupuesto</DialogTitle>
+            <DialogDescription>Solicitudes de esta organización y su estado.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+            {organizationBudgetMovements.length > 0 ? organizationBudgetMovements.map((movement: any) => (
+              <div key={movement.id} className="rounded-xl border border-border/70 bg-background/70 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{movement.description}</p>
+                  <span className="text-sm font-semibold">€{Number(movement.amount ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="capitalize">{String(movement.status || "solicitado").replace("_", " ")}</span>
+                  <span>{new Date(movement.createdAt).toLocaleDateString("es-ES")}</span>
+                </div>
+              </div>
+            )) : (
+              <p className="text-sm text-muted-foreground">No hay movimientos registrados todavía.</p>
             )}
           </div>
         </DialogContent>
