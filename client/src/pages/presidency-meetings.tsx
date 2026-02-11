@@ -227,6 +227,13 @@ function getSundaysForMonth(date: Date) {
   return sundays;
 }
 
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function PresidencyMeetingsPage() {
   const { user } = useAuth();
   const [, params] = useRoute("/presidency/:org");
@@ -378,7 +385,9 @@ export default function PresidencyMeetingsPage() {
     const attendanceCapacity = Math.max(1, totalMembersBase || (organizationMembers.length * weeksInMonth));
     const monthlyAttendancePercent = Math.min(100, (totalAttendanceInMonth / attendanceCapacity) * 100);
     const reportedWeeks = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10)))).size;
-    const attendanceLoadPercent = Math.min(100, (reportedWeeks / Math.max(1, weeksInMonth)) * 100);
+    const todayIso = formatLocalDateKey(now);
+    const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
+    const attendanceLoadPercent = Math.min(100, (reportedWeeks / Math.max(1, elapsedWeeks)) * 100);
     const monthMeetingProgress = Math.min(100, (monthMeetings / Math.max(1, weeksInMonth)) * 100);
 
     const byCategory = approvedRequests.reduce(
@@ -434,6 +443,7 @@ export default function PresidencyMeetingsPage() {
       weeksInMonth,
       monthlyAttendancePercent,
       reportedWeeks,
+      elapsedWeeks,
       attendanceLoadPercent,
       monthMeetingProgress,
       latestMeeting,
@@ -767,7 +777,7 @@ export default function PresidencyMeetingsPage() {
           <div>
             <p className="text-xs text-muted-foreground">Asistencia a clases</p>
             <p className="mt-1 text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
-            <p className="text-xs text-muted-foreground">Carga: {dashboardStats.reportedWeeks}/{dashboardStats.weeksInMonth} semanas ({Math.round(dashboardStats.attendanceLoadPercent)}%)</p>
+            <p className="text-xs text-muted-foreground">Semanas registradas: {dashboardStats.reportedWeeks}/{dashboardStats.elapsedWeeks} ({Math.round(dashboardStats.attendanceLoadPercent)}%)</p>
           </div>
         </button>
 

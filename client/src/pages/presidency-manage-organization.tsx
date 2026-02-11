@@ -50,6 +50,13 @@ function getSundaysForMonth(date: Date) {
   return sundays;
 }
 
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const organizationSlugs: Record<string, string> = {
   "hombres-jovenes": "hombres_jovenes",
   "mujeres-jovenes": "mujeres_jovenes",
@@ -114,7 +121,7 @@ export default function PresidencyManageOrganizationPage() {
   }, [params?.org, organizations]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Organización";
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = formatLocalDateKey(new Date());
   const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
   const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
 
@@ -142,15 +149,16 @@ export default function PresidencyManageOrganizationPage() {
     const capacity = attendanceInMonth.reduce((sum: number, entry: any) => sum + Math.max(0, Number(entry.totalMembers ?? organizationMembers.length)), 0);
     const attendancePercent = capacity > 0 ? Math.min(100, (present / capacity) * 100) : 0;
     const reportedWeeks = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10)))).size;
-    const compliancePercent = sundaysInMonth.length > 0 ? (reportedWeeks / sundaysInMonth.length) * 100 : 0;
+    const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
+    const compliancePercent = elapsedWeeks > 0 ? Math.min(100, (reportedWeeks / elapsedWeeks) * 100) : 0;
 
-    return { present, capacity, attendancePercent, reportedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
-  }, [attendance, organizationMembers.length, selectedMonth, selectedYear, sundaysInMonth.length]);
+    return { present, capacity, attendancePercent, reportedWeeks, elapsedWeeks, compliancePercent, weeksInMonth: sundaysInMonth.length };
+  }, [attendance, organizationMembers.length, selectedMonth, selectedYear, sundaysInMonth, todayIso]);
 
   useEffect(() => {
     const nextDrafts: Record<string, string[]> = {};
     sundaysInMonth.forEach((sunday) => {
-      const iso = sunday.toISOString().slice(0, 10);
+      const iso = formatLocalDateKey(sunday);
       const existing = (attendance as any[]).find((entry: any) => {
         const key = typeof entry.weekKey === "string"
           ? entry.weekKey
@@ -326,8 +334,9 @@ export default function PresidencyManageOrganizationPage() {
             </div>
 
             <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-              <p className="text-sm">Cumplimiento de carga semanal</p>
-              <p className="text-xl font-semibold">{monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
+              <p className="text-sm">Cumplimiento semanal de registro</p>
+              <p className="text-xl font-semibold">{monthlyAttendanceStats.elapsedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas transcurridas</p>
+              <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
               <Progress value={monthlyAttendanceStats.compliancePercent} className="mt-2 h-2" />
             </div>
 
@@ -341,7 +350,7 @@ export default function PresidencyManageOrganizationPage() {
 
             <div className="space-y-2">
               {sundaysInMonth.map((sunday) => {
-                const iso = sunday.toISOString().slice(0, 10);
+                const iso = formatLocalDateKey(sunday);
                 return (
                   <div key={iso} className="grid items-center gap-2 rounded-xl border border-border/70 bg-background/80 p-3 sm:grid-cols-[1fr_180px_100px]">
                     <p className="text-sm font-medium">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
