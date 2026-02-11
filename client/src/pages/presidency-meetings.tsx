@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,17 +30,20 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import {
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
+  useCreateBudgetRequest,
   useOrganizations,
   useBudgetRequests,
   useOrganizationBudgets,
   useOrganizationMembers,
   useActivities,
+  useGoals,
   useOrganizationAttendanceByOrg,
   useUpsertOrganizationAttendance,
 } from "@/hooks/use-api";
@@ -54,18 +57,28 @@ const meetingSchema = z.object({
   agreementsText: z.string().optional(),
 });
 
+const budgetRequestSchema = z.object({
+  description: z.string().min(1, "La descripción es requerida"),
+  amount: z.string().min(1, "El monto es requerido"),
+  category: z.enum(["actividades", "materiales", "otros"]),
+  notes: z.string().optional(),
+});
+
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+type BudgetRequestFormValues = z.infer<typeof budgetRequestSchema>;
 
 function CircularGauge({
   value,
   label,
   subtitle,
   gradientId,
+  gradientStops,
 }: {
   value: number;
   label: string;
   subtitle: string;
   gradientId: string;
+  gradientStops?: [string, string, string];
 }) {
   const size = 180;
   const stroke = 14;
@@ -73,14 +86,16 @@ function CircularGauge({
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (Math.max(0, Math.min(100, value)) / 100) * circumference;
 
+  const [startColor, middleColor, endColor] = gradientStops ?? ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-2))"];
+
   return (
     <div className="relative mx-auto flex w-full max-w-[220px] items-center justify-center" data-testid={`gauge-${gradientId}`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="drop-shadow-sm">
         <defs>
           <linearGradient id={`${gradientId}-gradient`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--chart-4))" />
-            <stop offset="45%" stopColor="hsl(var(--chart-1))" />
-            <stop offset="100%" stopColor="hsl(var(--chart-2))" />
+            <stop offset="0%" stopColor={startColor} />
+            <stop offset="45%" stopColor={middleColor} />
+            <stop offset="100%" stopColor={endColor} />
           </linearGradient>
         </defs>
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} strokeLinecap="round" />
@@ -129,19 +144,24 @@ export default function PresidencyMeetingsPage() {
   const [, params] = useRoute("/presidency/:org");
   const [, setLocation] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isOperationsModalOpen, setIsOperationsModalOpen] = useState(false);
+  const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, number>>({});
-  const operationsRef = useRef<HTMLDivElement | null>(null);
+  const [goalSlideIndex, setGoalSlideIndex] = useState(0);
+  const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
 
   const { data: organizations = [] } = useOrganizations();
   const { data: meetings = [], isLoading } = usePresidencyMeetings(organizationId);
   const { data: budgetRequests = [] } = useBudgetRequests();
+  const { data: goals = [] } = useGoals();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
   const { data: organizationMembers = [] } = useOrganizationMembers(organizationId);
   const { data: activities = [] } = useActivities();
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
+  const createBudgetRequestMutation = useCreateBudgetRequest();
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
   const { toast } = useToast();
 
@@ -187,9 +207,18 @@ export default function PresidencyMeetingsPage() {
   const sundaysInMonth = useMemo(() => getSundaysForMonth(currentDate), [currentDate.getMonth(), currentDate.getFullYear()]);
 
   const dashboardStats = useMemo(() => {
-    const totalMeetings = meetings.length;
-    const meetingsWithDetails = meetings.filter((meeting: any) => meeting.agenda || meeting.notes).length;
-    const detailRate = totalMeetings > 0 ? (meetingsWithDetails / totalMeetings) * 100 : 0;
+    const organizationGoals = (goals as any[]).filter((goal: any) => goal.organizationId === organizationId);
+    const goalsWithPercentage = organizationGoals.map((goal: any) => {
+      const target = Number(goal.targetValue ?? 0);
+      const current = Number(goal.currentValue ?? 0);
+      const percentage = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+      return { ...goal, percentage, target, current };
+    });
+
+    const completedGoals = goalsWithPercentage.filter((goal: any) => goal.percentage >= 100).length;
+    const goalProgress = goalsWithPercentage.length > 0
+      ? goalsWithPercentage.reduce((sum: number, goal: any) => sum + goal.percentage, 0) / goalsWithPercentage.length
+      : 0;
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -236,7 +265,9 @@ export default function PresidencyMeetingsPage() {
 
     const byCategory = approvedRequests.reduce(
       (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
-        const category = request.category === "actividades" || request.category === "materiales" ? request.category : "otros";
+        const category: "actividades" | "materiales" | "otros" = request.category === "actividades" || request.category === "materiales"
+          ? request.category
+          : "otros";
         acc[category] += Number(request.amount ?? 0);
         return acc;
       },
@@ -246,10 +277,34 @@ export default function PresidencyMeetingsPage() {
     const latestMeeting = [...meetings]
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
+    const budgetSlides = [
+      {
+        key: "materiales",
+        title: "Materiales",
+        amount: byCategory.materiales,
+        percentage: assignedBudget > 0 ? Math.min(100, (byCategory.materiales / assignedBudget) * 100) : 0,
+        gradientStops: ["hsl(var(--chart-2))", "hsl(var(--chart-1))", "hsl(var(--chart-4))"] as [string, string, string],
+      },
+      {
+        key: "actividades",
+        title: "Actividades",
+        amount: byCategory.actividades,
+        percentage: assignedBudget > 0 ? Math.min(100, (byCategory.actividades / assignedBudget) * 100) : 0,
+        gradientStops: ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-5))"] as [string, string, string],
+      },
+      {
+        key: "otros",
+        title: "Otros",
+        amount: byCategory.otros,
+        percentage: assignedBudget > 0 ? Math.min(100, (byCategory.otros / assignedBudget) * 100) : 0,
+        gradientStops: ["hsl(var(--chart-3))", "hsl(var(--chart-5))", "hsl(var(--chart-2))"] as [string, string, string],
+      },
+    ];
+
     return {
-      totalMeetings,
-      meetingsWithDetails,
-      detailRate,
+      goalsWithPercentage,
+      completedGoals,
+      goalProgress,
       budgetUsage,
       assignedBudget,
       spentBudget,
@@ -261,8 +316,15 @@ export default function PresidencyMeetingsPage() {
       weeksInMonth,
       monthlyAttendancePercent,
       latestMeeting,
+      budgetSlides,
     };
-  }, [activities, attendance, budgetRequests, meetings, organizationBudgets, organizationId, organizationMembers.length, sundaysInMonth.length]);
+  }, [activities, attendance, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationMembers.length, sundaysInMonth.length]);
+
+  useEffect(() => {
+    if (goalSlideIndex > 0 && goalSlideIndex >= dashboardStats.goalsWithPercentage.length) {
+      setGoalSlideIndex(Math.max(0, dashboardStats.goalsWithPercentage.length - 1));
+    }
+  }, [dashboardStats.goalsWithPercentage.length, goalSlideIndex]);
 
   useEffect(() => {
     const nextDrafts: Record<string, number> = {};
@@ -303,6 +365,16 @@ export default function PresidencyMeetingsPage() {
       agenda: "",
       notes: "",
       agreementsText: "",
+    },
+  });
+
+  const budgetRequestForm = useForm<BudgetRequestFormValues>({
+    resolver: zodResolver(budgetRequestSchema),
+    defaultValues: {
+      description: "",
+      amount: "",
+      category: "otros",
+      notes: "",
     },
   });
 
@@ -350,6 +422,37 @@ export default function PresidencyMeetingsPage() {
       attendeesCount: Number(attendanceDrafts[isoDate] ?? 0),
     });
   };
+
+  const onSubmitBudgetRequest = (values: BudgetRequestFormValues) => {
+    if (!organizationId) return;
+
+    createBudgetRequestMutation.mutate(
+      {
+        description: values.description,
+        amount: Number(values.amount),
+        category: values.category,
+        notes: values.notes || "",
+        organizationId,
+        status: "solicitado",
+      },
+      {
+        onSuccess: () => {
+          setIsBudgetRequestDialogOpen(false);
+          budgetRequestForm.reset();
+        },
+      }
+    );
+  };
+
+  const activeGoal = dashboardStats.goalsWithPercentage[goalSlideIndex] ?? null;
+  const activeBudgetSlide = dashboardStats.budgetSlides[budgetSlideIndex] ?? dashboardStats.budgetSlides[0];
+  const goalGradients: [string, string, string][] = [
+    ["hsl(var(--chart-1))", "hsl(var(--chart-4))", "hsl(var(--chart-2))"],
+    ["hsl(var(--chart-2))", "hsl(var(--chart-5))", "hsl(var(--chart-3))"],
+    ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-5))"],
+    ["hsl(var(--chart-3))", "hsl(var(--chart-2))", "hsl(var(--chart-1))"],
+  ];
+  const activeGoalGradient = goalGradients[goalSlideIndex % goalGradients.length];
 
   if (isLoading || !organizationId) {
     return (
@@ -466,7 +569,7 @@ export default function PresidencyMeetingsPage() {
 
         <button
           type="button"
-          onClick={() => operationsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onClick={() => setIsOperationsModalOpen(true)}
           className="col-span-1 flex min-h-[220px] flex-col justify-between rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
           data-testid="button-presidency-meetings-overview"
         >
@@ -486,19 +589,78 @@ export default function PresidencyMeetingsPage() {
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
           </CardHeader>
           <CardContent>
-            <CircularGauge value={dashboardStats.detailRate} label="Metas cumplidas" subtitle={`${dashboardStats.meetingsWithDetails} de ${Math.max(1, dashboardStats.totalMeetings)} reuniones`} gradientId="goals" />
-            <Button className="mt-4 w-full" onClick={() => setLocation("/goals")} data-testid="button-goals-from-gauge">Ver metas</Button>
+            <CircularGauge
+              value={activeGoal ? activeGoal.percentage : dashboardStats.goalProgress}
+              label={activeGoal ? activeGoal.title : "Metas cumplidas"}
+              subtitle={activeGoal ? `${activeGoal.current} / ${Math.max(1, activeGoal.target)}` : `${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas`}
+              gradientId="goals"
+              gradientStops={activeGoalGradient}
+            />
+            {dashboardStats.goalsWithPercentage.length > 1 && (
+              <motion.div
+                className="mt-3 flex cursor-grab justify-center gap-2 active:cursor-grabbing"
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -40) setGoalSlideIndex((prev) => Math.min(prev + 1, dashboardStats.goalsWithPercentage.length - 1));
+                  if (info.offset.x > 40) setGoalSlideIndex((prev) => Math.max(prev - 1, 0));
+                }}
+              >
+                {dashboardStats.goalsWithPercentage.map((_: any, index: number) => (
+                  <span key={index} className={`h-2 w-2 rounded-full ${goalSlideIndex === index ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                ))}
+              </motion.div>
+            )}
+            <Button className="mt-4 w-full" onClick={() => setLocation("/goals?tab=organizacion")} data-testid="button-goals-from-gauge">Ver metas</Button>
           </CardContent>
         </Card>
       </div>
 
-      <div ref={operationsRef} className="grid gap-4 lg:grid-cols-12">
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-7">
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
           <CardHeader>
-            <CardTitle>Gestión de reuniones y asistencia</CardTitle>
-            <CardDescription>Domingos del mes, cumplimiento y programación</CardDescription>
+            <CardTitle className="text-base">Presupuesto de organización</CardTitle>
+            <CardDescription>Uso del trimestre actual</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent>
+            <CircularGauge
+              value={activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage}
+              label={activeBudgetSlide?.title ?? "Uso trimestral"}
+              subtitle={activeBudgetSlide ? `€${activeBudgetSlide.amount.toFixed(2)}` : `Disponible €${dashboardStats.availableBudget.toFixed(2)}`}
+              gradientId="budget"
+              gradientStops={activeBudgetSlide?.gradientStops}
+            />
+            <motion.div
+              className="mt-3 flex cursor-grab justify-center gap-2 active:cursor-grabbing"
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -40) setBudgetSlideIndex((prev) => Math.min(prev + 1, dashboardStats.budgetSlides.length - 1));
+                if (info.offset.x > 40) setBudgetSlideIndex((prev) => Math.max(prev - 1, 0));
+              }}
+            >
+              {dashboardStats.budgetSlides.map((_: any, index: number) => (
+                <span key={index} className={`h-2 w-2 rounded-full ${budgetSlideIndex === index ? "bg-primary" : "bg-muted-foreground/30"}`} />
+              ))}
+            </motion.div>
+            <Button className="mt-4 w-full" variant="outline" onClick={() => setIsBudgetRequestDialogOpen(true)} data-testid="button-request-budget-from-card">
+              Solicitar presupuesto
+            </Button>
+            <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Asignado</span><span className="font-medium">€{dashboardStats.assignedBudget.toFixed(2)}</span></div>
+              <div className="mt-1 flex items-center justify-between"><span className="text-muted-foreground">Disponible</span><span className="font-medium">€{dashboardStats.availableBudget.toFixed(2)}</span></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={isOperationsModalOpen} onOpenChange={setIsOperationsModalOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Gestión de reuniones y asistencia</DialogTitle>
+            <DialogDescription>Domingos del mes, cumplimiento y programación</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
             <div className="rounded-2xl bg-muted/30 p-3 text-sm">
               <p>
                 Cumplimiento del mes: <span className="font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</span>
@@ -527,30 +689,68 @@ export default function PresidencyMeetingsPage() {
                 <Plus className="mr-2 h-4 w-4" />Programar reunión
               </Button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm lg:col-span-5">
-          <CardHeader>
-            <CardTitle className="text-base">Presupuesto de organización</CardTitle>
-            <CardDescription>Uso del trimestre actual</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CircularGauge value={dashboardStats.budgetUsage} label="Uso trimestral" subtitle={`Disponible €${dashboardStats.availableBudget.toFixed(2)}`} gradientId="budget" />
-            <Button className="mt-4 w-full" variant="outline" onClick={() => setLocation("/budget")} data-testid="button-request-budget-from-card">
-              Solicitar presupuesto
-            </Button>
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Materiales</span><span className="font-medium">€{dashboardStats.byCategory.materiales.toFixed(2)}</span></div>
-              <div className="h-2 rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-chart-2 to-chart-1" style={{ width: `${dashboardStats.spentBudget > 0 ? (dashboardStats.byCategory.materiales / dashboardStats.spentBudget) * 100 : 0}%` }} /></div>
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Actividades</span><span className="font-medium">€{dashboardStats.byCategory.actividades.toFixed(2)}</span></div>
-              <div className="h-2 rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-chart-1 to-chart-4" style={{ width: `${dashboardStats.spentBudget > 0 ? (dashboardStats.byCategory.actividades / dashboardStats.spentBudget) * 100 : 0}%` }} /></div>
-              <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Otros</span><span className="font-medium">€{dashboardStats.byCategory.otros.toFixed(2)}</span></div>
-              <div className="h-2 rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-chart-3 to-chart-5" style={{ width: `${dashboardStats.spentBudget > 0 ? (dashboardStats.byCategory.otros / dashboardStats.spentBudget) * 100 : 0}%` }} /></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Dialog open={isBudgetRequestDialogOpen} onOpenChange={setIsBudgetRequestDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Solicitar presupuesto</DialogTitle>
+            <DialogDescription>Completa la solicitud con el monto y categoría.</DialogDescription>
+          </DialogHeader>
+          <Form {...budgetRequestForm}>
+            <form onSubmit={budgetRequestForm.handleSubmit(onSubmitBudgetRequest)} className="space-y-4">
+              <FormField control={budgetRequestForm.control} name="description" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descripción</FormLabel>
+                  <FormControl><Input placeholder="Ej: Materiales para actividad" {...field} data-testid="input-budget-request-description" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={budgetRequestForm.control} name="amount" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Monto (€)</FormLabel>
+                  <FormControl><Input type="number" step="0.01" min="0" {...field} data-testid="input-budget-request-amount" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={budgetRequestForm.control} name="category" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Categoría</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-budget-request-category">
+                        <SelectValue placeholder="Selecciona categoría" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="actividades">Actividades</SelectItem>
+                      <SelectItem value="materiales">Materiales</SelectItem>
+                      <SelectItem value="otros">Otros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={budgetRequestForm.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notas (opcional)</FormLabel>
+                  <FormControl><Textarea {...field} data-testid="input-budget-request-notes" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <Button type="submit" className="w-full" data-testid="button-submit-budget-request" disabled={createBudgetRequestMutation.isPending}>
+                {createBudgetRequestMutation.isPending ? "Enviando..." : "Enviar solicitud"}
+              </Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {dashboardStats.latestMeeting && (
         <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
@@ -653,7 +853,7 @@ export default function PresidencyMeetingsPage() {
               <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><BookOpen className="mb-2 h-5 w-5 text-chart-1" /><p className="text-sm font-medium">Manuales</p></button>
               <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><FileText className="mb-2 h-5 w-5 text-chart-2" /><p className="text-sm font-medium">Plantillas</p></button>
               <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><PlayCircle className="mb-2 h-5 w-5 text-chart-4" /><p className="text-sm font-medium">Capacitación</p></button>
-              <button type="button" onClick={() => setLocation("/budget")} className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><Wallet className="mb-2 h-5 w-5 text-chart-3" /><p className="text-sm font-medium">Presupuesto</p></button>
+              <button type="button" onClick={() => setIsBudgetRequestDialogOpen(true)} className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><Wallet className="mb-2 h-5 w-5 text-chart-3" /><p className="text-sm font-medium">Presupuesto</p></button>
             </div>
           </CardContent>
         </Card>
