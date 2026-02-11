@@ -3321,6 +3321,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/organizations/:organizationId/members", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { organizationId } = req.params;
+
+      const isObispado = [
+        "obispo",
+        "consejero_obispo",
+        "secretario",
+        "secretario_ejecutivo",
+        "secretario_financiero",
+      ].includes(user.role);
+
+      const isOrgMember = [
+        "presidente_organizacion",
+        "secretario_organizacion",
+        "consejero_organizacion",
+      ].includes(user.role);
+
+      if (!isObispado && !(isOrgMember && user.organizationId === organizationId)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const members = await storage.getAllMembers();
+      const organizationMembers = members.filter((member: any) => member.organizationId === organizationId);
+      res.json(organizationMembers);
+    } catch (error) {
+      console.error("Error fetching organization members:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/members", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -4008,6 +4040,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "Budget not found" });
     }
     res.json(budget);
+  });
+
+  // ========================================
+  // ORGANIZATION WEEKLY ATTENDANCE
+  // ========================================
+
+  app.get("/api/organization-attendance", requireAuth, requireRole("secretario", "obispo", "consejero_obispo"), async (_req: Request, res: Response) => {
+    try {
+      const attendance = await storage.getAllOrganizationWeeklyAttendance();
+      res.json(attendance);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/organization-attendance/:organizationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { organizationId } = req.params;
+
+      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
+
+      if (!isObispado && !(isOrgMember && user.organizationId === organizationId)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const attendance = await storage.getOrganizationWeeklyAttendance(organizationId);
+      res.json(attendance);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/organization-attendance", requireAuth, requireRole("secretario", "obispo", "consejero_obispo"), async (req: Request, res: Response) => {
+    try {
+      const parsed = z.object({
+        organizationId: z.string().min(1),
+        weekStartDate: z.string().min(1),
+        attendeesCount: z.number().int().min(0),
+      }).safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+
+      const payload = {
+        organizationId: parsed.data.organizationId,
+        weekStartDate: new Date(parsed.data.weekStartDate),
+        attendeesCount: parsed.data.attendeesCount,
+        createdBy: req.session.userId!,
+      };
+
+      const attendance = await storage.upsertOrganizationWeeklyAttendance(payload);
+      res.status(201).json(attendance);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   // ========================================

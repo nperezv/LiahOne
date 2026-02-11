@@ -135,6 +135,12 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     icon: BarChart3,
   },
   {
+    title: "Panel Secretaría",
+    url: "/secretary-dashboard",
+    icon: FileText,
+    roles: ["secretario"],
+  },
+  {
     title: "Asignaciones",
     url: "/assignments",
     icon: CheckSquare,
