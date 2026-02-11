@@ -100,6 +100,14 @@ const budgetSchema = z.object({
     });
   }
 
+  if (data.requestType === "reembolso" && !data.activityPlanFile) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["activityPlanFile"],
+      message: "Adjunta la solicitud de gastos para solicitudes de reembolso.",
+    });
+  }
+
   if (data.requestType === "pago_adelantado" && !data.activityPlanFile) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -341,7 +349,7 @@ export default function BudgetPage() {
       }
     }
 
-    if (data.requestType === "pago_adelantado" && data.activityPlanFile) {
+    if ((data.requestType === "pago_adelantado" || data.requestType === "reembolso") && data.activityPlanFile) {
       try {
         const uploadedPlan = await uploadReceiptFile(data.activityPlanFile);
         uploadedReceipts.push({
@@ -573,6 +581,18 @@ export default function BudgetPage() {
 
   const hasExpenseReceipts = (request: BudgetRequest) =>
     (request.receipts ?? []).some((receipt) => receipt.category === "expense");
+
+  const hasAdvanceRequestDocument = (request: BudgetRequest) =>
+    (request.receipts ?? []).some((receipt) => receipt.category === "plan");
+
+  const isReimbursementRequest = (request: BudgetRequest) =>
+    (request.receipts ?? []).some((receipt) => receipt.category === "receipt") && !hasAdvanceRequestDocument(request);
+
+  const shouldShowAddExpenseReceipts = (request: BudgetRequest) => {
+    if (hasExpenseReceipts(request)) return false;
+    if (isReimbursementRequest(request)) return false;
+    return true;
+  };
 
   const downloadReceipt = async (receipt: { filename: string; url?: string }) => {
     if (!receipt.url) {
@@ -936,13 +956,13 @@ export default function BudgetPage() {
                     />
                   )}
 
-                  {budgetRequestType === "pago_adelantado" && (
+                  {(budgetRequestType === "pago_adelantado" || budgetRequestType === "reembolso") && (
                     <FormField
                       control={budgetForm.control}
                       name="activityPlanFile"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Solicitud de gasto</FormLabel>
+                          <FormLabel>Solicitud de gastos</FormLabel>
                           <FormControl>
                             <div className="flex flex-col gap-2">
                               <Input
@@ -1455,7 +1475,7 @@ export default function BudgetPage() {
                           )}
                           {request.status === "aprobado" &&
                             request.requestedBy === user?.id &&
-                            !hasExpenseReceipts(request) && (
+                            shouldShowAddExpenseReceipts(request) && (
                             <Button
                               size="sm"
                               variant="outline"

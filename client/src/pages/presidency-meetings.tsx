@@ -87,6 +87,14 @@ const budgetRequestSchema = z.object({
     });
   }
 
+  if (data.requestType === "reembolso" && !data.activityPlanFile) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["activityPlanFile"],
+      message: "Adjunta la solicitud de gastos para solicitudes de reembolso.",
+    });
+  }
+
   if (data.requestType === "pago_adelantado" && !data.activityPlanFile) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -544,7 +552,7 @@ export default function PresidencyMeetingsPage() {
       }
     }
 
-    if (values.requestType === "pago_adelantado" && values.activityPlanFile) {
+    if ((values.requestType === "pago_adelantado" || values.requestType === "reembolso") && values.activityPlanFile) {
       try {
         const uploadedPlan = await uploadReceiptFile(values.activityPlanFile);
         uploadedReceipts.push({ filename: uploadedPlan.filename, url: uploadedPlan.url, category: "plan" });
@@ -994,10 +1002,10 @@ export default function PresidencyMeetingsPage() {
                 )} />
               )}
 
-              {budgetRequestType === "pago_adelantado" && (
+              {(budgetRequestType === "pago_adelantado" || budgetRequestType === "reembolso") && (
                 <FormField control={budgetRequestForm.control} name="activityPlanFile" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Solicitud de gasto</FormLabel>
+                    <FormLabel>Solicitud de gastos</FormLabel>
                     <FormControl>
                       <div className="flex flex-col gap-2">
                         <Input id="presidency-budget-plan-file" type="file" accept={allowedDocumentExtensions.join(",")} onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)} onBlur={field.onBlur} ref={field.ref} className="hidden" data-testid="input-budget-request-plan-file" />
