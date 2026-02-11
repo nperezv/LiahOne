@@ -1136,9 +1136,21 @@ export default function PresidencyMeetingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
-              <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><BookOpen className="mb-2 h-5 w-5 text-chart-1" /><p className="text-sm font-medium">Manuales</p></button>
-              <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><FileText className="mb-2 h-5 w-5 text-chart-2" /><p className="text-sm font-medium">Plantillas</p></button>
-              <button type="button" className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><PlayCircle className="mb-2 h-5 w-5 text-chart-4" /><p className="text-sm font-medium">Capacitación</p></button>
+              <button
+                type="button"
+                onClick={() => setLocation(`/resources-library?category=manuales${organizationId ? `&organizationId=${organizationId}` : ""}`)}
+                className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"
+              ><BookOpen className="mb-2 h-5 w-5 text-chart-1" /><p className="text-sm font-medium">Manuales</p></button>
+              <button
+                type="button"
+                onClick={() => setLocation(`/resources-library?category=plantillas${organizationId ? `&organizationId=${organizationId}` : ""}`)}
+                className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"
+              ><FileText className="mb-2 h-5 w-5 text-chart-2" /><p className="text-sm font-medium">Plantillas</p></button>
+              <button
+                type="button"
+                onClick={() => setLocation(`/resources-library?category=capacitacion${organizationId ? `&organizationId=${organizationId}` : ""}`)}
+                className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"
+              ><PlayCircle className="mb-2 h-5 w-5 text-chart-4" /><p className="text-sm font-medium">Capacitación</p></button>
               <button type="button" onClick={() => setIsBudgetRequestDialogOpen(true)} className="rounded-2xl border border-border/70 bg-background/80 p-3 text-left"><Wallet className="mb-2 h-5 w-5 text-chart-3" /><p className="text-sm font-medium">Presupuesto</p></button>
             </div>
           </CardContent>
