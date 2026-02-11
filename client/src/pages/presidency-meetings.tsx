@@ -14,6 +14,7 @@ import {
   FileText,
   PlayCircle,
   Wallet,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +32,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
-import { usePresidencyMeetings, useCreatePresidencyMeeting, useOrganizations } from "@/hooks/use-api";
+import {
+  usePresidencyMeetings,
+  useCreatePresidencyMeeting,
+  useOrganizations,
+  useBudgetRequests,
+  useOrganizationBudgets,
+  useOrganizationMembers,
+} from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -108,10 +116,14 @@ export default function PresidencyMeetingsPage() {
   const [, params] = useRoute("/presidency/:org");
   const [, setLocation] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | undefined>();
 
   const { data: organizations = [] } = useOrganizations();
   const { data: meetings = [], isLoading } = usePresidencyMeetings(organizationId);
+  const { data: budgetRequests = [] } = useBudgetRequests();
+  const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
+  const { data: organizationMembers = [] } = useOrganizationMembers(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const { toast } = useToast();
 
@@ -158,10 +170,33 @@ export default function PresidencyMeetingsPage() {
     const meetingsWithDetails = meetings.filter((meeting: any) => meeting.agenda || meeting.notes).length;
     const detailRate = totalMeetings > 0 ? (meetingsWithDetails / totalMeetings) * 100 : 0;
     const month = new Date().getMonth();
-    const currentMonthMeetings = meetings.filter(
-      (meeting: any) => new Date(meeting.date).getMonth() === month
-    ).length;
-    const budgetUsage = Math.min(100, totalMeetings * 12 + currentMonthMeetings * 8);
+    const currentMonthMeetings = meetings.filter((meeting: any) => new Date(meeting.date).getMonth() === month).length;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+    const currentOrgBudget = (organizationBudgets as any[]).find(
+      (budget: any) => budget.year === currentYear && budget.quarter === currentQuarter
+    );
+    const assignedBudget = Number(currentOrgBudget?.amount ?? 0);
+
+    const approvedRequests = (budgetRequests as any[]).filter(
+      (request: any) =>
+        request.organizationId === organizationId &&
+        (request.status === "aprobado" || request.status === "completado")
+    );
+
+    const spentBudget = approvedRequests.reduce((sum: number, request: any) => sum + Number(request.amount ?? 0), 0);
+    const budgetUsage = assignedBudget > 0 ? Math.min(100, (spentBudget / assignedBudget) * 100) : 0;
+
+    const byCategory = approvedRequests.reduce(
+      (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
+        const category = request.category === "actividades" || request.category === "materiales" ? request.category : "otros";
+        acc[category] += Number(request.amount ?? 0);
+        return acc;
+      },
+      { actividades: 0, materiales: 0, otros: 0 }
+    );
 
     return {
       totalMeetings,
@@ -169,8 +204,13 @@ export default function PresidencyMeetingsPage() {
       detailRate,
       currentMonthMeetings,
       budgetUsage,
+      assignedBudget,
+      spentBudget,
+      availableBudget: Math.max(0, assignedBudget - spentBudget),
+      byCategory,
+      membersCount: organizationMembers.length,
     };
-  }, [meetings]);
+  }, [budgetRequests, meetings, organizationBudgets, organizationId, organizationMembers.length]);
 
   const handleExportMeetingPDF = (meeting: any) => {
     const meetingDate = new Date(meeting.date).toLocaleDateString("es-ES", {
@@ -364,10 +404,38 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
             <CardDescription>Actividad de presidencia</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-2xl bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">Reuniones totales</p>
-              <p className="text-2xl font-semibold">{dashboardStats.totalMeetings}</p>
-            </div>
+            <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
+              <button
+                type="button"
+                onClick={() => setMembersDialogOpen(true)}
+                className="w-full rounded-2xl bg-muted/40 p-3 text-left transition-colors hover:bg-muted/60"
+                data-testid="button-org-members-card"
+              >
+                <p className="text-xs text-muted-foreground">Miembros</p>
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="text-2xl font-semibold">{dashboardStats.membersCount}</p>
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </button>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Directorio de {orgName}</DialogTitle>
+                  <DialogDescription>Miembros asignados a esta organización</DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+                  {organizationMembers.length > 0 ? (
+                    organizationMembers.map((member) => (
+                      <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
+                        <p className="text-sm font-medium">{member.nameSurename}</p>
+                        <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No hay miembros asignados a esta organización.</p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
             <div className="rounded-2xl bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">Este mes</p>
               <p className="text-2xl font-semibold">{dashboardStats.currentMonthMeetings}</p>
@@ -403,23 +471,30 @@ Documento generado desde Liahonaap - Sistema Administrativo de Barrio`;
             <CircularGauge
               value={dashboardStats.budgetUsage}
               label="Uso estimado"
-              subtitle="Ritmo anual de planificación"
+              subtitle={`Disponible €${dashboardStats.availableBudget.toFixed(2)}`}
               gradientId="budget"
             />
             <div className="mt-4 space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Materiales</span>
-                <span className="font-medium">40%</span>
+                <span className="font-medium">€{dashboardStats.byCategory.materiales.toFixed(2)}</span>
               </div>
               <div className="h-2 rounded-full bg-muted">
-                <div className="h-full w-[40%] rounded-full bg-gradient-to-r from-chart-2 to-chart-1" />
+                <div className="h-full rounded-full bg-gradient-to-r from-chart-2 to-chart-1" style={{ width: `${dashboardStats.spentBudget > 0 ? (dashboardStats.byCategory.materiales / dashboardStats.spentBudget) * 100 : 0}%` }} />
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Actividades</span>
-                <span className="font-medium">35%</span>
+                <span className="font-medium">€{dashboardStats.byCategory.actividades.toFixed(2)}</span>
               </div>
               <div className="h-2 rounded-full bg-muted">
-                <div className="h-full w-[35%] rounded-full bg-gradient-to-r from-chart-1 to-chart-4" />
+                <div className="h-full rounded-full bg-gradient-to-r from-chart-1 to-chart-4" style={{ width: `${dashboardStats.spentBudget > 0 ? (dashboardStats.byCategory.actividades / dashboardStats.spentBudget) * 100 : 0}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Otros</span>
+                <span className="font-medium">€{dashboardStats.byCategory.otros.toFixed(2)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted">
+                <div className="h-full rounded-full bg-gradient-to-r from-chart-3 to-chart-5" style={{ width: `${dashboardStats.spentBudget > 0 ? (dashboardStats.byCategory.otros / dashboardStats.spentBudget) * 100 : 0}%` }} />
               </div>
             </div>
           </CardContent>
