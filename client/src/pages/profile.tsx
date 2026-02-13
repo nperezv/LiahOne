@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -37,6 +38,7 @@ type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
@@ -202,6 +204,17 @@ export default function ProfilePage() {
 
   return (
     <div className="container max-w-2xl mx-auto py-8 px-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setLocation("/dashboard")}
+        className="mb-6"
+        data-testid="button-back-to-dashboard"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Volver al Dashboard
+      </Button>
+
       <Card>
         <CardHeader>
           <CardTitle>Mi Perfil</CardTitle>
