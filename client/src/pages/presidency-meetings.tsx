@@ -831,12 +831,12 @@ export default function PresidencyMeetingsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
 
-        <Card className="h-full rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="flex h-full flex-col rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Metas de organización</CardTitle>
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
           </CardHeader>
-          <CardContent className="flex h-full flex-col px-4 pb-4 pt-0"
+          <CardContent className="flex flex-1 flex-col px-4 pb-4 pt-0"
             onPointerDown={(event) => { goalDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(goalDragStartX.current, event.clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
             onTouchStart={(event) => { goalDragStartX.current = getTouchStartX(event); }}
@@ -846,7 +846,8 @@ export default function PresidencyMeetingsPage() {
               <span className="text-4xl font-bold leading-none">{Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%</span>
               <span className="text-base font-medium text-muted-foreground">Metas cumplidas</span>
             </div>
-            <CircularGauge
+            <div className="mt-3">
+              <CircularGauge
               value={goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0)}
               label={`${Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%`}
               subtitle={goalSlideIndex === 0 ? "Avance total" : (activeGoal?.title || "Metas cumplidas")}
@@ -854,6 +855,7 @@ export default function PresidencyMeetingsPage() {
               gradientStops={activeGoalGradient}
               segments={goalSlideIndex === 0 ? goalSummarySegments : undefined}
             />
+            </div>
             <div className="mt-1 text-center text-sm text-muted-foreground">
               {goalSlideIndex === 0 ? (
                 <p>{`${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas completadas`}</p>
@@ -879,13 +881,13 @@ export default function PresidencyMeetingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="h-full rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="flex h-full flex-col rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
             <CardDescription>Uso del trimestre actual</CardDescription>
           </CardHeader>
           <CardContent
-            className="flex h-full flex-col px-4 pb-4 pt-0"
+            className="flex flex-1 flex-col px-4 pb-4 pt-0"
             onPointerDown={(event) => { budgetDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(budgetDragStartX.current, event.clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
             onTouchStart={(event) => { budgetDragStartX.current = getTouchStartX(event); }}
