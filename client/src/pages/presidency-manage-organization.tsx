@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Check, Mail, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
+import { Check, Mail, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -79,15 +79,6 @@ const organizationNames: Record<string, string> = {
   "cuorum-elderes": "Cuórum de Élderes",
 };
 
-const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
-  if (typeof document !== "undefined" && "startViewTransition" in document) {
-    (document as any).startViewTransition(() => navigate(path));
-    return;
-  }
-
-  navigate(path);
-};
-
 const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
 
 const getPresidentRoleLabel = (organizationType?: string) =>
@@ -113,7 +104,6 @@ const getSecretaryRoleLabel = (organizationType?: string) =>
 
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
-  const [, setLocation] = useLocation();
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, string[]>>({});
   const [attendanceEditorDate, setAttendanceEditorDate] = useState<string | null>(null);
@@ -330,14 +320,6 @@ export default function PresidencyManageOrganizationPage() {
           <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{panelTitle}</h1>
         </div>
-        <Button
-          variant="outline"
-          className="rounded-full"
-          onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}`)}
-          data-testid="button-back-presidency-panel"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
-        </Button>
       </div>
 
       <Card className="rounded-3xl border-border/70 bg-card/95">
