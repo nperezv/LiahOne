@@ -3,14 +3,13 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Check, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Mail, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -25,6 +24,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCallingLabel } from "@/lib/callings";
+import { cn } from "@/lib/utils";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
@@ -87,6 +87,21 @@ const navigateWithTransition = (navigate: (path: string) => void, path: string) 
   navigate(path);
 };
 
+const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
+
+const getPresidentRoleLabel = (organizationType?: string) =>
+  FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Presidenta" : "Presidente";
+
+const getCounselorRoleLabel = (index: number, organizationType?: string) => {
+  const isFemale = FEMALE_ORG_TYPES.has(organizationType ?? "");
+  if (index === 0) return isFemale ? "Primera consejera" : "Primer consejero";
+  if (index === 1) return isFemale ? "Segunda consejera" : "Segundo consejero";
+  return isFemale ? "Consejera" : "Consejero";
+};
+
+const getSecretaryRoleLabel = (organizationType?: string) =>
+  FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Secretaria" : "Secretario";
+
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
   const [, setLocation] = useLocation();
@@ -121,6 +136,8 @@ export default function PresidencyManageOrganizationPage() {
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Organización";
   const panelTitle = params?.org ? `Presidencia de ${orgName}` : "Panel de Presidencia";
+  const currentOrganization = organizations.find((org: any) => org.id === organizationId);
+  const organizationType = currentOrganization?.type;
   const todayIso = formatLocalDateKey(new Date());
   const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
   const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
@@ -279,33 +296,111 @@ export default function PresidencyManageOrganizationPage() {
         <CardContent className="space-y-3">
           <div className="space-y-2">
             <p className="text-sm font-semibold">Presidencia</p>
-            {[...leadership.presidents, ...leadership.counselors, ...leadership.secretaries].map((leader: any) => (
-              <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">{leader.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatCallingLabel(leader.callingName ?? "Presidencia", orgName)}
-                  </p>
+            {[
+              ...leadership.presidents.map((leader: any) => ({ ...leader, roleLabel: getPresidentRoleLabel(organizationType) })),
+              ...leadership.counselors.map((leader: any, index: number) => ({ ...leader, roleLabel: getCounselorRoleLabel(index, organizationType) })),
+              ...leadership.secretaries.map((leader: any) => ({ ...leader, roleLabel: getSecretaryRoleLabel(organizationType) })),
+            ].map((leader: any) => {
+              const phoneDigits = leader.phone?.replace(/[^\d]/g, "") ?? "";
+              const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
+              const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
+              const mailHref = leader.email ? `mailto:${leader.email}` : undefined;
+
+              return (
+                <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{leader.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCallingLabel(leader.roleLabel, orgName)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={phoneHref}
+                      className={cn(
+                        "inline-flex h-8 w-8 items-center justify-center rounded-full border",
+                        phoneHref ? "border-blue-400/60 text-blue-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
+                      )}
+                    >
+                      <Phone className="h-4 w-4" />
+                    </a>
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={cn(
+                        "inline-flex h-8 w-8 items-center justify-center rounded-full border",
+                        whatsappHref ? "border-emerald-400/60 text-emerald-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
+                      )}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </a>
+                    <a
+                      href={mailHref}
+                      className={cn(
+                        "inline-flex h-8 w-8 items-center justify-center rounded-full border",
+                        mailHref ? "border-amber-400/60 text-amber-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
+                      )}
+                    >
+                      <Mail className="h-4 w-4" />
+                    </a>
+                  </div>
                 </div>
-                <Badge variant="secondary">Presidencia</Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="space-y-2">
             <p className="text-sm font-semibold">Otros líderes</p>
             {leadership.otherCallings.length > 0 ? (
-              leadership.otherCallings.map((person: any) => (
-                <div key={person.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{person.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCallingLabel(person.callingName ?? "Llamamiento", person.organizationName ?? orgName)}
-                    </p>
+              leadership.otherCallings.map((person: any) => {
+                const phoneDigits = person.phone?.replace(/[^\d]/g, "") ?? "";
+                const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
+                const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
+                const mailHref = person.email ? `mailto:${person.email}` : undefined;
+
+                return (
+                  <div key={person.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">{person.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCallingLabel(person.callingName ?? "Llamamiento", person.organizationName ?? orgName)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={phoneHref}
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full border",
+                          phoneHref ? "border-blue-400/60 text-blue-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
+                        )}
+                      >
+                        <Phone className="h-4 w-4" />
+                      </a>
+                      <a
+                        href={whatsappHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full border",
+                          whatsappHref ? "border-emerald-400/60 text-emerald-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
+                        )}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                      <a
+                        href={mailHref}
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full border",
+                          mailHref ? "border-amber-400/60 text-amber-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
+                        )}
+                      >
+                        <Mail className="h-4 w-4" />
+                      </a>
+                    </div>
                   </div>
-                  <Badge variant="outline">Llamamiento</Badge>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-sm text-muted-foreground">No hay otros líderes en esta organización.</p>
             )}
