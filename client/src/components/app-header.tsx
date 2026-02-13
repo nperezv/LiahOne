@@ -138,13 +138,12 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       <div className="flex items-center gap-4">
         {showBackButton && (
           <Button
-            variant="ghost"
-            size="icon"
+            variant="outline"
             onClick={handleGoBack}
-            aria-label="Volver"
             className="rounded-full"
+            data-testid="button-header-back-panel"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
           </Button>
         )}
         {!isMobile && <SidebarTrigger />}

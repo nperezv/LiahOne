@@ -24,6 +24,7 @@ import {
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCallingLabel } from "@/lib/callings";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
@@ -77,15 +78,13 @@ const organizationNames: Record<string, string> = {
   "cuorum-elderes": "Cuórum de Élderes",
 };
 
-const roleLabelMap: Record<string, string> = {
-  presidente_organizacion: "Presidencia",
-  consejero_organizacion: "Consejero/a",
-  secretario_organizacion: "Secretario/a",
-  obispo: "Obispo",
-  consejero_obispo: "Consejero del Obispo",
-  secretario: "Secretario",
-  secretario_ejecutivo: "Secretario Ejecutivo",
-  secretario_financiero: "Secretario Financiero",
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
 };
 
 export default function PresidencyManageOrganizationPage() {
@@ -121,6 +120,7 @@ export default function PresidencyManageOrganizationPage() {
   }, [params?.org, organizations]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Organización";
+  const panelTitle = params?.org ? `Presidencia de ${orgName}` : "Panel de Presidencia";
   const todayIso = formatLocalDateKey(new Date());
   const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
   const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
@@ -258,10 +258,15 @@ export default function PresidencyManageOrganizationPage() {
     <div className="space-y-6 p-4 md:p-6 xl:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-muted-foreground">Gestión de {orgName}</p>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{orgName}</h1>
+          <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{panelTitle}</h1>
         </div>
-        <Button variant="outline" className="rounded-full" onClick={() => setLocation(`/presidency/${params?.org ?? ""}`)} data-testid="button-back-presidency-panel">
+        <Button
+          variant="outline"
+          className="rounded-full"
+          onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}`)}
+          data-testid="button-back-presidency-panel"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
         </Button>
       </div>
@@ -269,32 +274,42 @@ export default function PresidencyManageOrganizationPage() {
       <Card className="rounded-3xl border-border/70 bg-card/95">
         <CardHeader>
           <CardTitle>Liderazgo y llamamientos</CardTitle>
-          <CardDescription>Primero la presidencia, luego otros llamamientos activos de la organización</CardDescription>
+          <CardDescription>Presidencia y líderes de organización</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {[...leadership.presidents, ...leadership.counselors, ...leadership.secretaries].map((leader: any) => (
-            <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
-              <div>
-                <p className="text-sm font-medium">{leader.name}</p>
-                <p className="text-xs text-muted-foreground">{roleLabelMap[leader.role] ?? leader.role}</p>
-              </div>
-              <Badge variant="secondary">Presidencia</Badge>
-            </div>
-          ))}
-
-          {leadership.otherCallings.length > 0 ? (
-            leadership.otherCallings.map((person: any) => (
-              <div key={person.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Presidencia</p>
+            {[...leadership.presidents, ...leadership.counselors, ...leadership.secretaries].map((leader: any) => (
+              <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
                 <div>
-                  <p className="text-sm font-medium">{person.name}</p>
-                  <p className="text-xs text-muted-foreground">{roleLabelMap[person.role] ?? person.role}</p>
+                  <p className="text-sm font-medium">{leader.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCallingLabel(leader.callingName ?? "Presidencia", orgName)}
+                  </p>
                 </div>
-                <Badge variant="outline">Llamamiento</Badge>
+                <Badge variant="secondary">Presidencia</Badge>
               </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">No hay otros llamamientos de usuario en esta organización.</p>
-          )}
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Otros líderes</p>
+            {leadership.otherCallings.length > 0 ? (
+              leadership.otherCallings.map((person: any) => (
+                <div key={person.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{person.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCallingLabel(person.callingName ?? "Llamamiento", person.organizationName ?? orgName)}
+                    </p>
+                  </div>
+                  <Badge variant="outline">Llamamiento</Badge>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay otros líderes en esta organización.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
