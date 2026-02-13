@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Check, Mail, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, Mail, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -111,6 +111,21 @@ const inferCounselorOrder = (callingName?: string | null, callingOrder?: number 
 const getSecretaryRoleLabel = (organizationType?: string) =>
   FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Secretaria" : "Secretario";
 
+const MONTH_NAMES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
   const [, setLocation] = useLocation();
@@ -118,6 +133,7 @@ export default function PresidencyManageOrganizationPage() {
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, string[]>>({});
   const [attendanceEditorDate, setAttendanceEditorDate] = useState<string | null>(null);
   const [isCreateMeetingOpen, setIsCreateMeetingOpen] = useState(false);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const { toast } = useToast();
@@ -500,33 +516,38 @@ export default function PresidencyManageOrganizationPage() {
         </Card>
 
         <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <CardTitle>Registro de asistencia</CardTitle>
-            <CardDescription>{selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</CardDescription>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsMonthPickerOpen(true)}
+              className="h-9 w-fit rounded-full border-border/70 bg-background/50 px-3 text-sm font-normal capitalize"
+            >
+              <CalendarDays className="mr-2 h-4 w-4" />
+              {selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-2xl border border-border/70 bg-background/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-              <p className="text-sm">Asistencia mensual</p>
-              <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
+            <div className="space-y-3 rounded-2xl border border-border/70 bg-background/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Asistencia mensual</p>
+                  <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Cumplimiento semanal</p>
+                  <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.compliancePercent)}%</p>
+                </div>
+              </div>
               <Progress value={monthlyAttendanceStats.attendancePercent} className="mt-2 h-2" />
               <p className="mt-1 text-xs text-muted-foreground">Promedio semanal: {Math.round(monthlyAttendanceStats.averageWeeklyAttendance)} de {organizationMembers.length} miembros</p>
               <p className="text-xs text-muted-foreground">Total acumulado del mes: {monthlyAttendanceStats.present}</p>
-            </div>
-
-            <div className="rounded-2xl border border-border/70 bg-background/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-              <p className="text-sm">Cumplimiento semanal de registro</p>
               <p className="text-xl font-semibold">{monthlyAttendanceStats.elapsedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas transcurridas</p>
               <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedElapsedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
               <p className="text-xs text-muted-foreground">Total mes registrado: {monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.weeksInMonth}</p>
-              <Progress value={monthlyAttendanceStats.compliancePercent} className="mt-2 h-2" />
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input className="rounded-xl border-border/70 bg-background/80" type="number" min={2020} max={2100} value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value) || new Date().getFullYear())} />
-              <Input className="rounded-xl border-border/70 bg-background/80" type="number" min={1} max={12} value={selectedMonth + 1} onChange={(event) => {
-                const month = Number(event.target.value);
-                if (!Number.isNaN(month) && month >= 1 && month <= 12) setSelectedMonth(month - 1);
-              }} />
+              <Progress value={monthlyAttendanceStats.compliancePercent} className="h-2" />
             </div>
 
             <div className="space-y-2">
@@ -599,6 +620,41 @@ export default function PresidencyManageOrganizationPage() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Seleccionar mes</DialogTitle>
+            <DialogDescription>Elige el año y el mes para registrar la asistencia.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              className="rounded-xl border-border/70 bg-background/80"
+              type="number"
+              min={2020}
+              max={2100}
+              value={selectedYear}
+              onChange={(event) => setSelectedYear(Number(event.target.value) || new Date().getFullYear())}
+            />
+            <div className="grid grid-cols-3 gap-2">
+              {MONTH_NAMES.map((month, index) => (
+                <Button
+                  key={month}
+                  type="button"
+                  variant={selectedMonth === index ? "default" : "outline"}
+                  className="rounded-xl capitalize"
+                  onClick={() => {
+                    setSelectedMonth(index);
+                    setIsMonthPickerOpen(false);
+                  }}
+                >
+                  {month}
+                </Button>
+              ))}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
