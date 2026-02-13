@@ -820,7 +820,7 @@ export default function PresidencyMeetingsPage() {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-foreground">
-                  {Math.round(dashboardStats.monthlyAttendancePercent)}
+                  {Math.round(dashboardStats.averageWeeklyAttendance)}
                 </span>
               </div>
             </div>
@@ -831,22 +831,23 @@ export default function PresidencyMeetingsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
 
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="flex h-full flex-col rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Metas de organización</CardTitle>
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
           </CardHeader>
-          <CardContent className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
+          <CardContent className="flex flex-1 flex-col px-5 pb-5 pt-1 sm:px-4 sm:pb-4 sm:pt-0"
             onPointerDown={(event) => { goalDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(goalDragStartX.current, event.clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
             onTouchStart={(event) => { goalDragStartX.current = getTouchStartX(event); }}
             onTouchEnd={(event) => handleSwipe(goalDragStartX.current, getTouchEndX(event), () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
           >
-            <div className="mb-1 flex items-baseline gap-2">
+            <div className="mb-2 flex items-baseline gap-2 pt-1">
               <span className="text-4xl font-bold leading-none">{Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%</span>
               <span className="text-base font-medium text-muted-foreground">Metas cumplidas</span>
             </div>
-            <CircularGauge
+            <div className="mt-4 sm:mt-3">
+              <CircularGauge
               value={goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0)}
               label={`${Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%`}
               subtitle={goalSlideIndex === 0 ? "Avance total" : (activeGoal?.title || "Metas cumplidas")}
@@ -854,7 +855,8 @@ export default function PresidencyMeetingsPage() {
               gradientStops={activeGoalGradient}
               segments={goalSlideIndex === 0 ? goalSummarySegments : undefined}
             />
-            <div className="mt-1 text-center text-sm text-muted-foreground">
+            </div>
+            <div className="mt-3 text-center text-sm text-muted-foreground">
               {goalSlideIndex === 0 ? (
                 <p>{`${dashboardStats.completedGoals} de ${dashboardStats.goalsWithPercentage.length} metas completadas`}</p>
               ) : (
@@ -875,35 +877,37 @@ export default function PresidencyMeetingsPage() {
                 ))}
               </div>
             )}
-            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => navigateWithTransition(setLocation, `/goals?tab=organizacion&org=${params?.org ?? ""}`)} data-testid="button-goals-from-gauge">+ Ver metas</Button>
+            <Button className="mt-5 w-full rounded-full lg:mt-auto" variant="secondary" onClick={() => navigateWithTransition(setLocation, `/goals?tab=organizacion&org=${params?.org ?? ""}`)} data-testid="button-goals-from-gauge">+ Ver metas</Button>
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="flex h-full flex-col rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
             <CardDescription>Uso del trimestre actual</CardDescription>
           </CardHeader>
           <CardContent
-            className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
+            className="flex flex-1 flex-col px-5 pb-5 pt-1 sm:px-4 sm:pb-4 sm:pt-0"
             onPointerDown={(event) => { budgetDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(budgetDragStartX.current, event.clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
             onTouchStart={(event) => { budgetDragStartX.current = getTouchStartX(event); }}
             onTouchEnd={(event) => handleSwipe(budgetDragStartX.current, getTouchEndX(event), () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
           >
-            <div className="mb-1">
+            <div className="mb-2 pt-1">
               <p className="text-4xl font-bold leading-none">{Math.round(activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage)}% usado</p>
               <p className="mt-1 text-lg font-medium">€{(activeBudgetSlide?.amount ?? dashboardStats.spentBudget).toFixed(2)} usados</p>
               <p className="text-sm text-muted-foreground">de €{dashboardStats.assignedBudget.toFixed(2)}</p>
             </div>
-            <CircularGauge
+            <div className="mt-4 sm:mt-3">
+              <CircularGauge
               value={activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage}
               label={`€${(activeBudgetSlide?.amount ?? dashboardStats.spentBudget).toFixed(0)}`}
               subtitle={`${activeBudgetSlide?.title ?? "usados"}`}
               gradientId="budget"
               gradientStops={activeBudgetSlide?.gradientStops}
             />
-            <div className="mt-3 flex justify-center gap-2" data-testid="budget-dots">
+            </div>
+            <div className="mt-4 flex justify-center gap-2" data-testid="budget-dots">
               {dashboardStats.budgetSlides.map((_: any, index: number) => (
                 <button
                   key={index}
