@@ -1,8 +1,6 @@
 import { ReactNode } from "react";
-import { ArrowLeft } from "lucide-react";
-import { Redirect, useLocation } from "wouter";
+import { Redirect } from "wouter";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { MobileNav } from "@/components/mobile-nav";
@@ -15,7 +13,6 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
-  const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
 
   if (isLoading) {
@@ -41,21 +38,6 @@ export function Layout({ children }: LayoutProps) {
     "--sidebar-width-icon": "3rem",
   };
 
-  const isDashboardRoot =
-    location === "/dashboard" ||
-    location === "/secretary-dashboard" ||
-    /^\/presidency\/[^/]+$/.test(location);
-  const showBackButton = !isDashboardRoot;
-
-  const handleGoBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-
-    setLocation("/dashboard");
-  };
-
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full">
@@ -66,18 +48,6 @@ export function Layout({ children }: LayoutProps) {
             onLogout={logout}
           />
           <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-            {showBackButton && (
-              <div className="flex justify-end px-4 pt-4 md:px-6 md:pt-6">
-                <Button
-                  variant="outline"
-                  onClick={handleGoBack}
-                  className="rounded-full"
-                  data-testid="button-layout-back-panel"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
-                </Button>
-              </div>
-            )}
             {children}
           </main>
           {isMobile && <MobileNav />}

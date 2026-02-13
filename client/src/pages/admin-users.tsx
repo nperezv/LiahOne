@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Edit, Trash2, Key } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Key } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -997,6 +997,17 @@ export default function AdminUsersPage() {
 
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setLocation("/dashboard")}
+        className="mb-6"
+        data-testid="button-back-to-dashboard"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Volver al Dashboard
+      </Button>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
