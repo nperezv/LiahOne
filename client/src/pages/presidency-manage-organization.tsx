@@ -99,6 +99,14 @@ const getCounselorRoleLabel = (index: number, organizationType?: string) => {
   return isFemale ? "Consejera" : "Consejero";
 };
 
+const inferCounselorOrder = (callingName?: string | null, callingOrder?: number | null) => {
+  if (callingOrder === 1 || callingOrder === 2) return callingOrder;
+  const normalized = callingName?.trim().toLowerCase() ?? "";
+  if (normalized.includes("primera") || normalized.includes("primer")) return 1;
+  if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
+  return undefined;
+};
+
 const getSecretaryRoleLabel = (organizationType?: string) =>
   FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Secretaria" : "Secretario";
 
@@ -298,7 +306,13 @@ export default function PresidencyManageOrganizationPage() {
             <p className="text-sm font-semibold">Presidencia</p>
             {[
               ...leadership.presidents.map((leader: any) => ({ ...leader, roleLabel: getPresidentRoleLabel(organizationType) })),
-              ...leadership.counselors.map((leader: any, index: number) => ({ ...leader, roleLabel: getCounselorRoleLabel(index, organizationType) })),
+              ...leadership.counselors.map((leader: any, index: number) => {
+                const counselorOrder = inferCounselorOrder(leader.callingName, leader.callingOrder);
+                const roleLabel = counselorOrder
+                  ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
+                  : getCounselorRoleLabel(index, organizationType);
+                return { ...leader, roleLabel };
+              }),
               ...leadership.secretaries.map((leader: any) => ({ ...leader, roleLabel: getSecretaryRoleLabel(organizationType) })),
             ].map((leader: any) => {
               const phoneDigits = leader.phone?.replace(/[^\d]/g, "") ?? "";
