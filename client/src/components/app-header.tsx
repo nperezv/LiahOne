@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   Bell,
   LogOut,
   User,
@@ -63,7 +62,7 @@ const notificationTypeIcons: Record<string, typeof Bell> = {
 ========================= */
 
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -101,12 +100,6 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
   const wardName = template?.wardName?.trim() || "Liahonapp";
 
-  const isDashboardRoot =
-    location === "/dashboard" ||
-    location === "/secretary-dashboard" ||
-    /^\/presidency\/[^/]+$/.test(location);
-  const showBackButton = !isDashboardRoot;
-
   const getInitials = (name?: string) => {
     if (!name) return "U";
     return name
@@ -123,29 +116,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     setLocation(getNotificationDestination(notification));
   };
 
-  const handleGoBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-
-    setLocation("/dashboard");
-  };
-
   return (
     <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
       <div className="flex items-center gap-4">
-        {showBackButton && (
-          <Button
-            variant="outline"
-            onClick={handleGoBack}
-            className="rounded-full"
-            data-testid="button-header-back-panel"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
-          </Button>
-        )}
         {!isMobile && <SidebarTrigger />}
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/60">
