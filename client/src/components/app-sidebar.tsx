@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, DollarSign, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library } from "lucide-react";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
-import { Organization, useDashboardStats, useOrganizations } from "@/hooks/use-api";
+import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
 
 interface MenuItem {
   title: string;
@@ -29,6 +29,8 @@ interface MenuItem {
   presidentOnly?: boolean; // If true, presidents only see their own sub-item
   organizationTypes?: string[]; // If defined, only visible to these organization types.
 }
+
+const ORG_ROLES = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
 
 const ALL_MENU_ITEMS: MenuItem[] = [
   {
@@ -111,7 +113,6 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     roles: [
       "obispo",
       "consejero_obispo",
-      "secretario",
       "secretario_ejecutivo",
       "secretario_financiero",
       "presidente_organizacion",
@@ -195,7 +196,7 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     return item.organizationTypes.includes(organizationType);
   }).map(item => {
     // For presidents/counselors/secretaries of organizations, filter sub-items to only show their organization
-    if (item.presidentOnly && ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(userRole || "") && item.subItems && organizationType) {
+    if (item.presidentOnly && ORG_ROLES.includes(userRole || "") && item.subItems && organizationType) {
       const organizationMap: Record<string, string> = {
         "hombres_jovenes": "hombres-jovenes",
         "mujeres_jovenes": "mujeres-jovenes",
@@ -214,6 +215,26 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     }
     return item;
   });
+}
+
+function getPinnedUrls(userRole?: string) {
+  if (ORG_ROLES.includes(userRole ?? "")) {
+    return ["/dashboard", "/calendar", "/assignments", "/goals", "/budget", "/resources-library"];
+  }
+
+  return ["/dashboard", "/calendar", "/assignments", "/directory", "/goals", "/budget"];
+}
+
+function getRenamedTitle(item: MenuItem, userRole?: string) {
+  if (item.title === "Presidencias") {
+    return ORG_ROLES.includes(userRole ?? "") ? "Mi organización" : "Organizaciones";
+  }
+
+  if (item.url === "/organization-interviews") {
+    return "Entrevistas de organización";
+  }
+
+  return item.title;
 }
 
 export function AppSidebar() {
@@ -236,6 +257,15 @@ export function AppSidebar() {
     : undefined;
 
   const menuItems = getVisibleMenuItems(user?.role, organizationType);
+  const pinnedUrls = getPinnedUrls(user?.role);
+  const pinnedMenuItems = menuItems.filter((item) => item.url && pinnedUrls.includes(item.url));
+  const secondaryMenuItems = menuItems.filter((item) => {
+    if (item.url) {
+      return !pinnedUrls.includes(item.url);
+    }
+
+    return true;
+  });
 
   const pendingByUrl: Record<string, number> = {
     "/assignments": dashboardStats?.pendingAssignments ?? 0,
@@ -247,24 +277,63 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-lg font-bold px-4 py-3">
-            Liahonapp
+          <SidebarGroupLabel className="px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">
+            Navegación
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => {
+            <div className="mx-2 mb-3 rounded-[22px] border border-sidebar-border/70 bg-gradient-to-b from-sidebar-accent/50 via-sidebar-accent/30 to-transparent px-3 py-3 shadow-sm">
+              <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+                <Sparkles className="h-3.5 w-3.5" />
+                Accesos rápidos
+              </div>
+              <SidebarMenu>
+                {pinnedMenuItems.map((item) => {
+                  const title = getRenamedTitle(item, user?.role);
+
+                  return (
+                    <SidebarMenuItem key={`${title}-${item.url}`}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url}
+                        className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
+                        data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <Link href={item.url!} onClick={handleLinkClick}>
+                          <item.icon className="h-5 w-5" />
+                          <span>{title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      {item.url && pendingByUrl[item.url] > 0 && (
+                        <SidebarMenuBadge className="bg-red-500 text-white">
+                          {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
+                        </SidebarMenuBadge>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </div>
+
+            <div className="mx-2 rounded-[22px] border border-sidebar-border/70 bg-sidebar/40 px-3 py-3">
+              <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+                <Folder className="h-3.5 w-3.5" />
+                Más módulos
+              </div>
+              <SidebarMenu>
+              {secondaryMenuItems.map((item) => {
+                const title = getRenamedTitle(item, user?.role);
                 if (item.subItems) {
                   const isActive = item.subItems.some(sub => location === sub.url);
                   return (
-                    <Collapsible key={item.title} defaultOpen={isActive}>
+                    <Collapsible key={title} defaultOpen={isActive}>
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
-                            className={isActive ? "bg-sidebar-accent" : ""}
-                            data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                            className={`rounded-2xl px-3 py-2.5 text-[0.92rem] ${isActive ? "bg-sidebar-accent" : ""}`}
+                            data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                           >
                             <item.icon className="h-5 w-5" />
-                            <span>{item.title}</span>
+                            <span>{title}</span>
                             <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
@@ -291,15 +360,16 @@ export function AppSidebar() {
                 }
 
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={`${title}-${item.url}`}>
                     <SidebarMenuButton
                       asChild
                       isActive={location === item.url}
-                      data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                      className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
+                      data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                     >
                       <Link href={item.url!} onClick={handleLinkClick}>
                         <item.icon className="h-5 w-5" />
-                        <span>{item.title}</span>
+                        <span>{title}</span>
                       </Link>
                     </SidebarMenuButton>
                     {item.url && pendingByUrl[item.url] > 0 && (
@@ -311,6 +381,7 @@ export function AppSidebar() {
                 );
               })}
             </SidebarMenu>
+            </div>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

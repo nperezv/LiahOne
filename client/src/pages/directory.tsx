@@ -50,6 +50,14 @@ const memberSchema = z.object({
 
 const requiresCallingOrder = (callingName?: string) => /consejer[oa]/i.test(callingName ?? "");
 
+const inferCallingOrder = (callingName?: string) => {
+  const normalized = callingName?.trim().toLowerCase() ?? "";
+  if (!requiresCallingOrder(normalized)) return undefined;
+  if (normalized.includes("primera") || normalized.includes("primer")) return 1;
+  if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
+  return undefined;
+};
+
 const callingSchema = z
   .object({
     callingName: z.string().min(1, "El llamamiento es requerido"),
@@ -273,10 +281,7 @@ export default function DirectoryPage() {
     if (callingOptions.includes(selectedCallingName)) return callingOptions;
     return [selectedCallingName, ...callingOptions];
   }, [callingOptions, selectedCallingName]);
-  const showCallingOrder = useMemo(
-    () => requiresCallingOrder(selectedCallingName),
-    [selectedCallingName]
-  );
+  const showCallingOrder = false;
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -399,10 +404,11 @@ export default function DirectoryPage() {
 
   const handleSubmitCalling = (data: CallingFormValues) => {
     if (!editingMember?.id) return;
+    const autoCallingOrder = inferCallingOrder(data.callingName);
     const payload = {
       callingName: data.callingName.trim(),
       organizationId: data.organizationId,
-      callingOrder: data.callingOrder,
+      callingOrder: autoCallingOrder ?? data.callingOrder,
     };
     if (editingCalling) {
       updateMemberCallingMutation.mutate(
@@ -1093,6 +1099,8 @@ export default function DirectoryPage() {
                         field.onChange(value);
                         if (!requiresCallingOrder(value)) {
                           callingForm.setValue("callingOrder", undefined);
+                        } else {
+                          callingForm.setValue("callingOrder", inferCallingOrder(value));
                         }
                       }}
                       disabled={!selectedCallingOrgId}
