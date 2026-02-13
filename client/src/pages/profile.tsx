@@ -212,7 +212,7 @@ export default function ProfilePage() {
         data-testid="button-back-to-dashboard"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver al Dashboard
+        Volver
       </Button>
 
       <Card>

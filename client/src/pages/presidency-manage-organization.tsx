@@ -336,7 +336,7 @@ export default function PresidencyManageOrganizationPage() {
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}`)}
           data-testid="button-back-presidency-panel"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver al panel
+          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
       </div>
 
