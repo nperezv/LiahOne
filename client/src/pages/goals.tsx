@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Target, TrendingUp, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Target, TrendingUp, Edit, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +48,7 @@ export default function GoalsPage() {
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [newValue, setNewValue] = useState("");
   const [activeTab, setActiveTab] = useState("barrio");
-  const [location] = useLocation();
+  const [, setLocation] = useLocation();
 
   const { user } = useAuth();
 
@@ -60,6 +60,8 @@ export default function GoalsPage() {
       setActiveTab("organizacion");
     }
   }, []);
+
+  const presidencyOrg = new URLSearchParams(window.location.search).get("org");
   const { data: goals = [], isLoading } = useGoals();
   const { data: organizations = [] } = useOrganizations();
   const createMutation = useCreateGoal();
@@ -210,6 +212,17 @@ export default function GoalsPage() {
     <div className="p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
+          {presidencyOrg && (
+            <Button
+              variant="ghost"
+              className="mb-2"
+              onClick={() => setLocation(`/presidency/${presidencyOrg}`)}
+              data-testid="button-back-presidency-panel"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver
+            </Button>
+          )}
           <h1 className="text-2xl font-bold mb-2">Metas Anuales</h1>
           <p className="text-sm text-muted-foreground">
             {activeTab === "barrio"

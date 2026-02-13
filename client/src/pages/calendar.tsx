@@ -21,6 +21,7 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocation } from "wouter";
 
 interface CalendarEvent {
   id: string;
@@ -33,11 +34,13 @@ interface CalendarEvent {
 }
 
 export default function CalendarPage() {
+  const [, setLocation] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"agenda" | "month" | "day">("agenda");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const presidencyOrg = new URLSearchParams(window.location.search).get("org");
 
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
@@ -192,6 +195,17 @@ export default function CalendarPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 sm:mb-8">
+        {presidencyOrg && (
+          <Button
+            variant="ghost"
+            className="mb-2"
+            onClick={() => setLocation(`/presidency/${presidencyOrg}`)}
+            data-testid="button-back-presidency-panel"
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Volver
+          </Button>
+        )}
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">Calendario</h1>
         <p className="text-muted-foreground">Vista integrada de todas las actividades y eventos</p>
       </div>
