@@ -131,7 +131,7 @@ const MONTH_NAMES = [
 ];
 
 
-function MiniGauge({ value }: { value: number }) {
+function MiniGauge({ value, strokeColor = "hsl(var(--primary))" }: { value: number; strokeColor?: string }) {
   const normalized = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
   const size = 46;
   const stroke = 5;
@@ -148,7 +148,7 @@ function MiniGauge({ value }: { value: number }) {
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--primary))"
+          stroke={strokeColor}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -171,10 +171,10 @@ export default function PresidencyManageOrganizationPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
-    leadership: true,
-    meetings: true,
+    leadership: false,
+    meetings: false,
     interviews: false,
-    attendance: true,
+    attendance: false,
     assignments: false,
     birthdays: false,
   });
@@ -490,10 +490,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardTitle>Liderazgo y llamamientos</CardTitle>
                 <CardDescription>Presidencia y líderes de organización</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <MiniGauge value={Math.min(100, ((leadership.presidents.length + leadership.counselors.length + leadership.secretaries.length) / 4) * 100)} />
-                <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.leadership ? "rotate-180" : "rotate-0")} />
-              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.leadership ? "rotate-180" : "rotate-0")} />
             </button>
           </CardHeader>
           {expandedCards.leadership ? (
@@ -543,7 +540,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardDescription>Gestión de reuniones y seguimiento mensual</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <MiniGauge value={Math.min(100, (meetings.length / Math.max(1, sundaysInMonth.length)) * 100)} />
+                <MiniGauge value={Math.min(100, (meetings.length / Math.max(1, sundaysInMonth.length)) * 100)} strokeColor="hsl(var(--primary))" />
                 <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.meetings ? "rotate-180" : "rotate-0")} />
               </div>
             </button>
@@ -581,7 +578,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardDescription>Seguimiento de entrevistas por organización</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <MiniGauge value={interviewCompletionPercent} />
+                <MiniGauge value={interviewCompletionPercent} strokeColor="hsl(var(--chart-2))" />
                 <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.interviews ? "rotate-180" : "rotate-0")} />
               </div>
             </button>
@@ -627,7 +624,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardDescription>Promedio y cumplimiento semanal</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <MiniGauge value={monthlyAttendanceStats.attendancePercent} />
+                <MiniGauge value={monthlyAttendanceStats.attendancePercent} strokeColor="hsl(var(--chart-3))" />
                 <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.attendance ? "rotate-180" : "rotate-0")} />
               </div>
             </button>
@@ -672,10 +669,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardTitle>Asignaciones pendientes</CardTitle>
                 <CardDescription>Tareas activas de la organización</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <MiniGauge value={Math.max(0, 100 - pendingAssignments.length * 10)} />
-                <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.assignments ? "rotate-180" : "rotate-0")} />
-              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.assignments ? "rotate-180" : "rotate-0")} />
             </button>
           </CardHeader>
           {expandedCards.assignments ? (
@@ -696,10 +690,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardTitle>Cumpleaños</CardTitle>
                 <CardDescription>Próximos cumpleaños en la organización</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <MiniGauge value={Math.min(100, organizationBirthdays.length * 10)} />
-                <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.birthdays ? "rotate-180" : "rotate-0")} />
-              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.birthdays ? "rotate-180" : "rotate-0")} />
             </button>
           </CardHeader>
           {expandedCards.birthdays ? (
