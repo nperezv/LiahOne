@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
   addDays,
@@ -21,6 +21,7 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocation } from "wouter";
 
 interface CalendarEvent {
   id: string;
@@ -32,12 +33,23 @@ interface CalendarEvent {
   status?: "programada" | "completada" | "cancelada" | "archivada";
 }
 
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
+};
+
 export default function CalendarPage() {
+  const [, setLocation] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"agenda" | "month" | "day">("agenda");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const presidencyOrg = new URLSearchParams(window.location.search).get("org");
 
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
@@ -191,9 +203,21 @@ export default function CalendarPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Calendario</h1>
-        <p className="text-muted-foreground">Vista integrada de todas las actividades y eventos</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Calendario</h1>
+          <p className="text-muted-foreground">Vista integrada de todas las actividades y eventos</p>
+        </div>
+        {presidencyOrg && (
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => navigateWithTransition(setLocation, `/presidency/${presidencyOrg}`)}
+            data-testid="button-back-presidency-panel"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -322,7 +322,7 @@ export default function AdminUsersPage() {
             No tienes permiso para acceder a este panel de administración.
           </p>
           <Button onClick={() => setLocation("/dashboard")}>
-            Volver al Dashboard
+            Volver
           </Button>
         </div>
       </div>
@@ -1005,7 +1005,7 @@ export default function AdminUsersPage() {
         data-testid="button-back-to-dashboard"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver al Dashboard
+        Volver
       </Button>
 
       <div className="flex items-center justify-between mb-6">
