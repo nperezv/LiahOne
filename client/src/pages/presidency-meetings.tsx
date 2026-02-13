@@ -820,7 +820,7 @@ export default function PresidencyMeetingsPage() {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-foreground">
-                  {Math.round(dashboardStats.monthlyAttendancePercent)}
+                  {Math.round(dashboardStats.averageWeeklyAttendance)}
                 </span>
               </div>
             </div>
