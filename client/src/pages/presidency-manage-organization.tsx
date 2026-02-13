@@ -28,6 +28,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCallingLabel } from "@/lib/callings";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const meetingSchema = z.object({
@@ -178,6 +179,7 @@ export default function PresidencyManageOrganizationPage() {
     birthdays: false,
   });
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: organizations = [] } = useOrganizations();
   const { data: users = [] } = useUsers();
@@ -208,6 +210,12 @@ export default function PresidencyManageOrganizationPage() {
   const panelTitle = params?.org ? `Presidencia de ${orgName}` : "Panel de Presidencia";
   const currentOrganization = organizations.find((org: any) => org.id === organizationId);
   const organizationType = currentOrganization?.type;
+  const canUseOrganizationInterviews = organizationType === "cuorum_elderes" || organizationType === "sociedad_socorro";
+  const hasOrganizationInterviewsAccess =
+    user?.organizationId === organizationId &&
+    (user?.role === "presidente_organizacion" ||
+      user?.role === "consejero_organizacion" ||
+      user?.role === "secretario_organizacion");
   const todayIso = formatLocalDateKey(new Date());
   const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
   const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
@@ -559,6 +567,7 @@ export default function PresidencyManageOrganizationPage() {
           ) : null}
         </Card>
 
+{canUseOrganizationInterviews ? (
         <Card className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("interviews")}>
@@ -588,10 +597,22 @@ export default function PresidencyManageOrganizationPage() {
                 <p className="text-muted-foreground">Meta trimestral (Q{currentQuarterRange.quarter} {currentQuarterRange.year})</p>
                 <p className="text-xl font-semibold">{completedQuarterInterviews.length}/{quarterlyInterviewGoal}</p>
               </div>
-              <Button variant="outline" className="w-full rounded-full" onClick={() => navigateWithTransition(setLocation, "/organization-interviews")}>Ver entrevistas</Button>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => {
+                if (!hasOrganizationInterviewsAccess) {
+                  toast({
+                    title: "Acceso restringido",
+                    description: "Solo la presidencia de esta organización puede gestionar entrevistas.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                navigateWithTransition(setLocation, "/organization-interviews");
+              }}>Ver entrevistas</Button>
             </CardContent>
           ) : null}
         </Card>
+
+        ) : null}
 
         <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
           <CardHeader className="pb-3">
