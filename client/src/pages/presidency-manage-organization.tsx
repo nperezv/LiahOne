@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
   useOrganizations,
-  useMembers,
+  useOrganizationMembers,
   useOrganizationAttendanceByOrg,
   useUpsertOrganizationAttendance,
   usePresidencyMeetings,
@@ -185,7 +185,7 @@ export default function PresidencyManageOrganizationPage() {
   const { data: users = [] } = useUsers();
   const { data: allMemberCallings = [] } = useAllMemberCallings({ enabled: Boolean(organizationId) });
   const { data: meetings = [], isLoading: meetingsLoading } = usePresidencyMeetings(organizationId);
-  const { data: members = [], isLoading: membersLoading } = useMembers({ enabled: Boolean(organizationId) });
+  const { data: organizationMembers = [], isLoading: membersLoading } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const { data: organizationInterviews = [] } = useOrganizationInterviews();
   const { data: assignments = [] } = useAssignments();
@@ -273,11 +273,6 @@ export default function PresidencyManageOrganizationPage() {
     return { presidents, counselors, secretaries, otherCallings };
   }, [allMemberCallings, organizationId, users]);
 
-  const organizationMembers = useMemo(
-    () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
-    [members, organizationId]
-  );
-
   const monthlyAttendanceStats = useMemo(() => {
     const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-`;
     const attendanceInMonth = (attendance as any[]).filter((entry: any) => {
@@ -357,19 +352,29 @@ export default function PresidencyManageOrganizationPage() {
     [organizationInterviewsList, currentQuarterRange]
   );
 
+  const yearInterviews = useMemo(
+    () => organizationInterviewsList.filter((item: any) => {
+      const interviewDate = new Date(item.date);
+      return !Number.isNaN(interviewDate.getTime()) && interviewDate.getFullYear() === currentQuarterRange.year;
+    }),
+    [organizationInterviewsList, currentQuarterRange.year]
+  );
+
   const completedQuarterInterviews = useMemo(
     () => quarterInterviews.filter((item: any) => String(item.status ?? "").toLowerCase() === "completada"),
     [quarterInterviews]
   );
 
-  const pendingInterviews = useMemo(
-    () => quarterInterviews.filter((item: any) => String(item.status ?? "programada").toLowerCase() !== "completada"),
-    [quarterInterviews]
+  const completedYearInterviews = useMemo(
+    () => yearInterviews.filter((item: any) => String(item.status ?? "").toLowerCase() === "completada"),
+    [yearInterviews]
   );
 
-  const quarterlyInterviewGoal = organizationMembers.length;
-  const interviewCompletionPercent = quarterlyInterviewGoal > 0
-    ? Math.min(100, (completedQuarterInterviews.length / quarterlyInterviewGoal) * 100)
+  const annualInterviewGoal = organizationMembers.length;
+  const quarterlyInterviewGoal = annualInterviewGoal / 4;
+  const pendingQuarterInterviews = Math.max(0, quarterlyInterviewGoal - completedQuarterInterviews.length);
+  const interviewCompletionPercent = annualInterviewGoal > 0
+    ? Math.min(100, (completedYearInterviews.length / annualInterviewGoal) * 100)
     : 0;
 
   const pendingAssignments = useMemo(
@@ -586,7 +591,7 @@ export default function PresidencyManageOrganizationPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
                   <p className="text-muted-foreground">Pendientes (trimestre)</p>
-                  <p className="text-xl font-semibold">{pendingInterviews.length}</p>
+                  <p className="text-xl font-semibold">{Math.ceil(pendingQuarterInterviews)}</p>
                 </div>
                 <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
                   <p className="text-muted-foreground">Completadas (trimestre)</p>
@@ -594,8 +599,8 @@ export default function PresidencyManageOrganizationPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
-                <p className="text-muted-foreground">Meta trimestral (Q{currentQuarterRange.quarter} {currentQuarterRange.year})</p>
-                <p className="text-xl font-semibold">{completedQuarterInterviews.length}/{quarterlyInterviewGoal}</p>
+                <p className="text-muted-foreground">Objetivo anual ({currentQuarterRange.year})</p>
+                <p className="text-xl font-semibold">{completedYearInterviews.length}/{annualInterviewGoal}</p>
               </div>
               <Button variant="outline" className="w-full rounded-full" onClick={() => {
                 if (!hasOrganizationInterviewsAccess) {
