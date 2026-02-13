@@ -53,6 +53,15 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
+};
+
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
   agenda: z.string().optional(),
@@ -677,7 +686,13 @@ export default function PresidencyMeetingsPage() {
         <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{pageTitle}</h1>
         <div className="mt-3">
-          <Button className="rounded-full" onClick={() => setLocation(`/presidency/${params?.org ?? ""}/manage`)} data-testid="button-manage-organization">Gestionar Organización</Button>
+          <Button
+            className="rounded-full"
+            onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
+            data-testid="button-manage-organization"
+          >
+            Gestionar Organización
+          </Button>
         </div>
       </motion.div>
 
@@ -776,7 +791,7 @@ export default function PresidencyMeetingsPage() {
 
         <button
           type="button"
-          onClick={() => setLocation(`/presidency/${params?.org ?? ""}/manage`)}
+          onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
           className="col-span-1 flex min-h-[220px] flex-col justify-between rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
           data-testid="button-presidency-meetings-overview"
         >

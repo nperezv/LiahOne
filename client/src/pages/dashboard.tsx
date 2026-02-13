@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Cake, CalendarDays, Check, Target, Wallet } from "lucide-react";
+import { Cake, CalendarDays, Check, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DashboardStats, useDashboardStats } from "@/hooks/use-api";
+import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 
@@ -11,12 +11,8 @@ const clampProgress = (value: number) => Math.min(100, Math.max(0, value));
 
 const getGreeting = (date: Date) => {
   const hour = date.getHours();
-  if (hour < 12) {
-    return "Buenos días";
-  }
-  if (hour < 19) {
-    return "Buenas tardes";
-  }
+  if (hour < 12) return "Buenos días";
+  if (hour < 19) return "Buenas tardes";
   return "Buenas noches";
 };
 
@@ -31,15 +27,7 @@ function ProgressRing({ value }: { value: number }) {
   return (
     <div className="relative flex h-[72px] w-[72px] items-center justify-center">
       <svg width={size} height={size} className="rotate-[-90deg]">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          className="text-muted/30"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          fill="none"
-        />
+        <circle cx={size / 2} cy={size / 2} r={radius} className="text-muted/30" stroke="currentColor" strokeWidth={stroke} fill="none" />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -61,8 +49,33 @@ function ProgressRing({ value }: { value: number }) {
   );
 }
 
+function QuickCard({
+  title,
+  subtitle,
+  icon: Icon,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  icon: any;
+  onClick: () => void;
+}) {
+  return (
+    <Card className="hover-elevate cursor-pointer" onClick={onClick}>
+      <CardContent className="space-y-2 pt-6">
+        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <Icon className="h-4 w-4 text-primary" />
+          {title}
+        </div>
+        <p className="text-sm">{subtitle}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { data: stats, isLoading } = useDashboardStats();
+  const { data: organizations = [] } = useOrganizations();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
 
@@ -70,10 +83,10 @@ export default function DashboardPage() {
     return (
       <div className="p-8">
         <div className="mb-6">
-          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="mb-2 h-8 w-64" />
           <Skeleton className="h-4 w-96" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
               <CardHeader>
@@ -101,13 +114,38 @@ export default function DashboardPage() {
 
   const data = stats || defaultStats;
   const birthdaysPreview = data.upcomingBirthdays.slice(0, 3);
+  const userRole = user?.role ?? "";
+  const isBishopric = ["obispo", "consejero_obispo"].includes(userRole);
+  const isOrgRole = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(userRole);
+
+  const organization = organizations.find((org: any) => org.id === user?.organizationId);
+  const orgSlugMap: Record<string, string> = {
+    hombres_jovenes: "hombres-jovenes",
+    mujeres_jovenes: "mujeres-jovenes",
+    sociedad_socorro: "sociedad-socorro",
+    primaria: "primaria",
+    escuela_dominical: "escuela-dominical",
+    jas: "jas",
+    cuorum_elderes: "cuorum-elderes",
+  };
+  const organizationHref = organization?.type ? `/presidency/${orgSlugMap[organization.type] ?? organization.type.replace(/_/g, "-")}` : "/leadership";
+
+  const roleDashboardTitle: Record<string, string> = {
+    secretario: "Panel de Secretaría",
+    secretario_ejecutivo: "Panel Ejecutivo",
+    secretario_financiero: "Panel Financiero",
+    presidente_organizacion: "Panel de Organización",
+    secretario_organizacion: "Panel de Organización",
+    consejero_organizacion: "Panel de Organización",
+  };
 
   return (
     <div className="space-y-6 px-4 py-6 sm:px-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <h1 className="text-2xl font-semibold">{isBishopric ? "Dashboard" : roleDashboardTitle[userRole] ?? "Dashboard"}</h1>
         <p className="text-sm text-muted-foreground">
-          {getGreeting(new Date())}{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
+          {getGreeting(new Date())}
+          {user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
         </p>
       </div>
 
@@ -117,7 +155,7 @@ export default function DashboardPage() {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/70 text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-200">
               <CalendarDays className="h-4 w-4" />
             </span>
-            <CardTitle className="text-lg font-semibold">Hoy en el barrio</CardTitle>
+            <CardTitle className="text-lg font-semibold">{isBishopric ? "Hoy en el barrio" : "Resumen de tu rol"}</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -132,94 +170,104 @@ export default function DashboardPage() {
             </li>
             <li className="flex items-center gap-2">
               <Check className="h-4 w-4 text-emerald-600" />
-              Todo lo demás al día
+              {data.pendingAssignments > 0 ? `${data.pendingAssignments} tareas pendientes` : "Todo lo demás al día"}
             </li>
           </ul>
-          <Button
-            className="w-full rounded-full bg-primary/90 text-primary-foreground hover:bg-primary"
-            onClick={() => setLocation("/calendar")}
-          >
+          <Button className="w-full rounded-full bg-primary/90 text-primary-foreground hover:bg-primary" onClick={() => setLocation("/calendar")}>
             Ver agenda
           </Button>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/goals")}>
-          <CardContent className="flex items-center justify-between gap-4 pt-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                <Target className="h-5 w-5 text-primary" />
-                Progreso de metas de barrio
-              </div>
-              <div className="space-y-1 text-sm">
-                <p>{data.goals.completed} de {data.goals.total} metas</p>
-                <p>{data.goals.percentage}% de avance</p>
-              </div>
-            </div>
-            <ProgressRing value={data.goals.percentage} />
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/budget")}>
-            <CardContent className="space-y-2 pt-6">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                <Wallet className="h-4 w-4 text-primary" />
-                Presup.
-              </div>
-              <p className="text-sm">
-                {data.budgetRequests.pending} pendientes
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/assignments")}>
-            <CardContent className="space-y-2 pt-6">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                <Target className="h-4 w-4 text-primary" />
-                Tareas
-              </div>
-              <p className="text-sm">
-                {data.pendingAssignments > 0
-                  ? `${data.pendingAssignments} pendientes`
-                  : "Todo hecho 🎉"}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Cumpleaños</h2>
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/birthdays")}>
-            Ver todo
-          </Button>
-        </div>
-        <Card>
-          <CardContent className="space-y-3 pt-6">
-            {birthdaysPreview.length > 0 ? (
-              birthdaysPreview.map((birthday, idx) => (
-                <div
-                  key={`${birthday.name}-${idx}`}
-                  className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-sm"
-                  data-testid={`birthday-item-${idx}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Cake className="h-4 w-4 text-primary" />
-                    <p className="font-medium">{birthday.name}</p>
+      {isBishopric ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/goals")}>
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <Target className="h-5 w-5 text-primary" />
+                    Progreso de metas de barrio
                   </div>
-                  <Badge variant="outline">{birthday.date}</Badge>
+                  <div className="space-y-1 text-sm">
+                    <p>{data.goals.completed} de {data.goals.total} metas</p>
+                    <p>{data.goals.percentage}% de avance</p>
+                  </div>
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No hay cumpleaños registrados
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                <ProgressRing value={data.goals.percentage} />
+              </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-4">
+              <QuickCard title="Presupuesto" subtitle={`${data.budgetRequests.pending} pendientes`} icon={Wallet} onClick={() => setLocation("/budget")} />
+              <QuickCard
+                title="Tareas"
+                subtitle={data.pendingAssignments > 0 ? `${data.pendingAssignments} pendientes` : "Todo hecho 🎉"}
+                icon={Target}
+                onClick={() => setLocation("/assignments")}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">Cumpleaños</h2>
+              <Button variant="ghost" size="sm" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
+            </div>
+            <Card>
+              <CardContent className="space-y-3 pt-6">
+                {birthdaysPreview.length > 0 ? (
+                  birthdaysPreview.map((birthday, idx) => (
+                    <div key={`${birthday.name}-${idx}`} className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-sm" data-testid={`birthday-item-${idx}`}>
+                      <div className="flex items-center gap-2">
+                        <Cake className="h-4 w-4 text-primary" />
+                        <p className="font-medium">{birthday.name}</p>
+                      </div>
+                      <Badge variant="outline">{birthday.date}</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No hay cumpleaños registrados</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {userRole === "secretario" && (
+            <>
+              <QuickCard title="Secretaría" subtitle="Asistencias y registros" icon={ClipboardList} onClick={() => setLocation("/secretary-dashboard")} />
+              <QuickCard title="Consejo de Barrio" subtitle="Revisión semanal" icon={Users} onClick={() => setLocation("/ward-council")} />
+              <QuickCard title="Liderazgo" subtitle="Organizaciones del barrio" icon={Users} onClick={() => setLocation("/leadership")} />
+            </>
+          )}
+
+          {userRole === "secretario_ejecutivo" && (
+            <>
+              <QuickCard title="Entrevistas" subtitle={`${data.upcomingInterviews} próximas`} icon={UserCheck} onClick={() => setLocation("/interviews")} />
+              <QuickCard title="Consejo de Barrio" subtitle="Agenda y acuerdos" icon={Users} onClick={() => setLocation("/ward-council")} />
+              <QuickCard title="Reunión sacramental" subtitle="Creación de programa" icon={FileText} onClick={() => setLocation("/sacramental-meeting")} />
+            </>
+          )}
+
+          {userRole === "secretario_financiero" && (
+            <>
+              <QuickCard title="Presupuestos" subtitle={`${data.budgetRequests.pending} pendientes`} icon={HandCoins} onClick={() => setLocation("/budget")} />
+              <QuickCard title="Reportes" subtitle="Seguimiento financiero" icon={FileText} onClick={() => setLocation("/reports")} />
+              <QuickCard title="Calendario" subtitle="Fechas de gestión" icon={CalendarDays} onClick={() => setLocation("/calendar")} />
+            </>
+          )}
+
+          {isOrgRole && (
+            <>
+              <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => setLocation(organizationHref)} />
+              <QuickCard title="Presupuesto" subtitle="Solicitudes y movimientos" icon={Wallet} onClick={() => setLocation("/budget")} />
+              <QuickCard title="Recursos" subtitle="Biblioteca de materiales" icon={FileText} onClick={() => setLocation("/resources-library")} />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
