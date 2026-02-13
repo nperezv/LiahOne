@@ -43,6 +43,15 @@ const goalSchema = z.object({
 
 type GoalFormValues = z.infer<typeof goalSchema>;
 
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
+};
+
 export default function GoalsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
@@ -210,19 +219,8 @@ export default function GoalsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
-        <div className="w-full">
-          {presidencyOrg && (
-            <Button
-              variant="ghost"
-              className="mb-2"
-              onClick={() => setLocation(`/presidency/${presidencyOrg}`)}
-              data-testid="button-back-presidency-panel"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver
-            </Button>
-          )}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
           <h1 className="text-2xl font-bold mb-2">Metas Anuales</h1>
           <p className="text-sm text-muted-foreground">
             {activeTab === "barrio"
@@ -231,6 +229,16 @@ export default function GoalsPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          {presidencyOrg && (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => navigateWithTransition(setLocation, `/presidency/${presidencyOrg}`)}
+              data-testid="button-back-presidency-panel"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+            </Button>
+          )}
           {showCreateButton && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>

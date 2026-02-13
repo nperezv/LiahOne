@@ -875,7 +875,7 @@ export default function PresidencyMeetingsPage() {
                 ))}
               </div>
             )}
-            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => setLocation(`/goals?tab=organizacion&org=${params?.org ?? ""}`)} data-testid="button-goals-from-gauge">+ Ver metas</Button>
+            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => navigateWithTransition(setLocation, `/goals?tab=organizacion&org=${params?.org ?? ""}`)} data-testid="button-goals-from-gauge">+ Ver metas</Button>
           </CardContent>
         </Card>
 
