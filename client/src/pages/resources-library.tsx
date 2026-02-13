@@ -171,10 +171,10 @@ export default function ResourcesLibraryPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Biblioteca de recursos</h1>
-        <p className="text-muted-foreground">Recursos institucionales por categoría y organización.</p>
+    <div className="space-y-6 p-8">
+      <div className="w-full">
+        <h1 className="mb-2 text-2xl font-bold">Biblioteca de recursos</h1>
+        <p className="text-sm text-muted-foreground">Recursos institucionales por categoría y organización.</p>
       </div>
 
       {isLibraryAdmin && (
