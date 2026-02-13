@@ -20,6 +20,7 @@ import {
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
   useUsers,
+  useAllMemberCallings,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -123,6 +124,7 @@ export default function PresidencyManageOrganizationPage() {
 
   const { data: organizations = [] } = useOrganizations();
   const { data: users = [] } = useUsers();
+  const { data: allMemberCallings = [] } = useAllMemberCallings({ enabled: Boolean(organizationId) });
   const { data: meetings = [], isLoading: meetingsLoading } = usePresidencyMeetings(organizationId);
   const { data: members = [], isLoading: membersLoading } = useMembers({ enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
@@ -152,14 +154,56 @@ export default function PresidencyManageOrganizationPage() {
 
   const leadership = useMemo(() => {
     const organizationUsers = (users as any[]).filter((user) => user.organizationId === organizationId);
-    const presidents = organizationUsers.filter((user) => user.role === "presidente_organizacion");
-    const counselors = organizationUsers.filter((user) => user.role === "consejero_organizacion");
-    const secretaries = organizationUsers.filter((user) => user.role === "secretario_organizacion");
+    const activeOrgCallings = (allMemberCallings as any[]).filter(
+      (calling) => calling.isActive && calling.organizationId === organizationId
+    );
+
+    const callingByMemberId = new Map<string, any>();
+    activeOrgCallings.forEach((calling) => {
+      if (!calling.memberId) return;
+      const existing = callingByMemberId.get(calling.memberId);
+      if (!existing) {
+        callingByMemberId.set(calling.memberId, calling);
+        return;
+      }
+
+      const existingOrder = Number(existing.callingOrder ?? 999);
+      const incomingOrder = Number(calling.callingOrder ?? 999);
+      if (incomingOrder < existingOrder) {
+        callingByMemberId.set(calling.memberId, calling);
+      }
+    });
+
+    const hydrateLeader = (user: any) => {
+      const matchedCalling = user.memberId ? callingByMemberId.get(user.memberId) : undefined;
+      return {
+        ...user,
+        callingName: matchedCalling?.callingName ?? user.callingName,
+        callingOrder: matchedCalling?.callingOrder ?? user.callingOrder,
+        organizationName: matchedCalling?.organizationName ?? user.organizationName,
+      };
+    };
+
+    const presidents = organizationUsers
+      .filter((user) => user.role === "presidente_organizacion")
+      .map(hydrateLeader);
+    const counselors = organizationUsers
+      .filter((user) => user.role === "consejero_organizacion")
+      .map(hydrateLeader)
+      .sort((a, b) => {
+        const orderA = Number(a.callingOrder ?? inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
+        const orderB = Number(b.callingOrder ?? inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
+      });
+    const secretaries = organizationUsers
+      .filter((user) => user.role === "secretario_organizacion")
+      .map(hydrateLeader);
     const leadershipIds = new Set([...presidents, ...counselors, ...secretaries].map((user) => user.id));
     const otherCallings = organizationUsers.filter((user) => !leadershipIds.has(user.id));
 
     return { presidents, counselors, secretaries, otherCallings };
-  }, [organizationId, users]);
+  }, [allMemberCallings, organizationId, users]);
 
   const organizationMembers = useMemo(
     () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
