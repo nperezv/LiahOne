@@ -831,18 +831,18 @@ export default function PresidencyMeetingsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
 
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="h-full rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Metas de organización</CardTitle>
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
           </CardHeader>
-          <CardContent className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
+          <CardContent className="flex h-full flex-col px-4 pb-4 pt-0"
             onPointerDown={(event) => { goalDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(goalDragStartX.current, event.clientX, () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
             onTouchStart={(event) => { goalDragStartX.current = getTouchStartX(event); }}
             onTouchEnd={(event) => handleSwipe(goalDragStartX.current, getTouchEndX(event), () => moveGoalSlide("prev"), () => moveGoalSlide("next"))}
           >
-            <div className="mb-1 flex items-baseline gap-2">
+            <div className="mb-1 flex items-baseline gap-2 pt-1">
               <span className="text-4xl font-bold leading-none">{Math.round(goalSlideIndex === 0 ? dashboardStats.goalProgress : (activeGoal?.percentage ?? 0))}%</span>
               <span className="text-base font-medium text-muted-foreground">Metas cumplidas</span>
             </div>
@@ -875,23 +875,23 @@ export default function PresidencyMeetingsPage() {
                 ))}
               </div>
             )}
-            <Button className="mt-4 w-full rounded-full" variant="secondary" onClick={() => navigateWithTransition(setLocation, `/goals?tab=organizacion&org=${params?.org ?? ""}`)} data-testid="button-goals-from-gauge">+ Ver metas</Button>
+            <Button className="mt-auto w-full rounded-full" variant="secondary" onClick={() => navigateWithTransition(setLocation, `/goals?tab=organizacion&org=${params?.org ?? ""}`)} data-testid="button-goals-from-gauge">+ Ver metas</Button>
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="h-full rounded-3xl border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
             <CardDescription>Uso del trimestre actual</CardDescription>
           </CardHeader>
           <CardContent
-            className="rounded-3xl border border-border/60 bg-gradient-to-b from-card to-muted/20 p-4"
+            className="flex h-full flex-col px-4 pb-4 pt-0"
             onPointerDown={(event) => { budgetDragStartX.current = event.clientX; }}
             onPointerUp={(event) => handleSwipe(budgetDragStartX.current, event.clientX, () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
             onTouchStart={(event) => { budgetDragStartX.current = getTouchStartX(event); }}
             onTouchEnd={(event) => handleSwipe(budgetDragStartX.current, getTouchEndX(event), () => moveBudgetSlide("prev"), () => moveBudgetSlide("next"))}
           >
-            <div className="mb-1">
+            <div className="mb-1 pt-1">
               <p className="text-4xl font-bold leading-none">{Math.round(activeBudgetSlide?.percentage ?? dashboardStats.budgetUsage)}% usado</p>
               <p className="mt-1 text-lg font-medium">€{(activeBudgetSlide?.amount ?? dashboardStats.spentBudget).toFixed(2)} usados</p>
               <p className="text-sm text-muted-foreground">de €{dashboardStats.assignedBudget.toFixed(2)}</p>
