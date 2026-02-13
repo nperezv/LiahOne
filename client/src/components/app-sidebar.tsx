@@ -31,6 +31,7 @@ interface MenuItem {
 }
 
 const ORG_ROLES = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
+const HIDDEN_FOR_ORG_ROLES = ["/dashboard", "/goals", "/calendar"];
 
 const ALL_MENU_ITEMS: MenuItem[] = [
   {
@@ -162,7 +163,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Panel Secretaría",
     url: "/secretary-dashboard",
     icon: FileText,
-    roles: ["secretario"],
+    roles: ["obispo", "consejero_obispo", "secretario"],
   },
   {
     title: "Asignaciones",
@@ -187,6 +188,10 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
   if (!userRole) return [];
   
   return ALL_MENU_ITEMS.filter(item => {
+    if (ORG_ROLES.includes(userRole) && item.url && HIDDEN_FOR_ORG_ROLES.includes(item.url)) {
+      return false;
+    }
+
     // If no roles specified, visible to everyone
     if (!item.roles) return true;
     // Otherwise, only visible if user's role is in the list
@@ -219,7 +224,7 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
 
 function getPinnedUrls(userRole?: string) {
   if (ORG_ROLES.includes(userRole ?? "")) {
-    return ["/dashboard", "/calendar", "/assignments", "/goals", "/budget", "/resources-library"];
+    return ["/assignments", "/budget", "/resources-library"];
   }
 
   return ["/dashboard", "/calendar", "/assignments", "/directory", "/goals", "/budget"];
