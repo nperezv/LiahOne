@@ -35,17 +35,14 @@ import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
   location: z.string().optional(),
+  openingHymn: z.string().optional(),
   openingPrayerBy: z.string().optional(),
   hasSpiritualThought: z.enum(["si", "no"]),
   spiritualThoughtBy: z.string().optional(),
   previousReviewPoints: z.string().optional(),
   topicsToDiscuss: z.string().optional(),
-  keyPoints: z.string().optional(),
-  closingHymn: z.string().optional(),
-  closingPrayerBy: z.string().optional(),
+  ministeringAndWelfare: z.string().optional(),
   agenda: z.string().optional(),
-  notes: z.string().optional(),
-  agreementsText: z.string().optional(),
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
@@ -67,26 +64,22 @@ const buildStructuredAgenda = (values: MeetingFormValues) => {
 
   const previousReview = splitLines(values.previousReviewPoints);
   const topics = splitLines(values.topicsToDiscuss);
-  const keyPoints = splitLines(values.keyPoints);
+  const ministeringAndWelfare = splitLines(values.ministeringAndWelfare);
   const hasThought = values.hasSpiritualThought === "si";
-  const closingByPrayer = !values.closingHymn?.trim();
 
   return [
     `FECHA Y HORA: ${dateLabel}`,
     `DÍA: ${dayLabel || "Por definir"}`,
     `LUGAR: ${values.location?.trim() || "Por definir"}`,
+    `HIMNO DE APERTURA: ${values.openingHymn?.trim() || "Por definir"}`,
     `ORACIÓN INICIAL: ${values.openingPrayerBy?.trim() || "Por definir"}`,
     `PENSAMIENTO ESPIRITUAL: ${hasThought ? `Sí — ${values.spiritualThoughtBy?.trim() || "Por definir"}` : "No"}`,
     "REVISIÓN REUNIÓN ANTERIOR:",
     ...(previousReview.length > 0 ? previousReview.map((item) => `- ${item}`) : ["- Sin puntos previos"]),
     "TEMAS A TRATAR:",
     ...(topics.length > 0 ? topics.map((item) => `- ${item}`) : ["- Sin temas definidos"]),
-    "PUNTOS IMPORTANTES:",
-    ...(keyPoints.length > 0 ? keyPoints.map((item) => `- ${item}`) : ["- Sin puntos importantes"]),
-    "CIERRE:",
-    ...(closingByPrayer
-      ? [`- Oración final: ${values.closingPrayerBy?.trim() || "Por definir"}`]
-      : [`- Himno final: ${values.closingHymn?.trim() || "Por definir"}`, `- Oración final: ${values.closingPrayerBy?.trim() || "Por definir"}`]),
+    "MINISTRACIÓN, AUTOSUFICIENCIA Y BIENESTAR:",
+    ...(ministeringAndWelfare.length > 0 ? ministeringAndWelfare.map((item) => `- ${item}`) : ["- Sin puntos definidos"]),
   ].join("\n");
 };
 
@@ -219,17 +212,14 @@ export default function PresidencyManageOrganizationPage() {
     defaultValues: {
       date: "",
       location: "",
+      openingHymn: "",
       openingPrayerBy: "",
       hasSpiritualThought: "no",
       spiritualThoughtBy: "",
       previousReviewPoints: "",
       topicsToDiscuss: "",
-      keyPoints: "",
-      closingHymn: "",
-      closingPrayerBy: "",
+      ministeringAndWelfare: "",
       agenda: "",
-      notes: "",
-      agreementsText: "",
     },
   });
 
@@ -242,14 +232,13 @@ export default function PresidencyManageOrganizationPage() {
     form,
     watchedMeetingValues.date,
     watchedMeetingValues.location,
+    watchedMeetingValues.openingHymn,
     watchedMeetingValues.openingPrayerBy,
     watchedMeetingValues.hasSpiritualThought,
     watchedMeetingValues.spiritualThoughtBy,
     watchedMeetingValues.previousReviewPoints,
     watchedMeetingValues.topicsToDiscuss,
-    watchedMeetingValues.keyPoints,
-    watchedMeetingValues.closingHymn,
-    watchedMeetingValues.closingPrayerBy,
+    watchedMeetingValues.ministeringAndWelfare,
   ]);
 
   useEffect(() => {
@@ -490,18 +479,13 @@ export default function PresidencyManageOrganizationPage() {
     if (!organizationId) return;
     const structuredAgenda = buildStructuredAgenda(values);
 
-    const agreements = (values.agreementsText ?? "")
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
     createMutation.mutate(
       {
         date: values.date,
         organizationId,
         agenda: structuredAgenda,
-        agreements,
-        notes: values.notes || "",
+        agreements: [],
+        notes: "",
       },
       {
         onSuccess: () => {
@@ -623,7 +607,15 @@ export default function PresidencyManageOrganizationPage() {
                   <div key={meeting.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium">{new Date(meeting.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}</p>
-                      <p className="text-xs text-muted-foreground">{meeting.agenda || "Sin agenda"}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{meeting.agenda || "Sin agenda"}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 rounded-full px-3 text-xs"
+                        onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/meeting/${meeting.id}/report`)}
+                      >
+                        Informe de la reunión
+                      </Button>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteMeeting(meeting.id)} data-testid={`button-delete-management-meeting-${meeting.id}`}><Trash2 className="h-4 w-4" /></Button>
                   </div>
@@ -761,6 +753,15 @@ export default function PresidencyManageOrganizationPage() {
                 });
                 navigateWithTransition(setLocation, `/assignments?${searchParams.toString()}`);
               }}>Ver tareas</Button>
+              <Button className="w-full rounded-full" onClick={() => {
+                const searchParams = new URLSearchParams({
+                  from: "presidency-manage",
+                  orgSlug: params?.org ?? "",
+                  orgId: organizationId ?? "",
+                  create: "1",
+                });
+                navigateWithTransition(setLocation, `/assignments?${searchParams.toString()}`);
+              }}>Nueva asignación</Button>
             </CardContent>
           ) : null}
         </Card>
@@ -820,6 +821,14 @@ export default function PresidencyManageOrganizationPage() {
                 </FormItem>
               )} />
 
+              <FormField control={form.control} name="openingHymn" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Himno de apertura (opcional)</FormLabel>
+                  <FormControl><Input placeholder="Himno #" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
               <FormField control={form.control} name="openingPrayerBy" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Primera oración (quién la hará)</FormLabel>
@@ -871,26 +880,10 @@ export default function PresidencyManageOrganizationPage() {
                 </FormItem>
               )} />
 
-              <FormField control={form.control} name="keyPoints" render={({ field }) => (
+              <FormField control={form.control} name="ministeringAndWelfare" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Puntos importantes (uno por línea)</FormLabel>
-                  <FormControl><Textarea placeholder="Punto importante 1" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="closingHymn" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Último himno (opcional)</FormLabel>
-                  <FormControl><Input placeholder="Himno #" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="closingPrayerBy" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Última oración</FormLabel>
-                  <FormControl><Input placeholder="Nombre" {...field} /></FormControl>
+                  <FormLabel>Ministración, autosuficiencia y bienestar (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Seguimiento de ministración" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -899,22 +892,6 @@ export default function PresidencyManageOrganizationPage() {
                 <FormItem>
                   <FormLabel>Agenda generada</FormLabel>
                   <FormControl><Textarea placeholder="La agenda se genera automáticamente" {...field} disabled /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="agreementsText" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Acuerdos (uno por línea)</FormLabel>
-                  <FormControl><Textarea placeholder="Acuerdo 1\nAcuerdo 2" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="notes" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notas</FormLabel>
-                  <FormControl><Textarea placeholder="Notas de la reunión" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
