@@ -38,8 +38,10 @@ import { useAuth } from "@/lib/auth";
 import {
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
+  useCreateAssignment,
   useCreateBudgetRequest,
   useOrganizations,
+  useUsers,
   useBudgetRequests,
   useOrganizationBudgets,
   useOrganizationMembers,
@@ -64,6 +66,15 @@ const navigateWithTransition = (navigate: (path: string) => void, path: string) 
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
+  location: z.string().optional(),
+  openingPrayerBy: z.string().optional(),
+  hasSpiritualThought: z.enum(["si", "no"]),
+  spiritualThoughtBy: z.string().optional(),
+  previousReviewPoints: z.string().optional(),
+  topicsToDiscuss: z.string().optional(),
+  keyPoints: z.string().optional(),
+  closingHymn: z.string().optional(),
+  closingPrayerBy: z.string().optional(),
   agenda: z.string().optional(),
   notes: z.string().optional(),
   agreementsText: z.string().optional(),
@@ -114,7 +125,89 @@ const budgetRequestSchema = z.object({
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+type MeetingReportFormValues = {
+  reviewNotes: string;
+  assignments: Array<{ title: string; description: string; assignedTo: string; dueDate: string }>;
+  agreements: string;
+  goalsReport: string;
+};
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const splitLines = (value?: string) =>
+  (value || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const parseAgendaSections = (agenda?: string) => {
+  const lines = (agenda || "").split("\n");
+  const sectionRegex = /^(LUGAR|ORACIÓN INICIAL|PENSAMIENTO ESPIRITUAL|REVISIÓN REUNIÓN ANTERIOR|TEMAS A TRATAR|PUNTOS IMPORTANTES|CIERRE):\s*(.*)$/i;
+  const sections: Record<string, string[]> = {
+    LUGAR: [],
+    "ORACIÓN INICIAL": [],
+    "PENSAMIENTO ESPIRITUAL": [],
+    "REVISIÓN REUNIÓN ANTERIOR": [],
+    "TEMAS A TRATAR": [],
+    "PUNTOS IMPORTANTES": [],
+    CIERRE: [],
+  };
+
+  let current: keyof typeof sections | null = null;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const match = line.match(sectionRegex);
+    if (match) {
+      const section = match[1].toUpperCase() as keyof typeof sections;
+      current = section;
+      if (match[2]) sections[section].push(match[2]);
+      continue;
+    }
+
+    if (current) {
+      sections[current].push(line.replace(/^[-•]\s*/, ""));
+    }
+  }
+
+  return sections;
+};
+
+const buildStructuredAgenda = (values: MeetingFormValues) => {
+  const date = new Date(values.date);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? values.date
+    : date.toLocaleString("es-ES", { dateStyle: "full", timeStyle: "short" });
+  const dayLabel = Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("es-ES", { weekday: "long" });
+
+  const previousReview = splitLines(values.previousReviewPoints);
+  const topics = splitLines(values.topicsToDiscuss);
+  const keyPoints = splitLines(values.keyPoints);
+  const hasThought = values.hasSpiritualThought === "si";
+  const closingByPrayer = !values.closingHymn?.trim();
+
+  const lines = [
+    `FECHA Y HORA: ${dateLabel}`,
+    `DÍA: ${dayLabel || "Por definir"}`,
+    `LUGAR: ${values.location?.trim() || "Por definir"}`,
+    `ORACIÓN INICIAL: ${values.openingPrayerBy?.trim() || "Por definir"}`,
+    `PENSAMIENTO ESPIRITUAL: ${hasThought ? `Sí — ${values.spiritualThoughtBy?.trim() || "Por definir"}` : "No"}`,
+    "REVISIÓN REUNIÓN ANTERIOR:",
+    ...(previousReview.length > 0 ? previousReview.map((item) => `- ${item}`) : ["- Sin puntos previos"]),
+    "TEMAS A TRATAR:",
+    ...(topics.length > 0 ? topics.map((item) => `- ${item}`) : ["- Sin temas definidos"]),
+    "PUNTOS IMPORTANTES:",
+    ...(keyPoints.length > 0 ? keyPoints.map((item) => `- ${item}`) : ["- Sin puntos importantes"]),
+    "CIERRE:",
+    ...(closingByPrayer
+      ? [`- Oración final: ${values.closingPrayerBy?.trim() || "Por definir"}`]
+      : [`- Himno final: ${values.closingHymn?.trim() || "Por definir"}`, `- Oración final: ${values.closingPrayerBy?.trim() || "Por definir"}`]),
+  ];
+
+  return lines.join("\n");
+};
 
 const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Input>) => (
   <div className="relative">
@@ -305,6 +398,8 @@ export default function PresidencyMeetingsPage() {
   const [isBudgetMovementsDialogOpen, setIsBudgetMovementsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportMeeting, setReportMeeting] = useState<any | null>(null);
   const [selectedResourcesCategory, setSelectedResourcesCategory] = useState<"manuales" | "plantillas" | "capacitacion">("manuales");
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
@@ -313,6 +408,7 @@ export default function PresidencyMeetingsPage() {
   const budgetDragStartX = React.useRef<number | null>(null);
 
   const { data: organizations = [] } = useOrganizations();
+  const { data: users = [] } = useUsers();
   const { data: meetings = [], isLoading } = usePresidencyMeetings(organizationId);
   const { data: budgetRequests = [] } = useBudgetRequests();
   const { data: goals = [] } = useGoals();
@@ -331,6 +427,7 @@ export default function PresidencyMeetingsPage() {
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const { data: organizationInterviews = [] } = useOrganizationInterviews();
   const createMutation = useCreatePresidencyMeeting(organizationId);
+  const createAssignmentMutation = useCreateAssignment();
   const createBudgetRequestMutation = useCreateBudgetRequest();
   const { toast } = useToast();
 
@@ -338,6 +435,15 @@ export default function PresidencyMeetingsPage() {
   const isObispado = user?.role === "obispo" || user?.role === "consejero_obispo";
   const canCreate = !isOrgMember || organizationId === user?.organizationId;
   const canDelete = isObispado || isOrgMember;
+  const assignableUsers = useMemo(
+    () =>
+      (users as any[]).filter(
+        (member) =>
+          member?.active !== false &&
+          (!organizationId || member.organizationId === organizationId || isObispado)
+      ),
+    [users, organizationId, isObispado]
+  );
 
   const organizationSlugs: Record<string, string> = {
     "hombres-jovenes": "hombres_jovenes",
@@ -572,9 +678,27 @@ export default function PresidencyMeetingsPage() {
     resolver: zodResolver(meetingSchema),
     defaultValues: {
       date: "",
+      location: "",
+      openingPrayerBy: "",
+      hasSpiritualThought: "no",
+      spiritualThoughtBy: "",
+      previousReviewPoints: "",
+      topicsToDiscuss: "",
+      keyPoints: "",
+      closingHymn: "",
+      closingPrayerBy: "",
       agenda: "",
       notes: "",
       agreementsText: "",
+    },
+  });
+
+  const reportForm = useForm<MeetingReportFormValues>({
+    defaultValues: {
+      reviewNotes: "",
+      assignments: [{ title: "", description: "", assignedTo: "", dueDate: "" }],
+      agreements: "",
+      goalsReport: "",
     },
   });
 
@@ -619,21 +743,95 @@ export default function PresidencyMeetingsPage() {
       .filter(Boolean)
       .map((description) => ({ description, responsible: "Por definir" }));
 
+    const structuredAgenda = buildStructuredAgenda(data);
+
     createMutation.mutate(
       {
         date: data.date,
         organizationId,
-        agenda: data.agenda || "",
+        agenda: structuredAgenda,
         agreements,
         notes: data.notes || "",
       },
       {
-        onSuccess: () => {
+        onSuccess: (createdMeeting: any) => {
           setIsDialogOpen(false);
           form.reset();
+          openMeetingReport(createdMeeting);
+          toast({
+            title: "Reunión creada",
+            description: "Se creó la reunión y se abrió automáticamente el informe para completarlo.",
+          });
         },
       }
     );
+  };
+
+  const openMeetingReport = (meeting: any) => {
+    const sections = parseAgendaSections(meeting.agenda);
+    setReportMeeting(meeting);
+    reportForm.reset({
+      reviewNotes: sections["REVISIÓN REUNIÓN ANTERIOR"].join("\n"),
+      assignments: [{ title: "", description: "", assignedTo: "", dueDate: "" }],
+      agreements: "",
+      goalsReport: "",
+    });
+    setIsReportDialogOpen(true);
+  };
+
+  const addReportAssignmentRow = () => {
+    const current = reportForm.getValues("assignments") || [];
+    reportForm.setValue("assignments", [...current, { title: "", description: "", assignedTo: "", dueDate: "" }]);
+  };
+
+  const removeReportAssignmentRow = (index: number) => {
+    const current = reportForm.getValues("assignments") || [];
+    reportForm.setValue("assignments", current.filter((_, idx) => idx !== index));
+  };
+
+  const onSubmitMeetingReport = async (values: MeetingReportFormValues) => {
+    if (!reportMeeting) return;
+
+    const assignmentsToCreate = (values.assignments || []).filter((assignment) => assignment.title.trim() && assignment.assignedTo);
+
+    for (const assignment of assignmentsToCreate) {
+      await createAssignmentMutation.mutateAsync({
+        title: assignment.title.trim(),
+        description: assignment.description?.trim() || "",
+        assignedTo: assignment.assignedTo,
+        dueDate: assignment.dueDate || undefined,
+        relatedTo: `presidency_meeting:${reportMeeting.id}`,
+        silent: true,
+      });
+    }
+
+    const existingNotes = reportMeeting.notes?.trim();
+    const reportSummary = [
+      "INFORME DE REUNIÓN",
+      values.reviewNotes?.trim() ? `\nRevisión de reunión anterior:\n${values.reviewNotes.trim()}` : "",
+      values.agreements?.trim() ? `\nAcuerdos:\n${values.agreements.trim()}` : "",
+      values.goalsReport?.trim() ? `\nInforme de metas:\n${values.goalsReport.trim()}` : "",
+      assignmentsToCreate.length > 0
+        ? `\nAsignaciones creadas:\n${assignmentsToCreate.map((item, index) => `${index + 1}. ${item.title}`).join("\n")}`
+        : "",
+    ].filter(Boolean).join("\n");
+
+    const mergedNotes = [existingNotes, reportSummary].filter(Boolean).join("\n\n---\n\n");
+    const mergedAgreements = [
+      ...(Array.isArray(reportMeeting.agreements) ? reportMeeting.agreements : []),
+      ...splitLines(values.agreements).map((description) => ({ description, responsible: "Por definir" })),
+    ];
+
+    await apiRequest("PUT", `/api/presidency-meetings/${reportMeeting.id}`, {
+      notes: mergedNotes,
+      agreements: mergedAgreements,
+    });
+
+    queryClient.invalidateQueries({ queryKey: ["/api/presidency-meetings", organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+    setIsReportDialogOpen(false);
+    setReportMeeting(null);
+    toast({ title: "Informe guardado", description: "Se guardó el informe y se crearon las asignaciones." });
   };
 
   const handleDeleteMeeting = async (meetingId: string) => {
@@ -774,16 +972,98 @@ export default function PresidencyMeetingsPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="date" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Fecha</FormLabel>
+                  <FormLabel>Fecha y hora</FormLabel>
                   <FormControl><Input type="datetime-local" {...field} data-testid="input-date" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="location" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Lugar</FormLabel>
+                  <FormControl><Input placeholder="Salón de presidencia" {...field} data-testid="input-location" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="openingPrayerBy" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Primera oración (quién la hará)</FormLabel>
+                  <FormControl><Input placeholder="Nombre" {...field} data-testid="input-opening-prayer-by" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="hasSpiritualThought" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>¿Habrá pensamiento espiritual?</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-spiritual-thought"><SelectValue placeholder="Selecciona una opción" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="si">Sí</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              {form.watch("hasSpiritualThought") === "si" && (
+                <FormField control={form.control} name="spiritualThoughtBy" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pensamiento espiritual (quién lo hará)</FormLabel>
+                    <FormControl><Input placeholder="Nombre" {...field} data-testid="input-spiritual-thought-by" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+
+              <FormField control={form.control} name="previousReviewPoints" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Puntos a revisar de la reunión anterior (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Seguimiento acuerdo 1" {...field} data-testid="textarea-previous-review" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="topicsToDiscuss" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Temas a tratar (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Tema 1" {...field} data-testid="textarea-topics" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="keyPoints" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Puntos importantes (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Punto importante 1" {...field} data-testid="textarea-key-points" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="closingHymn" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Último himno (opcional)</FormLabel>
+                  <FormControl><Input placeholder="Himno #" {...field} data-testid="input-closing-hymn" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="closingPrayerBy" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Última oración</FormLabel>
+                  <FormControl><Input placeholder="Nombre" {...field} data-testid="input-closing-prayer-by" /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
 
               <FormField control={form.control} name="agenda" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Agenda (opcional)</FormLabel>
-                  <FormControl><Textarea placeholder="Puntos a tratar en la reunión" {...field} data-testid="textarea-agenda" /></FormControl>
+                  <FormLabel>Agenda generada</FormLabel>
+                  <FormControl><Textarea placeholder="La agenda se genera automáticamente" {...field} data-testid="textarea-agenda" disabled /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -807,6 +1087,91 @@ export default function PresidencyMeetingsPage() {
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel">Cancelar</Button>
                 <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creando..." : "Crear reunión"}</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Informe de la reunión</DialogTitle>
+            <DialogDescription>Registra acuerdos, metas y asignaciones de la reunión seleccionada.</DialogDescription>
+          </DialogHeader>
+
+          <Form {...reportForm}>
+            <form onSubmit={reportForm.handleSubmit(onSubmitMeetingReport)} className="space-y-4">
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
+                <p className="text-sm font-medium">Puntos de agenda</p>
+                <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{reportMeeting?.agenda || "Sin agenda registrada"}</p>
+              </div>
+
+              <FormField control={reportForm.control} name="reviewNotes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Revisión de reunión anterior</FormLabel>
+                  <FormControl><Textarea {...field} placeholder="Resultados del seguimiento" data-testid="textarea-report-review" /></FormControl>
+                </FormItem>
+              )} />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Asignaciones de esta reunión</p>
+                  <Button type="button" variant="outline" size="sm" onClick={addReportAssignmentRow} data-testid="button-add-report-assignment">Agregar asignación</Button>
+                </div>
+
+                {(reportForm.watch("assignments") || []).map((_, index) => (
+                  <div key={`report-assignment-${index}`} className="grid gap-2 rounded-xl border border-border/70 p-3 md:grid-cols-2">
+                    <FormField control={reportForm.control} name={`assignments.${index}.title`} render={({ field }) => (
+                      <FormItem><FormLabel>Título</FormLabel><FormControl><Input {...field} data-testid={`input-report-assignment-title-${index}`} /></FormControl></FormItem>
+                    )} />
+                    <FormField control={reportForm.control} name={`assignments.${index}.assignedTo`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Asignado a</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger data-testid={`select-report-assigned-to-${index}`}><SelectValue placeholder="Selecciona miembro" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {assignableUsers.map((member: any) => (
+                              <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )} />
+                    <FormField control={reportForm.control} name={`assignments.${index}.description`} render={({ field }) => (
+                      <FormItem><FormLabel>Descripción</FormLabel><FormControl><Textarea {...field} data-testid={`textarea-report-assignment-description-${index}`} /></FormControl></FormItem>
+                    )} />
+                    <FormField control={reportForm.control} name={`assignments.${index}.dueDate`} render={({ field }) => (
+                      <FormItem><FormLabel>Fecha límite</FormLabel><FormControl><Input type="datetime-local" {...field} data-testid={`input-report-assignment-due-date-${index}`} /></FormControl></FormItem>
+                    )} />
+                    {(reportForm.watch("assignments") || []).length > 1 && (
+                      <div className="md:col-span-2">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeReportAssignmentRow(index)} data-testid={`button-remove-report-assignment-${index}`}>Eliminar</Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <FormField control={reportForm.control} name="agreements" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Acuerdos (uno por línea)</FormLabel>
+                  <FormControl><Textarea {...field} data-testid="textarea-report-agreements" /></FormControl>
+                </FormItem>
+              )} />
+
+              <FormField control={reportForm.control} name="goalsReport" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Informe de metas</FormLabel>
+                  <FormControl><Textarea {...field} data-testid="textarea-report-goals" /></FormControl>
+                </FormItem>
+              )} />
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsReportDialogOpen(false)}>Cancelar</Button>
+                <Button type="submit" disabled={createAssignmentMutation.isPending} data-testid="button-save-meeting-report">Guardar informe</Button>
               </div>
             </form>
           </Form>
@@ -1246,6 +1611,9 @@ export default function PresidencyMeetingsPage() {
                       <Button size="sm" variant="outline" onClick={() => handleExportMeetingPDF(meeting)} data-testid={`button-export-pdf-${meeting.id}`}>
                         <Download className="mr-2 h-4 w-4" />Informe
                       </Button>
+                      <Button size="sm" onClick={() => openMeetingReport(meeting)} data-testid={`button-meeting-report-${meeting.id}`}>
+                        Registrar informe
+                      </Button>
                       {canDelete && (
                         <Button size="icon" variant="ghost" onClick={() => handleDeleteMeeting(meeting.id)} data-testid={`button-delete-meeting-${meeting.id}`}>
                           <Trash2 className="h-4 w-4" />
@@ -1262,6 +1630,13 @@ export default function PresidencyMeetingsPage() {
                           <li key={`${meeting.id}-agreement-${idx}`}>{agreement.description}</li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {meeting.agenda && (
+                    <div className="mt-3" data-testid={`meeting-agenda-${meeting.id}`}>
+                      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agenda</h4>
+                      <p className="whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground">{meeting.agenda}</p>
                     </div>
                   )}
 
