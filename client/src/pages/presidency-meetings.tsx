@@ -245,17 +245,17 @@ function formatLocalDateKey(date: Date) {
 
 function MiniStatGauge({ value, centerLabel, color }: { value: number; centerLabel: string; color: string }) {
   const normalized = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-  const radius = 18;
+  const radius = 16;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - normalized / 100);
 
   return (
-    <div className="relative h-12 w-12 shrink-0" data-testid={`mini-gauge-${centerLabel}`}>
-      <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90">
-        <circle cx="24" cy="24" r={radius} fill="none" stroke="hsl(var(--muted) / 0.55)" strokeWidth="5" />
+    <div className="relative h-10 w-10 shrink-0" data-testid={`mini-gauge-${centerLabel}`}>
+      <svg width="40" height="40" viewBox="0 0 40 40" className="-rotate-90">
+        <circle cx="20" cy="20" r={radius} fill="none" stroke="hsl(var(--muted) / 0.55)" strokeWidth="5" />
         <circle
-          cx="24"
-          cy="24"
+          cx="20"
+          cy="20"
           r={radius}
           fill="none"
           stroke={color}
@@ -832,13 +832,13 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex min-h-[220px] flex-col justify-between rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
+          className="col-span-1 flex h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
           data-testid="button-presidency-meetings-overview"
         >
           <div>
             <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <p className="text-xl font-semibold">{Math.round(dashboardStats.monthMeetingProgress)}%</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthMeetingProgress)}%</p>
               <MiniStatGauge
                 value={dashboardStats.monthMeetingProgress}
                 centerLabel={String(dashboardStats.monthMeetings)}
@@ -848,8 +848,8 @@ export default function PresidencyMeetingsPage() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Entrevistas</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <p className="text-xl font-semibold">{Math.round(dashboardStats.interviewProgressPercent)}%</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.interviewProgressPercent)}%</p>
               <MiniStatGauge
                 value={dashboardStats.interviewProgressPercent}
                 centerLabel={String(dashboardStats.pendingInterviewsCount)}
@@ -859,8 +859,8 @@ export default function PresidencyMeetingsPage() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Asistencia a clases</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <p className="text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
               <MiniStatGauge
                 value={dashboardStats.monthlyAttendancePercent}
                 centerLabel={String(Math.round(dashboardStats.averageWeeklyAttendance))}
