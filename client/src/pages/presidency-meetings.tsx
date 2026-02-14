@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -115,6 +115,30 @@ const budgetRequestSchema = z.object({
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Input>) => (
+  <div className="relative">
+    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+    <Input
+      type="number"
+      step="0.01"
+      min="0"
+      inputMode="decimal"
+      placeholder="0.00"
+      className={["pl-8", className].filter(Boolean).join(" ")}
+      {...props}
+    />
+  </div>
+);
+
+const formatCurrencyInputValue = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const normalized = trimmed.replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  if (Number.isNaN(parsed)) return trimmed;
+  return parsed.toFixed(2);
+};
 
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
@@ -1024,7 +1048,17 @@ export default function PresidencyMeetingsPage() {
               <FormField control={budgetRequestForm.control} name="amount" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Monto (€)</FormLabel>
-                  <FormControl><Input type="number" step="0.01" min="0" {...field} data-testid="input-budget-request-amount" /></FormControl>
+                  <FormControl>
+                    <BudgetCurrencyInput
+                      {...field}
+                      onBlur={(event) => {
+                        field.onChange(formatCurrencyInputValue(event.target.value));
+                        field.onBlur();
+                      }}
+                      data-testid="input-budget-request-amount"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Ingresa el monto con decimales (ej: 125.50).</p>
                   <FormMessage />
                 </FormItem>
               )} />
