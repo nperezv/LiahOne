@@ -18,6 +18,7 @@ import {
   birthdayEmailSends,
   members,
   memberCallings,
+  memberOrganizations,
   activities,
   assignments,
   pdfTemplates,
@@ -60,6 +61,8 @@ import {
   type InsertBirthdayEmailSend,
   type Member,
   type InsertMember,
+  type MemberOrganization,
+  type InsertMemberOrganization,
   type MemberCalling,
   type InsertMemberCalling,
   type Activity,
@@ -210,6 +213,8 @@ export interface IStorage {
 
   // Directory Members
   getAllMembers(): Promise<DirectoryMember[]>;
+  getMembersByOrganization(organizationId: string): Promise<DirectoryMember[]>;
+  syncMemberDerivedMemberships(memberId: string): Promise<void>;
   getMemberById(id: string): Promise<Member | undefined>;
   createMember(member: InsertMember): Promise<Member>;
   updateMember(id: string, data: Partial<InsertMember>): Promise<Member | undefined>;
@@ -912,6 +917,93 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(members.nameSurename));
   }
 
+  async getMembersByOrganization(organizationId: string): Promise<DirectoryMember[]> {
+    return await db
+      .select({
+        id: members.id,
+        nameSurename: members.nameSurename,
+        sex: members.sex,
+        birthday: members.birthday,
+        phone: members.phone,
+        email: members.email,
+        organizationId: members.organizationId,
+        createdAt: members.createdAt,
+        organizationName: organizations.name,
+        organizationType: organizations.type,
+      })
+      .from(memberOrganizations)
+      .innerJoin(members, eq(memberOrganizations.memberId, members.id))
+      .leftJoin(organizations, eq(members.organizationId, organizations.id))
+      .where(and(eq(memberOrganizations.organizationId, organizationId), eq(memberOrganizations.isActive, true)))
+      .orderBy(asc(members.nameSurename));
+  }
+
+  async syncMemberDerivedMemberships(memberId: string): Promise<void> {
+    const [member] = await db.select().from(members).where(eq(members.id, memberId));
+    if (!member) return;
+
+    const orgs = await db
+      .select({ id: organizations.id, type: organizations.type })
+      .from(organizations)
+      .where(sql`${organizations.type} in ('escuela_dominical', 'jas', 'as')`);
+
+    const orgByType = new Map(orgs.map((org) => [org.type, org.id]));
+
+    const computeAge = (birthday: Date): number => {
+      const today = new Date();
+      let age = today.getFullYear() - birthday.getFullYear();
+      const monthDiff = today.getMonth() - birthday.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthday.getDate())) age--;
+      return age;
+    };
+
+    const age = computeAge(new Date(member.birthday));
+    const desired = new Map<string, { membershipType: InsertMemberOrganization["membershipType"]; sourceRule: string | null }>();
+
+    if (member.organizationId) {
+      desired.set(member.organizationId, { membershipType: "primary", sourceRule: null });
+    }
+    const escuelaId = orgByType.get("escuela_dominical");
+    if (escuelaId && age >= 12) desired.set(escuelaId, { membershipType: "derived_rule", sourceRule: "edad_12_plus" });
+    const jasId = orgByType.get("jas");
+    if (jasId && age >= 18 && age <= 35) desired.set(jasId, { membershipType: "derived_rule", sourceRule: "jas_18_35" });
+    const asId = orgByType.get("as");
+    if (asId && age >= 36 && age <= 100) desired.set(asId, { membershipType: "derived_rule", sourceRule: "as_36_100" });
+
+    const existing = await db
+      .select()
+      .from(memberOrganizations)
+      .where(and(eq(memberOrganizations.memberId, memberId), eq(memberOrganizations.isActive, true)));
+
+    const desiredOrgIds = new Set(desired.keys());
+    for (const record of existing) {
+      if (!desiredOrgIds.has(record.organizationId) && record.membershipType !== "manual") {
+        await db
+          .update(memberOrganizations)
+          .set({ isActive: false })
+          .where(eq(memberOrganizations.id, record.id));
+      }
+    }
+
+    for (const [orgId, value] of Array.from(desired.entries())) {
+      const current = existing.find((row) => row.organizationId === orgId && row.isActive);
+      if (!current) {
+        await db.insert(memberOrganizations).values({
+          memberId,
+          organizationId: orgId,
+          membershipType: value.membershipType,
+          sourceRule: value.sourceRule,
+          isActive: true,
+        });
+      } else if (current.membershipType !== "manual") {
+        await db
+          .update(memberOrganizations)
+          .set({ membershipType: value.membershipType, sourceRule: value.sourceRule })
+          .where(eq(memberOrganizations.id, current.id));
+      }
+    }
+  }
+
   async getMemberById(id: string): Promise<Member | undefined> {
     const [member] = await db.select().from(members).where(eq(members.id, id));
     return member || undefined;
@@ -941,6 +1033,7 @@ export class DatabaseStorage implements IStorage {
 
   async createMember(insertMember: InsertMember): Promise<Member> {
     const [member] = await db.insert(members).values(insertMember).returning();
+    await this.syncMemberDerivedMemberships(member.id);
     return member;
   }
 
@@ -950,6 +1043,9 @@ export class DatabaseStorage implements IStorage {
       .set(data)
       .where(eq(members.id, id))
       .returning();
+    if (member) {
+      await this.syncMemberDerivedMemberships(member.id);
+    }
     return member || undefined;
   }
 

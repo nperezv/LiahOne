@@ -30,7 +30,8 @@ async function seed() {
     await ensureOrganization("mujeres_jovenes", "Mujeres Jóvenes");
     await ensureOrganization("primaria", "Primaria");
     await ensureOrganization("escuela_dominical", "Escuela Dominical");
-    await ensureOrganization("jas", "Liderazgo JAS");
+    await ensureOrganization("jas", "JAS");
+    await ensureOrganization("as", "AS");
 
     if (existingUsers.length === 0) {
       console.log("Creating admin user...");
