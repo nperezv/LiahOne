@@ -83,11 +83,16 @@ const getFileExtension = (filename: string) => {
 };
 
 const triggerResourceDownload = (url: string, placeholderName: string, originalFilename: string) => {
+  const extension = getFileExtension(originalFilename);
+  const safeName = `${placeholderName || "recurso"}${extension}`;
+  const storedFilename = url.split("/").pop() ?? "";
+  const downloadUrl = storedFilename
+    ? `/api/uploads/${encodeURIComponent(storedFilename)}/download?filename=${encodeURIComponent(safeName)}`
+    : url;
+
   const link = document.createElement("a");
-  link.href = url;
-  link.download = `${placeholderName}${getFileExtension(originalFilename)}`;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
+  link.href = downloadUrl;
+  link.download = safeName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -313,9 +318,15 @@ export default function ResourcesLibraryPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => triggerResourceDownload(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName)}>
-                      <Download className="mr-2 h-4 w-4" /> Descargar
-                    </Button>
+                    {resource.resourceType === "video" ? (
+                      <Button asChild variant="outline">
+                        <a href={resource.fileUrl} target="_blank" rel="noopener noreferrer">Ver video</a>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={() => triggerResourceDownload(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName)}>
+                        <Download className="mr-2 h-4 w-4" /> Descargar
+                      </Button>
+                    )}
                     {isLibraryAdmin && (
                       <Button variant="destructive" onClick={() => deleteResource.mutate(resource.id)} disabled={deleteResource.isPending}>
                         <Trash2 className="mr-2 h-4 w-4" /> Eliminar
