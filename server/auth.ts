@@ -235,22 +235,9 @@ const normalizeRecipientName = (value?: string | null) => {
     return namePart || "";
   }
 
-  if (cleaned.includes(",")) {
-    const [surnamePart, namePart] = cleaned.split(",").map((part) => part.trim());
-    if (namePart && surnamePart) {
-      return `${namePart} ${surnamePart}`.trim();
-    }
-  }
-
-  const parts = cleaned.split(" ");
-  if (parts.length === 4) {
-    const [surname1, surname2, name1, name2] = parts;
-    const hasOnlyWords = [surname1, surname2, name1, name2].every((part) => /^[A-Za-zÀ-ÿ'-]+$/.test(part));
-    if (hasOnlyWords) {
-      return `${name1} ${name2} ${surname1} ${surname2}`.trim();
-    }
-  }
-
+  // Importante: no reordenamos apellidos/nombres aquí.
+  // El orden ya debe venir normalizado desde el flujo que envía el correo.
+  // Esto evita "doble normalización" y casos de desnormalización.
   return cleaned;
 };
 
