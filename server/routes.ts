@@ -4551,7 +4551,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const presentTotal = monthEntries.reduce((sum: number, row: any) => sum + Number(row.attendeesCount ?? 0), 0);
     const capacityTotal = monthEntries.reduce((sum: number, row: any) => sum + Math.max(0, Number(row.totalMembers ?? 0)), 0);
-    const distinctWeeks = new Set(monthEntries.map((row: any) => String(row.weekKey)));
+    const distinctWeeks = new Set(
+      monthEntries
+        .filter((row: any) => Number(row.attendeesCount ?? 0) > 0)
+        .map((row: any) => String(row.weekKey))
+    );
     const weeksReported = distinctWeeks.size;
     const weeksInMonth = getMonthSundaysCountUTC(year, month);
     const attendancePercent = capacityTotal > 0 ? Number(((presentTotal / capacityTotal) * 100).toFixed(2)) : 0;
