@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,6 +46,21 @@ import { exportBudgetRequests } from "@/lib/export";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Input>) => (
+  <div className="relative">
+    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+    <Input
+      type="number"
+      step="0.01"
+      min="0"
+      inputMode="decimal"
+      placeholder="0.00"
+      className={["pl-8", className].filter(Boolean).join(" ")}
+      {...props}
+    />
+  </div>
+);
 
 const parseBudgetNumber = (value: string) => {
   const normalized = value.replace(",", ".");
@@ -692,10 +707,7 @@ export default function BudgetPage() {
                         <FormItem>
                           <FormLabel>Presupuesto anual (€)</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="0.00"
+                            <BudgetCurrencyInput
                               {...field}
                               data-testid="input-ward-budget-annual"
                             />
@@ -712,10 +724,7 @@ export default function BudgetPage() {
                           <FormItem>
                             <FormLabel>Trimestre 1 (€)</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
+                              <BudgetCurrencyInput
                                 {...field}
                                 data-testid="input-ward-budget-q1"
                               />
@@ -731,10 +740,7 @@ export default function BudgetPage() {
                           <FormItem>
                             <FormLabel>Trimestre 2 (€)</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
+                              <BudgetCurrencyInput
                                 {...field}
                                 data-testid="input-ward-budget-q2"
                               />
@@ -750,10 +756,7 @@ export default function BudgetPage() {
                           <FormItem>
                             <FormLabel>Trimestre 3 (€)</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
+                              <BudgetCurrencyInput
                                 {...field}
                                 data-testid="input-ward-budget-q3"
                               />
@@ -769,10 +772,7 @@ export default function BudgetPage() {
                           <FormItem>
                             <FormLabel>Trimestre 4 (€)</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
+                              <BudgetCurrencyInput
                                 {...field}
                                 data-testid="input-ward-budget-q4"
                               />
@@ -841,14 +841,12 @@ export default function BudgetPage() {
                       <FormItem>
                         <FormLabel>Monto (€)</FormLabel>
                         <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
+                          <BudgetCurrencyInput
                             {...field}
                             data-testid="input-amount"
                           />
-                        </FormControl>
+                                                </FormControl>
+                        <p className="text-xs text-muted-foreground">Ingresa el monto con decimales (ej: 125.50).</p>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1267,10 +1265,7 @@ export default function BudgetPage() {
                                 <FormItem>
                                   <FormLabel>Monto a Asignar (€)</FormLabel>
                                   <FormControl>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      placeholder="0.00"
+                                    <BudgetCurrencyInput
                                       {...field}
                                       data-testid={`input-assign-amount-${org.id}`}
                                     />

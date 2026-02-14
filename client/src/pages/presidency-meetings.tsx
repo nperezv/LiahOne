@@ -420,7 +420,11 @@ export default function PresidencyMeetingsPage() {
     });
 
     const totalAttendanceInMonth = attendanceInMonth.reduce((sum: number, entry: any) => sum + Number(entry.attendeesCount ?? 0), 0);
-    const reportedWeekKeys = new Set(attendanceInMonth.map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10))));
+    const reportedWeekKeys = new Set(
+      attendanceInMonth
+        .filter((entry: any) => Number(entry.attendeesCount ?? 0) > 0)
+        .map((entry: any) => String(entry.weekKey ?? String(entry.weekStartDate ?? "").slice(0, 10)))
+    );
     const reportedWeeks = reportedWeekKeys.size;
     const todayIso = formatLocalDateKey(now);
     const elapsedWeeks = sundaysInMonth.filter((sunday) => formatLocalDateKey(sunday) <= todayIso).length;
