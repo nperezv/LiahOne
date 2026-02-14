@@ -33,12 +33,61 @@ import { cn } from "@/lib/utils";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
+  location: z.string().optional(),
+  openingPrayerBy: z.string().optional(),
+  hasSpiritualThought: z.enum(["si", "no"]),
+  spiritualThoughtBy: z.string().optional(),
+  previousReviewPoints: z.string().optional(),
+  topicsToDiscuss: z.string().optional(),
+  keyPoints: z.string().optional(),
+  closingHymn: z.string().optional(),
+  closingPrayerBy: z.string().optional(),
   agenda: z.string().optional(),
   notes: z.string().optional(),
   agreementsText: z.string().optional(),
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+
+const splitLines = (value?: string) =>
+  (value || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const buildStructuredAgenda = (values: MeetingFormValues) => {
+  const date = new Date(values.date);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? values.date
+    : date.toLocaleString("es-ES", { dateStyle: "full", timeStyle: "short" });
+  const dayLabel = Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("es-ES", { weekday: "long" });
+
+  const previousReview = splitLines(values.previousReviewPoints);
+  const topics = splitLines(values.topicsToDiscuss);
+  const keyPoints = splitLines(values.keyPoints);
+  const hasThought = values.hasSpiritualThought === "si";
+  const closingByPrayer = !values.closingHymn?.trim();
+
+  return [
+    `FECHA Y HORA: ${dateLabel}`,
+    `DÍA: ${dayLabel || "Por definir"}`,
+    `LUGAR: ${values.location?.trim() || "Por definir"}`,
+    `ORACIÓN INICIAL: ${values.openingPrayerBy?.trim() || "Por definir"}`,
+    `PENSAMIENTO ESPIRITUAL: ${hasThought ? `Sí — ${values.spiritualThoughtBy?.trim() || "Por definir"}` : "No"}`,
+    "REVISIÓN REUNIÓN ANTERIOR:",
+    ...(previousReview.length > 0 ? previousReview.map((item) => `- ${item}`) : ["- Sin puntos previos"]),
+    "TEMAS A TRATAR:",
+    ...(topics.length > 0 ? topics.map((item) => `- ${item}`) : ["- Sin temas definidos"]),
+    "PUNTOS IMPORTANTES:",
+    ...(keyPoints.length > 0 ? keyPoints.map((item) => `- ${item}`) : ["- Sin puntos importantes"]),
+    "CIERRE:",
+    ...(closingByPrayer
+      ? [`- Oración final: ${values.closingPrayerBy?.trim() || "Por definir"}`]
+      : [`- Himno final: ${values.closingHymn?.trim() || "Por definir"}`, `- Oración final: ${values.closingPrayerBy?.trim() || "Por definir"}`]),
+  ].join("\n");
+};
 
 function getSundaysForMonth(date: Date) {
   const year = date.getFullYear();
@@ -166,8 +215,41 @@ export default function PresidencyManageOrganizationPage() {
 
   const form = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
-    defaultValues: { date: "", agenda: "", notes: "", agreementsText: "" },
+    defaultValues: {
+      date: "",
+      location: "",
+      openingPrayerBy: "",
+      hasSpiritualThought: "no",
+      spiritualThoughtBy: "",
+      previousReviewPoints: "",
+      topicsToDiscuss: "",
+      keyPoints: "",
+      closingHymn: "",
+      closingPrayerBy: "",
+      agenda: "",
+      notes: "",
+      agreementsText: "",
+    },
   });
+
+  const watchedMeetingValues = form.watch();
+
+  useEffect(() => {
+    const generatedAgenda = buildStructuredAgenda(watchedMeetingValues);
+    form.setValue("agenda", generatedAgenda, { shouldDirty: false, shouldValidate: false });
+  }, [
+    form,
+    watchedMeetingValues.date,
+    watchedMeetingValues.location,
+    watchedMeetingValues.openingPrayerBy,
+    watchedMeetingValues.hasSpiritualThought,
+    watchedMeetingValues.spiritualThoughtBy,
+    watchedMeetingValues.previousReviewPoints,
+    watchedMeetingValues.topicsToDiscuss,
+    watchedMeetingValues.keyPoints,
+    watchedMeetingValues.closingHymn,
+    watchedMeetingValues.closingPrayerBy,
+  ]);
 
   useEffect(() => {
     if (params?.org && organizations.length > 0) {
@@ -380,6 +462,7 @@ export default function PresidencyManageOrganizationPage() {
 
   const onSubmit = (values: MeetingFormValues) => {
     if (!organizationId) return;
+    const structuredAgenda = buildStructuredAgenda(values);
 
     const agreements = (values.agreementsText ?? "")
       .split("\n")
@@ -390,7 +473,7 @@ export default function PresidencyManageOrganizationPage() {
       {
         date: values.date,
         organizationId,
-        agenda: values.agenda || "",
+        agenda: structuredAgenda,
         agreements,
         notes: values.notes || "",
       },
@@ -685,16 +768,99 @@ export default function PresidencyManageOrganizationPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="date" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Fecha</FormLabel>
+                  <FormLabel>Fecha y hora</FormLabel>
                   <FormControl><Input type="datetime-local" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="location" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Lugar</FormLabel>
+                  <FormControl><Input placeholder="Salón de presidencia" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="openingPrayerBy" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Primera oración (quién la hará)</FormLabel>
+                  <FormControl><Input placeholder="Nombre" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="hasSpiritualThought" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>¿Habrá pensamiento espiritual?</FormLabel>
+                  <FormControl>
+                    <select
+                      value={field.value}
+                      onChange={field.onChange}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="no">No</option>
+                      <option value="si">Sí</option>
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              {form.watch("hasSpiritualThought") === "si" && (
+                <FormField control={form.control} name="spiritualThoughtBy" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pensamiento espiritual (quién lo hará)</FormLabel>
+                    <FormControl><Input placeholder="Nombre" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+
+              <FormField control={form.control} name="previousReviewPoints" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Puntos a revisar de la reunión anterior (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Seguimiento acuerdo 1" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="topicsToDiscuss" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Temas a tratar (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Tema 1" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="keyPoints" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Puntos importantes (uno por línea)</FormLabel>
+                  <FormControl><Textarea placeholder="Punto importante 1" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="closingHymn" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Último himno (opcional)</FormLabel>
+                  <FormControl><Input placeholder="Himno #" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="closingPrayerBy" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Última oración</FormLabel>
+                  <FormControl><Input placeholder="Nombre" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
 
               <FormField control={form.control} name="agenda" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Agenda (opcional)</FormLabel>
-                  <FormControl><Textarea placeholder="Puntos a tratar" {...field} /></FormControl>
+                  <FormLabel>Agenda generada</FormLabel>
+                  <FormControl><Textarea placeholder="La agenda se genera automáticamente" {...field} disabled /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

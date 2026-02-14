@@ -398,6 +398,7 @@ export default function PresidencyMeetingsPage() {
   const [isBudgetMovementsDialogOpen, setIsBudgetMovementsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false);
+  const [latestCreatedMeetingId, setLatestCreatedMeetingId] = useState<string | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [reportMeeting, setReportMeeting] = useState<any | null>(null);
   const [selectedResourcesCategory, setSelectedResourcesCategory] = useState<"manuales" | "plantillas" | "capacitacion">("manuales");
@@ -484,6 +485,17 @@ export default function PresidencyMeetingsPage() {
       setOrganizationId(org?.id);
     }
   }, [params?.org, organizations]);
+
+  useEffect(() => {
+    if (!latestCreatedMeetingId) return;
+
+    const card = document.querySelector(`[data-testid="card-meeting-${latestCreatedMeetingId}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      const timeoutId = window.setTimeout(() => setLatestCreatedMeetingId(null), 2600);
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [latestCreatedMeetingId, meetings]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Presidencia";
   const isLeadershipOnly = params?.org === "jas";
@@ -757,10 +769,10 @@ export default function PresidencyMeetingsPage() {
         onSuccess: (createdMeeting: any) => {
           setIsDialogOpen(false);
           form.reset();
-          openMeetingReport(createdMeeting);
+          setLatestCreatedMeetingId(createdMeeting?.id ?? null);
           toast({
             title: "Reunión creada",
-            description: "Se creó la reunión y se abrió automáticamente el informe para completarlo.",
+            description: "La reunión fue creada. Usa el botón 'Registrar informe' en la tarjeta para completar el informe.",
           });
         },
       }
@@ -1593,7 +1605,7 @@ export default function PresidencyMeetingsPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ type: "spring", stiffness: 120, damping: 18 }}
-                  className="rounded-2xl border border-border/70 bg-background/80 p-4"
+                  className={`rounded-2xl border bg-background/80 p-4 transition-all ${latestCreatedMeetingId === meeting.id ? "border-primary ring-2 ring-primary/30" : "border-border/70"}`}
                   data-testid={`card-meeting-${meeting.id}`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1611,7 +1623,12 @@ export default function PresidencyMeetingsPage() {
                       <Button size="sm" variant="outline" onClick={() => handleExportMeetingPDF(meeting)} data-testid={`button-export-pdf-${meeting.id}`}>
                         <Download className="mr-2 h-4 w-4" />Informe
                       </Button>
-                      <Button size="sm" onClick={() => openMeetingReport(meeting)} data-testid={`button-meeting-report-${meeting.id}`}>
+                      <Button
+                        size="sm"
+                        variant={latestCreatedMeetingId === meeting.id ? "default" : "secondary"}
+                        onClick={() => openMeetingReport(meeting)}
+                        data-testid={`button-meeting-report-${meeting.id}`}
+                      >
                         Registrar informe
                       </Button>
                       {canDelete && (
