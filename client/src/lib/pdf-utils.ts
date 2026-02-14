@@ -1102,6 +1102,79 @@ export async function exportSacramentalMeetings(meetings: any[]): Promise<void> 
   doc.save("reuniones-sacramentales.pdf");
 }
 
+export async function exportOrganizationAttendanceWeekPDF(params: {
+  organizationName: string;
+  sundayDate: Date;
+  attendeeNames: string[];
+}): Promise<void> {
+  const doc = new jsPDF();
+  const template = await getTemplate();
+  const wardName = template.wardName ?? "Barrio";
+  const stakeName = template.stakeName ?? "Estaca";
+  const country = template.country ?? "País";
+
+  const headerColor = hexToRGB(`#${template.headerColor}`);
+  doc.setFillColor(headerColor.r, headerColor.g, headerColor.b);
+  doc.rect(0, 0, 210, 28, "F");
+  doc.setTextColor(255, 255, 255);
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text(wardName, 15, 12);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`${stakeName} - ${country}`, 15, 20);
+
+  doc.setTextColor(0, 0, 0);
+
+  const formattedDate = params.sundayDate.toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("Asistencia semanal", 15, 42);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text(`Organización: ${params.organizationName}`, 15, 51);
+  doc.text(`Domingo: ${formattedDate}`, 15, 58);
+
+  doc.setDrawColor(220, 220, 220);
+  doc.line(15, 63, 195, 63);
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Asistieron:", 15, 72);
+
+  doc.setFont("helvetica", "normal");
+  let y = 80;
+  if (params.attendeeNames.length === 0) {
+    doc.text("Sin asistentes registrados.", 15, y);
+  } else {
+    params.attendeeNames.forEach((name, index) => {
+      if (y > 275) {
+        doc.addPage();
+        y = 24;
+      }
+      doc.text(`${index + 1}. ${name}`, 15, y);
+      y += 7;
+    });
+  }
+
+  doc.save(`asistencia-${params.organizationName.toLowerCase().replace(/\s+/g, "-")}-${formatLocalDate(params.sundayDate)}.pdf`);
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Consejo de barrio
  */

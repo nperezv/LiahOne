@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, Mail, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, Mail, MessageCircle, Phone, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCallingLabel } from "@/lib/callings";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
@@ -447,6 +448,31 @@ export default function PresidencyManageOrganizationPage() {
 
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
+  const handlePrintAttendance = async (isoDate: string) => {
+    const attendeeIds = attendanceDrafts[isoDate] ?? [];
+    const attendeeNames = organizationMembers
+      .filter((member: any) => attendeeIds.includes(member.id))
+      .map((member: any) => String(member.nameSurename ?? member.name ?? "").trim())
+      .filter(Boolean)
+      .sort((a: string, b: string) => a.localeCompare(b, "es"));
+
+    const sundayDate = new Date(`${isoDate}T00:00:00`);
+    if (Number.isNaN(sundayDate.getTime())) {
+      toast({ title: "Error", description: "No se pudo generar el PDF de asistencia.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await exportOrganizationAttendanceWeekPDF({
+        organizationName: orgName,
+        sundayDate,
+        attendeeNames,
+      });
+    } catch {
+      toast({ title: "Error", description: "No se pudo generar el PDF de asistencia.", variant: "destructive" });
+    }
+  };
+
   const handleSaveAttendance = (isoDate: string) => {
     if (!canEditWeek(isoDate)) return;
     if (!organizationId) return;
@@ -686,11 +712,23 @@ export default function PresidencyManageOrganizationPage() {
                   const iso = formatLocalDateKey(sunday);
                   const isEditable = canEditWeek(iso);
                   return (
-                    <div key={iso} className={`grid items-center gap-2 rounded-2xl border border-border/70 bg-background/70 p-3 transition-opacity sm:grid-cols-[1fr_190px] ${isEditable ? "" : "opacity-50"}`}>
+                    <div key={iso} className={`grid items-center gap-2 rounded-2xl border border-border/70 bg-background/70 p-3 transition-opacity sm:grid-cols-[1fr_300px] ${isEditable ? "" : "opacity-50"}`}>
                       <p className="text-sm font-medium capitalize">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
-                      <Button variant="outline" className="rounded-xl border-border/70 bg-background/80" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-management-${iso}`} disabled={!isEditable}>
-                        {(attendanceDrafts[iso] ?? []).length}/{organizationMembers.length} asistentes
-                      </Button>
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-xl border-border/70 bg-background/80"
+                          onClick={() => handlePrintAttendance(iso)}
+                          data-testid={`button-print-attendance-management-${iso}`}
+                        >
+                          <Printer className="mr-2 h-4 w-4" />
+                          Imprimir
+                        </Button>
+                        <Button variant="outline" className="rounded-xl border-border/70 bg-background/80" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-management-${iso}`} disabled={!isEditable}>
+                          {(attendanceDrafts[iso] ?? []).length}/{organizationMembers.length} asistentes
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
