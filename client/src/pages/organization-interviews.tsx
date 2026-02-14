@@ -109,6 +109,8 @@ const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
   { value: "autosuficiencia", label: "Autosuficiencia" },
+  { value: "ministracion", label: "Ministración" },
+  { value: "consuelo", label: "Consuelo" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -185,10 +187,11 @@ const splitDateTimeValue = (value?: string) => {
 const getStatusBadge = (status: string) => {
   const map: Record<
     string,
-    { label: string; variant: "default" | "outline" | "secondary" }
+    { label: string; variant: "default" | "outline" | "secondary" | "destructive" }
   > = {
     programada: { label: "Pendiente", variant: "outline" },
     completada: { label: "Completada", variant: "default" },
+    cancelada: { label: "Cancelada", variant: "destructive" },
     archivada: { label: "Archivada", variant: "secondary" },
   };
 
@@ -423,6 +426,10 @@ export default function OrganizationInterviewsPage() {
 
   const handleArchive = (id: string) => {
     updateMutation.mutate({ id, status: "archivada" });
+  };
+
+  const handleCancel = (id: string) => {
+    updateMutation.mutate({ id, status: "cancelada" });
   };
 
   const handleEditClick = (interview: any) => {
@@ -1004,6 +1011,17 @@ export default function OrganizationInterviewsPage() {
                         >
                           <Archive className="h-4 w-4 mr-1" />
                           Archivar
+                        </Button>
+                      )}
+
+                      {canManageOrganization && interview.status === "programada" && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="whitespace-nowrap"
+                          onClick={() => handleCancel(interview.id)}
+                        >
+                          Cancelar
                         </Button>
                       )}
 
