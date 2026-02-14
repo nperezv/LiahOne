@@ -3808,8 +3808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      const members = await storage.getAllMembers();
-      const organizationMembers = members.filter((member: any) => member.organizationId === organizationId);
+      const organizationMembers = await storage.getMembersByOrganization(organizationId);
       res.json(organizationMembers);
     } catch (error) {
       console.error("Error fetching organization members:", error);
