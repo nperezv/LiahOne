@@ -1016,6 +1016,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/uploads/:storedFilename/download", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const storedFilename = path.basename(String(req.params.storedFilename ?? "")).trim();
+      if (!storedFilename) {
+        return res.status(400).json({ error: "Invalid file" });
+      }
+
+      const absolutePath = path.join(uploadsPath, storedFilename);
+      await fs.promises.access(absolutePath, fs.constants.F_OK);
+
+      const requestedName = typeof req.query.filename === "string" ? req.query.filename.trim() : "";
+      const fallbackName = storedFilename;
+      const safeDownloadName = (requestedName || fallbackName)
+        .replace(/[\r\n]/g, "")
+        .replace(/[\\/]/g, "-");
+
+      res.download(absolutePath, safeDownloadName);
+    } catch {
+      res.status(404).json({ error: "File not found" });
+    }
+  });
+
   // ========================================
   // ACCESS REQUESTS
   // ========================================
