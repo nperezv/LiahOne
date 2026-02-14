@@ -200,6 +200,10 @@ const interviewCollisionRoles = new Map<string, string>([
   ["presidente_organizacion", "Presidente de organización"],
 ]);
 
+const INTERVIEW_ANNUAL_GOAL_TITLE = "Entrevistas anuales por miembros";
+const INTERVIEW_ANNUAL_GOAL_FACTOR = 1;
+const INTERVIEW_GOAL_ALLOWED_ORG_TYPES = new Set(["sociedad_socorro", "cuorum_elderes"]);
+
 const SURNAME_PARTICLES = new Set([
   "da",
   "de",
@@ -300,6 +304,63 @@ const formatInterviewerTitle = (role?: string | null) => {
   return map[role] ?? "";
 };
 
+
+const syncOrganizationInterviewAnnualGoalProgress = async (params: {
+  organizationId: string;
+  organizationType?: string | null;
+  interviewDate: string | Date;
+  previousStatus: string;
+  nextStatus: string;
+  actorUserId: string;
+}) => {
+  if (!INTERVIEW_GOAL_ALLOWED_ORG_TYPES.has(params.organizationType || "")) {
+    return;
+  }
+
+  const wasCompleted = params.previousStatus === "completada";
+  const isCompleted = params.nextStatus === "completada";
+  if (wasCompleted === isCompleted) {
+    return;
+  }
+
+  const interviewDate = new Date(params.interviewDate);
+  if (Number.isNaN(interviewDate.getTime())) {
+    return;
+  }
+  const year = interviewDate.getUTCFullYear();
+
+  const allGoals = await storage.getAllGoals();
+  let annualGoal = allGoals.find(
+    (goal) =>
+      goal.organizationId === params.organizationId &&
+      goal.year === year &&
+      goal.title === INTERVIEW_ANNUAL_GOAL_TITLE
+  );
+
+  if (!annualGoal) {
+    const members = await storage.getAllMembers();
+    const organizationMemberCount = members.filter(
+      (member: any) => member.organizationId === params.organizationId
+    ).length;
+
+    annualGoal = await storage.createGoal({
+      year,
+      title: INTERVIEW_ANNUAL_GOAL_TITLE,
+      description: "Meta automática basada en entrevistas completadas para la organización durante el año.",
+      targetValue: Math.max(Math.round(organizationMemberCount * INTERVIEW_ANNUAL_GOAL_FACTOR), 0),
+      currentValue: 0,
+      organizationId: params.organizationId,
+      createdBy: params.actorUserId,
+    });
+  }
+
+  const delta = isCompleted ? 1 : -1;
+  const nextCurrentValue = Math.max((annualGoal.currentValue ?? 0) + delta, 0);
+
+  await storage.updateGoal(annualGoal.id, {
+    currentValue: nextCurrentValue,
+  });
+};
 
 const formatDateTimeLabels = (value: string | Date) => {
   const date = new Date(value);
@@ -3181,6 +3242,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!updated) {
           return res.status(404).json({ error: "No encontrada" });
         }
+
+        await syncOrganizationInterviewAnnualGoalProgress({
+          organizationId: updated.organizationId,
+          organizationType: organization?.type,
+          interviewDate: updated.date,
+          previousStatus: interview.status,
+          nextStatus: updated.status,
+          actorUserId: req.session.userId!,
+        });
 
         if (updateData.date) {
           await db
