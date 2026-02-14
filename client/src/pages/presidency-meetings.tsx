@@ -43,7 +43,7 @@ import {
   useOrganizations,
   useBudgetRequests,
   useOrganizationBudgets,
-  useMembers,
+  useOrganizationMembers,
   useActivities,
   useGoals,
   useOrganizationAttendanceByOrg,
@@ -264,7 +264,7 @@ export default function PresidencyMeetingsPage() {
   const { data: budgetRequests = [] } = useBudgetRequests();
   const { data: goals = [] } = useGoals();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
-  const { data: members = [] } = useMembers({ enabled: Boolean(organizationId) });
+  const { data: organizationMembers = [] } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: activities = [] } = useActivities();
   const { data: sectionResources = [], isLoading: isLoadingSectionResources } = usePresidencyResources({
     organizationId,
@@ -274,10 +274,6 @@ export default function PresidencyMeetingsPage() {
   const strictSectionResources = useMemo(
     () => sectionResources.filter((resource: any) => resource.category === selectedResourcesCategory),
     [sectionResources, selectedResourcesCategory]
-  );
-  const organizationMembers = useMemo(
-    () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
-    [members, organizationId]
   );
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const createMutation = useCreatePresidencyMeeting(organizationId);
@@ -469,7 +465,7 @@ export default function PresidencyMeetingsPage() {
       latestMeeting,
       budgetSlides,
     };
-  }, [activities, attendance, budgetRequests, goals, meetings, members, organizationBudgets, organizationId, sundaysInMonth.length]);
+  }, [activities, attendance, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationMembers.length, sundaysInMonth.length]);
 
   useEffect(() => {
     const maxGoalSlide = dashboardStats.goalsWithPercentage.length;

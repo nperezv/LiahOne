@@ -67,7 +67,7 @@ import {
   useDeleteOrganizationInterview,
   useUsers,
   useOrganizations,
-  useMembers,
+  useOrganizationMembers,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
@@ -235,7 +235,7 @@ export default function OrganizationInterviewsPage() {
     useOrganizationInterviews();
   const { data: users = [] } = useUsers();
   const { data: organizations = [] } = useOrganizations();
-  const { data: members = [] } = useMembers({ enabled: Boolean(user?.organizationId) });
+  const { data: organizationMembers = [] } = useOrganizationMembers(user?.organizationId, { enabled: Boolean(user?.organizationId) });
 
   const createMutation = useCreateOrganizationInterview();
   const updateMutation = useUpdateOrganizationInterview();
@@ -268,11 +268,6 @@ export default function OrganizationInterviewsPage() {
   }, [user, isOrgTypeReady, canAccess, setLocation]);
 
   const canDelete = canAccess && user?.role === "presidente_organizacion";
-
-  const organizationMembers = useMemo(() => {
-    if (!user?.organizationId) return [];
-    return (members as any[]).filter((member) => member.organizationId === user.organizationId);
-  }, [members, user?.organizationId]);
 
   const filteredOrganizationMembers = useMemo(() => {
     const query = memberQuery.trim().toLowerCase();
