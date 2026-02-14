@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Cake, Send, Mail, Pencil, Trash2, Phone } from "lucide-react";
+import { Plus, Cake, Send, Mail, Pencil, Trash2, Phone, ArrowLeft } from "lucide-react";
 
 // Random birthday greetings and images
 const BIRTHDAY_PHRASES = [
@@ -75,6 +75,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation, useSearch } from "wouter";
 
 const birthdaySchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -96,6 +97,15 @@ export default function BirthdaysPage() {
   const [selectedImage, setSelectedImage] = useState("random");
   
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
+  const origin = searchParams.get("from");
+  const originOrgSlug = searchParams.get("orgSlug");
+  const originOrgId = searchParams.get("orgId");
+  const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
+  const shouldFilterByOriginOrganization = canGoBackToManagement && Boolean(originOrgId);
+
   const { data: birthdays = [], isLoading } = useBirthdays();
   const createMutation = useCreateBirthday();
   const { toast } = useToast();
@@ -188,7 +198,11 @@ export default function BirthdaysPage() {
     return diffDays;
   };
 
-  const birthdaysWithDays = birthdays.map((b: any) => ({
+  const visibleBirthdays = shouldFilterByOriginOrganization
+    ? birthdays.filter((b: any) => b.organizationId === originOrgId)
+    : birthdays;
+
+  const birthdaysWithDays = visibleBirthdays.map((b: any) => ({
     ...b,
     daysUntil: calculateDaysUntil(b.birthDate),
   }));
@@ -310,6 +324,15 @@ export default function BirthdaysPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          {canGoBackToManagement ? (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setLocation(`/presidency/${originOrgSlug}/manage`)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+            </Button>
+          ) : null}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-birthday">

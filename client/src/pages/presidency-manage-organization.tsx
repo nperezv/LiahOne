@@ -560,7 +560,12 @@ export default function PresidencyManageOrganizationPage() {
                   });
                   return;
                 }
-                navigateWithTransition(setLocation, "/organization-interviews");
+                const searchParams = new URLSearchParams({
+                  from: "presidency-manage",
+                  orgSlug: params?.org ?? "",
+                  orgId: organizationId ?? "",
+                });
+                navigateWithTransition(setLocation, `/organization-interviews?${searchParams.toString()}`);
               }}>Ver entrevistas</Button>
             </CardContent>
           ) : null}
@@ -627,7 +632,14 @@ export default function PresidencyManageOrganizationPage() {
                 <p className="text-sm text-muted-foreground">Pendientes</p>
                 <p className="text-2xl font-semibold">{pendingAssignments.length} tareas</p>
               </div>
-              <Button variant="outline" className="w-full rounded-full" onClick={() => navigateWithTransition(setLocation, "/assignments")}>Ver tareas</Button>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => {
+                const searchParams = new URLSearchParams({
+                  from: "presidency-manage",
+                  orgSlug: params?.org ?? "",
+                  orgId: organizationId ?? "",
+                });
+                navigateWithTransition(setLocation, `/assignments?${searchParams.toString()}`);
+              }}>Ver tareas</Button>
             </CardContent>
           ) : null}
         </Card>
@@ -650,7 +662,14 @@ export default function PresidencyManageOrganizationPage() {
                   <p className="text-xs text-muted-foreground">{new Date(birthday.birthDate).toLocaleDateString("es-ES", { day: "2-digit", month: "long" })}</p>
                 </div>
               )) : <p className="text-sm text-muted-foreground">No hay cumpleaños registrados.</p>}
-              <Button variant="outline" className="w-full rounded-full" onClick={() => navigateWithTransition(setLocation, "/birthdays")}>Ver todo</Button>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => {
+                const searchParams = new URLSearchParams({
+                  from: "presidency-manage",
+                  orgSlug: params?.org ?? "",
+                  orgId: organizationId ?? "",
+                });
+                navigateWithTransition(setLocation, `/birthdays?${searchParams.toString()}`);
+              }}>Ver todo</Button>
             </CardContent>
           ) : null}
         </Card>
