@@ -754,9 +754,14 @@ export default function PresidencyMeetingsPage() {
         notes: data.notes || "",
       },
       {
-        onSuccess: () => {
+        onSuccess: (createdMeeting: any) => {
           setIsDialogOpen(false);
           form.reset();
+          openMeetingReport(createdMeeting);
+          toast({
+            title: "Reunión creada",
+            description: "Se creó la reunión y se abrió automáticamente el informe para completarlo.",
+          });
         },
       }
     );
