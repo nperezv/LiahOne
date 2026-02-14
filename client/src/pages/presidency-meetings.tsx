@@ -975,7 +975,7 @@ export default function PresidencyMeetingsPage() {
       </motion.div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crear reunión de presidencia</DialogTitle>
             <DialogDescription>Registra la reunión de presidencia de {orgName}</DialogDescription>
@@ -1382,7 +1382,7 @@ export default function PresidencyMeetingsPage() {
       </div>
 
       <Dialog open={isBudgetMovementsDialogOpen} onOpenChange={setIsBudgetMovementsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Movimientos de presupuesto</DialogTitle>
             <DialogDescription>Solicitudes de esta organización y su estado.</DialogDescription>
@@ -1407,7 +1407,7 @@ export default function PresidencyMeetingsPage() {
       </Dialog>
 
       <Dialog open={isBudgetRequestDialogOpen} onOpenChange={setIsBudgetRequestDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Solicitar presupuesto</DialogTitle>
             <DialogDescription>Completa la solicitud con el monto y categoría.</DialogDescription>
@@ -1558,7 +1558,7 @@ export default function PresidencyMeetingsPage() {
 
 
       <Dialog open={isResourcesModalOpen} onOpenChange={setIsResourcesModalOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Recursos: {resourcesCategoryLabels[selectedResourcesCategory]}</DialogTitle>
             <DialogDescription>Recursos disponibles para {orgName} en esta sección.</DialogDescription>

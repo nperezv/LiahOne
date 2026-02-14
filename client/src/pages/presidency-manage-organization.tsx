@@ -759,7 +759,7 @@ export default function PresidencyManageOrganizationPage() {
       </div>
 
       <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crear reunión de presidencia</DialogTitle>
             <DialogDescription>Registra la reunión de presidencia de {orgName}</DialogDescription>
