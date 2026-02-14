@@ -14,6 +14,7 @@ import {
   Edit,
   Archive,
   Trash2,
+  ArrowLeft,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -212,11 +213,25 @@ const getPriorityBadge = (urgent: boolean) =>
 /* =========================
    Page
 ========================= */
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
+};
+
 export default function OrganizationInterviewsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
+  const origin = searchParams.get("from");
+  const originOrgSlug = searchParams.get("orgSlug");
+  const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -266,7 +281,7 @@ export default function OrganizationInterviewsPage() {
 
   useEffect(() => {
     if (user && isOrgTypeReady && !canAccess) {
-      setLocation("/dashboard");
+      navigateWithTransition(setLocation, "/dashboard");
     }
   }, [user, isOrgTypeReady, canAccess, setLocation]);
 
@@ -395,7 +410,7 @@ export default function OrganizationInterviewsPage() {
     form.setValue("personName", normalizedName, { shouldDirty: true });
     setStep(2);
     setIsDialogOpen(true);
-    setLocation("/organization-interviews");
+    navigateWithTransition(setLocation, "/organization-interviews");
   }, [form, search, setLocation]);
 
   const advanceWizardStep = async () => {
@@ -510,6 +525,15 @@ export default function OrganizationInterviewsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {canGoBackToManagement ? (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => navigateWithTransition(setLocation, `/presidency/${originOrgSlug}/manage`)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             onClick={() => exportInterviews(interviews)}
