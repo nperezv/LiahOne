@@ -213,6 +213,16 @@ const getPriorityBadge = (urgent: boolean) =>
 /* =========================
    Page
 ========================= */
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
+};
+
 export default function OrganizationInterviewsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -271,7 +281,7 @@ export default function OrganizationInterviewsPage() {
 
   useEffect(() => {
     if (user && isOrgTypeReady && !canAccess) {
-      setLocation("/dashboard");
+      navigateWithTransition(setLocation, "/dashboard");
     }
   }, [user, isOrgTypeReady, canAccess, setLocation]);
 
@@ -400,7 +410,7 @@ export default function OrganizationInterviewsPage() {
     form.setValue("personName", normalizedName, { shouldDirty: true });
     setStep(2);
     setIsDialogOpen(true);
-    setLocation("/organization-interviews");
+    navigateWithTransition(setLocation, "/organization-interviews");
   }, [form, search, setLocation]);
 
   const advanceWizardStep = async () => {
@@ -519,7 +529,7 @@ export default function OrganizationInterviewsPage() {
             <Button
               variant="outline"
               className="rounded-full"
-              onClick={() => setLocation(`/presidency/${originOrgSlug}/manage`)}
+              onClick={() => navigateWithTransition(setLocation, `/presidency/${originOrgSlug}/manage`)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>

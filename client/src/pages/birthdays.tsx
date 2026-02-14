@@ -87,6 +87,16 @@ const birthdaySchema = z.object({
 
 type BirthdayFormValues = z.infer<typeof birthdaySchema>;
 
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
+};
+
 export default function BirthdaysPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showOnly30Days, setShowOnly30Days] = useState(false);
@@ -328,7 +338,7 @@ export default function BirthdaysPage() {
             <Button
               variant="outline"
               className="rounded-full"
-              onClick={() => setLocation(`/presidency/${originOrgSlug}/manage`)}
+              onClick={() => navigateWithTransition(setLocation, `/presidency/${originOrgSlug}/manage`)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>
