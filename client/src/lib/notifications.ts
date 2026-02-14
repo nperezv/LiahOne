@@ -26,6 +26,14 @@ export const formatNotificationTime = (notification: Notification) => {
 export const getNotificationDestination = (notification: Notification) => {
   switch (notification.type) {
     case "upcoming_interview":
+      if (
+        notification.title.toLowerCase().includes("organización") ||
+        notification.description?.toLowerCase().includes("organización")
+      ) {
+        return notification.relatedId
+          ? `/organization-interviews?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/organization-interviews";
+      }
       return notification.relatedId
         ? `/interviews?highlight=${encodeURIComponent(notification.relatedId)}`
         : "/interviews";
