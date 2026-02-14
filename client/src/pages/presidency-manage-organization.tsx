@@ -14,17 +14,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
   useOrganizations,
-  useMembers,
+  useOrganizationMembers,
   useOrganizationAttendanceByOrg,
   useUpsertOrganizationAttendance,
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
   useUsers,
   useAllMemberCallings,
+  useOrganizationInterviews,
+  useAssignments,
+  useBirthdays,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCallingLabel } from "@/lib/callings";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const meetingSchema = z.object({
@@ -126,6 +130,7 @@ const MONTH_NAMES = [
   "diciembre",
 ];
 
+
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
   const [, setLocation] = useLocation();
@@ -136,14 +141,26 @@ export default function PresidencyManageOrganizationPage() {
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    leadership: false,
+    meetings: false,
+    interviews: false,
+    attendance: false,
+    assignments: false,
+    birthdays: false,
+  });
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: organizations = [] } = useOrganizations();
   const { data: users = [] } = useUsers();
   const { data: allMemberCallings = [] } = useAllMemberCallings({ enabled: Boolean(organizationId) });
   const { data: meetings = [], isLoading: meetingsLoading } = usePresidencyMeetings(organizationId);
-  const { data: members = [], isLoading: membersLoading } = useMembers({ enabled: Boolean(organizationId) });
+  const { data: organizationMembers = [], isLoading: membersLoading } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
+  const { data: organizationInterviews = [] } = useOrganizationInterviews();
+  const { data: assignments = [] } = useAssignments();
+  const { data: birthdays = [] } = useBirthdays();
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
 
@@ -164,6 +181,12 @@ export default function PresidencyManageOrganizationPage() {
   const panelTitle = params?.org ? `Presidencia de ${orgName}` : "Panel de Presidencia";
   const currentOrganization = organizations.find((org: any) => org.id === organizationId);
   const organizationType = currentOrganization?.type;
+  const canUseOrganizationInterviews = organizationType === "cuorum_elderes" || organizationType === "sociedad_socorro";
+  const hasOrganizationInterviewsAccess =
+    user?.organizationId === organizationId &&
+    (user?.role === "presidente_organizacion" ||
+      user?.role === "consejero_organizacion" ||
+      user?.role === "secretario_organizacion");
   const todayIso = formatLocalDateKey(new Date());
   const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
   const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
@@ -221,11 +244,6 @@ export default function PresidencyManageOrganizationPage() {
     return { presidents, counselors, secretaries, otherCallings };
   }, [allMemberCallings, organizationId, users]);
 
-  const organizationMembers = useMemo(
-    () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
-    [members, organizationId]
-  );
-
   const monthlyAttendanceStats = useMemo(() => {
     const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-`;
     const attendanceInMonth = (attendance as any[]).filter((entry: any) => {
@@ -278,6 +296,68 @@ export default function PresidencyManageOrganizationPage() {
       return { ...prev, [isoDate]: next };
     });
   };
+
+  const toggleCard = (cardKey: string) => {
+    setExpandedCards((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }));
+  };
+
+  const organizationInterviewsList = useMemo(
+    () => (organizationInterviews as any[]).filter((item: any) => item.organizationId === organizationId),
+    [organizationInterviews, organizationId]
+  );
+
+  const currentQuarterRange = useMemo(() => {
+    const now = new Date();
+    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+    const start = new Date(now.getFullYear(), quarterStartMonth, 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+    return { start, end, quarter: Math.floor(now.getMonth() / 3) + 1, year: now.getFullYear() };
+  }, []);
+
+  const quarterInterviews = useMemo(
+    () => organizationInterviewsList.filter((item: any) => {
+      const interviewDate = new Date(item.date);
+      if (Number.isNaN(interviewDate.getTime())) return false;
+      return interviewDate >= currentQuarterRange.start && interviewDate <= currentQuarterRange.end;
+    }),
+    [organizationInterviewsList, currentQuarterRange]
+  );
+
+  const yearInterviews = useMemo(
+    () => organizationInterviewsList.filter((item: any) => {
+      const interviewDate = new Date(item.date);
+      return !Number.isNaN(interviewDate.getTime()) && interviewDate.getFullYear() === currentQuarterRange.year;
+    }),
+    [organizationInterviewsList, currentQuarterRange.year]
+  );
+
+  const completedQuarterInterviews = useMemo(
+    () => quarterInterviews.filter((item: any) => String(item.status ?? "").toLowerCase() === "completada"),
+    [quarterInterviews]
+  );
+
+  const completedYearInterviews = useMemo(
+    () => yearInterviews.filter((item: any) => String(item.status ?? "").toLowerCase() === "completada"),
+    [yearInterviews]
+  );
+
+  const annualInterviewGoal = organizationMembers.length;
+  const quarterlyInterviewGoal = annualInterviewGoal / 4;
+  const pendingQuarterInterviews = Math.max(0, quarterlyInterviewGoal - completedQuarterInterviews.length);
+  const interviewCompletionPercent = annualInterviewGoal > 0
+    ? Math.min(100, (completedYearInterviews.length / annualInterviewGoal) * 100)
+    : 0;
+
+  const pendingAssignments = useMemo(
+    () => (assignments as any[]).filter((assignment: any) => assignment.status !== "completada"),
+    [assignments]
+  );
+
+  const organizationBirthdays = useMemo(
+    () => (birthdays as any[]).filter((birthday: any) => !birthday.organizationId || birthday.organizationId === organizationId),
+    [birthdays, organizationId]
+  );
+  const birthdayPreview = organizationBirthdays.slice(0, 3);
 
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
@@ -356,221 +436,219 @@ export default function PresidencyManageOrganizationPage() {
         </Button>
       </div>
 
-      <Card className="rounded-3xl border-border/70 bg-card/95">
-        <CardHeader>
-          <CardTitle>Liderazgo y llamamientos</CardTitle>
-          <CardDescription>Presidencia y líderes de organización</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Presidencia</p>
-            {[
-              ...leadership.presidents.map((leader: any) => ({ ...leader, roleLabel: getPresidentRoleLabel(organizationType) })),
-              ...leadership.counselors.map((leader: any, index: number) => {
-                const counselorOrder = inferCounselorOrder(leader.callingName, leader.callingOrder);
-                const roleLabel = counselorOrder
-                  ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
-                  : getCounselorRoleLabel(index, organizationType);
-                return { ...leader, roleLabel };
-              }),
-              ...leadership.secretaries.map((leader: any) => ({ ...leader, roleLabel: getSecretaryRoleLabel(organizationType) })),
-            ].map((leader: any) => {
-              const phoneDigits = leader.phone?.replace(/[^\d]/g, "") ?? "";
-              const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
-              const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
-              const mailHref = leader.email ? `mailto:${leader.email}` : undefined;
-
-              return (
-                <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{leader.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCallingLabel(leader.roleLabel, orgName)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={phoneHref}
-                      className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-full border",
-                        phoneHref ? "border-blue-400/60 text-blue-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
-                      )}
-                    >
-                      <Phone className="h-4 w-4" />
-                    </a>
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-full border",
-                        whatsappHref ? "border-emerald-400/60 text-emerald-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
-                      )}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </a>
-                    <a
-                      href={mailHref}
-                      className={cn(
-                        "inline-flex h-8 w-8 items-center justify-center rounded-full border",
-                        mailHref ? "border-amber-400/60 text-amber-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
-                      )}
-                    >
-                      <Mail className="h-4 w-4" />
-                    </a>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Otros líderes</p>
-            {leadership.otherCallings.length > 0 ? (
-              leadership.otherCallings.map((person: any) => {
-                const phoneDigits = person.phone?.replace(/[^\d]/g, "") ?? "";
-                const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
-                const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
-                const mailHref = person.email ? `mailto:${person.email}` : undefined;
-
-                return (
-                  <div key={person.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
-                    <div>
-                      <p className="text-sm font-medium">{person.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatCallingLabel(person.callingName ?? "Llamamiento", person.organizationName ?? orgName)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={phoneHref}
-                        className={cn(
-                          "inline-flex h-8 w-8 items-center justify-center rounded-full border",
-                          phoneHref ? "border-blue-400/60 text-blue-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
-                        )}
-                      >
-                        <Phone className="h-4 w-4" />
-                      </a>
-                      <a
-                        href={whatsappHref}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cn(
-                          "inline-flex h-8 w-8 items-center justify-center rounded-full border",
-                          whatsappHref ? "border-emerald-400/60 text-emerald-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
-                        )}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                      </a>
-                      <a
-                        href={mailHref}
-                        className={cn(
-                          "inline-flex h-8 w-8 items-center justify-center rounded-full border",
-                          mailHref ? "border-amber-400/60 text-amber-400" : "pointer-events-none border-border/50 text-muted-foreground/50"
-                        )}
-                      >
-                        <Mail className="h-4 w-4" />
-                      </a>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-muted-foreground">No hay otros líderes en esta organización.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-3xl border-border/70 bg-card/95">
-          <CardHeader>
-            <CardTitle>Reuniones de presidencia</CardTitle>
-            <CardDescription>Gestión de reuniones y seguimiento mensual</CardDescription>
+          <CardHeader className="pb-3">
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("leadership")}>
+              <div>
+                <CardTitle>Liderazgo y llamamientos</CardTitle>
+                <CardDescription>Presidencia y líderes de organización</CardDescription>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.leadership ? "rotate-180" : "rotate-0")} />
+            </button>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Este mes</p>
-              <p className="text-2xl font-semibold">{meetings.length} reuniones registradas</p>
-            </div>
-            <Button className="rounded-full" onClick={() => setIsCreateMeetingOpen(true)} data-testid="button-create-meeting-from-management-page">
-              <Plus className="mr-2 h-4 w-4" /> Nueva reunión
-            </Button>
+          {expandedCards.leadership ? (
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Presidencia</p>
+                {[
+                  ...leadership.presidents.map((leader: any) => ({ ...leader, roleLabel: getPresidentRoleLabel(organizationType) })),
+                  ...leadership.counselors.map((leader: any, index: number) => {
+                    const counselorOrder = inferCounselorOrder(leader.callingName, leader.callingOrder);
+                    const roleLabel = counselorOrder
+                      ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
+                      : getCounselorRoleLabel(index, organizationType);
+                    return { ...leader, roleLabel };
+                  }),
+                  ...leadership.secretaries.map((leader: any) => ({ ...leader, roleLabel: getSecretaryRoleLabel(organizationType) })),
+                ].map((leader: any) => {
+                  const phoneDigits = leader.phone?.replace(/[^\d]/g, "") ?? "";
+                  const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
+                  const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
+                  const mailHref = leader.email ? `mailto:${leader.email}` : undefined;
 
-            <div className="space-y-2">
-              {meetings.length > 0 ? meetings.map((meeting: any) => (
-                <div key={meeting.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{new Date(meeting.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}</p>
-                    <p className="text-xs text-muted-foreground">{meeting.agenda || "Sin agenda"}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteMeeting(meeting.id)} data-testid={`button-delete-management-meeting-${meeting.id}`}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              )) : (
-                <p className="text-sm text-muted-foreground">Aún no hay reuniones para esta organización.</p>
-              )}
-            </div>
-          </CardContent>
+                  return (
+                    <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium">{leader.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatCallingLabel(leader.roleLabel, orgName)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a href={phoneHref} className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full border", phoneHref ? "border-blue-400/60 text-blue-400" : "pointer-events-none border-border/50 text-muted-foreground/50")}><Phone className="h-4 w-4" /></a>
+                        <a href={whatsappHref} target="_blank" rel="noreferrer" className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full border", whatsappHref ? "border-emerald-400/60 text-emerald-400" : "pointer-events-none border-border/50 text-muted-foreground/50")}><MessageCircle className="h-4 w-4" /></a>
+                        <a href={mailHref} className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full border", mailHref ? "border-amber-400/60 text-amber-400" : "pointer-events-none border-border/50 text-muted-foreground/50")}><Mail className="h-4 w-4" /></a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          ) : null}
         </Card>
 
-        <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
-          <CardHeader className="space-y-3">
-            <CardTitle>Registro de asistencia</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsMonthPickerOpen(true)}
-              className="h-9 w-fit rounded-full border-border/70 bg-background/50 px-3 text-sm font-normal capitalize"
-            >
-              <CalendarDays className="mr-2 h-4 w-4" />
-              {selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
+        <Card className="rounded-3xl border-border/70 bg-card/95">
+          <CardHeader className="pb-3">
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("meetings")}>
+              <div>
+                <CardTitle>Reuniones de presidencia</CardTitle>
+                <CardDescription>Gestión de reuniones y seguimiento mensual</CardDescription>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.meetings ? "rotate-180" : "rotate-0")} />
+            </button>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-3 rounded-2xl border border-border/70 bg-background/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm text-muted-foreground">Asistencia mensual</p>
-                  <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
+          {expandedCards.meetings ? (
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Este mes</p>
+                <p className="text-2xl font-semibold">{meetings.length} reuniones registradas</p>
+              </div>
+              <Button className="rounded-full" onClick={() => setIsCreateMeetingOpen(true)} data-testid="button-create-meeting-from-management-page">
+                <Plus className="mr-2 h-4 w-4" /> Nueva reunión
+              </Button>
+              <div className="space-y-2">
+                {meetings.length > 0 ? meetings.map((meeting: any) => (
+                  <div key={meeting.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">{new Date(meeting.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                      <p className="text-xs text-muted-foreground">{meeting.agenda || "Sin agenda"}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteMeeting(meeting.id)} data-testid={`button-delete-management-meeting-${meeting.id}`}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground">Aún no hay reuniones para esta organización.</p>}
+              </div>
+            </CardContent>
+          ) : null}
+        </Card>
+
+{canUseOrganizationInterviews ? (
+        <Card className="rounded-3xl border-border/70 bg-card/95">
+          <CardHeader className="pb-3">
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("interviews")}>
+              <div>
+                <CardTitle>Entrevistas de organización</CardTitle>
+                <CardDescription>Seguimiento de entrevistas por organización</CardDescription>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.interviews ? "rotate-180" : "rotate-0")} />
+            </button>
+          </CardHeader>
+          {expandedCards.interviews ? (
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                  <p className="text-muted-foreground">Pendientes (trimestre)</p>
+                  <p className="text-xl font-semibold">{Math.ceil(pendingQuarterInterviews)}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cumplimiento semanal</p>
-                  <p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.compliancePercent)}%</p>
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                  <p className="text-muted-foreground">Completadas (trimestre)</p>
+                  <p className="text-xl font-semibold">{completedQuarterInterviews.length}</p>
                 </div>
               </div>
-              <Progress value={monthlyAttendanceStats.attendancePercent} className="mt-2 h-2" />
-              <p className="mt-1 text-xs text-muted-foreground">Promedio semanal: {Math.round(monthlyAttendanceStats.averageWeeklyAttendance)} de {organizationMembers.length} miembros</p>
-              <p className="text-xs text-muted-foreground">Total acumulado del mes: {monthlyAttendanceStats.present}</p>
-              <p className="text-xl font-semibold">{monthlyAttendanceStats.elapsedWeeks}/{monthlyAttendanceStats.weeksInMonth} semanas transcurridas</p>
-              <p className="text-xs text-muted-foreground">Registradas: {monthlyAttendanceStats.reportedElapsedWeeks}/{monthlyAttendanceStats.elapsedWeeks || 0} ({Math.round(monthlyAttendanceStats.compliancePercent)}%)</p>
-              <p className="text-xs text-muted-foreground">Total mes registrado: {monthlyAttendanceStats.reportedWeeks}/{monthlyAttendanceStats.weeksInMonth}</p>
-              <Progress value={monthlyAttendanceStats.compliancePercent} className="h-2" />
-            </div>
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
+                <p className="text-muted-foreground">Objetivo anual ({currentQuarterRange.year})</p>
+                <p className="text-xl font-semibold">{completedYearInterviews.length}/{annualInterviewGoal}</p>
+              </div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => {
+                if (!hasOrganizationInterviewsAccess) {
+                  toast({
+                    title: "Acceso restringido",
+                    description: "Solo la presidencia de esta organización puede gestionar entrevistas.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                navigateWithTransition(setLocation, "/organization-interviews");
+              }}>Ver entrevistas</Button>
+            </CardContent>
+          ) : null}
+        </Card>
 
-            <div className="space-y-2">
-              {sundaysInMonth.map((sunday) => {
-                const iso = formatLocalDateKey(sunday);
-                const isEditable = canEditWeek(iso);
-                return (
-                  <div key={iso} className={`grid items-center gap-2 rounded-2xl border border-border/70 bg-background/70 p-3 transition-opacity sm:grid-cols-[1fr_190px] ${isEditable ? "" : "opacity-50"}`}>
-                    <p className="text-sm font-medium capitalize">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
-                    <Button
-                      variant="outline"
-                      className="rounded-xl border-border/70 bg-background/80"
-                      onClick={() => setAttendanceEditorDate(iso)}
-                      data-testid={`button-edit-attendance-management-${iso}`}
-                      disabled={!isEditable}
-                    >
-                      {(attendanceDrafts[iso] ?? []).length}/{organizationMembers.length} asistentes
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
+        ) : null}
+
+        <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
+          <CardHeader className="pb-3">
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("attendance")}>
+              <div>
+                <CardTitle>Registro de asistencia</CardTitle>
+                <CardDescription>Promedio y cumplimiento semanal</CardDescription>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.attendance ? "rotate-180" : "rotate-0")} />
+            </button>
+            {expandedCards.attendance ? (
+              <Button type="button" variant="outline" onClick={() => setIsMonthPickerOpen(true)} className="h-9 w-fit rounded-full border-border/70 bg-background/50 px-3 text-sm font-normal capitalize">
+                <CalendarDays className="mr-2 h-4 w-4" />
+                {selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+              </Button>
+            ) : null}
+          </CardHeader>
+          {expandedCards.attendance ? (
+            <CardContent className="space-y-3">
+              <div className="space-y-3 rounded-2xl border border-border/70 bg-background/40 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><p className="text-sm text-muted-foreground">Asistencia mensual</p><p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p></div>
+                  <div><p className="text-sm text-muted-foreground">Cumplimiento semanal</p><p className="text-xl font-semibold">{Math.round(monthlyAttendanceStats.compliancePercent)}%</p></div>
+                </div>
+                <Progress value={monthlyAttendanceStats.attendancePercent} className="mt-2 h-2" />
+              </div>
+              <div className="space-y-2">
+                {sundaysInMonth.map((sunday) => {
+                  const iso = formatLocalDateKey(sunday);
+                  const isEditable = canEditWeek(iso);
+                  return (
+                    <div key={iso} className={`grid items-center gap-2 rounded-2xl border border-border/70 bg-background/70 p-3 transition-opacity sm:grid-cols-[1fr_190px] ${isEditable ? "" : "opacity-50"}`}>
+                      <p className="text-sm font-medium capitalize">{sunday.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "short" })}</p>
+                      <Button variant="outline" className="rounded-xl border-border/70 bg-background/80" onClick={() => setAttendanceEditorDate(iso)} data-testid={`button-edit-attendance-management-${iso}`} disabled={!isEditable}>
+                        {(attendanceDrafts[iso] ?? []).length}/{organizationMembers.length} asistentes
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          ) : null}
+        </Card>
+
+        <Card className="rounded-3xl border-border/70 bg-card/95">
+          <CardHeader className="pb-3">
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("assignments")}>
+              <div>
+                <CardTitle>Asignaciones pendientes</CardTitle>
+                <CardDescription>Tareas activas de la organización</CardDescription>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.assignments ? "rotate-180" : "rotate-0")} />
+            </button>
+          </CardHeader>
+          {expandedCards.assignments ? (
+            <CardContent className="space-y-3">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                <p className="text-sm text-muted-foreground">Pendientes</p>
+                <p className="text-2xl font-semibold">{pendingAssignments.length} tareas</p>
+              </div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => navigateWithTransition(setLocation, "/assignments")}>Ver tareas</Button>
+            </CardContent>
+          ) : null}
+        </Card>
+
+        <Card className="rounded-3xl border-border/70 bg-card/95">
+          <CardHeader className="pb-3">
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("birthdays")}>
+              <div>
+                <CardTitle>Cumpleaños</CardTitle>
+                <CardDescription>Próximos cumpleaños en la organización</CardDescription>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.birthdays ? "rotate-180" : "rotate-0")} />
+            </button>
+          </CardHeader>
+          {expandedCards.birthdays ? (
+            <CardContent className="space-y-3">
+              {birthdayPreview.length > 0 ? birthdayPreview.map((birthday: any) => (
+                <div key={birthday.id} className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                  <p className="font-medium">{birthday.name}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(birthday.birthDate).toLocaleDateString("es-ES", { day: "2-digit", month: "long" })}</p>
+                </div>
+              )) : <p className="text-sm text-muted-foreground">No hay cumpleaños registrados.</p>}
+              <Button variant="outline" className="w-full rounded-full" onClick={() => navigateWithTransition(setLocation, "/birthdays")}>Ver todo</Button>
+            </CardContent>
+          ) : null}
         </Card>
       </div>
 
