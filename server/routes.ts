@@ -53,6 +53,8 @@ import {
   sendInterviewScheduledEmail,
   sendInterviewUpdatedEmail,
   sendInterviewCancelledEmail,
+  sendOrganizationInterviewScheduledEmail,
+  sendOrganizationInterviewCancelledEmail,
   sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
   verifyAccessToken,
@@ -2924,6 +2926,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "No autorizado" });
         }
 
+        const organization = await storage.getOrganization(user.organizationId);
+        const allowedOrganizationTypes = ["sociedad_socorro", "cuorum_elderes"];
+        if (!organization || !allowedOrganizationTypes.includes(organization.type)) {
+          return res.status(403).json({ error: "Solo Sociedad de Socorro y Cuórum de Élderes pueden gestionar entrevistas" });
+        }
+
         const interviews =
           await storage.getOrganizationInterviewsByOrganization(
             user.organizationId
@@ -2951,6 +2959,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ error: "No autorizado" });
+      }
+
+      const organization = await storage.getOrganization(user.organizationId);
+      const allowedOrganizationTypes = ["sociedad_socorro", "cuorum_elderes"];
+      if (!organization || !allowedOrganizationTypes.includes(organization.type)) {
+        return res.status(403).json({ error: "Solo Sociedad de Socorro y Cuórum de Élderes pueden gestionar entrevistas" });
       }
   
       const interviewData = insertOrganizationInterviewSchema.parse({
@@ -2980,13 +2994,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
       const interview =
         await storage.createOrganizationInterview(interviewData);
-  
-      const members =
-        await storage.getOrganizationMembers(user.organizationId);
-  
-      for (const member of members) {
-        if (!allowedRoles.includes(member.role)) continue;
-      
+      const interviewDateValue = new Date(interview.date);
+      const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+        year: "numeric",
+        month: "long",
+        day: "2-digit",
+      });
+      const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      const members = await storage.getOrganizationMembers(user.organizationId);
+      const organizationMemberRoles = [
+        "presidente_organizacion",
+        "consejero_organizacion",
+        "secretario_organizacion",
+      ];
+
+      const interviewNotificationRecipients = members.filter((member) =>
+        organizationMemberRoles.includes(member.role)
+      );
+
+      for (const member of interviewNotificationRecipients) {
         const notification = await storage.createNotification({
           userId: member.id,
           type: "upcoming_interview",
@@ -3003,6 +3038,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
             body: `Entrevista con ${interview.personName}`,
             url: "/organization-interviews",
             notificationId: notification.id,
+          });
+        }
+      }
+
+      if (interviewer?.email) {
+        await sendOrganizationInterviewScheduledEmail({
+          toEmail: interviewer.email,
+          recipientName: normalizeMemberName(interviewer.name),
+          interviewDate,
+          interviewTime,
+          interviewType: interview.type,
+          notes: interview.notes,
+          organizationName: organization?.name,
+          requesterName: normalizeMemberName(user.name),
+        });
+      }
+
+      if (interview.interviewerId) {
+        const assignmentTitle = `Entrevista de organización - ${interviewDateTitle}, ${interviewTime} hrs.`;
+        const descriptionParts = [
+          `Entrevista con ${normalizeMemberName(interview.personName)} programada para el ${interviewDate}.`,
+          `Tipo: ${interview.type}.`,
+          `Solicitada por: ${normalizeMemberName(user.name)}.`,
+        ];
+        if (interview.notes) {
+          descriptionParts.push(`Notas: ${interview.notes}`);
+        }
+
+        const assignment = await storage.createAssignment({
+          title: assignmentTitle,
+          description: descriptionParts.join(" "),
+          assignedTo: interview.interviewerId,
+          assignedBy: user.id,
+          dueDate: interview.date,
+          status: "pendiente",
+          relatedTo: `organization_interview:${interview.id}`,
+        });
+
+        const assignmentNotification = await storage.createNotification({
+          userId: interview.interviewerId,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${assignment.title}"`,
+          relatedId: assignment.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(interview.interviewerId, {
+            title: "Nueva Asignación",
+            body: `Se te ha asignado: "${assignment.title}"`,
+            url: "/assignments",
+            notificationId: assignmentNotification.id,
           });
         }
       }
@@ -3046,6 +3134,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
         if (!allowedRoles.includes(user.role)) {
           return res.status(403).json({ error: "No autorizado" });
+        }
+
+        const organization = await storage.getOrganization(user.organizationId);
+        const allowedOrganizationTypes = ["sociedad_socorro", "cuorum_elderes"];
+        if (!organization || !allowedOrganizationTypes.includes(organization.type)) {
+          return res.status(403).json({ error: "Solo Sociedad de Socorro y Cuórum de Élderes pueden gestionar entrevistas" });
         }
     
         const updateData =
@@ -3098,6 +3192,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 eq(notifications.type, "upcoming_interview")
               )
             );
+        }
+
+        if (updateData.date || updateData.status === "completada" || updateData.status === "cancelada") {
+          const assignments = await storage.getAllAssignments();
+          const relatedAssignment = assignments.find(
+            (assignment: any) => assignment.relatedTo === `organization_interview:${updated.id}`
+          );
+
+          if (relatedAssignment) {
+            if (updateData.status === "cancelada") {
+              await storage.deleteAssignment(relatedAssignment.id);
+            } else {
+              const updateAssignmentData: any = {};
+
+              if (updateData.date) {
+                const updatedDateValue = new Date(updated.date);
+                const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                });
+                const updatedTime = updatedDateValue.toLocaleTimeString("es-ES", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                });
+                updateAssignmentData.title = `Entrevista de organización - ${updatedDateTitle}, ${updatedTime} hrs.`;
+                updateAssignmentData.dueDate = updated.date;
+              }
+
+              if (updateData.status === "completada") {
+                updateAssignmentData.status = "completada";
+              }
+
+              if (Object.keys(updateAssignmentData).length > 0) {
+                await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
+              }
+            }
+          }
+        }
+
+        if (updateData.status === "cancelada") {
+          const interviewerUser = await storage.getUser(updated.interviewerId);
+          if (interviewerUser?.email) {
+            const canceledDateValue = new Date(updated.date);
+            const canceledDate = canceledDateValue.toLocaleDateString("es-ES", {
+              year: "numeric",
+              month: "long",
+              day: "2-digit",
+            });
+            const canceledTime = canceledDateValue.toLocaleTimeString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            });
+
+            await sendOrganizationInterviewCancelledEmail({
+              toEmail: interviewerUser.email,
+              recipientName: normalizeMemberName(interviewerUser.name),
+              interviewDate: canceledDate,
+              interviewTime: canceledTime,
+              organizationName: organization?.name,
+            });
+          }
         }
 
         // 🔔 Notificar cambios (estado o fecha)
@@ -3164,6 +3322,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ) {
           return res.status(404).json({ error: "No encontrada" });
         }
+
+        const organization = await storage.getOrganization(user.organizationId);
+        const allowedOrganizationTypes = ["sociedad_socorro", "cuorum_elderes"];
+        if (!organization || !allowedOrganizationTypes.includes(organization.type)) {
+          return res.status(403).json({ error: "Solo Sociedad de Socorro y Cuórum de Élderes pueden gestionar entrevistas" });
+        }
     
         if (user.role !== "presidente_organizacion") {
           return res
@@ -3171,6 +3335,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ error: "Solo el presidente puede eliminar" });
         }
     
+        const assignments = await storage.getAllAssignments();
+        const relatedAssignment = assignments.find(
+          (assignment: any) => assignment.relatedTo === `organization_interview:${id}`
+        );
+        if (relatedAssignment) {
+          await storage.deleteAssignment(relatedAssignment.id);
+        }
+
         await storage.deleteOrganizationInterview(id);
         res.status(204).send();
       } catch {

@@ -382,8 +382,6 @@ export async function sendInterviewScheduledEmail(payload: {
   });
 
   const interviewerLine = buildInterviewerReference(payload.interviewerName, payload.interviewerRole);
-  const typeLabel = formatInterviewType(payload.interviewType);
-  const typeLine = typeLabel ? `Tipo de entrevista: ${typeLabel}` : null;
   const notesLine = payload.notes?.trim()
     ? `Notas adicionales: ${payload.notes.trim()}`
     : null;
@@ -412,7 +410,6 @@ export async function sendInterviewScheduledEmail(payload: {
       `Fecha: ${payload.interviewDate}`,
       `Hora: ${payload.interviewTime} hrs.`,
       "Lugar: oficina del obispado.",
-      typeLine,
       notesLine,
       "",
       "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
@@ -425,6 +422,98 @@ export async function sendInterviewScheduledEmail(payload: {
       .join("\n"),
   });
 }
+
+const buildOrganizationInterviewSignature = (organizationName?: string | null) => {
+  const clean = organizationName?.trim();
+  return clean ? `Presidencia de ${clean}` : "Presidencia de organización";
+};
+
+export async function sendOrganizationInterviewScheduledEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  interviewDate: string;
+  interviewTime: string;
+  interviewType?: string | null;
+  notes?: string | null;
+  organizationName?: string | null;
+  requesterName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Organization interview scheduled:", payload);
+    return;
+  }
+
+  const notesLine = payload.notes?.trim() ? `Notas adicionales: ${payload.notes.trim()}` : null;
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Entrevista de organización programada",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.interviewTime,
+      }),
+      "",
+      "Se ha programado una entrevista de organización.",
+      `Fecha: ${payload.interviewDate}`,
+      `Hora: ${payload.interviewTime} hrs.`,
+      "Lugar: coordinación interna de la organización.",
+      payload.requesterName ? `Solicitada por: ${payload.requesterName}` : null,
+      notesLine,
+      "",
+      "Gracias por tu disposición para ministrar y servir.",
+      "",
+      "Con aprecio fraternal,",
+      buildOrganizationInterviewSignature(payload.organizationName),
+    ].filter((line): line is string => Boolean(line)).join("\n"),
+  });
+}
+
+export async function sendOrganizationInterviewCancelledEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  interviewDate: string;
+  interviewTime: string;
+  organizationName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Organization interview cancelled:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Cancelación de entrevista de organización",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.interviewTime,
+      }),
+      "",
+      "Te informamos que la entrevista de organización ha sido cancelada por ahora.",
+      `Fecha original: ${payload.interviewDate}`,
+      `Hora original: ${payload.interviewTime} hrs.`,
+      "",
+      "Si es necesario, coordinaremos una nueva fecha contigo.",
+      "",
+      "Con cariño,",
+      buildOrganizationInterviewSignature(payload.organizationName),
+    ].join("\n"),
+  });
+}
+
 
 
 export async function sendInterviewUpdatedEmail(payload: {
