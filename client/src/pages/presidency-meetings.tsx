@@ -34,7 +34,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
 import {
   usePresidencyMeetings,
@@ -43,10 +42,11 @@ import {
   useOrganizations,
   useBudgetRequests,
   useOrganizationBudgets,
-  useMembers,
+  useOrganizationMembers,
   useActivities,
   useGoals,
   useOrganizationAttendanceByOrg,
+  useOrganizationInterviews,
   usePresidencyResources,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -243,6 +243,35 @@ function formatLocalDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function MiniStatGauge({ value, centerLabel, color }: { value: number; centerLabel: string; color: string }) {
+  const normalized = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - normalized / 100);
+
+  return (
+    <div className="relative h-10 w-10 shrink-0" data-testid={`mini-gauge-${centerLabel}`}>
+      <svg width="40" height="40" viewBox="0 0 40 40" className="-rotate-90">
+        <circle cx="20" cy="20" r={radius} fill="none" stroke="hsl(var(--muted) / 0.55)" strokeWidth="5" />
+        <circle
+          cx="20"
+          cy="20"
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={`${circumference}`}
+          strokeDashoffset={`${offset}`}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-foreground">
+        {centerLabel}
+      </span>
+    </div>
+  );
+}
+
 export default function PresidencyMeetingsPage() {
   const { user } = useAuth();
   const [, params] = useRoute("/presidency/:org");
@@ -264,7 +293,7 @@ export default function PresidencyMeetingsPage() {
   const { data: budgetRequests = [] } = useBudgetRequests();
   const { data: goals = [] } = useGoals();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
-  const { data: members = [] } = useMembers({ enabled: Boolean(organizationId) });
+  const { data: organizationMembers = [] } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: activities = [] } = useActivities();
   const { data: sectionResources = [], isLoading: isLoadingSectionResources } = usePresidencyResources({
     organizationId,
@@ -275,11 +304,8 @@ export default function PresidencyMeetingsPage() {
     () => sectionResources.filter((resource: any) => resource.category === selectedResourcesCategory),
     [sectionResources, selectedResourcesCategory]
   );
-  const organizationMembers = useMemo(
-    () => (members as any[]).filter((member: any) => member.organizationId === organizationId),
-    [members, organizationId]
-  );
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
+  const { data: organizationInterviews = [] } = useOrganizationInterviews();
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const createBudgetRequestMutation = useCreateBudgetRequest();
   const { toast } = useToast();
@@ -408,6 +434,18 @@ export default function PresidencyMeetingsPage() {
     const attendanceLoadPercent = Math.min(100, (reportedElapsedWeeks / Math.max(1, elapsedWeeks)) * 100);
     const monthMeetingProgress = Math.min(100, (monthMeetings / Math.max(1, weeksInMonth)) * 100);
 
+    const yearInterviews = (organizationInterviews as any[]).filter((item: any) => {
+      if (item.organizationId !== organizationId) return false;
+      const interviewDate = new Date(item.date);
+      return !Number.isNaN(interviewDate.getTime()) && interviewDate.getFullYear() === currentYear;
+    });
+    const completedYearInterviews = yearInterviews.filter((item: any) => String(item.status ?? "").toLowerCase() === "completada").length;
+    const annualInterviewGoal = organizationMembers.length;
+    const interviewProgressPercent = annualInterviewGoal > 0
+      ? Math.min(100, (completedYearInterviews / annualInterviewGoal) * 100)
+      : 0;
+    const pendingInterviewsCount = Math.max(0, annualInterviewGoal - completedYearInterviews);
+
     const byCategory = approvedRequests.reduce(
       (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
         const category: "actividades" | "materiales" | "otros" = request.category === "actividades" || request.category === "materiales"
@@ -466,10 +504,12 @@ export default function PresidencyMeetingsPage() {
       elapsedWeeks,
       attendanceLoadPercent,
       monthMeetingProgress,
+      interviewProgressPercent,
+      pendingInterviewsCount,
       latestMeeting,
       budgetSlides,
     };
-  }, [activities, attendance, budgetRequests, goals, meetings, members, organizationBudgets, organizationId, sundaysInMonth.length]);
+  }, [activities, attendance, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationInterviews, organizationMembers.length, sundaysInMonth.length]);
 
   useEffect(() => {
     const maxGoalSlide = dashboardStats.goalsWithPercentage.length;
@@ -792,37 +832,40 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex min-h-[220px] flex-col justify-between rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
+          className="col-span-1 flex h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
           data-testid="button-presidency-meetings-overview"
         >
           <div>
             <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
-            <p className="mt-2 text-2xl font-semibold">{dashboardStats.monthMeetings} de {dashboardStats.weeksInMonth}</p>
-            <Progress value={dashboardStats.monthMeetingProgress} className="mt-2 h-2" />
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthMeetingProgress)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.monthMeetingProgress}
+                centerLabel={String(dashboardStats.monthMeetings)}
+                color="hsl(var(--chart-1))"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Entrevistas</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.interviewProgressPercent)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.interviewProgressPercent}
+                centerLabel={String(dashboardStats.pendingInterviewsCount)}
+                color="hsl(var(--chart-2))"
+              />
+            </div>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Asistencia a clases</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <p className="text-xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
-              <div className="relative h-12 w-12 shrink-0" data-testid="mini-gauge-attendance-classes">
-                <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90">
-                  <circle cx="24" cy="24" r="18" fill="none" stroke="hsl(var(--muted) / 0.55)" strokeWidth="5" />
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="18"
-                    fill="none"
-                    stroke="hsl(var(--chart-4))"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                    strokeDasharray={`${2 * Math.PI * 18}`}
-                    strokeDashoffset={`${2 * Math.PI * 18 * (1 - Math.max(0, Math.min(100, dashboardStats.monthlyAttendancePercent)) / 100)}`}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-foreground">
-                  {Math.round(dashboardStats.averageWeeklyAttendance)}
-                </span>
-              </div>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.monthlyAttendancePercent}
+                centerLabel={String(Math.round(dashboardStats.averageWeeklyAttendance))}
+                color="hsl(var(--chart-4))"
+              />
             </div>
           </div>
         </button>
