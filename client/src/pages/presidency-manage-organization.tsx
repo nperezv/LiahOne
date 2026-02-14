@@ -131,35 +131,6 @@ const MONTH_NAMES = [
 ];
 
 
-function MiniGauge({ value, strokeColor = "hsl(var(--primary))" }: { value: number; strokeColor?: string }) {
-  const normalized = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-  const size = 46;
-  const stroke = 5;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (normalized / 100) * circumference;
-
-  return (
-    <div className="relative h-11 w-11 shrink-0">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="hsl(var(--muted) / 0.55)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold">{Math.round(normalized)}%</span>
-    </div>
-  );
-}
-
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
   const [, setLocation] = useLocation();
@@ -388,12 +359,6 @@ export default function PresidencyManageOrganizationPage() {
   );
   const birthdayPreview = organizationBirthdays.slice(0, 3);
 
-  const centralGaugePercent = Math.round((
-    Math.min(100, meetings.length > 0 ? (meetings.length / Math.max(1, sundaysInMonth.length)) * 100 : 0) +
-    Math.min(100, interviewCompletionPercent) +
-    Math.min(100, monthlyAttendanceStats.attendancePercent)
-  ) / 3);
-
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handleSaveAttendance = (isoDate: string) => {
@@ -471,17 +436,6 @@ export default function PresidencyManageOrganizationPage() {
         </Button>
       </div>
 
-      <Card className="rounded-3xl border-border/70 bg-card/95">
-        <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:justify-between sm:text-left">
-          <div>
-            <p className="text-sm text-muted-foreground">Indicador central de presidencia</p>
-            <p className="text-2xl font-semibold">{centralGaugePercent}% meta alcanzada</p>
-            <p className="text-xs text-muted-foreground">Combinado: reuniones, entrevistas y asistencia</p>
-          </div>
-          <MiniGauge value={centralGaugePercent} />
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
@@ -539,10 +493,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardTitle>Reuniones de presidencia</CardTitle>
                 <CardDescription>Gestión de reuniones y seguimiento mensual</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <MiniGauge value={Math.min(100, (meetings.length / Math.max(1, sundaysInMonth.length)) * 100)} strokeColor="hsl(var(--primary))" />
-                <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.meetings ? "rotate-180" : "rotate-0")} />
-              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.meetings ? "rotate-180" : "rotate-0")} />
             </button>
           </CardHeader>
           {expandedCards.meetings ? (
@@ -577,10 +528,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardTitle>Entrevistas de organización</CardTitle>
                 <CardDescription>Seguimiento de entrevistas por organización</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <MiniGauge value={interviewCompletionPercent} strokeColor="hsl(var(--chart-2))" />
-                <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.interviews ? "rotate-180" : "rotate-0")} />
-              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.interviews ? "rotate-180" : "rotate-0")} />
             </button>
           </CardHeader>
           {expandedCards.interviews ? (
@@ -623,10 +571,7 @@ export default function PresidencyManageOrganizationPage() {
                 <CardTitle>Registro de asistencia</CardTitle>
                 <CardDescription>Promedio y cumplimiento semanal</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <MiniGauge value={monthlyAttendanceStats.attendancePercent} strokeColor="hsl(var(--chart-3))" />
-                <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.attendance ? "rotate-180" : "rotate-0")} />
-              </div>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.attendance ? "rotate-180" : "rotate-0")} />
             </button>
             {expandedCards.attendance ? (
               <Button type="button" variant="outline" onClick={() => setIsMonthPickerOpen(true)} className="h-9 w-fit rounded-full border-border/70 bg-background/50 px-3 text-sm font-normal capitalize">
