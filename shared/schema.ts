@@ -150,11 +150,14 @@ export const organizationInterviewStatusEnum = pgEnum("organization_interview_st
   "archivada"
 ]);
 
-export const organizationInterviewTypeEnum = pgEnum("organization_interview_type", [                                  "ministracion",
-  "autosuficiencia",
-  "consuelo",
+export const organizationInterviewTypeEnum = pgEnum("organization_interview_type", [
+  "inicial",
   "seguimiento",
-  "otro"
+  "autosuficiencia",
+  "otra",
+  "ministracion",
+  "consuelo",
+  "otro",
 ]);
 
 export const assignmentStatusEnum = pgEnum("assignment_status", [

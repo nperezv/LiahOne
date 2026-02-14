@@ -67,6 +67,7 @@ import {
   useDeleteOrganizationInterview,
   useUsers,
   useOrganizations,
+  useOrganizationMembers,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
@@ -107,7 +108,7 @@ function formatInterviewType(type: string) {
 const interviewTypeOptions = [
   { value: "inicial", label: "Inicial" },
   { value: "seguimiento", label: "Seguimiento" },
-  { value: "recomendacion", label: "Recomendación para el templo" },
+  { value: "autosuficiencia", label: "Autosuficiencia" },
   { value: "otra", label: "Otra" },
 ];
 
@@ -227,11 +228,14 @@ export default function OrganizationInterviewsPage() {
   const [editTypeSheetOpen, setEditTypeSheetOpen] = useState(false);
   const [editInterviewerSheetOpen, setEditInterviewerSheetOpen] = useState(false);
   const [editDateDraft, setEditDateDraft] = useState({ date: "", time: "" });
+  const [memberQuery, setMemberQuery] = useState("");
+  const [editMemberQuery, setEditMemberQuery] = useState("");
 
   const { data: interviews = [], isLoading } =
     useOrganizationInterviews();
   const { data: users = [] } = useUsers();
   const { data: organizations = [] } = useOrganizations();
+  const { data: organizationMembers = [] } = useOrganizationMembers(user?.organizationId, { enabled: Boolean(user?.organizationId) });
 
   const createMutation = useCreateOrganizationInterview();
   const updateMutation = useUpdateOrganizationInterview();
@@ -264,6 +268,22 @@ export default function OrganizationInterviewsPage() {
   }, [user, isOrgTypeReady, canAccess, setLocation]);
 
   const canDelete = canAccess && user?.role === "presidente_organizacion";
+
+  const filteredOrganizationMembers = useMemo(() => {
+    const query = memberQuery.trim().toLowerCase();
+    if (!query) return organizationMembers;
+    return organizationMembers.filter((member: any) =>
+      String(member.nameSurename ?? "").toLowerCase().includes(query)
+    );
+  }, [memberQuery, organizationMembers]);
+
+  const filteredEditOrganizationMembers = useMemo(() => {
+    const query = editMemberQuery.trim().toLowerCase();
+    if (!query) return organizationMembers;
+    return organizationMembers.filter((member: any) =>
+      String(member.nameSurename ?? "").toLowerCase().includes(query)
+    );
+  }, [editMemberQuery, organizationMembers]);
 
   const interviewers = useMemo(() => {
     if (!user?.organizationId) return [];
@@ -334,6 +354,7 @@ export default function OrganizationInterviewsPage() {
       urgent: false,
       notes: "",
     });
+    setMemberQuery("");
   };
 
   useEffect(() => {
@@ -406,6 +427,7 @@ export default function OrganizationInterviewsPage() {
 
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
+    setEditMemberQuery("");
     editForm.reset({
       personName: normalizeMemberName(interview.personName),
       date: formatDateTimeForInput(interview.date),
@@ -557,6 +579,7 @@ export default function OrganizationInterviewsPage() {
                             toast({ title: "Entrevista creada" });
                             setIsDialogOpen(false);
                             form.reset();
+                            setMemberQuery("");
                           },
                           onError: (error) => {
                             toast({
@@ -581,12 +604,46 @@ export default function OrganizationInterviewsPage() {
                           render={({ field }) => (
                             <FormItem className="space-y-3">
                               <FormLabel className="text-base">¿A quién deseas entrevistar?</FormLabel>
-                              <FormControl>
+                              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
                                 <Input
-                                  {...field}
+                                  value={memberQuery}
+                                  onChange={(event) => setMemberQuery(event.target.value)}
+                                  placeholder="Buscar miembro de la organización"
                                   className="rounded-2xl bg-background/80"
                                 />
-                              </FormControl>
+                                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                                  {filteredOrganizationMembers.length > 0 ? (
+                                    filteredOrganizationMembers.map((member: any) => {
+                                      const normalizedName = normalizeMemberName(member.nameSurename);
+                                      const selected = field.value === normalizedName;
+                                      return (
+                                        <button
+                                          type="button"
+                                          key={member.id}
+                                          onClick={() => field.onChange(normalizedName)}
+                                          className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                                            selected ? "border-primary bg-primary/10" : "border-border/60 bg-background/70 hover:bg-muted/40"
+                                          }`}
+                                        >
+                                          <span>{normalizedName}</span>
+                                          {selected ? <Check className="h-4 w-4 text-primary" /> : null}
+                                        </button>
+                                      );
+                                    })
+                                  ) : (
+                                    <p className="rounded-xl border border-dashed border-border/60 px-3 py-2 text-sm text-muted-foreground">
+                                      No se encontraron miembros para esta organización.
+                                    </p>
+                                  )}
+                                </div>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="O escribe el nombre manualmente"
+                                    className="rounded-2xl bg-background/80"
+                                  />
+                                </FormControl>
+                              </div>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -1029,9 +1086,42 @@ export default function OrganizationInterviewsPage() {
                 control={editForm.control}
                 name="personName"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="space-y-3">
                     <FormLabel>Persona</FormLabel>
-                    <Input {...field} />
+                    <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
+                      <Input
+                        value={editMemberQuery}
+                        onChange={(event) => setEditMemberQuery(event.target.value)}
+                        placeholder="Buscar miembro de la organización"
+                        className="rounded-2xl bg-background/80"
+                      />
+                      <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                        {filteredEditOrganizationMembers.length > 0 ? (
+                          filteredEditOrganizationMembers.map((member: any) => {
+                            const normalizedName = normalizeMemberName(member.nameSurename);
+                            const selected = field.value === normalizedName;
+                            return (
+                              <button
+                                type="button"
+                                key={member.id}
+                                onClick={() => field.onChange(normalizedName)}
+                                className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                                  selected ? "border-primary bg-primary/10" : "border-border/60 bg-background/70 hover:bg-muted/40"
+                                }`}
+                              >
+                                <span>{normalizedName}</span>
+                                {selected ? <Check className="h-4 w-4 text-primary" /> : null}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <p className="rounded-xl border border-dashed border-border/60 px-3 py-2 text-sm text-muted-foreground">
+                            No se encontraron miembros para esta organización.
+                          </p>
+                        )}
+                      </div>
+                      <Input {...field} placeholder="O escribe el nombre manualmente" className="rounded-2xl bg-background/80" />
+                    </div>
                   </FormItem>
                 )}
               />
