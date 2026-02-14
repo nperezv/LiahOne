@@ -97,8 +97,15 @@ export const organizationTypeEnum = pgEnum("organization_type", [
   "primaria",
   "escuela_dominical",
   "jas",
+  "as",
   "cuorum_elderes",
   "barrio",
+]);
+
+export const memberOrganizationMembershipTypeEnum = pgEnum("member_organization_membership_type", [
+  "primary",
+  "derived_rule",
+  "manual",
 ]);
 
 export const notificationTypeEnum = pgEnum("notification_type", [
@@ -302,6 +309,17 @@ export const memberCallings = pgTable("member_callings", {
   endDate: timestamp("end_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const memberOrganizations = pgTable("member_organizations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull().references(() => members.id),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  membershipType: memberOrganizationMembershipTypeEnum("membership_type").notNull().default("manual"),
+  sourceRule: text("source_rule"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 
 export const hymns = pgTable("hymns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -601,6 +619,7 @@ export const organizationsRelations = relations(organizations, ({ one, many }) =
   }),
   members: many(users),
   directoryMembers: many(members),
+  memberOrganizations: many(memberOrganizations),
   memberCallings: many(memberCallings),
   presidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
@@ -618,7 +637,19 @@ export const membersRelations = relations(members, ({ one, many }) => ({
     fields: [members.id],
     references: [users.memberId],
   }),
+  memberships: many(memberOrganizations),
   callings: many(memberCallings),
+}));
+
+export const memberOrganizationsRelations = relations(memberOrganizations, ({ one }) => ({
+  member: one(members, {
+    fields: [memberOrganizations.memberId],
+    references: [members.id],
+  }),
+  organization: one(organizations, {
+    fields: [memberOrganizations.organizationId],
+    references: [organizations.id],
+  }),
 }));
 
 export const memberCallingsRelations = relations(memberCallings, ({ one }) => ({
@@ -958,6 +989,7 @@ export const insertMemberSchema = createInsertSchema(members, {
 });
 export const selectMemberSchema = createSelectSchema(members);
 export type Member = typeof members.$inferSelect;
+export type InsertMember = z.infer<typeof insertMemberSchema>;
 export const insertMemberCallingSchema = createInsertSchema(memberCallings, {
   startDate: dateSchema.optional(),
   endDate: dateSchema.optional(),
@@ -968,6 +1000,14 @@ export const insertMemberCallingSchema = createInsertSchema(memberCallings, {
 export const selectMemberCallingSchema = createSelectSchema(memberCallings);
 export type MemberCalling = typeof memberCallings.$inferSelect;
 export type InsertMemberCalling = z.infer<typeof insertMemberCallingSchema>;
+
+export const insertMemberOrganizationSchema = createInsertSchema(memberOrganizations).omit({
+  id: true,
+  createdAt: true,
+});
+export const selectMemberOrganizationSchema = createSelectSchema(memberOrganizations);
+export type MemberOrganization = typeof memberOrganizations.$inferSelect;
+export type InsertMemberOrganization = z.infer<typeof insertMemberOrganizationSchema>;
 export type InsertBirthdayType = z.infer<typeof insertBirthdaySchema>;
 export type InsertBirthday = z.infer<typeof insertBirthdaySchema>;
 
