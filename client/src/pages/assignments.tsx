@@ -1,8 +1,8 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Trash2, Download, Edit } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -43,6 +43,7 @@ import {
 import { useAssignments, useCreateAssignment, useUpdateAssignment, useDeleteAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
+import { useLocation, useSearch } from "wouter";
 
 const assignmentSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
@@ -56,6 +57,12 @@ type AssignmentFormValues = z.infer<typeof assignmentSchema>;
 
 export default function Assignments() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
+  const origin = searchParams.get("from");
+  const originOrgSlug = searchParams.get("orgSlug");
+  const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
   const { data: assignments = [], isLoading } = useAssignments();
   const { data: users = [] } = useUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -265,6 +272,15 @@ export default function Assignments() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          {canGoBackToManagement ? (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setLocation(`/presidency/${originOrgSlug}/manage`)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             onClick={() => exportAssignments(assignments)}
