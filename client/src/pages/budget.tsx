@@ -62,6 +62,15 @@ const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Inpu
   </div>
 );
 
+const formatCurrencyInputValue = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const normalized = trimmed.replace(",", ".");
+  const parsed = Number.parseFloat(normalized);
+  if (Number.isNaN(parsed)) return trimmed;
+  return parsed.toFixed(2);
+};
+
 const parseBudgetNumber = (value: string) => {
   const normalized = value.replace(",", ".");
   const parsed = Number.parseFloat(normalized);
@@ -709,6 +718,10 @@ export default function BudgetPage() {
                           <FormControl>
                             <BudgetCurrencyInput
                               {...field}
+                              onBlur={(event) => {
+                                field.onChange(formatCurrencyInputValue(event.target.value));
+                                field.onBlur();
+                              }}
                               data-testid="input-ward-budget-annual"
                             />
                           </FormControl>
@@ -726,6 +739,10 @@ export default function BudgetPage() {
                             <FormControl>
                               <BudgetCurrencyInput
                                 {...field}
+                                onBlur={(event) => {
+                                  field.onChange(formatCurrencyInputValue(event.target.value));
+                                  field.onBlur();
+                                }}
                                 data-testid="input-ward-budget-q1"
                               />
                             </FormControl>
@@ -742,6 +759,10 @@ export default function BudgetPage() {
                             <FormControl>
                               <BudgetCurrencyInput
                                 {...field}
+                                onBlur={(event) => {
+                                  field.onChange(formatCurrencyInputValue(event.target.value));
+                                  field.onBlur();
+                                }}
                                 data-testid="input-ward-budget-q2"
                               />
                             </FormControl>
@@ -758,6 +779,10 @@ export default function BudgetPage() {
                             <FormControl>
                               <BudgetCurrencyInput
                                 {...field}
+                                onBlur={(event) => {
+                                  field.onChange(formatCurrencyInputValue(event.target.value));
+                                  field.onBlur();
+                                }}
                                 data-testid="input-ward-budget-q3"
                               />
                             </FormControl>
@@ -774,6 +799,10 @@ export default function BudgetPage() {
                             <FormControl>
                               <BudgetCurrencyInput
                                 {...field}
+                                onBlur={(event) => {
+                                  field.onChange(formatCurrencyInputValue(event.target.value));
+                                  field.onBlur();
+                                }}
                                 data-testid="input-ward-budget-q4"
                               />
                             </FormControl>
@@ -843,6 +872,10 @@ export default function BudgetPage() {
                         <FormControl>
                           <BudgetCurrencyInput
                             {...field}
+                            onBlur={(event) => {
+                              field.onChange(formatCurrencyInputValue(event.target.value));
+                              field.onBlur();
+                            }}
                             data-testid="input-amount"
                           />
                                                 </FormControl>
@@ -1267,6 +1300,10 @@ export default function BudgetPage() {
                                   <FormControl>
                                     <BudgetCurrencyInput
                                       {...field}
+                                      onBlur={(event) => {
+                                        field.onChange(formatCurrencyInputValue(event.target.value));
+                                        field.onBlur();
+                                      }}
                                       data-testid={`input-assign-amount-${org.id}`}
                                     />
                                   </FormControl>
