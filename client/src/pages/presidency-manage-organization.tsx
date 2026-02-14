@@ -424,9 +424,36 @@ export default function PresidencyManageOrganizationPage() {
     ? Math.min(100, (completedYearInterviews.length / annualInterviewGoal) * 100)
     : 0;
 
+  const assignmentsForOrganization = useMemo(
+    () => {
+      if (!organizationId) return [];
+
+      const organizationByUserId = new Map(
+        (users as any[]).map((item: any) => [item.id, item.organizationId ?? null])
+      );
+
+      return (assignments as any[]).filter((assignment: any) => {
+        if (!assignment) return false;
+
+        const assigneeOrganizationId = assignment.assignedTo
+          ? organizationByUserId.get(assignment.assignedTo)
+          : null;
+        const assignerOrganizationId = assignment.assignedBy
+          ? organizationByUserId.get(assignment.assignedBy)
+          : null;
+
+        return (
+          assigneeOrganizationId === organizationId ||
+          assignerOrganizationId === organizationId
+        );
+      });
+    },
+    [assignments, organizationId, users]
+  );
+
   const pendingAssignments = useMemo(
-    () => (assignments as any[]).filter((assignment: any) => assignment.status !== "completada"),
-    [assignments]
+    () => assignmentsForOrganization.filter((assignment: any) => assignment.status === "pendiente"),
+    [assignmentsForOrganization]
   );
 
   const organizationBirthdays = useMemo(

@@ -5148,8 +5148,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/assignments", requireAuth, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
+      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(user.role);
+
       const assignments = await storage.getAllAssignments();
-      res.json(assignments);
+
+      if (isObispado || !isOrgMember) {
+        return res.json(assignments);
+      }
+
+      const users = await storage.getAllUsers();
+      const userOrganizationById = new Map(users.map((item) => [item.id, item.organizationId ?? null]));
+
+      const visibleAssignments = assignments.filter((assignment: any) => {
+        if (!assignment) return false;
+
+        if (assignment.assignedTo === user.id || assignment.assignedBy === user.id) {
+          return true;
+        }
+
+        const assigneeOrganizationId = assignment.assignedTo
+          ? userOrganizationById.get(assignment.assignedTo)
+          : null;
+        const assignerOrganizationId = assignment.assignedBy
+          ? userOrganizationById.get(assignment.assignedBy)
+          : null;
+
+        return (
+          assigneeOrganizationId === user.organizationId ||
+          assignerOrganizationId === user.organizationId
+        );
+      });
+
+      return res.json(visibleAssignments);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }

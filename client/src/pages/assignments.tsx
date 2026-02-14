@@ -98,17 +98,11 @@ export default function Assignments() {
     }
   };
   
-  // Filter assignments based on user role
+  // Assignments are already filtered by backend according to role/organization visibility.
   const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
-  const filteredAssignments = isOrgMember
-    ? assignments.filter((a: any) => {
-        // Organization members see assignments they are assigned to and created by them
-        if (!userId) return false;
-        return a.assignedTo === userId || a.assignedBy === userId;
-      })
-    : assignments;
+  const filteredAssignments = assignments;
 
   // Check if user can delete an assignment
   const canDeleteAssignment = (assignment: any) => {
