@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -72,6 +72,7 @@ export default function Assignments() {
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const origin = searchParams.get("from");
   const originOrgSlug = searchParams.get("orgSlug");
+  const shouldAutoOpenCreate = searchParams.get("create") === "1";
   const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
   const { data: assignments = [], isLoading } = useAssignments();
   const { data: users = [] } = useUsers();
@@ -80,6 +81,12 @@ export default function Assignments() {
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
   const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (shouldAutoOpenCreate) {
+      setIsDialogOpen(true);
+    }
+  }, [shouldAutoOpenCreate]);
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();

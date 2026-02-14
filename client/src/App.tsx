@@ -25,6 +25,7 @@ import WardCouncilPage from "@/pages/ward-council";
 import LeadershipPage from "@/pages/leadership";
 import PresidencyMeetingsPage from "@/pages/presidency-meetings";
 import PresidencyManageOrganizationPage from "@/pages/presidency-manage-organization";
+import PresidencyMeetingReportPage from "@/pages/presidency-meeting-report";
 import BudgetPage from "@/pages/budget";
 import InterviewsPage from "@/pages/interviews";
 import OrganizationInterviewsPage from "@/pages/organization-interviews";
@@ -73,6 +74,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/presidency/:org/manage">
           <PresidencyManageOrganizationPage />
+        </Route>
+        <Route path="/presidency/:org/meeting/:meetingId/report">
+          <PresidencyMeetingReportPage />
         </Route>
         <Route path="/presidency/:org">
           <PresidencyMeetingsPage />
