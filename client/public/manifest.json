@@ -20,7 +20,7 @@
       "src": "/icons/icon.svg?v=3",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ],
   "categories": ["productivity", "utilities"],
