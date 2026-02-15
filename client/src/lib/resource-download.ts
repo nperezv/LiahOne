@@ -1,23 +1,25 @@
 import { fetchWithAuthRetry } from "@/lib/auth-tokens";
 
+type ResourceOpenMode = "download" | "inline";
+
 const getFileExtension = (filename: string) => {
   const index = filename.lastIndexOf(".");
   return index >= 0 ? filename.slice(index) : "";
 };
 
-const buildDownloadUrl = (url: string, filename: string) => {
+export const buildResourceFileUrl = (url: string, filename: string, mode: ResourceOpenMode = "download") => {
   const storedFilename = url.split("/").pop() ?? "";
   if (!storedFilename) {
     return url;
   }
 
-  return `/api/uploads/${encodeURIComponent(storedFilename)}/download?filename=${encodeURIComponent(filename)}`;
+  return `/api/uploads/${encodeURIComponent(storedFilename)}/download?filename=${encodeURIComponent(filename)}&mode=${mode}`;
 };
 
 export async function downloadResourceFile(url: string, placeholderName: string, originalFilename: string) {
   const extension = getFileExtension(originalFilename);
   const safeName = `${placeholderName || "recurso"}${extension}`;
-  const downloadUrl = buildDownloadUrl(url, safeName);
+  const downloadUrl = buildResourceFileUrl(url, safeName, "download");
 
   const response = await fetchWithAuthRetry(downloadUrl, { method: "GET" });
   if (!response.ok) {
@@ -33,4 +35,15 @@ export async function downloadResourceFile(url: string, placeholderName: string,
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(blobUrl);
+}
+
+export function openResourceFileInBrowser(url: string, placeholderName: string, originalFilename: string) {
+  const extension = getFileExtension(originalFilename);
+  const safeName = `${placeholderName || "recurso"}${extension}`;
+  const openUrl = buildResourceFileUrl(url, safeName, "inline");
+  const popup = window.open(openUrl, "_blank", "noopener,noreferrer");
+
+  if (!popup) {
+    window.location.assign(openUrl);
+  }
 }
