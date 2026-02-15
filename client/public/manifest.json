@@ -1,21 +1,23 @@
 {
+  "id": "/",
   "name": "Liahonaap - Gestión de Barrio",
   "short_name": "Liahonaap",
   "description": "Sistema integral de gestión administrativa para barrios. Gestiona reuniones, presupuestos, entrevistas, metas y más.",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icons/icon.svg",
+      "src": "/icons/icon.svg?v=3",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon.svg",
+      "src": "/icons/icon.svg?v=3",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
