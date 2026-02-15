@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { downloadResourceFile } from "@/lib/resource-download";
 import {
   useCreatePresidencyResource,
   useDeletePresidencyResource,
@@ -76,27 +77,6 @@ const resourceTypeLabel: Record<ResourceType, string> = {
   plantilla: "Plantilla",
 };
 
-
-const getFileExtension = (filename: string) => {
-  const index = filename.lastIndexOf(".");
-  return index >= 0 ? filename.slice(index) : "";
-};
-
-const triggerResourceDownload = (url: string, placeholderName: string, originalFilename: string) => {
-  const extension = getFileExtension(originalFilename);
-  const safeName = `${placeholderName || "recurso"}${extension}`;
-  const storedFilename = url.split("/").pop() ?? "";
-  const downloadUrl = storedFilename
-    ? `/api/uploads/${encodeURIComponent(storedFilename)}/download?filename=${encodeURIComponent(safeName)}`
-    : url;
-
-  const link = document.createElement("a");
-  link.href = downloadUrl;
-  link.download = safeName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
 
 export default function ResourcesLibraryPage() {
   const { user } = useAuth();
@@ -323,7 +303,20 @@ export default function ResourcesLibraryPage() {
                         <a href={resource.fileUrl} target="_blank" rel="noopener noreferrer">Ver video</a>
                       </Button>
                     ) : (
-                      <Button variant="outline" onClick={() => triggerResourceDownload(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName)}>
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await downloadResourceFile(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                          } catch {
+                            toast({
+                              title: "Error",
+                              description: "No se pudo descargar el recurso.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
                         <Download className="mr-2 h-4 w-4" /> Descargar
                       </Button>
                     )}

@@ -54,6 +54,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { downloadResourceFile } from "@/lib/resource-download";
 
 const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
   if (typeof document !== "undefined" && "startViewTransition" in document) {
@@ -1580,7 +1581,17 @@ export default function PresidencyMeetingsPage() {
                     className="mt-3"
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(resource.fileUrl, "_blank", "noopener,noreferrer")}
+                    onClick={async () => {
+                      try {
+                        await downloadResourceFile(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                      } catch {
+                        toast({
+                          title: "Error",
+                          description: "No se pudo descargar el recurso.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
                   >
                     <Download className="mr-2 h-4 w-4" /> Descargar
                   </Button>
