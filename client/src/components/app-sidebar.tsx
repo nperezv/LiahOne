@@ -49,7 +49,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Consejo de Barrio",
     url: "/ward-council",
     icon: Users,
-    roles: ["obispo", "consejero_obispo", "secretario"],
+    roles: ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"],
   },
   {
     title: "Liderazgo",
@@ -163,7 +163,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Panel Secretaría",
     url: "/secretary-dashboard",
     icon: FileText,
-    roles: ["obispo", "consejero_obispo", "secretario"],
+    roles: ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"],
   },
   {
     title: "Asignaciones",

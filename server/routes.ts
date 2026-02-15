@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -607,60 +608,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const uploadsPath = path.resolve(process.cwd(), "uploads");
   fs.mkdirSync(uploadsPath, { recursive: true });
 
-  const readRequestBody = async (req: Request) => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks);
-  };
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+    },
+  });
 
-  const parseMultipart = async (req: Request) => {
-    const contentType = req.headers["content-type"];
-    if (!contentType || !contentType.includes("multipart/form-data")) {
-      throw new Error("Invalid content type");
-    }
-    const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
-    if (!boundaryMatch) {
-      throw new Error("Missing boundary");
-    }
-    const boundary = `--${boundaryMatch[1]}`;
-    const body = await readRequestBody(req);
-    const parts = body.toString("binary").split(boundary);
-    const files: Array<{ fieldname: string; filename: string; contentType?: string; data: Buffer }> = [];
-
-    for (const part of parts) {
-      if (!part || part === "--\r\n" || part === "--") {
-        continue;
-      }
-      const [rawHeaders, rawBody] = part.split("\r\n\r\n");
-      if (!rawBody || !rawHeaders) {
-        continue;
-      }
-      const headers = rawHeaders.split("\r\n").filter(Boolean);
-      const disposition = headers.find((header) =>
-        header.toLowerCase().startsWith("content-disposition")
-      );
-      if (!disposition) {
-        continue;
-      }
-      const nameMatch = disposition.match(/name="([^"]+)"/i);
-      const filenameMatch = disposition.match(/filename="([^"]*)"/i);
-      if (!nameMatch || !filenameMatch || !filenameMatch[1]) {
-        continue;
-      }
-      const fieldname = nameMatch[1];
-      const filename = path.basename(filenameMatch[1]);
-      const contentTypeHeader = headers.find((header) =>
-        header.toLowerCase().startsWith("content-type")
-      );
-      const contentTypeValue = contentTypeHeader?.split(":")[1]?.trim();
-      const data = Buffer.from(rawBody.replace(/\r\n--$/, ""), "binary");
-      files.push({ fieldname, filename, contentType: contentTypeValue, data });
-    }
-
-    return { files };
-  };
 
   const getCookie = (req: Request, name: string) => {
     const cookieHeader = req.headers.cookie;
@@ -994,24 +948,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // UPLOADS
   // ========================================
 
-  app.post("/api/uploads", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/uploads", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
     try {
-      const { files } = await parseMultipart(req);
-      const uploadedFile = files.find((file) => file.fieldname === "file");
+      const uploadedFile = (req as any).file as { originalname: string; buffer: Buffer } | undefined;
       if (!uploadedFile) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const extension = path.extname(uploadedFile.filename);
+      const extension = path.extname(uploadedFile.originalname || "");
       const storedFilename = `${randomUUID()}${extension}`;
       const storedPath = path.join(uploadsPath, storedFilename);
-      await fs.promises.writeFile(storedPath, uploadedFile.data);
+      await fs.promises.writeFile(storedPath, uploadedFile.buffer);
 
       res.status(201).json({
-        filename: uploadedFile.filename,
+        filename: uploadedFile.originalname,
         url: `/uploads/${storedFilename}`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: "File too large" });
+      }
       res.status(400).json({ error: "Invalid upload data" });
     }
   });
