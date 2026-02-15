@@ -1,19 +1,19 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgGradCircle" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#050505"/>
-      <stop offset="100%" stop-color="#1A1A1A"/>
+    <linearGradient id="favBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B1B22"/>
+      <stop offset="100%" stop-color="#09090D"/>
     </linearGradient>
   </defs>
 
-  <circle cx="256" cy="256" r="238" fill="url(#bgGradCircle)"/>
+  <rect x="20" y="20" width="472" height="472" rx="120" fill="url(#favBg)"/>
 
   <circle
     cx="256"
     cy="256"
-    r="170"
+    r="132"
     fill="none"
-    stroke="#E6C36A"
+    stroke="#E8C77A"
     stroke-width="18"
   />
 
