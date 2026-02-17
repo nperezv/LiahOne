@@ -54,8 +54,10 @@ import {
   sendInterviewScheduledEmail,
   sendInterviewUpdatedEmail,
   sendInterviewCancelledEmail,
+  sendInterviewReminder24hEmail,
   sendOrganizationInterviewScheduledEmail,
   sendOrganizationInterviewCancelledEmail,
+  sendAssignmentDueReminderEmail,
   sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
   verifyAccessToken,
@@ -2120,6 +2122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (relatedAssignment) {
           await storage.updateAssignment(relatedAssignment.id, {
             status: "completada",
+            archivedAt: new Date(),
           });
 
           const currentUser = (req as any).user;
@@ -2528,7 +2531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           descriptionParts.push(`Notas: ${rest.notes}`);
         }
 
-        const assignment = await storage.createAssignment({
+        await storage.createAssignment({
           title: assignmentTitle,
           description: descriptionParts.join(" "),
           assignedTo: interview.interviewerId,
@@ -2538,23 +2541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           relatedTo: `interview:${interview.id}`,
         });
 
-        const notification = await storage.createNotification({
-          userId: interview.interviewerId,
-          type: "assignment_created",
-          title: "Nueva Asignación",
-          description: `Se te ha asignado: "${assignment.title}"`,
-          relatedId: assignment.id,
-          isRead: false,
-        });
-
-        if (isPushConfigured()) {
-          await sendPushNotification(interview.interviewerId, {
-            title: "Nueva Asignación",
-            body: `Se te ha asignado: "${assignment.title}"`,
-            url: "/assignments",
-            notificationId: notification.id,
-          });
-        }
+        // Evitamos notificación duplicada para entrevistas: ya existe notificación principal de entrevista.
       }
 
       // 🔔 Si lo solicita una organización, avisar al obispado
@@ -2655,6 +2642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: z
             .enum(["programada", "completada", "cancelada", "archivada"])
             .optional(),
+          cancellationReason: z.string().trim().min(3).max(1000).optional(),
         })
         .parse(updateData);
 
@@ -2688,7 +2676,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     
-      const interview = await storage.updateInterview(id, interviewData);
+      const normalizedCancellationReason = typeof interviewData.cancellationReason === "string"
+        ? interviewData.cancellationReason.trim()
+        : undefined;
+      if (interviewData.status === "cancelada" && !normalizedCancellationReason) {
+        return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+      }
+
+      const interviewUpdateData: any = { ...interviewData };
+      if (interviewData.status === "cancelada") {
+        interviewUpdateData.cancellationReason = normalizedCancellationReason;
+        interviewUpdateData.cancelledAt = new Date();
+        interviewUpdateData.archivedAt = new Date();
+      } else if (interviewData.status === "completada" || interviewData.status === "archivada") {
+        interviewUpdateData.archivedAt = new Date();
+      }
+
+      const interview = await storage.updateInterview(id, interviewUpdateData);
       if (!interview) {
         return res.status(404).json({ error: "Interview not found" });
       }
@@ -2808,9 +2812,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (relatedAssignment) {
-          if (interviewData.status === "cancelada") {
-            await storage.deleteAssignment(relatedAssignment.id);
-          } else {
           const updateAssignmentData: any = {};
 
           if (interviewData.date) {
@@ -2837,11 +2838,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (interviewData.status === "completada") {
             updateAssignmentData.status = "completada";
+            updateAssignmentData.archivedAt = new Date();
+          }
+
+          if (interviewData.status === "cancelada") {
+            updateAssignmentData.status = "cancelada";
+            updateAssignmentData.cancellationReason = normalizedCancellationReason || "Cancelada por cancelación de entrevista";
+            updateAssignmentData.cancelledAt = new Date();
+            updateAssignmentData.archivedAt = new Date();
           }
 
           if (Object.keys(updateAssignmentData).length > 0) {
             await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
-          }
           }
         } else if (interview.status === "programada" && interview.assignedToId) {
           const interviewDateValue = new Date(interview.date);
@@ -2876,6 +2884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             dueDate: interview.date,
             status: "pendiente",
             relatedTo: `interview:${interview.id}`,
+            archivedAt: null,
           });
         }
       }
@@ -3111,7 +3120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           descriptionParts.push(`Notas: ${interview.notes}`);
         }
 
-        const assignment = await storage.createAssignment({
+        await storage.createAssignment({
           title: assignmentTitle,
           description: descriptionParts.join(" "),
           assignedTo: interview.interviewerId,
@@ -3119,25 +3128,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dueDate: interview.date,
           status: "pendiente",
           relatedTo: `organization_interview:${interview.id}`,
+          archivedAt: null,
         });
 
-        const assignmentNotification = await storage.createNotification({
-          userId: interview.interviewerId,
-          type: "assignment_created",
-          title: "Nueva Asignación",
-          description: `Se te ha asignado: "${assignment.title}"`,
-          relatedId: assignment.id,
-          isRead: false,
-        });
-
-        if (isPushConfigured()) {
-          await sendPushNotification(interview.interviewerId, {
-            title: "Nueva Asignación",
-            body: `Se te ha asignado: "${assignment.title}"`,
-            url: "/assignments",
-            notificationId: assignmentNotification.id,
-          });
-        }
+        // Evitamos notificación duplicada para entrevistas de organización.
       }
   
       res.status(201).json(interview);
@@ -3188,7 +3182,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
     
         const updateData =
-          insertOrganizationInterviewSchema.partial().parse(req.body);
+          insertOrganizationInterviewSchema.partial().extend({
+            cancellationReason: z.string().trim().min(3).max(1000).optional(),
+          }).parse(req.body);
 
         const nextInterviewerId =
           updateData.interviewerId ?? interview.interviewerId;
@@ -3220,8 +3216,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
     
+        const normalizedCancellationReason = typeof updateData.cancellationReason === "string"
+          ? updateData.cancellationReason.trim()
+          : undefined;
+        if (updateData.status === "cancelada" && !normalizedCancellationReason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+
+        const organizationInterviewUpdateData: any = { ...updateData };
+        if (updateData.status === "cancelada") {
+          organizationInterviewUpdateData.cancellationReason = normalizedCancellationReason;
+          organizationInterviewUpdateData.cancelledAt = new Date();
+          organizationInterviewUpdateData.archivedAt = new Date();
+        } else if (updateData.status === "completada" || updateData.status === "archivada") {
+          organizationInterviewUpdateData.archivedAt = new Date();
+        }
+
         const updated =
-          await storage.updateOrganizationInterview(id, updateData);
+          await storage.updateOrganizationInterview(id, organizationInterviewUpdateData);
     
         if (!updated) {
           return res.status(404).json({ error: "No encontrada" });
@@ -3255,34 +3267,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           if (relatedAssignment) {
+            const updateAssignmentData: any = {};
+
+            if (updateData.date) {
+              const updatedDateValue = new Date(updated.date);
+              const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+              const updatedTime = updatedDateValue.toLocaleTimeString("es-ES", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+              updateAssignmentData.title = `Entrevista de organización - ${updatedDateTitle}, ${updatedTime} hrs.`;
+              updateAssignmentData.dueDate = updated.date;
+            }
+
+            if (updateData.status === "completada") {
+              updateAssignmentData.status = "completada";
+              updateAssignmentData.archivedAt = new Date();
+            }
+
             if (updateData.status === "cancelada") {
-              await storage.deleteAssignment(relatedAssignment.id);
-            } else {
-              const updateAssignmentData: any = {};
+              updateAssignmentData.status = "cancelada";
+              updateAssignmentData.cancellationReason = normalizedCancellationReason || "Cancelada por cancelación de entrevista";
+              updateAssignmentData.cancelledAt = new Date();
+              updateAssignmentData.archivedAt = new Date();
+            }
 
-              if (updateData.date) {
-                const updatedDateValue = new Date(updated.date);
-                const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                });
-                const updatedTime = updatedDateValue.toLocaleTimeString("es-ES", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                });
-                updateAssignmentData.title = `Entrevista de organización - ${updatedDateTitle}, ${updatedTime} hrs.`;
-                updateAssignmentData.dueDate = updated.date;
-              }
-
-              if (updateData.status === "completada") {
-                updateAssignmentData.status = "completada";
-              }
-
-              if (Object.keys(updateAssignmentData).length > 0) {
-                await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
-              }
+            if (Object.keys(updateAssignmentData).length > 0) {
+              await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
             }
           }
         }
@@ -4780,6 +4796,224 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  const wasReminderAlreadySentToday = async (userId: string, relatedId: string, title: string) => {
+    const existingNotifications = await storage.getNotificationsByUser(userId);
+    const todayKey = new Date().toDateString();
+    return existingNotifications.some((item) =>
+      item.type === "reminder" &&
+      item.relatedId === relatedId &&
+      item.title === title &&
+      new Date(item.createdAt).toDateString() === todayKey
+    );
+  };
+
+  const wasReminderAlreadySent = async (userId: string, relatedId: string, title: string) => {
+    const existingNotifications = await storage.getNotificationsByUser(userId);
+    return existingNotifications.some((item) =>
+      item.type === "reminder" &&
+      item.relatedId === relatedId &&
+      item.title === title
+    );
+  };
+
+  async function sendAutomaticInterviewAndAssignmentReminders() {
+    try {
+      const now = new Date();
+      const interviews = await storage.getAllInterviews();
+      const assignments = await storage.getAllAssignments();
+      const allUsers = await storage.getAllUsers();
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+      const usersById = new Map(allUsers.map((u) => [u.id, u]));
+
+      // Entrevistas: recordatorio 24h antes al entrevistado + push entrevistado/entrevistador
+      for (const interview of interviews) {
+        if (!interview || interview.status !== "programada") continue;
+        const interviewDate = new Date(interview.date);
+        const diffMs = interviewDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours < 23 || diffHours > 25) continue;
+
+        const interviewer = usersById.get(interview.interviewerId);
+        const interviewerName = interviewer?.name ? normalizeMemberName(interviewer.name) : undefined;
+        const interviewDateLabel = interviewDate.toLocaleDateString("es-ES", {
+          year: "numeric",
+          month: "long",
+          day: "2-digit",
+        });
+        const interviewTimeLabel = interviewDate.toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+
+        if (interview.assignedToId) {
+          const intervieweeUser = usersById.get(interview.assignedToId);
+          if (intervieweeUser?.email) {
+            const alreadySent = await wasReminderAlreadySentToday(
+              intervieweeUser.id,
+              interview.id,
+              "Recordatorio de entrevista (24h)"
+            );
+            if (!alreadySent) {
+              await sendInterviewReminder24hEmail({
+                toEmail: intervieweeUser.email,
+                recipientName: normalizeMemberName(intervieweeUser.name),
+                interviewDate: interviewDateLabel,
+                interviewTime: interviewTimeLabel,
+                interviewerName,
+                wardName,
+              });
+
+              const notification = await storage.createNotification({
+                userId: intervieweeUser.id,
+                type: "reminder",
+                title: "Recordatorio de entrevista (24h)",
+                description: `Tu entrevista es mañana (${interviewDateLabel} a las ${interviewTimeLabel}).`,
+                relatedId: interview.id,
+                eventDate: interview.date,
+                isRead: false,
+              });
+
+              if (isPushConfigured()) {
+                await sendPushNotification(intervieweeUser.id, {
+                  title: "Recordatorio de entrevista",
+                  body: "Tu entrevista es mañana.",
+                  url: "/interviews",
+                  notificationId: notification.id,
+                });
+              }
+            }
+          }
+        }
+
+        if (interview.interviewerId) {
+          const alreadySentToInterviewer = await wasReminderAlreadySentToday(
+            interview.interviewerId,
+            interview.id,
+            "Recordatorio para entrevistador (24h)"
+          );
+          if (!alreadySentToInterviewer) {
+            const reminder = await storage.createNotification({
+              userId: interview.interviewerId,
+              type: "reminder",
+              title: "Recordatorio para entrevistador (24h)",
+              description: `Mañana tienes entrevista con ${normalizeMemberName(interview.personName)}.`,
+              relatedId: interview.id,
+              eventDate: interview.date,
+              isRead: false,
+            });
+            if (isPushConfigured()) {
+              await sendPushNotification(interview.interviewerId, {
+                title: "Recordatorio de entrevista",
+                body: `Mañana: entrevista con ${normalizeMemberName(interview.personName)}.`,
+                url: "/interviews",
+                notificationId: reminder.id,
+              });
+            }
+          }
+        }
+      }
+
+      // Asignaciones no relacionadas a entrevistas:
+      // - push a mitad del plazo
+      // - push + email a 24h
+      for (const assignment of assignments) {
+        if (!assignment || (assignment.status !== "pendiente" && assignment.status !== "en_proceso")) continue;
+        if (!assignment.dueDate || !assignment.assignedTo) continue;
+        if (assignment.relatedTo?.startsWith("interview:") || assignment.relatedTo?.startsWith("organization_interview:")) {
+          continue;
+        }
+
+        const assignee = usersById.get(assignment.assignedTo);
+        if (!assignee) continue;
+
+        const createdAt = assignment.createdAt ? new Date(assignment.createdAt) : null;
+        const dueDate = new Date(assignment.dueDate);
+        if (!createdAt || Number.isNaN(createdAt.getTime()) || Number.isNaN(dueDate.getTime())) continue;
+
+        const totalMs = dueDate.getTime() - createdAt.getTime();
+        if (totalMs <= 0) continue;
+        const elapsedMs = now.getTime() - createdAt.getTime();
+        const remainingHours = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        const halfwayReached = elapsedMs >= totalMs / 2;
+        if (halfwayReached) {
+          const alreadySentHalfway = await wasReminderAlreadySent(
+            assignee.id,
+            assignment.id,
+            "Recordatorio de asignación (mitad del plazo)"
+          );
+          if (!alreadySentHalfway) {
+            const notification = await storage.createNotification({
+              userId: assignee.id,
+              type: "reminder",
+              title: "Recordatorio de asignación (mitad del plazo)",
+              description: `Sigue pendiente: "${assignment.title}".`,
+              relatedId: assignment.id,
+              eventDate: assignment.dueDate,
+              isRead: false,
+            });
+
+            if (isPushConfigured()) {
+              await sendPushNotification(assignee.id, {
+                title: "Recordatorio de asignación",
+                body: `Continúa pendiente: "${assignment.title}"`,
+                url: "/assignments",
+                notificationId: notification.id,
+              });
+            }
+          }
+        }
+
+        if (remainingHours >= 23 && remainingHours <= 25) {
+          const alreadySent24h = await wasReminderAlreadySentToday(
+            assignee.id,
+            assignment.id,
+            "Recordatorio de asignación (24h)"
+          );
+          if (!alreadySent24h) {
+            const dueLabel = dueDate.toLocaleDateString("es-ES", {
+              year: "numeric",
+              month: "long",
+              day: "2-digit",
+            });
+            const reminder = await storage.createNotification({
+              userId: assignee.id,
+              type: "reminder",
+              title: "Recordatorio de asignación (24h)",
+              description: `Tu asignación "${assignment.title}" vence mañana.`,
+              relatedId: assignment.id,
+              eventDate: assignment.dueDate,
+              isRead: false,
+            });
+
+            if (isPushConfigured()) {
+              await sendPushNotification(assignee.id, {
+                title: "Asignación por vencer",
+                body: `Mañana vence: "${assignment.title}"`,
+                url: "/assignments",
+                notificationId: reminder.id,
+              });
+            }
+
+            if (assignee.email) {
+              await sendAssignmentDueReminderEmail({
+                toEmail: assignee.email,
+                recipientName: normalizeMemberName(assignee.name),
+                assignmentTitle: assignment.title,
+                dueDate: dueLabel,
+                wardName,
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[Automatic Reminders] Error:", error);
+    }
+  }
+
   // ========================================
   // EVENTS (Integrated Calendar)
   // ========================================
@@ -5229,6 +5463,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const assignmentData = insertAssignmentSchema.partial().parse(req.body);
+      if (assignmentData.status === "cancelada") {
+        const reason = typeof assignmentData.cancellationReason === "string" ? assignmentData.cancellationReason.trim() : "";
+        if (!reason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+        assignmentData.cancellationReason = reason;
+        assignmentData.cancelledAt = new Date();
+        assignmentData.archivedAt = new Date();
+      } else if (assignmentData.status === "completada") {
+        assignmentData.archivedAt = new Date();
+      }
 
       const updatedAssignment = await storage.updateAssignment(id, assignmentData);
       if (!updatedAssignment) {
@@ -5239,6 +5484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pendiente: "pendiente",
         en_proceso: "en proceso",
         completada: "completada",
+        cancelada: "cancelada",
       };
       const statusText = assignmentData.status
         ? ` Estado: ${statusLabels[updatedAssignment.status] || updatedAssignment.status}.`
@@ -5764,6 +6010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
+  startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
 
   return httpServer;
 }

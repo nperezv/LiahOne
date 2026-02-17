@@ -565,11 +565,10 @@ export default function InterviewsPage() {
   // ✅ Ocultar archivadas por defecto
   const filteredInterviews = useMemo(() => {
     return filteredInterviewsRaw
-      .filter((i: any) =>
-        showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
-      )
+      .filter((i: any) => {
+        const isArchived = Boolean(i.archivedAt) || i.status === "completada" || i.status === "cancelada" || i.status === "archivada";
+        return showArchived ? isArchived : !isArchived;
+      })
       .sort(
         (a: any, b: any) =>
           new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -967,9 +966,10 @@ export default function InterviewsPage() {
   };
 
   const handleCancelInterview = (interviewId: string) => {
-    if (!window.confirm("¿Está seguro de que desea cancelar esta entrevista?")) return;
+    const reason = window.prompt("Indica el motivo de la cancelación");
+    if (!reason || !reason.trim()) return;
     updateMutation.mutate(
-      { id: interviewId, status: "cancelada" },
+      { id: interviewId, status: "cancelada", cancellationReason: reason.trim() },
       {
         onSuccess: () =>
           toast({ title: "Cancelada", description: "La entrevista se ha cancelado." }),

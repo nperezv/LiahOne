@@ -50,7 +50,7 @@ const assignmentSchema = z.object({
   description: z.string().optional(),
   assignedTo: z.string().min(1, "La persona es requerida"),
   dueDate: z.string().min(1, "La fecha de vencimiento es requerida"),
-  status: z.enum(["pendiente", "en_proceso", "completada"]),
+  status: z.enum(["pendiente", "en_proceso", "completada", "cancelada"]),
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -81,6 +81,7 @@ export default function Assignments() {
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
   const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (shouldAutoOpenCreate) {
@@ -102,7 +103,10 @@ export default function Assignments() {
   const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
-  const filteredAssignments = assignments;
+  const filteredAssignments = useMemo(() => assignments.filter((assignment: any) => {
+    const isArchived = Boolean(assignment.archivedAt) || assignment.status === "completada" || assignment.status === "cancelada";
+    return showArchived ? isArchived : !isArchived;
+  }), [assignments, showArchived]);
 
   // Check if user can delete an assignment
   const canDeleteAssignment = (assignment: any) => {
@@ -143,10 +147,11 @@ export default function Assignments() {
     });
   };
 
-  const updateStatus = (id: string, status: string) => {
+  const updateStatus = (id: string, status: string, cancellationReason?: string) => {
     updateMutation.mutate({
       id,
       status,
+      ...(cancellationReason ? { cancellationReason } : {}),
     });
   };
 
@@ -225,6 +230,20 @@ export default function Assignments() {
           <span className="sr-only lg:not-sr-only">Completar</span>
         </Button>
       ) : null}
+      {assignment.status !== "completada" && assignment.status !== "cancelada" && !isAutoCompleteAssignment(assignment) && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation();
+            const reason = window.prompt("Indica el motivo de la cancelación");
+            if (!reason || !reason.trim()) return;
+            updateStatus(assignment.id, "cancelada", reason.trim());
+          }}
+        >
+          <span className="sr-only lg:not-sr-only">Cancelar</span>
+        </Button>
+      )}
       {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
         <p className="text-xs text-muted-foreground">
           Se completará automáticamente al adjuntar comprobantes.
@@ -253,6 +272,7 @@ export default function Assignments() {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
+      cancelada: { variant: "secondary", label: "Cancelada" },
     };
 
     const config = variants[status] || variants.pendiente;
@@ -292,6 +312,12 @@ export default function Assignments() {
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>
           ) : null}
+          <Button
+            variant="outline"
+            onClick={() => setShowArchived((value) => !value)}
+          >
+            {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
+          </Button>
           <Button
             variant="outline"
             onClick={() => exportAssignments(assignments)}
@@ -409,6 +435,7 @@ export default function Assignments() {
                             <SelectItem value="pendiente">Pendiente</SelectItem>
                             <SelectItem value="en_proceso">En Proceso</SelectItem>
                             <SelectItem value="completada">Completada</SelectItem>
+                            <SelectItem value="cancelada">Cancelada</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -633,6 +660,7 @@ export default function Assignments() {
                         <SelectItem value="pendiente">Pendiente</SelectItem>
                         <SelectItem value="en_proceso">En proceso</SelectItem>
                         <SelectItem value="completada">Completada</SelectItem>
+                        <SelectItem value="cancelada">Cancelada</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
