@@ -8,6 +8,7 @@ import { useRoute, useLocation } from "wouter";
 import {
   Plus,
   Download,
+  ExternalLink,
   Trash2,
   CalendarDays,
   BookOpen,
@@ -54,7 +55,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth-tokens";
-import { downloadResourceFile } from "@/lib/resource-download";
+import { downloadResourceFile, openResourceFileInBrowser } from "@/lib/resource-download";
 
 const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
   if (typeof document !== "undefined" && "startViewTransition" in document) {
@@ -1577,24 +1578,42 @@ export default function PresidencyMeetingsPage() {
                   {resource.description ? (
                     <p className="mt-1 text-xs text-muted-foreground">{resource.description}</p>
                   ) : null}
-                  <Button
-                    className="mt-3"
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        await downloadResourceFile(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
-                      } catch {
-                        toast({
-                          title: "Error",
-                          description: "No se pudo descargar el recurso.",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <Download className="mr-2 h-4 w-4" /> Descargar
-                  </Button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                        } catch {
+                          toast({
+                            title: "Error",
+                            description: "No se pudo abrir el recurso.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" /> Abrir
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await downloadResourceFile(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                        } catch {
+                          toast({
+                            title: "Error",
+                            description: "No se pudo descargar el recurso.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <Download className="mr-2 h-4 w-4" /> Descargar
+                    </Button>
+                  </div>
                 </div>
               ))
             )}

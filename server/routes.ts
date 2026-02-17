@@ -987,6 +987,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeDownloadName = (requestedName || fallbackName)
         .replace(/[\r\n]/g, "")
         .replace(/[\\/]/g, "-");
+      const mode = req.query.mode === "inline" ? "inline" : "download";
+
+      if (mode === "inline") {
+        res.setHeader("Content-Disposition", `inline; filename="${safeDownloadName}"`);
+        return res.sendFile(absolutePath);
+      }
 
       res.download(absolutePath, safeDownloadName);
     } catch {
