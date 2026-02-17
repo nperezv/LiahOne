@@ -92,6 +92,7 @@ import {
   type UserDeletionRequest,
   type InsertUserDeletionRequest,
 } from "@shared/schema";
+import { isBirthdayToday } from "@shared/birthday-utils";
 
 export type DirectoryMember = Member & {
   organizationName: string | null;
@@ -1148,14 +1149,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTodayBirthdays(): Promise<Birthday[]> {
     const allBirthdays = await db.select().from(birthdays);
-    const today = new Date();
-    const todayMonth = today.getMonth();
-    const todayDay = today.getDate();
-    
-    return allBirthdays.filter(birthday => {
-      const birthDate = new Date(birthday.birthDate);
-      return birthDate.getMonth() === todayMonth && birthDate.getDate() === todayDay;
-    });
+    return allBirthdays.filter((birthday) => isBirthdayToday(birthday.birthDate));
   }
 
   async getBirthday(id: string): Promise<Birthday | undefined> {
