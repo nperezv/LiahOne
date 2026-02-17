@@ -74,6 +74,7 @@ import { useBirthdays, useCreateBirthday } from "@/hooks/use-api";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
+import { getDaysUntilBirthday } from "@shared/birthday-utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useSearch } from "wouter";
 
@@ -194,19 +195,7 @@ export default function BirthdaysPage() {
     }
   };
 
-  const calculateDaysUntil = (birthDate: string) => {
-    const today = new Date();
-    const birthday = new Date(birthDate);
-    const thisYearBirthday = new Date(today.getFullYear(), birthday.getMonth(), birthday.getDate());
-    
-    if (thisYearBirthday < today) {
-      thisYearBirthday.setFullYear(today.getFullYear() + 1);
-    }
-    
-    const diffTime = thisYearBirthday.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
+  const calculateDaysUntil = (birthDate: string) => getDaysUntilBirthday(birthDate);
 
   const visibleBirthdays = shouldFilterByOriginOrganization
     ? birthdays.filter((b: any) => b.organizationId === originOrgId)
