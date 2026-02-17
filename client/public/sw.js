@@ -1,9 +1,10 @@
-const CACHE_NAME = 'liahonaap-v3';
+const CACHE_NAME = 'liahonaap-v4';
 const STATIC_ASSETS = [
   '/',
-  '/manifest.json?v=3',
+  '/manifest.json?v=4',
   '/favicon.svg',
-  '/icons/icon.svg?v=3',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -11,7 +12,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
         console.log('Some static assets failed to cache:', err);
-        return cache.addAll(['/', '/manifest.json?v=3']);
+        return cache.addAll(['/', '/manifest.json?v=4']);
       });
     })
   );
@@ -106,8 +107,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body || data.description || '',
-    icon: '/icons/icon.svg?v=3',
-    badge: '/icons/icon.svg?v=3',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
     vibrate: [200, 100, 200],
     tag: data.tag || 'liahonaap-notification',
     renotify: true,
