@@ -103,9 +103,10 @@ export default function Assignments() {
   const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
-  const filteredAssignments = useMemo(() => assignments.filter((assignment: any) =>
-    showArchived ? Boolean(assignment.archivedAt) : !assignment.archivedAt
-  ), [assignments, showArchived]);
+  const filteredAssignments = useMemo(() => assignments.filter((assignment: any) => {
+    const isArchived = Boolean(assignment.archivedAt) || assignment.status === "completada" || assignment.status === "cancelada";
+    return showArchived ? isArchived : !isArchived;
+  }), [assignments, showArchived]);
 
   // Check if user can delete an assignment
   const canDeleteAssignment = (assignment: any) => {

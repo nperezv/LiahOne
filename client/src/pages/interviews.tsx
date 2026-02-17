@@ -565,11 +565,10 @@ export default function InterviewsPage() {
   // ✅ Ocultar archivadas por defecto
   const filteredInterviews = useMemo(() => {
     return filteredInterviewsRaw
-      .filter((i: any) =>
-        showArchived
-          ? Boolean(i.archivedAt)
-          : !i.archivedAt
-      )
+      .filter((i: any) => {
+        const isArchived = Boolean(i.archivedAt) || i.status === "completada" || i.status === "cancelada" || i.status === "archivada";
+        return showArchived ? isArchived : !isArchived;
+      })
       .sort(
         (a: any, b: any) =>
           new Date(a.date).getTime() - new Date(b.date).getTime()
