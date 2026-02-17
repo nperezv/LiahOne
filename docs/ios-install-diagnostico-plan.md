@@ -76,3 +76,16 @@ Si el objetivo es distribuir por TestFlight/App Store:
 - iOS impone limitaciones de PWA (instalación manual, soporte parcial en algunas APIs).
 - El backend debe mantenerse estable por HTTPS para asegurar comportamiento instalable.
 - Cambios de rotación pueden requerir refactor de componentes con layouts rígidos.
+
+
+## Nota específica para Android (rotación no cambia tras deploy)
+
+Si en Android no rota aunque el manifest diga `"orientation": "any"`, normalmente es por **cache del manifest / WebAPK antiguo**.
+
+Checklist rápido:
+- Desinstalar la app PWA instalada del home screen.
+- En Chrome Android: borrar datos del sitio (Storage + service worker).
+- Abrir de nuevo la URL y reinstalar.
+- Confirmar que la rotación del sistema no esté bloqueada.
+
+Además, en este ajuste se subió el versionado de cache/manifest (`v4`) para forzar actualización de clientes que venían con `v3`.
