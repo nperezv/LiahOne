@@ -567,8 +567,8 @@ export default function InterviewsPage() {
     return filteredInterviewsRaw
       .filter((i: any) =>
         showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
+          ? Boolean(i.archivedAt)
+          : !i.archivedAt
       )
       .sort(
         (a: any, b: any) =>
@@ -967,9 +967,10 @@ export default function InterviewsPage() {
   };
 
   const handleCancelInterview = (interviewId: string) => {
-    if (!window.confirm("¿Está seguro de que desea cancelar esta entrevista?")) return;
+    const reason = window.prompt("Indica el motivo de la cancelación");
+    if (!reason || !reason.trim()) return;
     updateMutation.mutate(
-      { id: interviewId, status: "cancelada" },
+      { id: interviewId, status: "cancelada", cancellationReason: reason.trim() },
       {
         onSuccess: () =>
           toast({ title: "Cancelada", description: "La entrevista se ha cancelado." }),

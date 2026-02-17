@@ -323,8 +323,8 @@ export default function OrganizationInterviewsPage() {
     return interviews
       .filter((i: any) =>
         showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
+          ? Boolean(i.archivedAt)
+          : !i.archivedAt
       )
       .sort(
         (a: any, b: any) =>
@@ -444,7 +444,9 @@ export default function OrganizationInterviewsPage() {
   };
 
   const handleCancel = (id: string) => {
-    updateMutation.mutate({ id, status: "cancelada" });
+    const reason = window.prompt("Indica el motivo de la cancelación");
+    if (!reason || !reason.trim()) return;
+    updateMutation.mutate({ id, status: "cancelada", cancellationReason: reason.trim() });
   };
 
   const handleEditClick = (interview: any) => {
