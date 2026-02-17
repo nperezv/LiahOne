@@ -68,6 +68,7 @@ import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeMemberName } from "@/lib/utils";
 import { useLocation, useSearch } from "wouter";
 
 const birthdaySchema = z.object({
@@ -131,7 +132,7 @@ export default function BirthdaysPage() {
   const handleEditBirthday = (birthday: any) => {
     setEditingBirthdayId(birthday.id);
     form.reset({
-      name: birthday.name,
+      name: normalizeMemberName(birthday.name),
       birthDate: new Date(birthday.birthDate).toISOString().split('T')[0],
       email: birthday.email || "",
       phone: birthday.phone || "",
@@ -154,7 +155,7 @@ export default function BirthdaysPage() {
 
   const onSubmit = (data: BirthdayFormValues) => {
     const payload = {
-      name: data.name,
+      name: normalizeMemberName(data.name),
       birthDate: data.birthDate,
       email: data.email || "",
       phone: data.phone || "",
@@ -195,6 +196,7 @@ export default function BirthdaysPage() {
 
   const birthdaysWithDays = visibleBirthdays.map((b: any) => ({
     ...b,
+    name: normalizeMemberName(b.name),
     daysUntil: calculateDaysUntil(b.birthDate),
     nextAge: getAgeTurningOnNextBirthday(b.birthDate),
   }));
@@ -203,9 +205,9 @@ export default function BirthdaysPage() {
     (a: any, b: any) => a.daysUntil - b.daysUntil
   );
   
-  const upcomingBirthdays = showOnly30Days
+  const upcomingBirthdays = (showOnly30Days
     ? allBirthdaysSorted.filter((b: any) => b.daysUntil <= 30)
-    : allBirthdaysSorted;
+    : allBirthdaysSorted).filter((b: any) => b.daysUntil > 0);
 
   const todaysBirthdays = birthdaysWithDays.filter((b: any) => b.daysUntil === 0);
 

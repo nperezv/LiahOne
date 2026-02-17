@@ -29,7 +29,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCallingLabel } from "@/lib/callings";
 import { useAuth } from "@/lib/auth";
-import { cn } from "@/lib/utils";
+import { cn, normalizeMemberName } from "@/lib/utils";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
 
@@ -464,6 +464,7 @@ export default function PresidencyManageOrganizationPage() {
       .filter((birthday: any) => !birthday.organizationId || birthday.organizationId === organizationId)
       .map((birthday: any) => ({
         ...birthday,
+        name: normalizeMemberName(birthday.name),
         daysUntil: getDaysUntilBirthday(birthday.birthDate, today),
         nextAge: getAgeTurningOnNextBirthday(birthday.birthDate, today),
       }))
