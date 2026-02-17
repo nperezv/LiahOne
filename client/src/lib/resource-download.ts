@@ -37,13 +37,27 @@ export async function downloadResourceFile(url: string, placeholderName: string,
   URL.revokeObjectURL(blobUrl);
 }
 
-export function openResourceFileInBrowser(url: string, placeholderName: string, originalFilename: string) {
+export async function openResourceFileInBrowser(url: string, placeholderName: string, originalFilename: string) {
   const extension = getFileExtension(originalFilename);
   const safeName = `${placeholderName || "recurso"}${extension}`;
   const openUrl = buildResourceFileUrl(url, safeName, "inline");
-  const popup = window.open(openUrl, "_blank", "noopener,noreferrer");
 
-  if (!popup) {
-    window.location.assign(openUrl);
+  const response = await fetchWithAuthRetry(openUrl, { method: "GET" });
+  if (!response.ok) {
+    throw new Error("No se pudo abrir el archivo");
   }
+
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(blobUrl);
+  }, 60_000);
 }

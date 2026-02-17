@@ -1582,9 +1582,9 @@ export default function PresidencyMeetingsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
+                      onClick={async () => {
                         try {
-                          openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                          await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
                         } catch {
                           toast({
                             title: "Error",
