@@ -1,4 +1,5 @@
 let accessToken: string | null = null;
+let refreshRequest: Promise<string | null> | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -9,19 +10,38 @@ export function getAccessToken() {
 }
 
 export async function refreshAccessToken() {
-  const res = await fetch("/api/auth/refresh", {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    setAccessToken(null);
-    return null;
+  if (refreshRequest) {
+    return refreshRequest;
   }
 
-  const data = await res.json();
-  setAccessToken(data.accessToken ?? null);
-  return data.accessToken ?? null;
+  refreshRequest = (async () => {
+    try {
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        // Solo limpiamos el token local cuando el servidor confirma que la sesión
+        // ya no es válida. Para errores transitorios (5xx/red) evitamos expulsar
+        // al usuario inmediatamente.
+        if (res.status === 401 || res.status === 403) {
+          setAccessToken(null);
+        }
+        return null;
+      }
+
+      const data = await res.json();
+      setAccessToken(data.accessToken ?? null);
+      return data.accessToken ?? null;
+    } catch (error) {
+      return null;
+    } finally {
+      refreshRequest = null;
+    }
+  })();
+
+  return refreshRequest;
 }
 
 export async function fetchWithAuthRetry(input: RequestInfo, init?: RequestInit) {
