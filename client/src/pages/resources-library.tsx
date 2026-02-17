@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Download, Loader2, Trash2, Upload } from "lucide-react";
+import { Download, ExternalLink, Loader2, Trash2, Upload } from "lucide-react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
-import { downloadResourceFile } from "@/lib/resource-download";
+import { downloadResourceFile, openResourceFileInBrowser } from "@/lib/resource-download";
 import {
   useCreatePresidencyResource,
   useDeletePresidencyResource,
@@ -33,6 +33,7 @@ import {
   usePresidencyResources,
 } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const libraryAdminRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
 const orgRoles = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"];
@@ -77,11 +78,14 @@ const resourceTypeLabel: Record<ResourceType, string> = {
   plantilla: "Plantilla",
 };
 
+const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
+
 
 export default function ResourcesLibraryPage() {
   const { user } = useAuth();
   const [location] = useLocation();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const isLibraryAdmin = libraryAdminRoles.includes(user?.role ?? "");
   const isOrgUser = orgRoles.includes(user?.role ?? "");
 
@@ -303,22 +307,42 @@ export default function ResourcesLibraryPage() {
                         <a href={resource.fileUrl} target="_blank" rel="noopener noreferrer">Ver video</a>
                       </Button>
                     ) : (
-                      <Button
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            await downloadResourceFile(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
-                          } catch {
-                            toast({
-                              title: "Error",
-                              description: "No se pudo descargar el recurso.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                      >
-                        <Download className="mr-2 h-4 w-4" /> Descargar
-                      </Button>
+                      <>
+                        {!(isMobile && isPdfFile(resource.fileName)) && (
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                              } catch {
+                                toast({
+                                  title: "Error",
+                                  description: "No se pudo abrir el recurso.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" /> Abrir
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await downloadResourceFile(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                            } catch {
+                              toast({
+                                title: "Error",
+                                description: "No se pudo descargar el recurso.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          <Download className="mr-2 h-4 w-4" /> {isMobile && isPdfFile(resource.fileName) ? "Descargar (recomendado)" : "Descargar"}
+                        </Button>
+                      </>
                     )}
                     {isLibraryAdmin && (
                       <Button variant="destructive" onClick={() => deleteResource.mutate(resource.id)} disabled={deleteResource.isPending}>
