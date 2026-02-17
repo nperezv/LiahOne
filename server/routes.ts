@@ -2123,6 +2123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (relatedAssignment) {
           await storage.updateAssignment(relatedAssignment.id, {
             status: "completada",
+            archivedAt: new Date(),
           });
 
           const currentUser = (req as any).user;
@@ -2642,6 +2643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: z
             .enum(["programada", "completada", "cancelada", "archivada"])
             .optional(),
+          cancellationReason: z.string().trim().min(3).max(1000).optional(),
         })
         .parse(updateData);
 
@@ -2675,7 +2677,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     
-      const interview = await storage.updateInterview(id, interviewData);
+      const normalizedCancellationReason = typeof interviewData.cancellationReason === "string"
+        ? interviewData.cancellationReason.trim()
+        : undefined;
+      if (interviewData.status === "cancelada" && !normalizedCancellationReason) {
+        return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+      }
+
+      const interviewUpdateData: any = { ...interviewData };
+      if (interviewData.status === "cancelada") {
+        interviewUpdateData.cancellationReason = normalizedCancellationReason;
+        interviewUpdateData.cancelledAt = new Date();
+        interviewUpdateData.archivedAt = new Date();
+      } else if (interviewData.status === "completada" || interviewData.status === "archivada") {
+        interviewUpdateData.archivedAt = new Date();
+      }
+
+      const interview = await storage.updateInterview(id, interviewUpdateData);
       if (!interview) {
         return res.status(404).json({ error: "Interview not found" });
       }
@@ -2795,9 +2813,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (relatedAssignment) {
-          if (interviewData.status === "cancelada") {
-            await storage.deleteAssignment(relatedAssignment.id);
-          } else {
           const updateAssignmentData: any = {};
 
           if (interviewData.date) {
@@ -2824,11 +2839,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (interviewData.status === "completada") {
             updateAssignmentData.status = "completada";
+            updateAssignmentData.archivedAt = new Date();
+          }
+
+          if (interviewData.status === "cancelada") {
+            updateAssignmentData.status = "cancelada";
+            updateAssignmentData.cancellationReason = normalizedCancellationReason || "Cancelada por cancelación de entrevista";
+            updateAssignmentData.cancelledAt = new Date();
+            updateAssignmentData.archivedAt = new Date();
           }
 
           if (Object.keys(updateAssignmentData).length > 0) {
             await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
-          }
           }
         } else if (interview.status === "programada" && interview.assignedToId) {
           const interviewDateValue = new Date(interview.date);
@@ -2863,6 +2885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             dueDate: interview.date,
             status: "pendiente",
             relatedTo: `interview:${interview.id}`,
+            archivedAt: null,
           });
         }
       }
@@ -3106,6 +3129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dueDate: interview.date,
           status: "pendiente",
           relatedTo: `organization_interview:${interview.id}`,
+          archivedAt: null,
         });
 
         // Evitamos notificación duplicada para entrevistas de organización.
@@ -3159,7 +3183,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
     
         const updateData =
-          insertOrganizationInterviewSchema.partial().parse(req.body);
+          insertOrganizationInterviewSchema.partial().extend({
+            cancellationReason: z.string().trim().min(3).max(1000).optional(),
+          }).parse(req.body);
 
         const nextInterviewerId =
           updateData.interviewerId ?? interview.interviewerId;
@@ -3191,8 +3217,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
     
+        const normalizedCancellationReason = typeof updateData.cancellationReason === "string"
+          ? updateData.cancellationReason.trim()
+          : undefined;
+        if (updateData.status === "cancelada" && !normalizedCancellationReason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+
+        const organizationInterviewUpdateData: any = { ...updateData };
+        if (updateData.status === "cancelada") {
+          organizationInterviewUpdateData.cancellationReason = normalizedCancellationReason;
+          organizationInterviewUpdateData.cancelledAt = new Date();
+          organizationInterviewUpdateData.archivedAt = new Date();
+        } else if (updateData.status === "completada" || updateData.status === "archivada") {
+          organizationInterviewUpdateData.archivedAt = new Date();
+        }
+
         const updated =
-          await storage.updateOrganizationInterview(id, updateData);
+          await storage.updateOrganizationInterview(id, organizationInterviewUpdateData);
     
         if (!updated) {
           return res.status(404).json({ error: "No encontrada" });
@@ -3226,34 +3268,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           if (relatedAssignment) {
+            const updateAssignmentData: any = {};
+
+            if (updateData.date) {
+              const updatedDateValue = new Date(updated.date);
+              const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+              const updatedTime = updatedDateValue.toLocaleTimeString("es-ES", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+              updateAssignmentData.title = `Entrevista de organización - ${updatedDateTitle}, ${updatedTime} hrs.`;
+              updateAssignmentData.dueDate = updated.date;
+            }
+
+            if (updateData.status === "completada") {
+              updateAssignmentData.status = "completada";
+              updateAssignmentData.archivedAt = new Date();
+            }
+
             if (updateData.status === "cancelada") {
-              await storage.deleteAssignment(relatedAssignment.id);
-            } else {
-              const updateAssignmentData: any = {};
+              updateAssignmentData.status = "cancelada";
+              updateAssignmentData.cancellationReason = normalizedCancellationReason || "Cancelada por cancelación de entrevista";
+              updateAssignmentData.cancelledAt = new Date();
+              updateAssignmentData.archivedAt = new Date();
+            }
 
-              if (updateData.date) {
-                const updatedDateValue = new Date(updated.date);
-                const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                });
-                const updatedTime = updatedDateValue.toLocaleTimeString("es-ES", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                });
-                updateAssignmentData.title = `Entrevista de organización - ${updatedDateTitle}, ${updatedTime} hrs.`;
-                updateAssignmentData.dueDate = updated.date;
-              }
-
-              if (updateData.status === "completada") {
-                updateAssignmentData.status = "completada";
-              }
-
-              if (Object.keys(updateAssignmentData).length > 0) {
-                await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
-              }
+            if (Object.keys(updateAssignmentData).length > 0) {
+              await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
             }
           }
         }
@@ -5421,6 +5467,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const assignmentData = insertAssignmentSchema.partial().parse(req.body);
+      if (assignmentData.status === "cancelada") {
+        const reason = typeof assignmentData.cancellationReason === "string" ? assignmentData.cancellationReason.trim() : "";
+        if (!reason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+        assignmentData.cancellationReason = reason;
+        assignmentData.cancelledAt = new Date();
+        assignmentData.archivedAt = new Date();
+      } else if (assignmentData.status === "completada") {
+        assignmentData.archivedAt = new Date();
+      }
 
       const updatedAssignment = await storage.updateAssignment(id, assignmentData);
       if (!updatedAssignment) {
@@ -5431,6 +5488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pendiente: "pendiente",
         en_proceso: "en proceso",
         completada: "completada",
+        cancelada: "cancelada",
       };
       const statusText = assignmentData.status
         ? ` Estado: ${statusLabels[updatedAssignment.status] || updatedAssignment.status}.`

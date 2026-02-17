@@ -171,6 +171,7 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "pendiente",
   "en_proceso",
   "completada",
+  "cancelada",
 ]);
 
 export const presidencyResourceCategoryEnum = pgEnum("presidency_resource_category", [
@@ -480,6 +481,9 @@ export const interviews = pgTable("interviews", {
   status: interviewStatusEnum("status").default("programada").notNull(),
   urgent: boolean("urgent").default(false).notNull(),
   notes: text("notes"),
+  cancellationReason: text("cancellation_reason"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   assignedBy: varchar("assigned_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -496,6 +500,9 @@ export const organizationInterviews = pgTable("organization_interviews", {
   urgent: boolean("urgent").default(false).notNull(),
   confidential: boolean("confidential").default(false).notNull(),
   notes: text("notes"),
+  cancellationReason: text("cancellation_reason"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -545,6 +552,9 @@ export const assignments = pgTable("assignments", {
   status: assignmentStatusEnum("status").notNull().default("pendiente"),
   relatedTo: text("related_to"), // Reference to council or meeting
   notes: text("notes"),
+  cancellationReason: text("cancellation_reason"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
