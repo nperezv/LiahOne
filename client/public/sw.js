@@ -3,7 +3,8 @@ const STATIC_ASSETS = [
   '/',
   '/manifest.json?v=3',
   '/favicon.svg',
-  '/icons/icon.svg?v=3',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -106,8 +107,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body || data.description || '',
-    icon: '/icons/icon.svg?v=3',
-    badge: '/icons/icon.svg?v=3',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
     vibrate: [200, 100, 200],
     tag: data.tag || 'liahonaap-notification',
     renotify: true,
