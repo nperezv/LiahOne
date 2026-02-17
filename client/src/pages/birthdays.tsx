@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Cake, Send, Mail, Pencil, Trash2, Phone, ArrowLeft } from "lucide-react";
+import { Plus, Cake, Send, Mail, Pencil, Trash2, Phone, ArrowLeft, CalendarDays } from "lucide-react";
 
 // Random birthday greetings and images
 const BIRTHDAY_PHRASES = [
@@ -59,14 +59,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -74,7 +66,7 @@ import { useBirthdays, useCreateBirthday } from "@/hooks/use-api";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
-import { getDaysUntilBirthday } from "@shared/birthday-utils";
+import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useSearch } from "wouter";
 
@@ -204,6 +196,7 @@ export default function BirthdaysPage() {
   const birthdaysWithDays = visibleBirthdays.map((b: any) => ({
     ...b,
     daysUntil: calculateDaysUntil(b.birthDate),
+    nextAge: getAgeTurningOnNextBirthday(b.birthDate),
   }));
 
   const allBirthdaysSorted = birthdaysWithDays.sort(
@@ -544,115 +537,99 @@ export default function BirthdaysPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead>Días Restantes</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {upcomingBirthdays.length > 0 ? (
-                upcomingBirthdays.map((birthday: any) => (
-                  <TableRow key={birthday.id} data-testid={`row-birthday-${birthday.id}`}>
-                    <TableCell className="font-medium">{birthday.name}</TableCell>
-                    <TableCell>
-                      {new Date(birthday.birthDate).toLocaleDateString("es-ES", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {birthday.phone || "-"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={birthday.daysUntil === 0 ? "default" : "outline"}>
-                        {birthday.daysUntil === 0 ? "Hoy" : `${birthday.daysUntil} días`}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => handleEditBirthday(birthday)}
-                          data-testid={`button-edit-${birthday.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => {
-                            apiRequest("DELETE", `/api/birthdays/${birthday.id}`).then(() => {
-                              queryClient.invalidateQueries({ queryKey: ["/api/birthdays"] });
-                              toast({
-                                title: "Cumpleaño eliminado",
-                                description: "El cumpleaño ha sido eliminado exitosamente.",
-                              });
-                            }).catch(() => {
-                              toast({
-                                title: "Error",
-                                description: "No se pudo eliminar el cumpleaño. Intenta nuevamente.",
-                                variant: "destructive",
-                              });
-                            });
-                          }}
-                          data-testid={`button-delete-${birthday.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        {(birthday.email || birthday.phone) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openSendDialog(birthday)}
-                            data-testid={`button-send-${birthday.id}`}
-                          >
-                            {birthday.phone ? (
-                              <>
-                                <Send className="h-4 w-4 mr-1" />
-                                WhatsApp
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="h-4 w-4 mr-1" />
-                                Email
-                              </>
-                            )}
-                          </Button>
-                        )}
-                        {birthday.phone && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            asChild
-                            data-testid={`button-call-${birthday.id}`}
-                          >
-                            <a href={`tel:${birthday.phone}`}>
-                              <Phone className="mr-1 h-4 w-4" />
-                              Llamar
-                            </a>
-                          </Button>
-                        )}
+          {upcomingBirthdays.length > 0 ? (
+            <div className="space-y-3">
+              {upcomingBirthdays.map((birthday: any) => (
+                <div
+                  key={birthday.id}
+                  data-testid={`row-birthday-${birthday.id}`}
+                  className="rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold leading-tight">{birthday.name}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>{formatBirthdayMonthDay(birthday.birthDate, "es-ES")}</span>
+                        {typeof birthday.nextAge === "number" ? <span>· Cumple {birthday.nextAge}</span> : null}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No hay cumpleaños próximos
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                    <Badge variant={birthday.daysUntil === 0 ? "default" : "outline"}>
+                      {birthday.daysUntil === 0 ? "Hoy" : birthday.daysUntil === 1 ? "Mañana" : `${birthday.daysUntil} días`}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditBirthday(birthday)}
+                      data-testid={`button-edit-${birthday.id}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        apiRequest("DELETE", `/api/birthdays/${birthday.id}`).then(() => {
+                          queryClient.invalidateQueries({ queryKey: ["/api/birthdays"] });
+                          toast({
+                            title: "Cumpleaño eliminado",
+                            description: "El cumpleaño ha sido eliminado exitosamente.",
+                          });
+                        }).catch(() => {
+                          toast({
+                            title: "Error",
+                            description: "No se pudo eliminar el cumpleaño. Intenta nuevamente.",
+                            variant: "destructive",
+                          });
+                        });
+                      }}
+                      data-testid={`button-delete-${birthday.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    {(birthday.email || birthday.phone) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openSendDialog(birthday)}
+                        data-testid={`button-send-${birthday.id}`}
+                      >
+                        {birthday.phone ? (
+                          <>
+                            <Send className="mr-1 h-4 w-4" />
+                            WhatsApp
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="mr-1 h-4 w-4" />
+                            Email
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {birthday.phone && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        asChild
+                        data-testid={`button-call-${birthday.id}`}
+                      >
+                        <a href={`tel:${birthday.phone}`}>
+                          <Phone className="mr-1 h-4 w-4" />
+                          Llamar
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="py-8 text-center text-muted-foreground">No hay cumpleaños próximos</p>
+          )}
         </CardContent>
       </Card>
 

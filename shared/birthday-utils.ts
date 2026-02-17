@@ -25,12 +25,32 @@ export function getDaysUntilBirthday(birthDate: string | Date, referenceDate: Da
   const today = new Date(referenceDate);
   today.setHours(0, 0, 0, 0);
 
+  const nextBirthday = getNextBirthdayDate(birthDate, today);
+
+  return Math.round((nextBirthday.getTime() - today.getTime()) / MS_PER_DAY);
+}
+
+export function getNextBirthdayDate(birthDate: string | Date, referenceDate: Date = new Date()): Date {
+  const { month, day } = getBirthdayMonthDay(birthDate);
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+
   let nextBirthday = new Date(today.getFullYear(), month, day);
   if (nextBirthday < today) {
     nextBirthday = new Date(today.getFullYear() + 1, month, day);
   }
 
-  return Math.round((nextBirthday.getTime() - today.getTime()) / MS_PER_DAY);
+  return nextBirthday;
+}
+
+export function getAgeTurningOnNextBirthday(birthDate: string | Date, referenceDate: Date = new Date()): number | null {
+  const parsedDate = birthDate instanceof Date ? birthDate : new Date(birthDate);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  const nextBirthday = getNextBirthdayDate(birthDate, referenceDate);
+  return nextBirthday.getFullYear() - parsedDate.getUTCFullYear();
 }
 
 export function isBirthdayToday(birthDate: string | Date, referenceDate: Date = new Date()): boolean {
