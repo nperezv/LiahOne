@@ -60,6 +60,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
 
+const buildUniqueTemplateName = (baseName: string) => {
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+  return `${baseName}-${stamp}`;
+};
+
 const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
   if (typeof document !== "undefined" && "startViewTransition" in document) {
     (document as any).startViewTransition(() => navigate(path));
@@ -425,6 +431,17 @@ export default function PresidencyMeetingsPage() {
     organizationId,
     category: selectedResourcesCategory,
   });
+  const { data: budgetTemplateResources = [] } = usePresidencyResources({
+    organizationId,
+    category: "plantillas",
+  });
+
+  const suggestedBudgetTemplate = useMemo(() => {
+    if (!Array.isArray(budgetTemplateResources)) return undefined;
+    return budgetTemplateResources.find((resource: any) => /presupuesto|budget|gasto|reembolso/i.test(`${resource.placeholderName ?? ""} ${resource.title ?? ""} ${resource.description ?? ""}`))
+      ?? budgetTemplateResources.find((resource: any) => resource.resourceType !== "video")
+      ?? budgetTemplateResources[0];
+  }, [budgetTemplateResources]);
 
   const strictSectionResources = useMemo(
     () => sectionResources.filter((resource: any) => resource.category === selectedResourcesCategory),
@@ -1420,6 +1437,33 @@ export default function PresidencyMeetingsPage() {
           </DialogHeader>
           <Form {...budgetRequestForm}>
             <form onSubmit={budgetRequestForm.handleSubmit(onSubmitBudgetRequest)} className="space-y-4">
+              {suggestedBudgetTemplate && suggestedBudgetTemplate.resourceType !== "video" && (
+                <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
+                  <p className="text-sm font-medium">Plantilla recomendada para solicitud</p>
+                  <p className="text-xs text-muted-foreground">Descárgala y complétala antes de enviar la solicitud para evitar errores.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={async () => {
+                      try {
+                        const uniqueName = buildUniqueTemplateName(suggestedBudgetTemplate.placeholderName || suggestedBudgetTemplate.title || "plantilla-presupuesto");
+                        await downloadResourceFile(suggestedBudgetTemplate.fileUrl, uniqueName, suggestedBudgetTemplate.fileName);
+                      } catch {
+                        toast({
+                          title: "Error",
+                          description: "No se pudo descargar la plantilla recomendada.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Descargar plantilla
+                  </Button>
+                </div>
+              )}
+
               <FormField control={budgetRequestForm.control} name="description" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Descripción</FormLabel>
@@ -1617,7 +1661,7 @@ export default function PresidencyMeetingsPage() {
                         }
                       }}
                     >
-                      <Download className="mr-2 h-4 w-4" /> {isMobile && isPdfFile(resource.fileName) ? "Descargar (recomendado)" : "Descargar"}
+                      <Download className="mr-2 h-4 w-4" /> Descargar
                     </Button>
                   </div>
                 </div>
