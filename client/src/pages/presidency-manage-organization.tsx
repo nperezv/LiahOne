@@ -31,6 +31,7 @@ import { formatCallingLabel } from "@/lib/callings";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
+import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
@@ -456,10 +457,18 @@ export default function PresidencyManageOrganizationPage() {
     [assignmentsForOrganization]
   );
 
-  const organizationBirthdays = useMemo(
-    () => (birthdays as any[]).filter((birthday: any) => !birthday.organizationId || birthday.organizationId === organizationId),
-    [birthdays, organizationId]
-  );
+  const organizationBirthdays = useMemo(() => {
+    const today = new Date();
+
+    return (birthdays as any[])
+      .filter((birthday: any) => !birthday.organizationId || birthday.organizationId === organizationId)
+      .map((birthday: any) => ({
+        ...birthday,
+        daysUntil: getDaysUntilBirthday(birthday.birthDate, today),
+        nextAge: getAgeTurningOnNextBirthday(birthday.birthDate, today),
+      }))
+      .sort((a: any, b: any) => a.daysUntil - b.daysUntil);
+  }, [birthdays, organizationId]);
   const birthdayPreview = organizationBirthdays.slice(0, 3);
 
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
@@ -806,9 +815,16 @@ export default function PresidencyManageOrganizationPage() {
           {expandedCards.birthdays ? (
             <CardContent className="space-y-3">
               {birthdayPreview.length > 0 ? birthdayPreview.map((birthday: any) => (
-                <div key={birthday.id} className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-sm">
-                  <p className="font-medium">{birthday.name}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(birthday.birthDate).toLocaleDateString("es-ES", { day: "2-digit", month: "long" })}</p>
+                <div key={birthday.id} className="rounded-2xl border border-border/70 bg-card px-3 py-2 text-sm shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{birthday.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatBirthdayMonthDay(birthday.birthDate, "es-ES")}{typeof birthday.nextAge === "number" ? ` · Cumple ${birthday.nextAge}` : ""}</p>
+                    </div>
+                    <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {birthday.daysUntil === 0 ? "Hoy" : birthday.daysUntil === 1 ? "Mañana" : `${birthday.daysUntil} días`}
+                    </span>
+                  </div>
                 </div>
               )) : <p className="text-sm text-muted-foreground">No hay cumpleaños registrados.</p>}
               <Button variant="outline" className="w-full rounded-full" onClick={() => {

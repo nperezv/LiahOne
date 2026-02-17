@@ -35,6 +35,7 @@ import {
   organizationInterviews,
 } from "@shared/schema";
 import { z } from "zod";
+import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import {
@@ -4278,12 +4279,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : 0,
         } : undefined,
         upcomingBirthdays: birthdays
-          .filter(b => b)
-          .map(b => ({
+          .filter((b) => b)
+          .map((b) => ({
             name: b.name,
-            date: new Date(b.birthDate).toLocaleDateString("es-ES", { month: "long", day: "numeric" }),
+            date: formatBirthdayMonthDay(b.birthDate, "es-ES"),
+            daysUntil: getDaysUntilBirthday(b.birthDate, now),
           }))
-          .slice(0, 5),
+          .sort((a, b) => a.daysUntil - b.daysUntil)
+          .slice(0, 3)
+          .map(({ name, date }) => ({ name, date })),
         organizationHealth: visibleOrganizations.map(org => {
           const orgGoals = goals.filter(g => g && g.organizationId === org.id);
           const orgBudgets = budgetRequests.filter(b => b && b.organizationId === org.id && b.status === "solicitado");
