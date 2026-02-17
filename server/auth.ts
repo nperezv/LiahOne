@@ -596,6 +596,85 @@ export async function sendInterviewCancelledEmail(payload: {
   });
 }
 
+export async function sendInterviewReminder24hEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  interviewDate: string;
+  interviewTime: string;
+  interviewerName?: string | null;
+  wardName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Interview reminder 24h:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Recordatorio: entrevista en 24 horas",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+        timeLabel: payload.interviewTime,
+      }),
+      "",
+      "Te recordamos con cariño que tienes una entrevista programada para mañana.",
+      `Fecha: ${payload.interviewDate}`,
+      `Hora: ${payload.interviewTime} hrs.`,
+      payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
+      "",
+      "Si necesitas apoyo para reprogramar, contacta al secretario ejecutivo.",
+      "",
+      "Con aprecio fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].filter((line): line is string => Boolean(line)).join("\n"),
+  });
+}
+
+export async function sendAssignmentDueReminderEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  assignmentTitle: string;
+  dueDate: string;
+  wardName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+}) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Assignment reminder 24h:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Recordatorio: asignación por vencer (24h)",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+      }),
+      "",
+      "Te recordamos que tienes una asignación pendiente por completar.",
+      `Asignación: ${payload.assignmentTitle}`,
+      `Fecha límite: ${payload.dueDate}`,
+      "",
+      "Gracias por tu servicio y disposición.",
+      "",
+      "Con aprecio fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].join("\n"),
+  });
+}
+
 export async function sendSacramentalAssignmentEmail(payload: {
   toEmail: string;
   recipientName: string;
