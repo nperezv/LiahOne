@@ -56,6 +56,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { downloadResourceFile, openResourceFileInBrowser } from "@/lib/resource-download";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
 
 const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
   if (typeof document !== "undefined" && "startViewTransition" in document) {
@@ -433,6 +436,7 @@ export default function PresidencyMeetingsPage() {
   const createAssignmentMutation = useCreateAssignment();
   const createBudgetRequestMutation = useCreateBudgetRequest();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = user?.role === "obispo" || user?.role === "consejero_obispo";
@@ -1579,23 +1583,25 @@ export default function PresidencyMeetingsPage() {
                     <p className="mt-1 text-xs text-muted-foreground">{resource.description}</p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
-                        } catch {
-                          toast({
-                            title: "Error",
-                            description: "No se pudo abrir el recurso.",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" /> Abrir
-                    </Button>
+                    {!(isMobile && isPdfFile(resource.fileName)) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                          } catch {
+                            toast({
+                              title: "Error",
+                              description: "No se pudo abrir el recurso.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" /> Abrir
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -1611,7 +1617,7 @@ export default function PresidencyMeetingsPage() {
                         }
                       }}
                     >
-                      <Download className="mr-2 h-4 w-4" /> Descargar
+                      <Download className="mr-2 h-4 w-4" /> {isMobile && isPdfFile(resource.fileName) ? "Descargar (recomendado)" : "Descargar"}
                     </Button>
                   </div>
                 </div>

@@ -33,6 +33,7 @@ import {
   usePresidencyResources,
 } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const libraryAdminRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
 const orgRoles = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"];
@@ -77,11 +78,14 @@ const resourceTypeLabel: Record<ResourceType, string> = {
   plantilla: "Plantilla",
 };
 
+const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
+
 
 export default function ResourcesLibraryPage() {
   const { user } = useAuth();
   const [location] = useLocation();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const isLibraryAdmin = libraryAdminRoles.includes(user?.role ?? "");
   const isOrgUser = orgRoles.includes(user?.role ?? "");
 
@@ -304,22 +308,24 @@ export default function ResourcesLibraryPage() {
                       </Button>
                     ) : (
                       <>
-                        <Button
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
-                            } catch {
-                              toast({
-                                title: "Error",
-                                description: "No se pudo abrir el recurso.",
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" /> Abrir
-                        </Button>
+                        {!(isMobile && isPdfFile(resource.fileName)) && (
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await openResourceFileInBrowser(resource.fileUrl, resource.placeholderName || resource.title, resource.fileName);
+                              } catch {
+                                toast({
+                                  title: "Error",
+                                  description: "No se pudo abrir el recurso.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" /> Abrir
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           onClick={async () => {
@@ -334,7 +340,7 @@ export default function ResourcesLibraryPage() {
                             }
                           }}
                         >
-                          <Download className="mr-2 h-4 w-4" /> Descargar
+                          <Download className="mr-2 h-4 w-4" /> {isMobile && isPdfFile(resource.fileName) ? "Descargar (recomendado)" : "Descargar"}
                         </Button>
                       </>
                     )}
