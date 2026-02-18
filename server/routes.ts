@@ -2643,11 +2643,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: z
             .enum(["programada", "completada", "cancelada", "archivada"])
             .optional(),
-          cancellationReason: z.string().trim().min(3).max(1000).optional(),
+          resolution: z.enum(["completada", "cancelada"]).optional(),
         })
         .parse(updateData);
 
       if (interviewData.status === "cancelada") {
+        interviewData.status = "archivada";
+        interviewData.resolution = "cancelada";
+      }
+
+      if (interviewData.status === "completada") {
+        interviewData.status = "archivada";
+        interviewData.resolution = "completada";
+      }
+
+      if (interviewData.status === "archivada" && !interviewData.resolution && currentInterview.resolution) {
+        interviewData.resolution = currentInterview.resolution;
+      }
+
+      if (interviewData.resolution === "cancelada") {
         const trimmedCancellationReason = typeof cancellationReason === "string"
           ? cancellationReason.trim()
           : "";
@@ -2663,7 +2677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .join("\n");
       }
 
-      if (interviewData.status === "completada") {
+      if (interviewData.resolution === "completada") {
         const trimmedCompletionNote = typeof completionNote === "string"
           ? completionNote.trim()
           : "";
@@ -2781,7 +2795,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (recipient, index, arr) => arr.findIndex((item) => item.email === recipient.email) === index
       );
 
-      const wasCancelledNow = currentInterview.status !== "cancelada" && interview.status === "cancelada";
+      const wasCancelledNow =
+        (currentInterview.resolution !== "cancelada" && currentInterview.status !== "cancelada") &&
+        (interview.resolution === "cancelada" || interview.status === "cancelada");
       const changeLines: string[] = [];
       if (String(currentInterview.date) !== String(interview.date)) {
         changeLines.push(`Fecha/Hora: ${previousDateLabel} ${previousTimeLabel} → ${currentDateLabel} ${currentTimeLabel}`);
@@ -2837,7 +2853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
       }
   
-      if (interviewData.date || interviewData.status === "completada" || interviewData.status === "cancelada") {
+      if (interviewData.date || interviewData.resolution === "completada" || interviewData.resolution === "cancelada") {
         const assignments = await storage.getAllAssignments();
         const relatedAssignment = assignments.find(
           (assignment: any) => assignment.relatedTo === `interview:${interview.id}`
@@ -2846,8 +2862,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (relatedAssignment) {
           const updateAssignmentData: any = {};
 
-          if (interviewData.status === "cancelada") {
+          if (interviewData.resolution === "cancelada") {
             updateAssignmentData.status = "archivada";
+            updateAssignmentData.resolution = "cancelada";
             updateAssignmentData.notes = [
               relatedAssignment.notes,
               typeof cancellationReason === "string" && cancellationReason.trim()
@@ -2880,8 +2897,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               updateAssignmentData.dueDate = interview.date;
             }
 
-            if (interviewData.status === "completada") {
+            if (interviewData.resolution === "completada") {
               updateAssignmentData.status = "archivada";
+              updateAssignmentData.resolution = "completada";
               updateAssignmentData.notes = [
                 relatedAssignment.notes,
                 "Auto-archivada por entrevista completada.",
@@ -3229,6 +3247,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           insertOrganizationInterviewSchema.partial().parse(organizationInterviewBody);
 
         if (updateData.status === "cancelada") {
+          updateData.status = "archivada";
+          updateData.resolution = "cancelada";
+        }
+
+        if (updateData.status === "completada") {
+          updateData.status = "archivada";
+          updateData.resolution = "completada";
+        }
+
+        if (updateData.status === "archivada" && !updateData.resolution && interview.resolution) {
+          updateData.resolution = interview.resolution;
+        }
+
+        if (updateData.resolution === "cancelada") {
           const trimmedCancellationReason = typeof cancellationReason === "string"
             ? cancellationReason.trim()
             : "";
@@ -3244,7 +3276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .join("\n");
         }
 
-        if (updateData.status === "completada") {
+        if (updateData.resolution === "completada") {
           const trimmedCompletionNote = typeof completionNote === "string"
             ? completionNote.trim()
             : "";
@@ -3333,7 +3365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
         }
 
-        if (updateData.date || updateData.status === "completada" || updateData.status === "cancelada") {
+        if (updateData.date || updateData.resolution === "completada" || updateData.resolution === "cancelada") {
           const assignments = await storage.getAllAssignments();
           const relatedAssignment = assignments.find(
             (assignment: any) => assignment.relatedTo === `organization_interview:${updated.id}`
@@ -3342,8 +3374,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (relatedAssignment) {
             const updateAssignmentData: any = {};
 
-            if (updateData.status === "cancelada") {
+            if (updateData.resolution === "cancelada") {
               updateAssignmentData.status = "archivada";
+              updateAssignmentData.resolution = "cancelada";
               updateAssignmentData.notes = [
                 relatedAssignment.notes,
                 typeof cancellationReason === "string" && cancellationReason.trim()
@@ -3370,8 +3403,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 updateAssignmentData.dueDate = updated.date;
               }
 
-              if (updateData.status === "completada") {
+              if (updateData.resolution === "completada") {
                 updateAssignmentData.status = "archivada";
+                updateAssignmentData.resolution = "completada";
                 updateAssignmentData.notes = [
                   relatedAssignment.notes,
                   "Auto-archivada por entrevista de organización completada.",
@@ -3387,7 +3421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        if (updateData.status === "cancelada") {
+        if (updateData.resolution === "cancelada") {
           const interviewerUser = await storage.getUser(updated.interviewerId);
           if (interviewerUser?.email) {
             const canceledDateValue = new Date(updated.date);
@@ -5550,8 +5584,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const assignmentData = insertAssignmentSchema.partial().parse(req.body);
-      if (assignmentData.status === "completada" || assignmentData.status === "cancelada") {
+      if (assignmentData.status === "cancelada") {
         assignmentData.status = "archivada";
+        assignmentData.resolution = "cancelada";
+      }
+
+      if (assignmentData.status === "completada") {
+        assignmentData.status = "archivada";
+        assignmentData.resolution = "completada";
+      }
+
+      if (assignmentData.status === "archivada" && !assignmentData.resolution && assignment.resolution) {
+        assignmentData.resolution = assignment.resolution;
       }
 
       const updatedAssignment = await storage.updateAssignment(id, assignmentData);
@@ -5566,8 +5610,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cancelada: "cancelada",
         archivada: "archivada",
       };
+      const resolvedStatusLabel =
+        updatedAssignment.status === "archivada" && updatedAssignment.resolution
+          ? statusLabels[updatedAssignment.resolution] || updatedAssignment.resolution
+          : statusLabels[updatedAssignment.status] || updatedAssignment.status;
       const statusText = assignmentData.status
-        ? ` Estado: ${statusLabels[updatedAssignment.status] || updatedAssignment.status}.`
+        ? ` Estado: ${resolvedStatusLabel}.`
         : "";
       const recipients = new Set<string>(
         [updatedAssignment.assignedTo, updatedAssignment.assignedBy].filter(Boolean) as string[]
@@ -5719,7 +5767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!interviewsByMonthMap[monthKey]) {
           interviewsByMonthMap[monthKey] = { completed: 0, pending: 0 };
         }
-        if (interview.status === "completada") {
+        if (interview.resolution === "completada" || interview.status === "completada") {
           interviewsByMonthMap[monthKey].completed++;
         } else if (interview.status === "programada") {
           interviewsByMonthMap[monthKey].pending++;

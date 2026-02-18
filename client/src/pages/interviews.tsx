@@ -566,7 +566,7 @@ export default function InterviewsPage() {
     return filteredInterviewsRaw
       .filter((i: any) =>
         showArchived
-          ? ["completada", "cancelada", "archivada"].includes(i.status)
+          ? (i.status === "archivada" || ["completada", "cancelada"].includes(i.status) || ["completada", "cancelada"].includes(i.resolution))
           : i.status === "programada"
       )
       .sort(
@@ -576,7 +576,7 @@ export default function InterviewsPage() {
   }, [filteredInterviewsRaw, showArchived]);
   // ✅ Métricas
   const pendingInterviews = filteredInterviews.filter((i: any) => i.status === "programada");
-  const completedInterviews = filteredInterviewsRaw.filter((i: any) => i.status === "completada");
+  const completedInterviews = filteredInterviewsRaw.filter((i: any) => i.resolution === "completada" || i.status === "completada");
   const highlightInterviewId = useMemo(() => {
     if (!search) return "";
     const params = new URLSearchParams(search);
@@ -889,11 +889,13 @@ export default function InterviewsPage() {
   };
 
   // ✅ Estado badge (SOLO estado, sin urgent)
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (interview: any) => {
+    const status = interview?.status;
+    const resolution = interview?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       programada: { variant: "outline", label: "Pendiente" },
       completada: { variant: "default", label: "Completada" },
-      archivada: { variant: "secondary", label: "Archivada" },
+      archivada: { variant: "secondary", label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada" },
       cancelada: { variant: "secondary", label: "Cancelada" },
     };
 
@@ -930,7 +932,8 @@ export default function InterviewsPage() {
     updateMutation.mutate(
       {
         id: interviewId,
-        status: "completada",
+        status: "archivada",
+        resolution: "completada",
         completionNote: completionNote || undefined,
       },
       {
@@ -969,7 +972,7 @@ export default function InterviewsPage() {
     }
 
     updateMutation.mutate(
-      { id: interviewId, status: "cancelada", cancellationReason: reason.trim() },
+      { id: interviewId, status: "archivada", resolution: "cancelada", cancellationReason: reason.trim() },
       {
         onSuccess: () =>
           toast({ title: "Cancelada", description: "La entrevista se ha cancelado." }),
@@ -1784,10 +1787,10 @@ export default function InterviewsPage() {
             {filteredInterviews.length > 0 ? (
               filteredInterviews.map((interview: any) => {
                 const interviewer = userById.get(interview.interviewerId);
-                const isCompleted = interview.status === "completada";
+                const isCompleted = interview.resolution === "completada" || interview.status === "completada";
                 const isPending = interview.status === "programada";
-                const isCancelled = interview.status === "cancelada";
-                const isArchived = interview.status === "archivada";
+                const isCancelled = interview.resolution === "cancelada" || interview.status === "cancelada";
+                const isArchived = interview.status === "archivada" || isCompleted || isCancelled;
                 const isReadOnly = showArchived || isArchived;
                 const isHighlighted = activeHighlightId === interview.id;
 
@@ -1813,7 +1816,7 @@ export default function InterviewsPage() {
                             {formatInterviewType(interview.type)}
                           </p>
                         </div>
-                        {getStatusBadge(interview.status)}
+                        {getStatusBadge(interview)}
                       </div>
 
                       <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground">
@@ -1909,7 +1912,7 @@ export default function InterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
-                {(canManage || canCancel) && <TableHead>Acciones</TableHead>}
+                {(canManage || canCancel) && !showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
 
@@ -1917,10 +1920,10 @@ export default function InterviewsPage() {
               {filteredInterviews.length > 0 ? (
                 filteredInterviews.map((interview: any) => {
                   const interviewer = userById.get(interview.interviewerId);
-                  const isCompleted = interview.status === "completada";
+                  const isCompleted = interview.resolution === "completada" || interview.status === "completada";
                   const isPending = interview.status === "programada";
-                  const isCancelled = interview.status === "cancelada";
-                  const isArchived = interview.status === "archivada";
+                  const isCancelled = interview.resolution === "cancelada" || interview.status === "cancelada";
+                  const isArchived = interview.status === "archivada" || isCompleted || isCancelled;
                   const isReadOnly = showArchived || isArchived;
 
                   return (
@@ -1952,9 +1955,9 @@ export default function InterviewsPage() {
                         })}
                       </TableCell>
                       <TableCell>{getPriorityBadge(!!interview.urgent)}</TableCell>
-                      <TableCell>{getStatusBadge(interview.status)}</TableCell>
+                      <TableCell>{getStatusBadge(interview)}</TableCell>
 
-                      {(canManage || canCancel) && (
+                      {(canManage || canCancel) && !showArchived ? (
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {/* ✅ Botón para completar (solo pendientes) */}
@@ -2022,13 +2025,13 @@ export default function InterviewsPage() {
                             )}
                           </div>
                         </TableCell>
-                      )}
+                      ) : null}
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={(canManage || canCancel) ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={(canManage || canCancel) && !showArchived ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     {isOrgMember ? "No hay solicitudes de entrevista" : "No hay entrevistas"}
                   </TableCell>
                 </TableRow>
@@ -2086,7 +2089,7 @@ export default function InterviewsPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-medium">Estado:</span>
-              {detailsInterview?.status ? getStatusBadge(detailsInterview.status) : "Pendiente"}
+              {detailsInterview?.status ? getStatusBadge(detailsInterview) : "Pendiente"}
             </div>
             <div>
               <span className="font-medium">Notas:</span>{" "}

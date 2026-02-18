@@ -184,7 +184,9 @@ const splitDateTimeValue = (value?: string) => {
   return { date, time };
 };
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (interview: any) => {
+  const status = interview?.status;
+  const resolution = interview?.resolution;
   const map: Record<
     string,
     { label: string; variant: "default" | "outline" | "secondary" | "destructive" }
@@ -192,7 +194,7 @@ const getStatusBadge = (status: string) => {
     programada: { label: "Pendiente", variant: "outline" },
     completada: { label: "Completada", variant: "default" },
     cancelada: { label: "Cancelada", variant: "destructive" },
-    archivada: { label: "Archivada", variant: "secondary" },
+    archivada: { label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada", variant: "secondary" },
   };
 
   const cfg = map[status] ?? map.programada;
@@ -322,7 +324,7 @@ export default function OrganizationInterviewsPage() {
     return interviews
       .filter((i: any) =>
         showArchived
-          ? ["completada", "cancelada", "archivada"].includes(i.status)
+          ? (i.status === "archivada" || ["completada", "cancelada"].includes(i.status) || ["completada", "cancelada"].includes(i.resolution))
           : i.status === "programada"
       )
       .sort(
@@ -335,7 +337,7 @@ export default function OrganizationInterviewsPage() {
     (i: any) => i.status === "programada"
   );
   const completed = interviews.filter(
-    (i: any) => i.status === "completada"
+    (i: any) => i.resolution === "completada" || i.status === "completada"
   );
 
   const form = useForm<InterviewFormValues>({
@@ -439,7 +441,8 @@ export default function OrganizationInterviewsPage() {
 
     updateMutation.mutate({
       id,
-      status: "completada",
+      status: "archivada",
+      resolution: "completada",
       completionNote: completionNote || undefined,
     });
   };
@@ -461,7 +464,7 @@ export default function OrganizationInterviewsPage() {
       return;
     }
 
-    updateMutation.mutate({ id, status: "cancelada", cancellationReason: reason.trim() });
+    updateMutation.mutate({ id, status: "archivada", resolution: "cancelada", cancellationReason: reason.trim() });
   };
 
   const handleEditClick = (interview: any) => {
@@ -1000,16 +1003,16 @@ export default function OrganizationInterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
+                {!showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
 
             <TableBody>
               {filteredInterviews.map((interview: any) => {
                 const isScheduled = interview.status === "programada";
-                const isCompleted = interview.status === "completada";
-                const isCancelled = interview.status === "cancelada";
-                const isArchived = interview.status === "archivada";
+                const isCompleted = interview.resolution === "completada" || interview.status === "completada";
+                const isCancelled = interview.resolution === "cancelada" || interview.status === "cancelada";
+                const isArchived = interview.status === "archivada" || isCompleted || isCancelled;
                 const isReadOnly = showArchived || isCompleted || isCancelled || isArchived;
                 const canModify = !isReadOnly;
 
@@ -1035,8 +1038,9 @@ export default function OrganizationInterviewsPage() {
                     {getPriorityBadge(!!interview.urgent)}
                   </TableCell>
                   <TableCell>
-                    {getStatusBadge(interview.status)}
+                    {getStatusBadge(interview)}
                   </TableCell>
+                  {!showArchived ? (
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       {isScheduled && (
@@ -1094,6 +1098,7 @@ export default function OrganizationInterviewsPage() {
                         )}
                     </div>
                   </TableCell>
+                  ) : null}
                 </TableRow>
                 );
               })}
@@ -1101,7 +1106,7 @@ export default function OrganizationInterviewsPage() {
               {filteredInterviews.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={!showArchived ? 7 : 6}
                     className="text-center text-muted-foreground"
                   >
                     No hay entrevistas

@@ -103,8 +103,15 @@ export default function Assignments() {
   const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
+  const isArchivedAssignment = (assignment: any) =>
+    assignment.status === "archivada" || ["completada", "cancelada"].includes(assignment.status);
+
   const filteredAssignments = useMemo(() =>
-    assignments.filter((a: any) => (showArchived ? a.status === "archivada" : a.status !== "archivada")),
+    assignments.filter((a: any) =>
+      showArchived
+        ? isArchivedAssignment(a)
+        : ["pendiente", "en_proceso"].includes(a.status)
+    ),
     [assignments, showArchived]
   );
 
@@ -195,8 +202,8 @@ export default function Assignments() {
 
   const pendingAssignments = filteredAssignments.filter((a: any) => a.status === "pendiente");
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
-  const completedAssignments = filteredAssignments.filter((a: any) => a.status === "completada");
-  const archivedAssignments = assignments.filter((a: any) => a.status === "archivada");
+  const completedAssignments = filteredAssignments.filter((a: any) => a.resolution === "completada" || a.status === "completada");
+  const archivedAssignments = assignments.filter((a: any) => isArchivedAssignment(a));
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
@@ -254,13 +261,15 @@ export default function Assignments() {
     </div>
   );
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (assignment: any) => {
+    const status = assignment?.status;
+    const resolution = assignment?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
       cancelada: { variant: "outline", label: "Cancelada" },
-      archivada: { variant: "secondary", label: "Archivada" },
+      archivada: { variant: "secondary", label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada" },
     };
 
     const config = variants[status] || variants.pendiente;
@@ -306,7 +315,7 @@ export default function Assignments() {
             data-testid="button-toggle-archived-assignments"
           >
             <Archive className="h-4 w-4 lg:mr-2" />
-            <span className="sr-only lg:not-sr-only">{showArchived ? "Ocultar archivadas" : "Ver archivadas"}</span>
+            <span>{showArchived ? "Ocultar archivadas" : "Ver archivadas"}</span>
           </Button>
           <Button
             variant="outline"
@@ -503,7 +512,7 @@ export default function Assignments() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{showArchived ? "Asignaciones archivadas" : "Todas las Asignaciones"}</CardTitle>
+          <CardTitle>{showArchived ? "Asignaciones archivadas" : "Asignaciones activas"}</CardTitle>
           <CardDescription>
             {showArchived ? archivedAssignments.length : filteredAssignments.length} asignaciones {showArchived ? "archivadas" : "activas"}
           </CardDescription>
@@ -542,7 +551,7 @@ export default function Assignments() {
                             })
                           : "Sin fecha"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(assignment.status)}</TableCell>
+                      <TableCell>{getStatusBadge(assignment)}</TableCell>
                       <TableCell>
                         {renderAssignmentActions(assignment)}
                       </TableCell>
@@ -717,7 +726,7 @@ export default function Assignments() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-medium">Estado:</span>
-              {detailsAssignment?.status ? getStatusBadge(detailsAssignment.status) : "Pendiente"}
+              {detailsAssignment?.status ? getStatusBadge(detailsAssignment) : "Pendiente"}
             </div>
           </div>
           <div className="flex justify-end">
