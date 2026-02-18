@@ -2597,7 +2597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentInterview) {
         return res.status(404).json({ error: "Interview not found" });
       }
-      const { personName, memberId, ...rest } = req.body;
+      const { personName, memberId, cancellationReason, completionNote, ...rest } = req.body;
 
       let updateData: any = rest;
 
@@ -2642,8 +2642,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: z
             .enum(["programada", "completada", "cancelada", "archivada"])
             .optional(),
+          resolution: z.enum(["completada", "cancelada"]).optional(),
         })
         .parse(updateData);
+
+      if (interviewData.status === "cancelada") {
+        interviewData.status = "archivada";
+        interviewData.resolution = "cancelada";
+      }
+
+      if (interviewData.status === "completada") {
+        interviewData.status = "archivada";
+        interviewData.resolution = "completada";
+      }
+
+      if (interviewData.status === "archivada" && !interviewData.resolution && currentInterview.resolution) {
+        interviewData.resolution = currentInterview.resolution;
+      }
+
+      if (interviewData.resolution === "cancelada") {
+        const trimmedCancellationReason = typeof cancellationReason === "string"
+          ? cancellationReason.trim()
+          : "";
+        if (!trimmedCancellationReason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+
+        interviewData.notes = [
+          currentInterview.notes,
+          `Motivo de cancelación: ${trimmedCancellationReason}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
+
+      if (interviewData.resolution === "completada") {
+        const trimmedCompletionNote = typeof completionNote === "string"
+          ? completionNote.trim()
+          : "";
+
+        if (trimmedCompletionNote) {
+          interviewData.notes = [
+            currentInterview.notes,
+            `Nota al completar: ${trimmedCompletionNote}`,
+          ]
+            .filter(Boolean)
+            .join("\n");
+        }
+      }
 
       const nextInterviewerId =
         interviewData.interviewerId ?? currentInterview.interviewerId;
@@ -2732,7 +2778,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (recipient, index, arr) => arr.findIndex((item) => item.email === recipient.email) === index
       );
 
-      const wasCancelledNow = currentInterview.status !== "cancelada" && interview.status === "cancelada";
+      const wasCancelledNow =
+        (currentInterview.resolution !== "cancelada" && currentInterview.status !== "cancelada") &&
+        (interview.resolution === "cancelada" || interview.status === "cancelada");
       const changeLines: string[] = [];
       if (String(currentInterview.date) !== String(interview.date)) {
         changeLines.push(`Fecha/Hora: ${previousDateLabel} ${previousTimeLabel} → ${currentDateLabel} ${currentTimeLabel}`);
@@ -2788,47 +2836,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
       }
   
-      if (interviewData.date || interviewData.status === "completada" || interviewData.status === "cancelada") {
+      if (interviewData.date || interviewData.resolution === "completada" || interviewData.resolution === "cancelada") {
         const assignments = await storage.getAllAssignments();
         const relatedAssignment = assignments.find(
           (assignment: any) => assignment.relatedTo === `interview:${interview.id}`
         );
 
         if (relatedAssignment) {
-          if (interviewData.status === "cancelada") {
-            await storage.deleteAssignment(relatedAssignment.id);
-          } else {
           const updateAssignmentData: any = {};
 
-          if (interviewData.date) {
-            const interviewDateValue = new Date(interview.date);
-            const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            });
-            const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            });
-            const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            });
+          if (interviewData.resolution === "cancelada") {
+            updateAssignmentData.status = "archivada";
+            updateAssignmentData.resolution = "cancelada";
+            updateAssignmentData.notes = [
+              relatedAssignment.notes,
+              typeof cancellationReason === "string" && cancellationReason.trim()
+                ? `Motivo heredado (entrevista): ${cancellationReason.trim()}`
+                : null,
+              "Auto-cancelada por cancelación de entrevista.",
+            ]
+              .filter(Boolean)
+              .join("\n");
+          } else {
+            if (interviewData.date) {
+              const interviewDateValue = new Date(interview.date);
+              const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+              });
+              const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+              const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
 
-            updateAssignmentData.title = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
-            updateAssignmentData.dueDate = interview.date;
-          }
+              updateAssignmentData.title = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
+              updateAssignmentData.dueDate = interview.date;
+            }
 
-          if (interviewData.status === "completada") {
-            updateAssignmentData.status = "completada";
+            if (interviewData.resolution === "completada") {
+              updateAssignmentData.status = "archivada";
+              updateAssignmentData.resolution = "completada";
+              updateAssignmentData.notes = [
+                relatedAssignment.notes,
+                "Auto-archivada por entrevista completada.",
+              ]
+                .filter(Boolean)
+                .join("\n");
+            }
           }
 
           if (Object.keys(updateAssignmentData).length > 0) {
             await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
-          }
           }
         } else if (interview.status === "programada" && interview.assignedToId) {
           const interviewDateValue = new Date(interview.date);
@@ -3158,8 +3223,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Solo Sociedad de Socorro y Cuórum de Élderes pueden gestionar entrevistas" });
         }
     
+        const { cancellationReason, completionNote, ...organizationInterviewBody } = req.body;
         const updateData =
-          insertOrganizationInterviewSchema.partial().parse(req.body);
+          insertOrganizationInterviewSchema.partial().parse(organizationInterviewBody);
+
+        if (updateData.status === "cancelada") {
+          updateData.status = "archivada";
+          updateData.resolution = "cancelada";
+        }
+
+        if (updateData.status === "completada") {
+          updateData.status = "archivada";
+          updateData.resolution = "completada";
+        }
+
+        if (updateData.status === "archivada" && !updateData.resolution && interview.resolution) {
+          updateData.resolution = interview.resolution;
+        }
+
+        if (updateData.resolution === "cancelada") {
+          const trimmedCancellationReason = typeof cancellationReason === "string"
+            ? cancellationReason.trim()
+            : "";
+          if (!trimmedCancellationReason) {
+            return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+          }
+
+          updateData.notes = [
+            interview.notes,
+            `Motivo de cancelación: ${trimmedCancellationReason}`,
+          ]
+            .filter(Boolean)
+            .join("\n");
+        }
+
+        if (updateData.resolution === "completada") {
+          const trimmedCompletionNote = typeof completionNote === "string"
+            ? completionNote.trim()
+            : "";
+
+          if (trimmedCompletionNote) {
+            updateData.notes = [
+              interview.notes,
+              `Nota al completar: ${trimmedCompletionNote}`,
+            ]
+              .filter(Boolean)
+              .join("\n");
+          }
+        }
 
         const nextInterviewerId =
           updateData.interviewerId ?? interview.interviewerId;
@@ -3219,18 +3330,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
         }
 
-        if (updateData.date || updateData.status === "completada" || updateData.status === "cancelada") {
+        if (updateData.date || updateData.resolution === "completada" || updateData.resolution === "cancelada") {
           const assignments = await storage.getAllAssignments();
           const relatedAssignment = assignments.find(
             (assignment: any) => assignment.relatedTo === `organization_interview:${updated.id}`
           );
 
           if (relatedAssignment) {
-            if (updateData.status === "cancelada") {
-              await storage.deleteAssignment(relatedAssignment.id);
-            } else {
-              const updateAssignmentData: any = {};
+            const updateAssignmentData: any = {};
 
+            if (updateData.resolution === "cancelada") {
+              updateAssignmentData.status = "archivada";
+              updateAssignmentData.resolution = "cancelada";
+              updateAssignmentData.notes = [
+                relatedAssignment.notes,
+                typeof cancellationReason === "string" && cancellationReason.trim()
+                  ? `Motivo heredado (entrevista): ${cancellationReason.trim()}`
+                  : null,
+                "Auto-cancelada por cancelación de entrevista de organización.",
+              ]
+                .filter(Boolean)
+                .join("\n");
+            } else {
               if (updateData.date) {
                 const updatedDateValue = new Date(updated.date);
                 const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
@@ -3247,18 +3368,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 updateAssignmentData.dueDate = updated.date;
               }
 
-              if (updateData.status === "completada") {
-                updateAssignmentData.status = "completada";
+              if (updateData.resolution === "completada") {
+                updateAssignmentData.status = "archivada";
+                updateAssignmentData.resolution = "completada";
+                updateAssignmentData.notes = [
+                  relatedAssignment.notes,
+                  "Auto-archivada por entrevista de organización completada.",
+                ]
+                  .filter(Boolean)
+                  .join("\n");
               }
+            }
 
-              if (Object.keys(updateAssignmentData).length > 0) {
-                await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
-              }
+            if (Object.keys(updateAssignmentData).length > 0) {
+              await storage.updateAssignment(relatedAssignment.id, updateAssignmentData);
             }
           }
         }
 
-        if (updateData.status === "cancelada") {
+        if (updateData.resolution === "cancelada") {
           const interviewerUser = await storage.getUser(updated.interviewerId);
           if (interviewerUser?.email) {
             const canceledDateValue = new Date(updated.date);
@@ -5421,6 +5549,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const assignmentData = insertAssignmentSchema.partial().parse(req.body);
+      if (assignmentData.status === "cancelada") {
+        assignmentData.status = "archivada";
+        assignmentData.resolution = "cancelada";
+      }
+
+      if (assignmentData.status === "completada") {
+        assignmentData.status = "archivada";
+        assignmentData.resolution = "completada";
+      }
+
+      if (assignmentData.status === "archivada" && !assignmentData.resolution && assignment.resolution) {
+        assignmentData.resolution = assignment.resolution;
+      }
 
       const updatedAssignment = await storage.updateAssignment(id, assignmentData);
       if (!updatedAssignment) {
@@ -5431,9 +5572,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pendiente: "pendiente",
         en_proceso: "en proceso",
         completada: "completada",
+        cancelada: "cancelada",
+        archivada: "archivada",
       };
+      const resolvedStatusLabel =
+        updatedAssignment.status === "archivada" && updatedAssignment.resolution
+          ? statusLabels[updatedAssignment.resolution] || updatedAssignment.resolution
+          : statusLabels[updatedAssignment.status] || updatedAssignment.status;
       const statusText = assignmentData.status
-        ? ` Estado: ${statusLabels[updatedAssignment.status] || updatedAssignment.status}.`
+        ? ` Estado: ${resolvedStatusLabel}.`
         : "";
       const recipients = new Set<string>(
         [updatedAssignment.assignedTo, updatedAssignment.assignedBy].filter(Boolean) as string[]
@@ -5585,7 +5732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!interviewsByMonthMap[monthKey]) {
           interviewsByMonthMap[monthKey] = { completed: 0, pending: 0 };
         }
-        if (interview.status === "completada") {
+        if (interview.resolution === "completada" || interview.status === "completada") {
           interviewsByMonthMap[monthKey].completed++;
         } else if (interview.status === "programada") {
           interviewsByMonthMap[monthKey].pending++;
