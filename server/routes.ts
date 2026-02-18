@@ -5568,9 +5568,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (assignmentData.status === "cancelada") {
-        if (!isCreatedBy) {
+        if (!isCreatedBy && user.role !== "obispo") {
           return res.status(403).json({
-            error: "Solo quien asignó la tarea puede cancelarla",
+            error: "Solo quien asignó la tarea o el obispo puede cancelarla",
           });
         }
 
