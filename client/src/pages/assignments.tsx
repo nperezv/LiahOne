@@ -157,6 +157,7 @@ export default function Assignments() {
     updateMutation.mutate({
       id,
       status,
+      ...(cancellationReason ? { cancellationReason } : {}),
     });
   };
 

@@ -191,7 +191,7 @@ const getStatusBadge = (interview: any) => {
     programada: { label: "Pendiente", variant: "outline" },
     completada: { label: "Completada", variant: "default" },
     cancelada: { label: "Cancelada", variant: "destructive" },
-    archivada: { label: "Archivada", variant: "secondary" },
+    archivada: { label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada", variant: "secondary" },
   };
 
   const cfg = map[status] ?? map.programada;

@@ -2140,6 +2140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (relatedAssignment) {
           await storage.updateAssignment(relatedAssignment.id, {
             status: "completada",
+            archivedAt: new Date(),
           });
 
           const currentUser = (req as any).user;
@@ -2740,7 +2741,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     
-      const interview = await storage.updateInterview(id, interviewData);
+      const normalizedCancellationReason = typeof interviewData.cancellationReason === "string"
+        ? interviewData.cancellationReason.trim()
+        : undefined;
+      if (interviewData.status === "cancelada" && !normalizedCancellationReason) {
+        return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+      }
+
+      const interviewUpdateData: any = { ...interviewData };
+      if (interviewData.status === "cancelada") {
+        interviewUpdateData.cancellationReason = normalizedCancellationReason;
+        interviewUpdateData.cancelledAt = new Date();
+        interviewUpdateData.archivedAt = new Date();
+      } else if (interviewData.status === "completada" || interviewData.status === "archivada") {
+        interviewUpdateData.archivedAt = new Date();
+      }
+
+      const interview = await storage.updateInterview(id, interviewUpdateData);
       if (!interview) {
         return res.status(404).json({ error: "Interview not found" });
       }
@@ -2953,6 +2970,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             dueDate: interview.date,
             status: "pendiente",
             relatedTo: `interview:${interview.id}`,
+            archivedAt: null,
           });
         }
       }
@@ -3179,6 +3197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dueDate: interview.date,
           status: "pendiente",
           relatedTo: `organization_interview:${interview.id}`,
+          archivedAt: null,
         });
 
         // Evitamos notificación duplicada para entrevistas de organización.
@@ -3312,8 +3331,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
     
+        const normalizedCancellationReason = typeof updateData.cancellationReason === "string"
+          ? updateData.cancellationReason.trim()
+          : undefined;
+        if (updateData.status === "cancelada" && !normalizedCancellationReason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+
+        const organizationInterviewUpdateData: any = { ...updateData };
+        if (updateData.status === "cancelada") {
+          organizationInterviewUpdateData.cancellationReason = normalizedCancellationReason;
+          organizationInterviewUpdateData.cancelledAt = new Date();
+          organizationInterviewUpdateData.archivedAt = new Date();
+        } else if (updateData.status === "completada" || updateData.status === "archivada") {
+          organizationInterviewUpdateData.archivedAt = new Date();
+        }
+
         const updated =
-          await storage.updateOrganizationInterview(id, updateData);
+          await storage.updateOrganizationInterview(id, organizationInterviewUpdateData);
     
         if (!updated) {
           return res.status(404).json({ error: "No encontrada" });

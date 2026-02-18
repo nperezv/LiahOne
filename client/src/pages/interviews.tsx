@@ -891,7 +891,7 @@ export default function InterviewsPage() {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       programada: { variant: "outline", label: "Pendiente" },
       completada: { variant: "default", label: "Completada" },
-      archivada: { variant: "secondary", label: "Archivada" },
+      archivada: { variant: "secondary", label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada" },
       cancelada: { variant: "secondary", label: "Cancelada" },
     };
 
