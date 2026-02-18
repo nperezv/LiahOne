@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -50,7 +50,7 @@ const assignmentSchema = z.object({
   description: z.string().optional(),
   assignedTo: z.string().min(1, "La persona es requerida"),
   dueDate: z.string().min(1, "La fecha de vencimiento es requerida"),
-  status: z.enum(["pendiente", "en_proceso", "completada", "cancelada"]),
+  status: z.enum(["pendiente", "en_proceso", "completada", "cancelada", "archivada"]),
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -103,10 +103,10 @@ export default function Assignments() {
   const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
-  const filteredAssignments = useMemo(() => assignments.filter((assignment: any) => {
-    const isArchived = Boolean(assignment.archivedAt) || assignment.status === "completada" || assignment.status === "cancelada";
-    return showArchived ? isArchived : !isArchived;
-  }), [assignments, showArchived]);
+  const filteredAssignments = useMemo(() =>
+    assignments.filter((a: any) => (showArchived ? a.status === "archivada" : a.status !== "archivada")),
+    [assignments, showArchived]
+  );
 
   // Check if user can delete an assignment
   const canDeleteAssignment = (assignment: any) => {
@@ -196,6 +196,7 @@ export default function Assignments() {
   const pendingAssignments = filteredAssignments.filter((a: any) => a.status === "pendiente");
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
   const completedAssignments = filteredAssignments.filter((a: any) => a.status === "completada");
+  const archivedAssignments = assignments.filter((a: any) => a.status === "archivada");
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
@@ -230,21 +231,7 @@ export default function Assignments() {
           <span className="sr-only lg:not-sr-only">Completar</span>
         </Button>
       ) : null}
-      {assignment.status !== "completada" && assignment.status !== "cancelada" && !isAutoCompleteAssignment(assignment) && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(event) => {
-            event.stopPropagation();
-            const reason = window.prompt("Indica el motivo de la cancelación");
-            if (!reason || !reason.trim()) return;
-            updateStatus(assignment.id, "cancelada", reason.trim());
-          }}
-        >
-          <span className="sr-only lg:not-sr-only">Cancelar</span>
-        </Button>
-      )}
-      {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+      {["completada", "archivada"].indexOf(assignment.status) === -1 && isAutoCompleteAssignment(assignment) && (
         <p className="text-xs text-muted-foreground">
           Se completará automáticamente al adjuntar comprobantes.
         </p>
@@ -272,7 +259,8 @@ export default function Assignments() {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
-      cancelada: { variant: "secondary", label: "Cancelada" },
+      cancelada: { variant: "outline", label: "Cancelada" },
+      archivada: { variant: "secondary", label: "Archivada" },
     };
 
     const config = variants[status] || variants.pendiente;
@@ -314,9 +302,11 @@ export default function Assignments() {
           ) : null}
           <Button
             variant="outline"
-            onClick={() => setShowArchived((value) => !value)}
+            onClick={() => setShowArchived((prev) => !prev)}
+            data-testid="button-toggle-archived-assignments"
           >
-            {showArchived ? "Ocultar archivadas" : "Ver archivadas"}
+            <Archive className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">{showArchived ? "Ocultar archivadas" : "Ver archivadas"}</span>
           </Button>
           <Button
             variant="outline"
@@ -435,7 +425,8 @@ export default function Assignments() {
                             <SelectItem value="pendiente">Pendiente</SelectItem>
                             <SelectItem value="en_proceso">En Proceso</SelectItem>
                             <SelectItem value="completada">Completada</SelectItem>
-                            <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="archivada">Archivada</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -512,9 +503,9 @@ export default function Assignments() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Todas las Asignaciones</CardTitle>
+          <CardTitle>{showArchived ? "Asignaciones archivadas" : "Todas las Asignaciones"}</CardTitle>
           <CardDescription>
-            {filteredAssignments.length} asignaciones en total
+            {showArchived ? archivedAssignments.length : filteredAssignments.length} asignaciones {showArchived ? "archivadas" : "activas"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -661,6 +652,7 @@ export default function Assignments() {
                         <SelectItem value="en_proceso">En proceso</SelectItem>
                         <SelectItem value="completada">Completada</SelectItem>
                         <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="archivada">Archivada</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>

@@ -172,6 +172,7 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "en_proceso",
   "completada",
   "cancelada",
+  "archivada",
 ]);
 
 export const presidencyResourceCategoryEnum = pgEnum("presidency_resource_category", [
