@@ -147,10 +147,11 @@ export default function Assignments() {
     });
   };
 
-  const updateStatus = (id: string, status: string) => {
+  const updateStatus = (id: string, status: string, cancellationReason?: string) => {
     updateMutation.mutate({
       id,
       status,
+      ...(cancellationReason ? { cancellationReason } : {}),
     });
   };
 
