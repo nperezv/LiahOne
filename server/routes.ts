@@ -114,6 +114,23 @@ function getUserIdFromRequest(req: Request): string | null {
   }
 
 // Role-based auth middleware
+function getTrimmedCancellationReason(payload: any): string {
+  const candidates = [
+    payload?.cancellationReason,
+    payload?.reason,
+    payload?.cancelReason,
+    payload?.cancellation_reason,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return "";
+}
+
 function requireRole(...roles: string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const userId = getUserIdFromRequest(req);
@@ -2661,10 +2678,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         interviewData.resolution = currentInterview.resolution;
       }
 
+      const trimmedCancellationReason = getTrimmedCancellationReason({
+        cancellationReason,
+        ...req.body,
+      });
+
       if (interviewData.resolution === "cancelada") {
-        const trimmedCancellationReason = typeof cancellationReason === "string"
-          ? cancellationReason.trim()
-          : "";
         if (!trimmedCancellationReason) {
           return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
         }
@@ -2867,8 +2886,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updateAssignmentData.resolution = "cancelada";
             updateAssignmentData.notes = [
               relatedAssignment.notes,
-              typeof cancellationReason === "string" && cancellationReason.trim()
-                ? `Motivo heredado (entrevista): ${cancellationReason.trim()}`
+              trimmedCancellationReason
+                ? `Motivo heredado (entrevista): ${trimmedCancellationReason}`
                 : null,
               "Auto-cancelada por cancelación de entrevista.",
             ]
@@ -2898,10 +2917,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             if (interviewData.resolution === "completada") {
+              const trimmedCompletionNote = typeof completionNote === "string"
+                ? completionNote.trim()
+                : "";
               updateAssignmentData.status = "archivada";
               updateAssignmentData.resolution = "completada";
               updateAssignmentData.notes = [
                 relatedAssignment.notes,
+                trimmedCompletionNote
+                  ? `Motivo heredado (entrevista): ${trimmedCompletionNote}`
+                  : null,
                 "Auto-archivada por entrevista completada.",
               ]
                 .filter(Boolean)
@@ -2993,27 +3018,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/interviews/:id",
     requireAuth,
     requireRole("obispo"),
-    async (req: Request, res: Response) => {
-      try {
-        const { id } = req.params;
-        const interview = await storage.getInterview(id);
-        if (!interview) {
-          return res.status(404).json({ error: "Interview not found" });
-        }
-
-        const assignments = await storage.getAllAssignments();
-        const relatedAssignment = assignments.find(
-          (assignment: any) => assignment.relatedTo === `interview:${id}`
-        );
-        if (relatedAssignment) {
-          await storage.deleteAssignment(relatedAssignment.id);
-        }
-    
-        await storage.deleteInterview(id);
-        res.status(204).send();
-      } catch {
-        res.status(500).json({ error: "Internal server error" });
-      }
+    async (_req: Request, res: Response) => {
+      return res.status(403).json({
+        error: "Eliminar entrevistas está deshabilitado. Usa el flujo de archivado.",
+      });
     }
   );
   
@@ -3260,10 +3268,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData.resolution = interview.resolution;
         }
 
+        const trimmedCancellationReason = getTrimmedCancellationReason({
+          cancellationReason,
+          ...req.body,
+        });
+
         if (updateData.resolution === "cancelada") {
-          const trimmedCancellationReason = typeof cancellationReason === "string"
-            ? cancellationReason.trim()
-            : "";
           if (!trimmedCancellationReason) {
             return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
           }
@@ -3379,8 +3389,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               updateAssignmentData.resolution = "cancelada";
               updateAssignmentData.notes = [
                 relatedAssignment.notes,
-                typeof cancellationReason === "string" && cancellationReason.trim()
-                  ? `Motivo heredado (entrevista): ${cancellationReason.trim()}`
+                trimmedCancellationReason
+                  ? `Motivo heredado (entrevista): ${trimmedCancellationReason}`
                   : null,
                 "Auto-cancelada por cancelación de entrevista de organización.",
               ]
@@ -3404,10 +3414,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
 
               if (updateData.resolution === "completada") {
+                const trimmedCompletionNote = typeof completionNote === "string"
+                  ? completionNote.trim()
+                  : "";
                 updateAssignmentData.status = "archivada";
                 updateAssignmentData.resolution = "completada";
                 updateAssignmentData.notes = [
                   relatedAssignment.notes,
+                  trimmedCompletionNote
+                    ? `Motivo heredado (entrevista de organización): ${trimmedCompletionNote}`
+                    : null,
                   "Auto-archivada por entrevista de organización completada.",
                 ]
                   .filter(Boolean)
@@ -3492,50 +3508,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete(
     "/api/organization-interviews/:id",
     requireAuth,
-    async (req, res) => {
-      try {
-        const { id } = req.params;
-        const user = await storage.getUser(req.session.userId!);
-      
-        if (!user || !user.organizationId) {
-          return res.status(403).json({ error: "No autorizado" });
-        }
-    
-        const interview =
-          await storage.getOrganizationInterview(id);
-    
-        if (
-          !interview ||
-          interview.organizationId !== user.organizationId
-        ) {
-          return res.status(404).json({ error: "No encontrada" });
-        }
-
-        const organization = await storage.getOrganization(user.organizationId);
-        const allowedOrganizationTypes = ["sociedad_socorro", "cuorum_elderes"];
-        if (!organization || !allowedOrganizationTypes.includes(organization.type)) {
-          return res.status(403).json({ error: "Solo Sociedad de Socorro y Cuórum de Élderes pueden gestionar entrevistas" });
-        }
-    
-        if (user.role !== "presidente_organizacion") {
-          return res
-            .status(403)
-            .json({ error: "Solo el presidente puede eliminar" });
-        }
-    
-        const assignments = await storage.getAllAssignments();
-        const relatedAssignment = assignments.find(
-          (assignment: any) => assignment.relatedTo === `organization_interview:${id}`
-        );
-        if (relatedAssignment) {
-          await storage.deleteAssignment(relatedAssignment.id);
-        }
-
-        await storage.deleteOrganizationInterview(id);
-        res.status(204).send();
-      } catch {
-        res.status(500).json({ error: "Internal server error" });
-      }
+    async (_req, res) => {
+      return res.status(403).json({
+        error: "Eliminar entrevistas está deshabilitado. Usa el flujo de archivado.",
+      });
     }
   );
 
@@ -5583,8 +5559,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const assignmentData = insertAssignmentSchema.partial().parse(req.body);
+      const { cancellationReason, ...assignmentBody } = req.body;
+      const assignmentData = insertAssignmentSchema.partial().parse(assignmentBody);
+
+      const trimmedCancellationReason = getTrimmedCancellationReason({
+        cancellationReason,
+        ...req.body,
+      });
+
       if (assignmentData.status === "cancelada") {
+        if (!isCreatedBy) {
+          return res.status(403).json({
+            error: "Solo quien asignó la tarea puede cancelarla",
+          });
+        }
+
+        if (!trimmedCancellationReason) {
+          return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+        }
+
+        assignmentData.notes = [
+          assignment.notes,
+          `Motivo de cancelación: ${trimmedCancellationReason}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
         assignmentData.status = "archivada";
         assignmentData.resolution = "cancelada";
       }
@@ -5651,32 +5650,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/assignments/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const user = (req as any).user;
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo" || user.role === "secretario";
-      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
-      
-      // Get the assignment to check ownership
-      const assignment = await storage.getAssignment(id);
-      if (!assignment) {
-        return res.status(404).json({ error: "Assignment not found" });
-      }
-      
-      // Obispado can delete any assignment
-      // Org members can only delete assignments they created
-      if (!isObispado) {
-        if (!isOrgMember || assignment.assignedBy !== user.id) {
-          return res.status(403).json({ error: "Forbidden - You can only delete assignments you created" });
-        }
-      }
-      
-      await storage.deleteAssignment(id);
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Internal server error" });
-    }
+  app.delete("/api/assignments/:id", requireAuth, async (_req: Request, res: Response) => {
+    return res.status(403).json({
+      error: "Eliminar asignaciones está deshabilitado. Usa el flujo de archivado.",
+    });
   });
 
   // ========================================

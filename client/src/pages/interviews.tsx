@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   Download,
   Edit,
-  Trash2,
   X,
   Copy,
   Send,
@@ -70,7 +69,6 @@ import {
   useCompleteInterview,
   useMembers,
   useUsers,
-  useDeleteInterview,
   useUpdateInterview,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
@@ -458,7 +456,6 @@ export default function InterviewsPage() {
   const createMutation = useCreateInterview();
   const updateMutation = useUpdateInterview();
   const completeMutation = useCompleteInterview();
-  const deleteMutation = useDeleteInterview();
 
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
     user?.role || ""
@@ -980,16 +977,6 @@ export default function InterviewsPage() {
           toast({ title: "Error", description: "No se pudo cancelar.", variant: "destructive" }),
       }
     );
-  };
-
-  const handleDeleteInterview = (interviewId: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar esta entrevista cancelada?")) return;
-    deleteMutation.mutate(interviewId, {
-      onSuccess: () =>
-        toast({ title: "Eliminada", description: "La entrevista se ha eliminado." }),
-      onError: () =>
-        toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" }),
-    });
   };
 
   const handleExportPdf = async () => {
@@ -1877,17 +1864,6 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {canCancel && isCancelled && !isArchived && !isReadOnly && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDeleteInterview(interview.id)}
-                                disabled={deleteMutation.isPending}
-                                title="Eliminar"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
                           </div>
                         )}
                       </div>
@@ -2009,20 +1985,6 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {canCancel && isCancelled && !isArchived && !isReadOnly && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleDeleteInterview(interview.id);
-                                }}
-                                disabled={deleteMutation.isPending}
-                              >
-                                <Trash2 className="h-4 w-4 lg:mr-1" />
-                                <span className="sr-only lg:not-sr-only">Eliminar</span>
-                              </Button>
-                            )}
                           </div>
                         </TableCell>
                       ) : null}

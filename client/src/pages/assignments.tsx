@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft, Archive } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Download, Edit, ArrowLeft, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -40,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAssignments, useCreateAssignment, useUpdateAssignment, useDeleteAssignment, useUsers } from "@/hooks/use-api";
+import { useAssignments, useCreateAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
 import { useLocation, useSearch } from "wouter";
@@ -91,17 +91,9 @@ export default function Assignments() {
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
-  const deleteMutation = useDeleteAssignment();
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta asignación?")) {
-      deleteMutation.mutate(id);
-    }
-  };
-  
+
   // Assignments are already filtered by backend according to role/organization visibility.
-  const userId = user?.id;
-  const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
   const isArchivedAssignment = (assignment: any) =>
     assignment.status === "archivada" || ["completada", "cancelada"].includes(assignment.status);
@@ -115,14 +107,6 @@ export default function Assignments() {
     [assignments, showArchived]
   );
 
-  // Check if user can delete an assignment
-  const canDeleteAssignment = (assignment: any) => {
-    // Obispado can delete any assignment
-    if (isObispado) return true;
-    // Org members can only delete assignments they created
-    if (isOrgMember) return assignment.assignedBy === userId;
-    return false;
-  };
 
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentSchema),
@@ -186,11 +170,22 @@ export default function Assignments() {
 
   const onEdit = (data: AssignmentFormValues) => {
     if (!editingAssignment) return;
+
+    const payload: Record<string, any> = {
+      id: editingAssignment.id,
+      ...data,
+    };
+
+    if (data.status === "cancelada") {
+      const reason = window.prompt("Indica el motivo de cancelación:");
+      if (!reason || !reason.trim()) {
+        return;
+      }
+      payload.cancellationReason = reason.trim();
+    }
+
     updateMutation.mutate(
-      {
-        id: editingAssignment.id,
-        ...data,
-      },
+      payload,
       {
         onSuccess: () => {
           setIsEditOpen(false);
@@ -242,21 +237,6 @@ export default function Assignments() {
         <p className="text-xs text-muted-foreground">
           Se completará automáticamente al adjuntar comprobantes.
         </p>
-      )}
-      {canDeleteAssignment(assignment) && (
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleDelete(assignment.id);
-          }}
-          data-testid={`button-delete-${assignment.id}`}
-          disabled={deleteMutation.isPending}
-        >
-          <Trash2 className="h-3 w-3 lg:mr-1" />
-          <span className="sr-only lg:not-sr-only">Eliminar</span>
-        </Button>
       )}
     </div>
   );
@@ -527,7 +507,7 @@ export default function Assignments() {
                   <TableHead>Asignado por</TableHead>
                   <TableHead>Vencimiento</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  {!showArchived ? <TableHead>Acciones</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -552,14 +532,16 @@ export default function Assignments() {
                           : "Sin fecha"}
                       </TableCell>
                       <TableCell>{getStatusBadge(assignment)}</TableCell>
+                      {!showArchived ? (
                       <TableCell>
                         {renderAssignmentActions(assignment)}
                       </TableCell>
+                      ) : null}
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={!showArchived ? 6 : 5} className="text-center text-muted-foreground">
                       No hay asignaciones
                     </TableCell>
                   </TableRow>

@@ -12,7 +12,6 @@ import {
   ChevronLeft,
   Download,
   Edit,
-  Trash2,
   ArrowLeft,
 } from "lucide-react";
 
@@ -64,7 +63,6 @@ import {
   useOrganizationInterviews,
   useCreateOrganizationInterview,
   useUpdateOrganizationInterview,
-  useDeleteOrganizationInterview,
   useUsers,
   useOrganizations,
   useOrganizationMembers,
@@ -258,7 +256,6 @@ export default function OrganizationInterviewsPage() {
 
   const createMutation = useCreateOrganizationInterview();
   const updateMutation = useUpdateOrganizationInterview();
-  const deleteMutation = useDeleteOrganizationInterview();
 
   const canManage =
     user?.role === "presidente_organizacion" ||
@@ -286,7 +283,6 @@ export default function OrganizationInterviewsPage() {
     }
   }, [user, isOrgTypeReady, canAccess, setLocation]);
 
-  const canDelete = canAccess && user?.role === "presidente_organizacion";
 
   const filteredOrganizationMembers = useMemo(() => {
     const query = memberQuery.trim().toLowerCase();
@@ -1082,20 +1078,6 @@ export default function OrganizationInterviewsPage() {
                           </Button>
                         )}
 
-                      {canDelete &&
-                        canModify && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="whitespace-nowrap"
-                            onClick={() =>
-                              deleteMutation.mutate(interview.id)
-                            }
-                          >
-                            <Trash2 className="h-4 w-4 lg:mr-1" />
-                            <span className="sr-only lg:not-sr-only">Eliminar</span>
-                          </Button>
-                        )}
                     </div>
                   </TableCell>
                   ) : null}
