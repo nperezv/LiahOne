@@ -888,6 +888,7 @@ export default function InterviewsPage() {
   // ✅ Estado badge (SOLO estado, sin urgent)
   const getStatusBadge = (interview: any) => {
     const status = interview?.status;
+    const resolution = interview?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       programada: { variant: "outline", label: "Pendiente" },
       completada: { variant: "default", label: "Completada" },
@@ -902,13 +903,6 @@ export default function InterviewsPage() {
         {config.label}
       </Badge>
     );
-  };
-
-  const getResolutionLabel = (interview: any) => {
-    const resolution = interview?.resolution;
-    if (resolution === "completada") return "Completada";
-    if (resolution === "cancelada") return "Cancelada";
-    return "Sin definir";
   };
 
   // ✅ Prioridad badge (separado)
@@ -1894,7 +1888,6 @@ export default function InterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Resolución</TableHead>
                 {(canManage || canCancel) && !showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
@@ -1939,7 +1932,6 @@ export default function InterviewsPage() {
                       </TableCell>
                       <TableCell>{getPriorityBadge(!!interview.urgent)}</TableCell>
                       <TableCell>{getStatusBadge(interview)}</TableCell>
-                      <TableCell>{showArchived ? getResolutionLabel(interview) : "—"}</TableCell>
 
                       {(canManage || canCancel) && !showArchived ? (
                         <TableCell>
@@ -2001,7 +1993,7 @@ export default function InterviewsPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={(canManage || canCancel) && !showArchived ? 8 : 7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={(canManage || canCancel) && !showArchived ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     {isOrgMember ? "No hay solicitudes de entrevista" : "No hay entrevistas"}
                   </TableCell>
                 </TableRow>
@@ -2060,10 +2052,6 @@ export default function InterviewsPage() {
             <div className="flex items-center gap-2">
               <span className="font-medium">Estado:</span>
               {detailsInterview?.status ? getStatusBadge(detailsInterview) : "Pendiente"}
-            </div>
-            <div>
-              <span className="font-medium">Tipo de resolución:</span>{" "}
-              {getResolutionLabel(detailsInterview)}
             </div>
             <div>
               <span className="font-medium">Notas:</span>{" "}

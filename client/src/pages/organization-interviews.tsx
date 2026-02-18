@@ -184,6 +184,7 @@ const splitDateTimeValue = (value?: string) => {
 
 const getStatusBadge = (interview: any) => {
   const status = interview?.status;
+  const resolution = interview?.resolution;
   const map: Record<
     string,
     { label: string; variant: "default" | "outline" | "secondary" | "destructive" }
@@ -207,13 +208,6 @@ const getPriorityBadge = (urgent: boolean) =>
   ) : (
     <Badge variant="outline">Normal</Badge>
   );
-
-const getResolutionLabel = (interview: any) => {
-  const resolution = interview?.resolution;
-  if (resolution === "completada") return "Completada";
-  if (resolution === "cancelada") return "Cancelada";
-  return "Sin definir";
-};
 
 /* =========================
    Page
@@ -1005,7 +999,6 @@ export default function OrganizationInterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Resolución</TableHead>
                 {!showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
@@ -1043,7 +1036,6 @@ export default function OrganizationInterviewsPage() {
                   <TableCell>
                     {getStatusBadge(interview)}
                   </TableCell>
-                  <TableCell>{showArchived ? getResolutionLabel(interview) : "—"}</TableCell>
                   {!showArchived ? (
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1096,7 +1088,7 @@ export default function OrganizationInterviewsPage() {
               {filteredInterviews.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={!showArchived ? 8 : 7}
+                    colSpan={!showArchived ? 7 : 6}
                     className="text-center text-muted-foreground"
                   >
                     No hay entrevistas
