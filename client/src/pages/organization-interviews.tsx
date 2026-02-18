@@ -12,7 +12,6 @@ import {
   ChevronLeft,
   Download,
   Edit,
-  Archive,
   Trash2,
   ArrowLeft,
 } from "lucide-react";
@@ -323,8 +322,8 @@ export default function OrganizationInterviewsPage() {
     return interviews
       .filter((i: any) =>
         showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
+          ? ["completada", "cancelada", "archivada"].includes(i.status)
+          : i.status === "programada"
       )
       .sort(
         (a: any, b: any) =>
@@ -335,7 +334,7 @@ export default function OrganizationInterviewsPage() {
   const pending = filteredInterviews.filter(
     (i: any) => i.status === "programada"
   );
-  const completed = filteredInterviews.filter(
+  const completed = interviews.filter(
     (i: any) => i.status === "completada"
   );
 
@@ -430,21 +429,39 @@ export default function OrganizationInterviewsPage() {
   /* =========================
      Handlers
   ========================= */
-  const handleToggleCompleted = (interview: any, checked: boolean) => {
-    if (!checked || interview.status !== "programada") return;
+  const handleComplete = (id: string) => {
+    const shouldAddNote = window.confirm("¿Quieres agregar una nota adicional al completar la entrevista?");
+    let completionNote = "";
+
+    if (shouldAddNote) {
+      completionNote = window.prompt("Escribe una nota (opcional):")?.trim() || "";
+    }
 
     updateMutation.mutate({
-      id: interview.id,
+      id,
       status: "completada",
+      completionNote: completionNote || undefined,
     });
   };
 
-  const handleArchive = (id: string) => {
-    updateMutation.mutate({ id, status: "archivada" });
+  const handleToggleCompleted = (interview: any, checked: boolean) => {
+    if (!checked || interview.status !== "programada") return;
+
+    handleComplete(interview.id);
   };
 
   const handleCancel = (id: string) => {
-    updateMutation.mutate({ id, status: "cancelada" });
+    const reason = window.prompt("Indica el motivo de cancelación:");
+    if (!reason || !reason.trim()) {
+      toast({
+        title: "Motivo requerido",
+        description: "Debes indicar un motivo para cancelar la entrevista.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateMutation.mutate({ id, status: "cancelada", cancellationReason: reason.trim() });
   };
 
   const handleEditClick = (interview: any) => {
@@ -988,7 +1005,15 @@ export default function OrganizationInterviewsPage() {
             </TableHeader>
 
             <TableBody>
-              {filteredInterviews.map((interview: any) => (
+              {filteredInterviews.map((interview: any) => {
+                const isScheduled = interview.status === "programada";
+                const isCompleted = interview.status === "completada";
+                const isCancelled = interview.status === "cancelada";
+                const isArchived = interview.status === "archivada";
+                const isReadOnly = showArchived || isCompleted || isCancelled || isArchived;
+                const canModify = !isReadOnly;
+
+                return (
                 <TableRow key={interview.id}>
                   <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
                   <TableCell>
@@ -1014,7 +1039,7 @@ export default function OrganizationInterviewsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
-                      {interview.status === "programada" && (
+                      {isScheduled && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1026,19 +1051,8 @@ export default function OrganizationInterviewsPage() {
                         </Button>
                       )}
 
-                      {interview.status === "completada" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="whitespace-nowrap"
-                          onClick={() => handleArchive(interview.id)}
-                        >
-                          <Archive className="h-4 w-4 mr-1" />
-                          Archivar
-                        </Button>
-                      )}
 
-                      {canManageOrganization && interview.status === "programada" && (
+                      {canManageOrganization && isScheduled && !isReadOnly && (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -1050,7 +1064,7 @@ export default function OrganizationInterviewsPage() {
                       )}
 
                       {canManageOrganization &&
-                        interview.status !== "completada" && (
+                        canModify && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1065,7 +1079,7 @@ export default function OrganizationInterviewsPage() {
                         )}
 
                       {canDelete &&
-                        interview.status !== "completada" && (
+                        canModify && (
                           <Button
                             size="sm"
                             variant="destructive"
@@ -1081,7 +1095,8 @@ export default function OrganizationInterviewsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
 
               {filteredInterviews.length === 0 && (
                 <TableRow>

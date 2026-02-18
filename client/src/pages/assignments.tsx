@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -50,7 +50,7 @@ const assignmentSchema = z.object({
   description: z.string().optional(),
   assignedTo: z.string().min(1, "La persona es requerida"),
   dueDate: z.string().min(1, "La fecha de vencimiento es requerida"),
-  status: z.enum(["pendiente", "en_proceso", "completada"]),
+  status: z.enum(["pendiente", "en_proceso", "completada", "cancelada", "archivada"]),
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -81,6 +81,7 @@ export default function Assignments() {
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
   const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (shouldAutoOpenCreate) {
@@ -102,7 +103,10 @@ export default function Assignments() {
   const userId = user?.id;
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
-  const filteredAssignments = assignments;
+  const filteredAssignments = useMemo(() =>
+    assignments.filter((a: any) => (showArchived ? a.status === "archivada" : a.status !== "archivada")),
+    [assignments, showArchived]
+  );
 
   // Check if user can delete an assignment
   const canDeleteAssignment = (assignment: any) => {
@@ -191,6 +195,7 @@ export default function Assignments() {
   const pendingAssignments = filteredAssignments.filter((a: any) => a.status === "pendiente");
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
   const completedAssignments = filteredAssignments.filter((a: any) => a.status === "completada");
+  const archivedAssignments = assignments.filter((a: any) => a.status === "archivada");
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
@@ -225,7 +230,7 @@ export default function Assignments() {
           <span className="sr-only lg:not-sr-only">Completar</span>
         </Button>
       ) : null}
-      {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+      {["completada", "archivada"].indexOf(assignment.status) === -1 && isAutoCompleteAssignment(assignment) && (
         <p className="text-xs text-muted-foreground">
           Se completará automáticamente al adjuntar comprobantes.
         </p>
@@ -253,6 +258,8 @@ export default function Assignments() {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
+      cancelada: { variant: "outline", label: "Cancelada" },
+      archivada: { variant: "secondary", label: "Archivada" },
     };
 
     const config = variants[status] || variants.pendiente;
@@ -292,6 +299,14 @@ export default function Assignments() {
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>
           ) : null}
+          <Button
+            variant="outline"
+            onClick={() => setShowArchived((prev) => !prev)}
+            data-testid="button-toggle-archived-assignments"
+          >
+            <Archive className="h-4 w-4 lg:mr-2" />
+            <span className="sr-only lg:not-sr-only">{showArchived ? "Ocultar archivadas" : "Ver archivadas"}</span>
+          </Button>
           <Button
             variant="outline"
             onClick={() => exportAssignments(assignments)}
@@ -409,6 +424,8 @@ export default function Assignments() {
                             <SelectItem value="pendiente">Pendiente</SelectItem>
                             <SelectItem value="en_proceso">En Proceso</SelectItem>
                             <SelectItem value="completada">Completada</SelectItem>
+                        <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="archivada">Archivada</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -485,9 +502,9 @@ export default function Assignments() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Todas las Asignaciones</CardTitle>
+          <CardTitle>{showArchived ? "Asignaciones archivadas" : "Todas las Asignaciones"}</CardTitle>
           <CardDescription>
-            {filteredAssignments.length} asignaciones en total
+            {showArchived ? archivedAssignments.length : filteredAssignments.length} asignaciones {showArchived ? "archivadas" : "activas"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -633,6 +650,8 @@ export default function Assignments() {
                         <SelectItem value="pendiente">Pendiente</SelectItem>
                         <SelectItem value="en_proceso">En proceso</SelectItem>
                         <SelectItem value="completada">Completada</SelectItem>
+                        <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="archivada">Archivada</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>

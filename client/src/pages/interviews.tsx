@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   Download,
   Edit,
-  Archive,
   Trash2,
   X,
   Copy,
@@ -562,22 +561,22 @@ export default function InterviewsPage() {
     ? interviews.filter((i: any) => i.assignedBy === user?.id || i.assignedToId === user?.id)
     : interviews;
 
-  // ✅ Ocultar archivadas por defecto
+  // ✅ Ocultar archivadas por defecto (archivadas = completadas/canceladas/archivadas legacy)
   const filteredInterviews = useMemo(() => {
     return filteredInterviewsRaw
       .filter((i: any) =>
         showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
+          ? ["completada", "cancelada", "archivada"].includes(i.status)
+          : i.status === "programada"
       )
       .sort(
         (a: any, b: any) =>
           new Date(a.date).getTime() - new Date(b.date).getTime()
       );
   }, [filteredInterviewsRaw, showArchived]);
-  // ✅ Métricas (sobre no-archivadas)
+  // ✅ Métricas
   const pendingInterviews = filteredInterviews.filter((i: any) => i.status === "programada");
-  const completedInterviews = filteredInterviews.filter((i: any) => i.status === "completada");
+  const completedInterviews = filteredInterviewsRaw.filter((i: any) => i.status === "completada");
   const highlightInterviewId = useMemo(() => {
     if (!search) return "";
     const params = new URLSearchParams(search);
@@ -920,45 +919,31 @@ export default function InterviewsPage() {
       </Badge>
     );
   };
-  const handleToggleCompleted = (interview: any, checked: boolean) => {
-    if (checked && interview.status === "programada") {
-      updateMutation.mutate(
-        {
-          id: interview.id,
-          data: { status: "completada" },
-        },
-        {
-          onSuccess: () => {
-            toast({
-              title: "Entrevista completada",
-              description: "Marcada como completada.",
-            });
-          },
-          onError: () => {
-            toast({
-              title: "Error",
-              description: "No se pudo completar la entrevista.",
-              variant: "destructive",
-            });
-          },
-        }
-      );
+  const handleCompleteInterview = (interviewId: string) => {
+    const shouldAddNote = window.confirm("¿Quieres agregar una nota adicional al completar la entrevista?");
+    let completionNote = "";
+
+    if (shouldAddNote) {
+      completionNote = window.prompt("Escribe una nota (opcional):")?.trim() || "";
     }
-  };
-  const handleArchive = (interviewId: string) => {
+
     updateMutation.mutate(
-      { id: interviewId, status: "archivada" },
+      {
+        id: interviewId,
+        status: "completada",
+        completionNote: completionNote || undefined,
+      },
       {
         onSuccess: () => {
           toast({
-            title: "Archivada",
-            description: "La entrevista ha sido archivada y ya no aparece en la lista.",
+            title: "Entrevista completada",
+            description: "La entrevista se completó y fue movida a archivadas.",
           });
         },
         onError: () => {
           toast({
             title: "Error",
-            description: "No se pudo archivar (¿backend no acepta status=archivada?).",
+            description: "No se pudo completar la entrevista.",
             variant: "destructive",
           });
         },
@@ -966,10 +951,25 @@ export default function InterviewsPage() {
     );
   };
 
+  const handleToggleCompleted = (interview: any, checked: boolean) => {
+    if (checked && interview.status === "programada") {
+      handleCompleteInterview(interview.id);
+    }
+  };
+
   const handleCancelInterview = (interviewId: string) => {
-    if (!window.confirm("¿Está seguro de que desea cancelar esta entrevista?")) return;
+    const reason = window.prompt("Indica el motivo de cancelación:");
+    if (!reason || !reason.trim()) {
+      toast({
+        title: "Motivo requerido",
+        description: "Debes indicar un motivo para cancelar la entrevista.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     updateMutation.mutate(
-      { id: interviewId, status: "cancelada" },
+      { id: interviewId, status: "cancelada", cancellationReason: reason.trim() },
       {
         onSuccess: () =>
           toast({ title: "Cancelada", description: "La entrevista se ha cancelado." }),
@@ -1787,6 +1787,8 @@ export default function InterviewsPage() {
                 const isCompleted = interview.status === "completada";
                 const isPending = interview.status === "programada";
                 const isCancelled = interview.status === "cancelada";
+                const isArchived = interview.status === "archivada";
+                const isReadOnly = showArchived || isArchived;
                 const isHighlighted = activeHighlightId === interview.id;
 
                 return (
@@ -1839,12 +1841,7 @@ export default function InterviewsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() =>
-                                  updateMutation.mutate({
-                                    id: interview.id,
-                                    status: "completada",
-                                  })
-                                }
+                                onClick={() => handleCompleteInterview(interview.id)}
                                 disabled={updateMutation.isPending}
                                 title="Completar"
                               >
@@ -1852,19 +1849,8 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {isObispado && isCompleted && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleArchive(interview.id)}
-                                disabled={updateMutation.isPending}
-                                title="Archivar"
-                              >
-                                <Archive className="h-4 w-4" />
-                              </Button>
-                            )}
 
-                            {isObispado && !isCompleted && (
+                            {isObispado && !isCompleted && !isArchived && !isReadOnly && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1876,7 +1862,7 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {canCancel && !isCompleted && !isCancelled && (
+                            {canCancel && !isCompleted && !isCancelled && !isArchived && !isReadOnly && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1888,7 +1874,7 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {canCancel && isCancelled && (
+                            {canCancel && isCancelled && !isArchived && !isReadOnly && (
                               <Button
                                 size="sm"
                                 variant="destructive"
@@ -1934,6 +1920,8 @@ export default function InterviewsPage() {
                   const isCompleted = interview.status === "completada";
                   const isPending = interview.status === "programada";
                   const isCancelled = interview.status === "cancelada";
+                  const isArchived = interview.status === "archivada";
+                  const isReadOnly = showArchived || isArchived;
 
                   return (
                     <TableRow
@@ -1976,10 +1964,7 @@ export default function InterviewsPage() {
                                 variant="outline"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  updateMutation.mutate({
-                                    id: interview.id,
-                                    status: "completada",
-                                  });
+                                  handleCompleteInterview(interview.id);
                                 }}
                                 disabled={updateMutation.isPending}
                                 title="Completar"
@@ -1989,25 +1974,8 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {/* ✅ Si está completada: SOLO archivar */}
-                            {isObispado && isCompleted && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleArchive(interview.id);
-                                }}
-                                disabled={updateMutation.isPending}
-                                title="Archivar (ocultar de la lista)"
-                              >
-                                <Archive className="h-4 w-4 mr-1" />
-                                Archivar
-                              </Button>
-                            )}
-
                             {/* ✅ Editar solo si NO está completada */}
-                            {isObispado && !isCompleted && (
+                            {isObispado && !isCompleted && !isArchived && !isReadOnly && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2023,7 +1991,7 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {canCancel && !isCompleted && !isCancelled && (
+                            {canCancel && !isCompleted && !isCancelled && !isArchived && !isReadOnly && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2038,7 +2006,7 @@ export default function InterviewsPage() {
                               </Button>
                             )}
 
-                            {canCancel && isCancelled && (
+                            {canCancel && isCancelled && !isArchived && !isReadOnly && (
                               <Button
                                 size="sm"
                                 variant="destructive"
