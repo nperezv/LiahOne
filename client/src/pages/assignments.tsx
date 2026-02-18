@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Trash2, Download, Edit, ArrowLeft } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Download, Edit, ArrowLeft, Archive, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -40,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAssignments, useCreateAssignment, useUpdateAssignment, useDeleteAssignment, useUsers } from "@/hooks/use-api";
+import { useAssignments, useCreateAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
 import { useLocation, useSearch } from "wouter";
@@ -50,7 +50,7 @@ const assignmentSchema = z.object({
   description: z.string().optional(),
   assignedTo: z.string().min(1, "La persona es requerida"),
   dueDate: z.string().min(1, "La fecha de vencimiento es requerida"),
-  status: z.enum(["pendiente", "en_proceso", "completada"]),
+  status: z.enum(["pendiente", "en_proceso", "completada", "cancelada", "archivada"]),
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -81,6 +81,7 @@ export default function Assignments() {
   const [editingAssignment, setEditingAssignment] = useState<any>(null);
   const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (shouldAutoOpenCreate) {
@@ -90,28 +91,23 @@ export default function Assignments() {
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
-  const deleteMutation = useDeleteAssignment();
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta asignación?")) {
-      deleteMutation.mutate(id);
-    }
-  };
-  
+
   // Assignments are already filtered by backend according to role/organization visibility.
-  const userId = user?.id;
-  const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
-  const filteredAssignments = assignments;
+  const isObispo = user?.role === "obispo";
+  const isArchivedAssignment = (assignment: any) =>
+    assignment.status === "archivada" || ["completada", "cancelada"].includes(assignment.status);
 
-  // Check if user can delete an assignment
-  const canDeleteAssignment = (assignment: any) => {
-    // Obispado can delete any assignment
-    if (isObispado) return true;
-    // Org members can only delete assignments they created
-    if (isOrgMember) return assignment.assignedBy === userId;
-    return false;
-  };
+  const filteredAssignments = useMemo(() =>
+    assignments.filter((a: any) =>
+      showArchived
+        ? isArchivedAssignment(a)
+        : ["pendiente", "en_proceso"].includes(a.status)
+    ),
+    [assignments, showArchived]
+  );
+
 
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentSchema),
@@ -144,6 +140,20 @@ export default function Assignments() {
   };
 
   const updateStatus = (id: string, status: string) => {
+    if (status === "cancelada") {
+      const reason = window.prompt("Indica el motivo de cancelación:");
+      if (!reason || !reason.trim()) {
+        return;
+      }
+
+      updateMutation.mutate({
+        id,
+        status,
+        cancellationReason: reason.trim(),
+      });
+      return;
+    }
+
     updateMutation.mutate({
       id,
       status,
@@ -174,11 +184,22 @@ export default function Assignments() {
 
   const onEdit = (data: AssignmentFormValues) => {
     if (!editingAssignment) return;
+
+    const payload: Record<string, any> = {
+      id: editingAssignment.id,
+      ...data,
+    };
+
+    if (data.status === "cancelada") {
+      const reason = window.prompt("Indica el motivo de cancelación:");
+      if (!reason || !reason.trim()) {
+        return;
+      }
+      payload.cancellationReason = reason.trim();
+    }
+
     updateMutation.mutate(
-      {
-        id: editingAssignment.id,
-        ...data,
-      },
+      payload,
       {
         onSuccess: () => {
           setIsEditOpen(false);
@@ -190,27 +211,44 @@ export default function Assignments() {
 
   const pendingAssignments = filteredAssignments.filter((a: any) => a.status === "pendiente");
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
-  const completedAssignments = filteredAssignments.filter((a: any) => a.status === "completada");
+  const completedAssignments = filteredAssignments.filter((a: any) => a.resolution === "completada" || a.status === "completada");
+  const archivedAssignments = assignments.filter((a: any) => isArchivedAssignment(a));
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
-  const canCompleteAssignment = (assignment: any) =>
-    isObispado &&
-    assignment.status !== "completada" &&
-    !isAutoCompleteAssignment(assignment);
+  const canEditAssignment = (assignment: any) =>
+    isObispado || assignment.assignedBy === user?.id || assignment.assignedTo === user?.id;
+  const canCompleteAssignment = (assignment: any) => {
+    if (["archivada", "completada", "cancelada"].includes(assignment.status)) return false;
+    if (isAutoCompleteAssignment(assignment)) return false;
+    if (assignment.relatedTo?.startsWith("interview:") && !isObispado) return false;
+    return isObispado || assignment.assignedTo === user?.id;
+  };
+  const canCancelAssignment = (assignment: any) => {
+    if (["archivada", "completada", "cancelada"].includes(assignment.status)) return false;
+    return isObispo || assignment.assignedBy === user?.id;
+  };
+  const getResolutionLabel = (assignment: any) => {
+    const resolution = assignment?.resolution;
+    if (resolution === "completada") return "Completada";
+    if (resolution === "cancelada") return "Cancelada";
+    return "Sin definir";
+  };
   const renderAssignmentActions = (assignment: any) => (
     <div className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={(event) => {
-          event.stopPropagation();
-          startEdit(assignment);
-        }}
-      >
-        <Edit className="h-3 w-3 lg:mr-1" />
-        <span className="sr-only lg:not-sr-only">Editar</span>
-      </Button>
+      {canEditAssignment(assignment) ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation();
+            startEdit(assignment);
+          }}
+        >
+          <Edit className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Editar</span>
+        </Button>
+      ) : null}
       {canCompleteAssignment(assignment) ? (
         <Button
           size="sm"
@@ -225,34 +263,37 @@ export default function Assignments() {
           <span className="sr-only lg:not-sr-only">Completar</span>
         </Button>
       ) : null}
-      {assignment.status !== "completada" && isAutoCompleteAssignment(assignment) && (
+      {canCancelAssignment(assignment) ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation();
+            updateStatus(assignment.id, "cancelada");
+          }}
+          data-testid={`button-cancel-assignment-${assignment.id}`}
+        >
+          <XCircle className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Cancelar</span>
+        </Button>
+      ) : null}
+      {["completada", "archivada"].indexOf(assignment.status) === -1 && isAutoCompleteAssignment(assignment) && (
         <p className="text-xs text-muted-foreground">
           Se completará automáticamente al adjuntar comprobantes.
         </p>
       )}
-      {canDeleteAssignment(assignment) && (
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleDelete(assignment.id);
-          }}
-          data-testid={`button-delete-${assignment.id}`}
-          disabled={deleteMutation.isPending}
-        >
-          <Trash2 className="h-3 w-3 lg:mr-1" />
-          <span className="sr-only lg:not-sr-only">Eliminar</span>
-        </Button>
-      )}
     </div>
   );
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (assignment: any) => {
+    const status = assignment?.status;
+    const resolution = assignment?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
+      cancelada: { variant: "outline", label: "Cancelada" },
+      archivada: { variant: "secondary", label: "Archivada" },
     };
 
     const config = variants[status] || variants.pendiente;
@@ -292,6 +333,14 @@ export default function Assignments() {
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>
           ) : null}
+          <Button
+            variant="outline"
+            onClick={() => setShowArchived((prev) => !prev)}
+            data-testid="button-toggle-archived-assignments"
+          >
+            <Archive className="h-4 w-4 lg:mr-2" />
+            <span>{showArchived ? "Ocultar archivadas" : "Ver archivadas"}</span>
+          </Button>
           <Button
             variant="outline"
             onClick={() => exportAssignments(assignments)}
@@ -409,6 +458,8 @@ export default function Assignments() {
                             <SelectItem value="pendiente">Pendiente</SelectItem>
                             <SelectItem value="en_proceso">En Proceso</SelectItem>
                             <SelectItem value="completada">Completada</SelectItem>
+                        <SelectItem value="cancelada">Cancelada</SelectItem>
+                        <SelectItem value="archivada">Archivada</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -485,9 +536,9 @@ export default function Assignments() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Todas las Asignaciones</CardTitle>
+          <CardTitle>{showArchived ? "Asignaciones archivadas" : "Asignaciones activas"}</CardTitle>
           <CardDescription>
-            {filteredAssignments.length} asignaciones en total
+            {showArchived ? archivedAssignments.length : filteredAssignments.length} asignaciones {showArchived ? "archivadas" : "activas"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -500,7 +551,8 @@ export default function Assignments() {
                   <TableHead>Asignado por</TableHead>
                   <TableHead>Vencimiento</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead>Resolución</TableHead>
+                  {!showArchived ? <TableHead>Acciones</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -524,15 +576,18 @@ export default function Assignments() {
                             })
                           : "Sin fecha"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(assignment.status)}</TableCell>
+                      <TableCell>{getStatusBadge(assignment)}</TableCell>
+                      <TableCell>{showArchived ? getResolutionLabel(assignment) : "—"}</TableCell>
+                      {!showArchived ? (
                       <TableCell>
                         {renderAssignmentActions(assignment)}
                       </TableCell>
+                      ) : null}
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={!showArchived ? 7 : 6} className="text-center text-muted-foreground">
                       No hay asignaciones
                     </TableCell>
                   </TableRow>
@@ -633,6 +688,10 @@ export default function Assignments() {
                         <SelectItem value="pendiente">Pendiente</SelectItem>
                         <SelectItem value="en_proceso">En proceso</SelectItem>
                         <SelectItem value="completada">Completada</SelectItem>
+                        {isObispo || editingAssignment?.assignedBy === user?.id ? (
+                          <SelectItem value="cancelada">Cancelada</SelectItem>
+                        ) : null}
+                        {isObispado ? <SelectItem value="archivada">Archivada</SelectItem> : null}
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -697,7 +756,11 @@ export default function Assignments() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-medium">Estado:</span>
-              {detailsAssignment?.status ? getStatusBadge(detailsAssignment.status) : "Pendiente"}
+              {detailsAssignment?.status ? getStatusBadge(detailsAssignment) : "Pendiente"}
+            </div>
+            <div>
+              <span className="font-medium">Tipo de resolución:</span>{" "}
+              {getResolutionLabel(detailsAssignment)}
             </div>
           </div>
           <div className="flex justify-end">

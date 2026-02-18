@@ -12,8 +12,6 @@ import {
   ChevronLeft,
   Download,
   Edit,
-  Archive,
-  Trash2,
   ArrowLeft,
 } from "lucide-react";
 
@@ -65,7 +63,6 @@ import {
   useOrganizationInterviews,
   useCreateOrganizationInterview,
   useUpdateOrganizationInterview,
-  useDeleteOrganizationInterview,
   useUsers,
   useOrganizations,
   useOrganizationMembers,
@@ -185,7 +182,8 @@ const splitDateTimeValue = (value?: string) => {
   return { date, time };
 };
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (interview: any) => {
+  const status = interview?.status;
   const map: Record<
     string,
     { label: string; variant: "default" | "outline" | "secondary" | "destructive" }
@@ -209,6 +207,13 @@ const getPriorityBadge = (urgent: boolean) =>
   ) : (
     <Badge variant="outline">Normal</Badge>
   );
+
+const getResolutionLabel = (interview: any) => {
+  const resolution = interview?.resolution;
+  if (resolution === "completada") return "Completada";
+  if (resolution === "cancelada") return "Cancelada";
+  return "Sin definir";
+};
 
 /* =========================
    Page
@@ -257,7 +262,6 @@ export default function OrganizationInterviewsPage() {
 
   const createMutation = useCreateOrganizationInterview();
   const updateMutation = useUpdateOrganizationInterview();
-  const deleteMutation = useDeleteOrganizationInterview();
 
   const canManage =
     user?.role === "presidente_organizacion" ||
@@ -285,7 +289,6 @@ export default function OrganizationInterviewsPage() {
     }
   }, [user, isOrgTypeReady, canAccess, setLocation]);
 
-  const canDelete = canAccess && user?.role === "presidente_organizacion";
 
   const filteredOrganizationMembers = useMemo(() => {
     const query = memberQuery.trim().toLowerCase();
@@ -323,8 +326,8 @@ export default function OrganizationInterviewsPage() {
     return interviews
       .filter((i: any) =>
         showArchived
-          ? i.status === "archivada"
-          : i.status !== "archivada"
+          ? (i.status === "archivada" || ["completada", "cancelada"].includes(i.status) || ["completada", "cancelada"].includes(i.resolution))
+          : i.status === "programada"
       )
       .sort(
         (a: any, b: any) =>
@@ -335,8 +338,8 @@ export default function OrganizationInterviewsPage() {
   const pending = filteredInterviews.filter(
     (i: any) => i.status === "programada"
   );
-  const completed = filteredInterviews.filter(
-    (i: any) => i.status === "completada"
+  const completed = interviews.filter(
+    (i: any) => i.resolution === "completada" || i.status === "completada"
   );
 
   const form = useForm<InterviewFormValues>({
@@ -430,21 +433,40 @@ export default function OrganizationInterviewsPage() {
   /* =========================
      Handlers
   ========================= */
-  const handleToggleCompleted = (interview: any, checked: boolean) => {
-    if (!checked || interview.status !== "programada") return;
+  const handleComplete = (id: string) => {
+    const shouldAddNote = window.confirm("¿Quieres agregar una nota adicional al completar la entrevista?");
+    let completionNote = "";
+
+    if (shouldAddNote) {
+      completionNote = window.prompt("Escribe una nota (opcional):")?.trim() || "";
+    }
 
     updateMutation.mutate({
-      id: interview.id,
-      status: "completada",
+      id,
+      status: "archivada",
+      resolution: "completada",
+      completionNote: completionNote || undefined,
     });
   };
 
-  const handleArchive = (id: string) => {
-    updateMutation.mutate({ id, status: "archivada" });
+  const handleToggleCompleted = (interview: any, checked: boolean) => {
+    if (!checked || interview.status !== "programada") return;
+
+    handleComplete(interview.id);
   };
 
   const handleCancel = (id: string) => {
-    updateMutation.mutate({ id, status: "cancelada" });
+    const reason = window.prompt("Indica el motivo de cancelación:");
+    if (!reason || !reason.trim()) {
+      toast({
+        title: "Motivo requerido",
+        description: "Debes indicar un motivo para cancelar la entrevista.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateMutation.mutate({ id, status: "archivada", resolution: "cancelada", cancellationReason: reason.trim() });
   };
 
   const handleEditClick = (interview: any) => {
@@ -983,12 +1005,21 @@ export default function OrganizationInterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
+                <TableHead>Resolución</TableHead>
+                {!showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {filteredInterviews.map((interview: any) => (
+              {filteredInterviews.map((interview: any) => {
+                const isScheduled = interview.status === "programada";
+                const isCompleted = interview.resolution === "completada" || interview.status === "completada";
+                const isCancelled = interview.resolution === "cancelada" || interview.status === "cancelada";
+                const isArchived = interview.status === "archivada" || isCompleted || isCancelled;
+                const isReadOnly = showArchived || isCompleted || isCancelled || isArchived;
+                const canModify = !isReadOnly;
+
+                return (
                 <TableRow key={interview.id}>
                   <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
                   <TableCell>
@@ -1010,11 +1041,13 @@ export default function OrganizationInterviewsPage() {
                     {getPriorityBadge(!!interview.urgent)}
                   </TableCell>
                   <TableCell>
-                    {getStatusBadge(interview.status)}
+                    {getStatusBadge(interview)}
                   </TableCell>
+                  <TableCell>{showArchived ? getResolutionLabel(interview) : "—"}</TableCell>
+                  {!showArchived ? (
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
-                      {interview.status === "programada" && (
+                      {isScheduled && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1026,19 +1059,8 @@ export default function OrganizationInterviewsPage() {
                         </Button>
                       )}
 
-                      {interview.status === "completada" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="whitespace-nowrap"
-                          onClick={() => handleArchive(interview.id)}
-                        >
-                          <Archive className="h-4 w-4 mr-1" />
-                          Archivar
-                        </Button>
-                      )}
 
-                      {canManageOrganization && interview.status === "programada" && (
+                      {canManageOrganization && isScheduled && !isReadOnly && (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -1050,7 +1072,7 @@ export default function OrganizationInterviewsPage() {
                       )}
 
                       {canManageOrganization &&
-                        interview.status !== "completada" && (
+                        canModify && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1064,29 +1086,17 @@ export default function OrganizationInterviewsPage() {
                           </Button>
                         )}
 
-                      {canDelete &&
-                        interview.status !== "completada" && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="whitespace-nowrap"
-                            onClick={() =>
-                              deleteMutation.mutate(interview.id)
-                            }
-                          >
-                            <Trash2 className="h-4 w-4 lg:mr-1" />
-                            <span className="sr-only lg:not-sr-only">Eliminar</span>
-                          </Button>
-                        )}
                     </div>
                   </TableCell>
+                  ) : null}
                 </TableRow>
-              ))}
+                );
+              })}
 
               {filteredInterviews.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={!showArchived ? 8 : 7}
                     className="text-center text-muted-foreground"
                   >
                     No hay entrevistas

@@ -171,6 +171,14 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "pendiente",
   "en_proceso",
   "completada",
+  "cancelada",
+  "archivada",
+]);
+
+
+export const archiveResolutionEnum = pgEnum("archive_resolution", [
+  "completada",
+  "cancelada",
 ]);
 
 export const presidencyResourceCategoryEnum = pgEnum("presidency_resource_category", [
@@ -478,6 +486,7 @@ export const interviews = pgTable("interviews", {
   assignedToId: varchar("assigned_to_id").references(() => users.id),
   type: text("type").notNull(), // Regular, Temple Recommend, etc.
   status: interviewStatusEnum("status").default("programada").notNull(),
+  resolution: archiveResolutionEnum("resolution"),
   urgent: boolean("urgent").default(false).notNull(),
   notes: text("notes"),
   assignedBy: varchar("assigned_by").notNull().references(() => users.id),
@@ -493,6 +502,7 @@ export const organizationInterviews = pgTable("organization_interviews", {
   interviewerId: varchar("interviewer_id").notNull().references(() => users.id),
   type: organizationInterviewTypeEnum("type").notNull(),
   status: organizationInterviewStatusEnum("status").notNull().default("programada"),
+  resolution: archiveResolutionEnum("resolution"),
   urgent: boolean("urgent").default(false).notNull(),
   confidential: boolean("confidential").default(false).notNull(),
   notes: text("notes"),
@@ -543,6 +553,7 @@ export const assignments = pgTable("assignments", {
   assignedBy: varchar("assigned_by").notNull().references(() => users.id),
   dueDate: timestamp("due_date"),
   status: assignmentStatusEnum("status").notNull().default("pendiente"),
+  resolution: archiveResolutionEnum("resolution"),
   relatedTo: text("related_to"), // Reference to council or meeting
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
