@@ -2230,7 +2230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingRequest && existingRequest.status !== "aprobado" && budgetRequest.requestedBy) {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 7);
-        await storage.createAssignment({
+        const assignment = await storage.createAssignment({
           title: "Adjuntar comprobantes de gasto",
           description: `Adjunta los comprobantes de gasto para la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}.`,
           assignedTo: budgetRequest.requestedBy,
@@ -2741,19 +2741,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     
-      const normalizedCancellationReason = typeof interviewData.cancellationReason === "string"
-        ? interviewData.cancellationReason.trim()
-        : undefined;
-      if (interviewData.status === "cancelada" && !normalizedCancellationReason) {
+      if (interviewData.resolution === "cancelada" && !trimmedCancellationReason) {
         return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
       }
 
       const interviewUpdateData: any = { ...interviewData };
-      if (interviewData.status === "cancelada") {
-        interviewUpdateData.cancellationReason = normalizedCancellationReason;
+      if (interviewData.resolution === "cancelada") {
+        interviewUpdateData.cancellationReason = trimmedCancellationReason;
         interviewUpdateData.cancelledAt = new Date();
         interviewUpdateData.archivedAt = new Date();
-      } else if (interviewData.status === "completada" || interviewData.status === "archivada") {
+      } else if (interviewData.resolution === "completada" || interviewData.status === "archivada") {
+        interviewUpdateData.cancellationReason = null;
+        interviewUpdateData.cancelledAt = null;
         interviewUpdateData.archivedAt = new Date();
       }
 
@@ -3331,19 +3330,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
     
-        const normalizedCancellationReason = typeof updateData.cancellationReason === "string"
-          ? updateData.cancellationReason.trim()
-          : undefined;
-        if (updateData.status === "cancelada" && !normalizedCancellationReason) {
+        if (updateData.resolution === "cancelada" && !trimmedCancellationReason) {
           return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
         }
 
         const organizationInterviewUpdateData: any = { ...updateData };
-        if (updateData.status === "cancelada") {
-          organizationInterviewUpdateData.cancellationReason = normalizedCancellationReason;
+        if (updateData.resolution === "cancelada") {
+          organizationInterviewUpdateData.cancellationReason = trimmedCancellationReason;
           organizationInterviewUpdateData.cancelledAt = new Date();
           organizationInterviewUpdateData.archivedAt = new Date();
-        } else if (updateData.status === "completada" || updateData.status === "archivada") {
+        } else if (updateData.resolution === "completada" || updateData.status === "archivada") {
+          organizationInterviewUpdateData.cancellationReason = null;
+          organizationInterviewUpdateData.cancelledAt = null;
           organizationInterviewUpdateData.archivedAt = new Date();
         }
 
@@ -5595,6 +5593,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (assignmentData.status === "archivada" && !assignmentData.resolution && assignment.resolution) {
         assignmentData.resolution = assignment.resolution;
+      }
+
+      if (assignmentData.resolution === "cancelada" && !trimmedCancellationReason) {
+        return res.status(400).json({ error: "El motivo de cancelación es obligatorio" });
+      }
+
+      if (assignmentData.resolution === "cancelada") {
+        assignmentData.cancellationReason = trimmedCancellationReason;
+        assignmentData.cancelledAt = new Date();
+        assignmentData.archivedAt = new Date();
+      } else if (assignmentData.resolution === "completada" || assignmentData.status === "archivada") {
+        assignmentData.cancellationReason = null;
+        assignmentData.cancelledAt = null;
+        assignmentData.archivedAt = new Date();
       }
 
       const updatedAssignment = await storage.updateAssignment(id, assignmentData);

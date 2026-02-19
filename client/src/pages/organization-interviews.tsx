@@ -182,9 +182,8 @@ const splitDateTimeValue = (value?: string) => {
   return { date, time };
 };
 
-const getStatusBadge = (interview: any) => {
+const getStatusBadge = (interview: any, forceArchived = false) => {
   const status = interview?.status;
-  const resolution = interview?.resolution;
   const map: Record<
     string,
     { label: string; variant: "default" | "outline" | "secondary" | "destructive" }
@@ -192,11 +191,21 @@ const getStatusBadge = (interview: any) => {
     programada: { label: "Pendiente", variant: "outline" },
     completada: { label: "Completada", variant: "default" },
     cancelada: { label: "Cancelada", variant: "destructive" },
-    archivada: { label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada", variant: "secondary" },
+    archivada: { label: "Archivada", variant: "secondary" },
   };
+
+  if (forceArchived) {
+    return <Badge variant="secondary">Archivada</Badge>;
+  }
 
   const cfg = map[status] ?? map.programada;
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+};
+
+const getResolutionLabel = (interview: any) => {
+  if (interview?.resolution === "cancelada" || interview?.status === "cancelada") return "Cancelada";
+  if (interview?.resolution === "completada" || interview?.status === "completada") return "Completada";
+  return "-";
 };
 
 const getPriorityBadge = (urgent: boolean) =>
@@ -999,6 +1008,7 @@ export default function OrganizationInterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
+                {showArchived ? <TableHead>Resolución</TableHead> : null}
                 {!showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
@@ -1034,8 +1044,9 @@ export default function OrganizationInterviewsPage() {
                     {getPriorityBadge(!!interview.urgent)}
                   </TableCell>
                   <TableCell>
-                    {getStatusBadge(interview)}
+                    {getStatusBadge(interview, isArchived)}
                   </TableCell>
+                  {showArchived ? <TableCell>{getResolutionLabel(interview)}</TableCell> : null}
                   {!showArchived ? (
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1088,7 +1099,7 @@ export default function OrganizationInterviewsPage() {
               {filteredInterviews.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={!showArchived ? 7 : 6}
+                    colSpan={!showArchived ? 7 : 7}
                     className="text-center text-muted-foreground"
                   >
                     No hay entrevistas
