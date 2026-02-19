@@ -1756,7 +1756,7 @@ export default function InterviewsPage() {
             <div className="text-2xl font-bold" data-testid="text-completed-interviews">
               {completedInterviews.length}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Aún sin archivar</p>
+            <p className="text-xs text-muted-foreground mt-1">Archivadas con resolución</p>
           </CardContent>
         </Card>
       </div>
@@ -2052,6 +2052,20 @@ export default function InterviewsPage() {
             <div className="flex items-center gap-2">
               <span className="font-medium">Estado:</span>
               {detailsInterview?.status ? getStatusBadge(detailsInterview) : "Pendiente"}
+            </div>
+            <div>
+              <span className="font-medium">Resolución:</span>{" "}
+              {detailsInterview?.resolution ? detailsInterview.resolution.charAt(0).toUpperCase() + detailsInterview.resolution.slice(1) : "Sin resolución"}
+            </div>
+            <div>
+              <span className="font-medium">Motivo de cancelación:</span>{" "}
+              {detailsInterview?.cancellationReason || "N/A"}
+            </div>
+            <div>
+              <span className="font-medium">Archivada:</span>{" "}
+              {detailsInterview?.archivedAt
+                ? new Date(detailsInterview.archivedAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "N/A"}
             </div>
             <div>
               <span className="font-medium">Notas:</span>{" "}
