@@ -241,16 +241,23 @@ export default function Assignments() {
     </div>
   );
 
-  const getStatusBadge = (assignment: any) => {
+  const getStatusBadge = (assignment: any, forceArchived = false) => {
     const status = assignment?.status;
-    const resolution = assignment?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
       cancelada: { variant: "outline", label: "Cancelada" },
-      archivada: { variant: "secondary", label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada" },
+      archivada: { variant: "secondary", label: "Archivada" },
     };
+
+    if (forceArchived) {
+      return (
+        <Badge variant="secondary" className="flex items-center w-fit">
+          Archivada
+        </Badge>
+      );
+    }
 
     const config = variants[status] || variants.pendiente;
 
@@ -259,6 +266,12 @@ export default function Assignments() {
         {config.label}
       </Badge>
     );
+  };
+
+  const getResolutionLabel = (assignment: any) => {
+    if (assignment?.resolution === "cancelada" || assignment?.status === "cancelada") return "Cancelada";
+    if (assignment?.resolution === "completada" || assignment?.status === "completada") return "Completada";
+    return "-";
   };
 
   if (isLoading) {
@@ -533,9 +546,9 @@ export default function Assignments() {
                             })
                           : "Sin fecha"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(assignment)}</TableCell>
+                      <TableCell>{getStatusBadge(assignment, showArchived && isArchivedAssignment(assignment))}</TableCell>
                       {showArchived ? (
-                        <TableCell>{assignment.resolution ? assignment.resolution.charAt(0).toUpperCase() + assignment.resolution.slice(1) : "-"}</TableCell>
+                        <TableCell>{getResolutionLabel(assignment)}</TableCell>
                       ) : null}
                       {showArchived ? (
                         <TableCell>{assignment.archivedAt ? new Date(assignment.archivedAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}</TableCell>

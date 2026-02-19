@@ -886,15 +886,22 @@ export default function InterviewsPage() {
   };
 
   // ✅ Estado badge (SOLO estado, sin urgent)
-  const getStatusBadge = (interview: any) => {
+  const getStatusBadge = (interview: any, forceArchived = false) => {
     const status = interview?.status;
-    const resolution = interview?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       programada: { variant: "outline", label: "Pendiente" },
       completada: { variant: "default", label: "Completada" },
-      archivada: { variant: "secondary", label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada" },
+      archivada: { variant: "secondary", label: "Archivada" },
       cancelada: { variant: "secondary", label: "Cancelada" },
     };
+
+    if (forceArchived) {
+      return (
+        <Badge variant="secondary" className="flex items-center w-fit">
+          Archivada
+        </Badge>
+      );
+    }
 
     const config = variants[status] || variants.programada;
 
@@ -903,6 +910,12 @@ export default function InterviewsPage() {
         {config.label}
       </Badge>
     );
+  };
+
+  const getResolutionLabel = (interview: any) => {
+    if (interview?.resolution === "cancelada" || interview?.status === "cancelada") return "Cancelada";
+    if (interview?.resolution === "completada" || interview?.status === "completada") return "Completada";
+    return "-";
   };
 
   // ✅ Prioridad badge (separado)
@@ -1803,7 +1816,7 @@ export default function InterviewsPage() {
                             {formatInterviewType(interview.type)}
                           </p>
                         </div>
-                        {getStatusBadge(interview)}
+                        {getStatusBadge(interview, showArchived && isArchived)}
                       </div>
 
                       <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground">
@@ -1888,6 +1901,7 @@ export default function InterviewsPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Estado</TableHead>
+                {showArchived ? <TableHead>Resolución</TableHead> : null}
                 {(canManage || canCancel) && !showArchived ? <TableHead>Acciones</TableHead> : null}
               </TableRow>
             </TableHeader>
@@ -1931,7 +1945,8 @@ export default function InterviewsPage() {
                         })}
                       </TableCell>
                       <TableCell>{getPriorityBadge(!!interview.urgent)}</TableCell>
-                      <TableCell>{getStatusBadge(interview)}</TableCell>
+                      <TableCell>{getStatusBadge(interview, isArchived)}</TableCell>
+                      {showArchived ? <TableCell>{getResolutionLabel(interview)}</TableCell> : null}
 
                       {(canManage || canCancel) && !showArchived ? (
                         <TableCell>
@@ -1993,7 +2008,7 @@ export default function InterviewsPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={(canManage || canCancel) && !showArchived ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={(canManage || canCancel) && !showArchived ? 7 : 7} className="text-center py-8 text-muted-foreground">
                     {isOrgMember ? "No hay solicitudes de entrevista" : "No hay entrevistas"}
                   </TableCell>
                 </TableRow>
@@ -2055,7 +2070,7 @@ export default function InterviewsPage() {
             </div>
             <div>
               <span className="font-medium">Resolución:</span>{" "}
-              {detailsInterview?.resolution ? detailsInterview.resolution.charAt(0).toUpperCase() + detailsInterview.resolution.slice(1) : "Sin resolución"}
+              {getResolutionLabel(detailsInterview) !== "-" ? getResolutionLabel(detailsInterview) : "Sin resolución"}
             </div>
             <div>
               <span className="font-medium">Motivo de cancelación:</span>{" "}
