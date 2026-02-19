@@ -241,16 +241,23 @@ export default function Assignments() {
     </div>
   );
 
-  const getStatusBadge = (assignment: any) => {
+  const getStatusBadge = (assignment: any, forceArchived = false) => {
     const status = assignment?.status;
-    const resolution = assignment?.resolution;
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       pendiente: { variant: "outline", label: "Pendiente" },
       en_proceso: { variant: "default", label: "En Proceso" },
       completada: { variant: "secondary", label: "Completada" },
       cancelada: { variant: "outline", label: "Cancelada" },
-      archivada: { variant: "secondary", label: resolution === "cancelada" ? "Cancelada" : resolution === "completada" ? "Completada" : "Archivada" },
+      archivada: { variant: "secondary", label: "Archivada" },
     };
+
+    if (forceArchived) {
+      return (
+        <Badge variant="secondary" className="flex items-center w-fit">
+          Archivada
+        </Badge>
+      );
+    }
 
     const config = variants[status] || variants.pendiente;
 
@@ -259,6 +266,12 @@ export default function Assignments() {
         {config.label}
       </Badge>
     );
+  };
+
+  const getResolutionLabel = (assignment: any) => {
+    if (assignment?.resolution === "cancelada" || assignment?.status === "cancelada") return "Cancelada";
+    if (assignment?.resolution === "completada" || assignment?.status === "completada") return "Completada";
+    return "-";
   };
 
   if (isLoading) {
@@ -507,6 +520,8 @@ export default function Assignments() {
                   <TableHead>Asignado por</TableHead>
                   <TableHead>Vencimiento</TableHead>
                   <TableHead>Estado</TableHead>
+                  {showArchived ? <TableHead>Resolución</TableHead> : null}
+                  {showArchived ? <TableHead>Archivada</TableHead> : null}
                   {!showArchived ? <TableHead>Acciones</TableHead> : null}
                 </TableRow>
               </TableHeader>
@@ -531,7 +546,13 @@ export default function Assignments() {
                             })
                           : "Sin fecha"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(assignment)}</TableCell>
+                      <TableCell>{getStatusBadge(assignment, showArchived && isArchivedAssignment(assignment))}</TableCell>
+                      {showArchived ? (
+                        <TableCell>{getResolutionLabel(assignment)}</TableCell>
+                      ) : null}
+                      {showArchived ? (
+                        <TableCell>{assignment.archivedAt ? new Date(assignment.archivedAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}</TableCell>
+                      ) : null}
                       {!showArchived ? (
                       <TableCell>
                         {renderAssignmentActions(assignment)}
@@ -541,7 +562,7 @@ export default function Assignments() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={!showArchived ? 6 : 5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={!showArchived ? 6 : 7} className="text-center text-muted-foreground">
                       No hay asignaciones
                     </TableCell>
                   </TableRow>
@@ -709,6 +730,20 @@ export default function Assignments() {
             <div className="flex items-center gap-2">
               <span className="font-medium">Estado:</span>
               {detailsAssignment?.status ? getStatusBadge(detailsAssignment) : "Pendiente"}
+            </div>
+            <div>
+              <span className="font-medium">Resolución:</span>{" "}
+              {detailsAssignment?.resolution ? detailsAssignment.resolution.charAt(0).toUpperCase() + detailsAssignment.resolution.slice(1) : "Sin resolución"}
+            </div>
+            <div>
+              <span className="font-medium">Motivo de cancelación:</span>{" "}
+              {detailsAssignment?.cancellationReason || "N/A"}
+            </div>
+            <div>
+              <span className="font-medium">Archivada:</span>{" "}
+              {detailsAssignment?.archivedAt
+                ? new Date(detailsAssignment.archivedAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "N/A"}
             </div>
           </div>
           <div className="flex justify-end">
