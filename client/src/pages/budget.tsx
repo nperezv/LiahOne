@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,6 +34,7 @@ import {
   useCreateBudgetRequest,
   useUpdateBudgetRequest,
   useApproveBudgetRequest,
+  useSignBudgetRequestAsBishop,
   useDeleteBudgetRequest,
   useWardBudget,
   useUpdateWardBudget,
@@ -102,6 +103,7 @@ const budgetSchema = z.object({
   amount: z.string().min(1, "El monto es requerido"),
   category: z.enum(["actividades", "materiales", "otros"]),
   requestType: z.enum(["reembolso", "pago_adelantado"]),
+  activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
   receiptFile: z
     .instanceof(File)
@@ -167,16 +169,19 @@ type ExpenseReceiptsValues = z.infer<typeof expenseReceiptsSchema>;
 type WardBudgetValues = z.infer<typeof wardBudgetSchema>;
 type OrgBudgetAssignValues = z.infer<typeof orgBudgetAssignSchema>;
 
-type ReceiptCategory = "plan" | "receipt" | "expense";
+type ReceiptCategory = "plan" | "receipt" | "expense" | "signed_plan";
 
 interface BudgetRequest {
   id: string;
   description: string;
   amount: number;
   category?: "actividades" | "materiales" | "otros";
-  status: "solicitado" | "aprobado" | "en_proceso" | "completado";
+  status: "solicitado" | "aprobado_financiero" | "pendiente_firma_obispo" | "aprobado" | "en_proceso" | "completado";
   requestedBy: string;
   approvedBy?: string;
+  activityDate?: string;
+  bishopSignedPlanFilename?: string;
+  bishopSignedPlanUrl?: string;
   organizationId?: string;
   notes?: string;
   receipts?: { filename: string; url: string; category?: ReceiptCategory }[];
@@ -198,6 +203,11 @@ export default function BudgetPage() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [isReceiptsDialogOpen, setIsReceiptsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
+  const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
+  const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
 
   const { user } = useAuth();
   const { data: requests = [] as any[], isLoading: requestsLoading } = useBudgetRequests();
@@ -207,6 +217,7 @@ export default function BudgetPage() {
   const createMutation = useCreateBudgetRequest();
   const updateMutation = useUpdateBudgetRequest();
   const approveMutation = useApproveBudgetRequest();
+  const signMutation = useSignBudgetRequestAsBishop();
   const deleteMutation = useDeleteBudgetRequest();
   const updateWardBudgetMutation = useUpdateWardBudget();
   const createOrgBudgetMutation = useCreateOrganizationBudget();
@@ -292,6 +303,7 @@ export default function BudgetPage() {
       amount: "",
       category: "otros",
       requestType: "pago_adelantado",
+      activityDate: "",
       notes: "",
       receiptFile: undefined,
       activityPlanFile: undefined,
@@ -394,6 +406,7 @@ export default function BudgetPage() {
         amount: parseFloat(data.amount),
         category: data.category,
         status: "solicitado",
+        activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,
         notes: data.notes || "",
         receipts: uploadedReceipts,
         organizationId: user?.organizationId,
@@ -536,6 +549,92 @@ export default function BudgetPage() {
     approveMutation.mutate(requestId);
   };
 
+  const handleSignAsBishop = (requestId: string) => {
+    setSigningRequestId(requestId);
+    setSignerName(user?.name || "");
+    setIsSignDialogOpen(true);
+  };
+
+  const clearSignatureCanvas = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const getCanvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  const startDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const { x, y } = getCanvasPoint(event);
+    isDrawingRef.current = true;
+    context.beginPath();
+    context.moveTo(x, y);
+  };
+
+  const drawSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const { x, y } = getCanvasPoint(event);
+    context.lineTo(x, y);
+    context.stroke();
+  };
+
+  const stopDrawing = () => {
+    isDrawingRef.current = false;
+  };
+
+  const confirmSignature = () => {
+    if (!signingRequestId) return;
+    const normalizedName = signerName.trim();
+    if (!normalizedName) {
+      alert("Debes indicar el nombre del obispo.");
+      return;
+    }
+
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const signatureDataUrl = canvas.toDataURL("image/png");
+    signMutation.mutate(
+      { requestId: signingRequestId, signatureDataUrl, signerName: normalizedName },
+      {
+        onSuccess: () => {
+          setIsSignDialogOpen(false);
+          setSigningRequestId(null);
+        },
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (!isSignDialogOpen) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.lineWidth = 2;
+    context.lineJoin = "round";
+    context.lineCap = "round";
+    context.strokeStyle = "#111827";
+    clearSignatureCanvas();
+  }, [isSignDialogOpen]);
+
   const handleDelete = (requestId: string) => {
     if (window.confirm("¿Está seguro de que desea eliminar esta solicitud?")) {
       deleteMutation.mutate(requestId);
@@ -547,6 +646,16 @@ export default function BudgetPage() {
       solicitado: {
         variant: "outline",
         label: "Solicitado",
+        icon: <Clock className="h-3 w-3 mr-1" />,
+      },
+      aprobado_financiero: {
+        variant: "secondary",
+        label: "Aprobación financiera",
+        icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
+      },
+      pendiente_firma_obispo: {
+        variant: "outline",
+        label: "Pendiente firma obispo",
         icon: <Clock className="h-3 w-3 mr-1" />,
       },
       aprobado: {
@@ -597,6 +706,10 @@ export default function BudgetPage() {
     if (receipt?.category === "expense") {
       return "Comprobante de gasto";
     }
+  if (receipt?.category === "signed_plan") {
+      return "Solicitud de gasto firmada";
+    }
+
     if (receipt?.category === "receipt") {
       return "Comprobante de compra";
     }
@@ -925,6 +1038,20 @@ export default function BudgetPage() {
                             <SelectItem value="pago_adelantado">Pago por adelantado</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={budgetForm.control}
+                    name="activityDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha prevista de la actividad o gasto</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} data-testid="input-activity-date" />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1479,7 +1606,24 @@ export default function BudgetPage() {
                               </span>
                             )
                           )}
+                          {request.bishopSignedPlanUrl && (
+                            <button
+                              type="button"
+                              onClick={() => void downloadReceipt({ filename: request.bishopSignedPlanFilename || "solicitud-firmada.pdf", url: request.bishopSignedPlanUrl })}
+                              className="text-left text-xs text-emerald-700 hover:underline"
+                            >
+                              Solicitud de gasto firmada: {request.bishopSignedPlanFilename || "Descargar"}
+                            </button>
+                          )}
                         </div>
+                      ) : request.bishopSignedPlanUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => void downloadReceipt({ filename: request.bishopSignedPlanFilename || "solicitud-firmada.pdf", url: request.bishopSignedPlanUrl })}
+                          className="text-left text-xs text-emerald-700 hover:underline"
+                        >
+                          Solicitud de gasto firmada: {request.bishopSignedPlanFilename || "Descargar"}
+                        </button>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sin adjuntos</span>
                       )}
@@ -1503,6 +1647,17 @@ export default function BudgetPage() {
                             >
                               <CheckCircle2 className="h-4 w-4 mr-1" />
                               Aprobar
+                            </Button>
+                          )}
+                          {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleSignAsBishop(request.id)}
+                              data-testid={`button-sign-budget-${request.id}`}
+                              disabled={signMutation.isPending}
+                            >
+                              Firmar solicitud
                             </Button>
                           )}
                           {request.status === "aprobado" &&
@@ -1546,6 +1701,54 @@ export default function BudgetPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={isSignDialogOpen}
+        onOpenChange={(open) => {
+          setIsSignDialogOpen(open);
+          if (!open) {
+            setSigningRequestId(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Firmar solicitud de gasto</DialogTitle>
+            <DialogDescription>
+              Dibuja la firma en el recuadro. Se estampará en la posición fija del PDF junto al nombre y fecha.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Nombre del obispo</label>
+              <Input value={signerName} onChange={(event) => setSignerName(event.target.value)} />
+            </div>
+
+            <div className="rounded-md border border-dashed p-3">
+              <canvas
+                ref={signatureCanvasRef}
+                width={700}
+                height={220}
+                className="h-44 w-full rounded border bg-white"
+                onPointerDown={startDrawing}
+                onPointerMove={drawSignature}
+                onPointerUp={stopDrawing}
+                onPointerLeave={stopDrawing}
+                data-testid="canvas-bishop-signature"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Button type="button" variant="outline" onClick={clearSignatureCanvas}>
+                Limpiar firma
+              </Button>
+              <Button type="button" onClick={confirmSignature} disabled={signMutation.isPending || !signingRequestId}>
+                {signMutation.isPending ? "Firmando..." : "Confirmar firma"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
