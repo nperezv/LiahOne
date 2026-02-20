@@ -73,7 +73,7 @@ export default function Assignments() {
   const origin = searchParams.get("from");
   const originOrgSlug = searchParams.get("orgSlug");
   const shouldAutoOpenCreate = searchParams.get("create") === "1";
-  const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
+  const isPresidencyOrigin = (origin === "presidency-manage" || origin === "presidency-panel") && Boolean(originOrgSlug);
   const { data: assignments = [], isLoading } = useAssignments();
   const { data: users = [] } = useUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -366,11 +366,11 @@ export default function Assignments() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
-          {canGoBackToManagement ? (
+          {isPresidencyOrigin ? (
             <Button
               variant="outline"
               className="rounded-full"
-              onClick={() => navigateWithTransition(setLocation, `/presidency/${originOrgSlug}/manage`)}
+              onClick={() => navigateWithTransition(setLocation, origin === "presidency-manage" ? `/presidency/${originOrgSlug}/manage` : `/presidency/${originOrgSlug}`)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>

@@ -1389,7 +1389,7 @@ export default function PresidencyMeetingsPage() {
         <div className="col-span-1 grid gap-3 md:gap-4">
           <button
             type="button"
-            onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-manage&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
+            onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
             className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
             data-testid="button-org-birthdays-card-mobile"
           >
@@ -1408,7 +1408,7 @@ export default function PresidencyMeetingsPage() {
 
           <button
             type="button"
-            onClick={() => navigateWithTransition(setLocation, `/assignments?org=${params?.org ?? ""}`)}
+            onClick={() => navigateWithTransition(setLocation, `/assignments?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
             className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
             data-testid="button-org-assignments-progress-card-mobile"
           >
@@ -1584,7 +1584,7 @@ export default function PresidencyMeetingsPage() {
         <div className="grid gap-3 md:gap-4 lg:col-span-6">
           <button
             type="button"
-            onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-manage&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
+            onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
             className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
             data-testid="button-org-birthdays-card"
           >
@@ -1603,7 +1603,7 @@ export default function PresidencyMeetingsPage() {
 
           <button
             type="button"
-            onClick={() => navigateWithTransition(setLocation, `/assignments?org=${params?.org ?? ""}`)}
+            onClick={() => navigateWithTransition(setLocation, `/assignments?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
             className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
             data-testid="button-org-assignments-progress-card"
           >
