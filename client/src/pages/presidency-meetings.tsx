@@ -1437,6 +1437,88 @@ export default function PresidencyMeetingsPage() {
         </button>
       </div>
 
+      <div className="mt-3 grid grid-cols-2 gap-3 md:gap-4 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setLeadersDialogOpen(true)}
+          className="col-span-1 flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+          data-testid="button-org-leaders-card-mobile"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Líderes de la organización</p>
+            <UsersRound className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="mt-3 space-y-3">
+            {leadership.visibleLeaders.length > 0 ? leadership.visibleLeaders.map((leader: any) => {
+              const displayName = String(leader.name ?? "Sin nombre").trim() || "Sin nombre";
+              const initials = displayName
+                .split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part: string) => part[0]?.toUpperCase())
+                .join("") || "?";
+              return (
+                <div key={`leader-mobile-${leader.id}`} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2">
+                  <Avatar className="h-10 w-10 border border-border/60">
+                    <AvatarImage src={leader.avatarUrl ?? undefined} alt={displayName} />
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-semibold leading-tight">{displayName}</p>
+                    <p className="text-xs text-muted-foreground">{leader.roleLabel}</p>
+                  </div>
+                </div>
+              );
+            }) : (
+              <p className="text-sm text-muted-foreground">No hay líderes asignados todavía.</p>
+            )}
+          </div>
+          {leadership.hiddenLeaders.length > 0 && (
+            <p className="mt-auto pt-3 text-xs text-muted-foreground">+{leadership.hiddenLeaders.length} líderes más. Pulsa para ver todos.</p>
+          )}
+        </button>
+
+        <div className="col-span-1 grid gap-3 md:gap-4">
+          <button
+            type="button"
+            onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-manage&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
+            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            data-testid="button-org-birthdays-card-mobile"
+          >
+            <p className="text-xs text-muted-foreground">Cumpleaños de la organización</p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-xl font-semibold">{dashboardStats.upcomingBirthday ? `${dashboardStats.upcomingBirthday.daysUntil} días` : "Sin próximos"}</p>
+              <Cake className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {dashboardStats.upcomingBirthday
+                ? `${dashboardStats.upcomingBirthday.name} · ${formatBirthdayMonthDay(dashboardStats.upcomingBirthday.birthDate)}`
+                : "No hay cumpleaños cargados"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{dashboardStats.birthdaysThisMonth} este mes</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigateWithTransition(setLocation, `/assignments?org=${params?.org ?? ""}`)}
+            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            data-testid="button-org-assignments-progress-card-mobile"
+          >
+            <p className="text-xs text-muted-foreground">Asignaciones pendientes</p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.assignmentsCompletionPercent)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.assignmentsCompletionPercent}
+                centerLabel={String(dashboardStats.pendingAssignmentsCount)}
+                color="hsl(var(--chart-3))"
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Pendientes: {dashboardStats.pendingAssignmentsCount}</p>
+            <p className="text-xs text-muted-foreground">Completadas: {dashboardStats.completedAssignmentsCount}</p>
+          </button>
+        </div>
+      </div>
+
       <div className="hidden gap-3 md:gap-4 lg:grid lg:grid-cols-12">
         <Dialog open={leadersDialogOpen} onOpenChange={setLeadersDialogOpen}>
           <button
