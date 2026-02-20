@@ -408,10 +408,14 @@ export default function PresidencyManageOrganizationPage() {
   }, [activeGaugeSlide, gaugeSlides.length]);
 
   const currentGaugeSlide = gaugeSlides[activeGaugeSlide] ?? gaugeSlides[0];
-  const gaugeRadius = 65;
+  const gaugeSize = 220;
+  const gaugeStroke = 14;
+  const gaugeRadius = (gaugeSize - gaugeStroke) / 2;
   const gaugeCircumference = 2 * Math.PI * gaugeRadius;
+  const gaugeSweepAngle = 300;
+  const gaugeArcLength = (gaugeSweepAngle / 360) * gaugeCircumference;
   const currentGaugeValue = Math.max(0, Math.min(100, currentGaugeSlide?.value ?? 0));
-  const currentGaugeOffset = gaugeCircumference * (1 - currentGaugeValue / 100);
+  const currentGaugeOffset = gaugeArcLength - (currentGaugeValue / 100) * gaugeArcLength;
 
   const goToNextGaugeSlide = () => {
     setActiveGaugeSlide((prev) => (prev + 1) % gaugeSlides.length);
@@ -550,28 +554,39 @@ export default function PresidencyManageOrganizationPage() {
           </div>
 
           <div
-            className="relative mx-auto h-64 w-64 touch-pan-y"
+            className="relative mx-auto flex h-72 w-full max-w-[280px] items-center justify-center touch-pan-y"
             onTouchStart={handleGaugeTouchStart}
             onTouchEnd={handleGaugeTouchEnd}
           >
-            <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
-              <circle cx="100" cy="100" r={gaugeRadius} fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="12" />
+            <svg width={gaugeSize} height={gaugeSize} viewBox={`0 0 ${gaugeSize} ${gaugeSize}`} className="drop-shadow-sm">
               <circle
-                cx="100"
-                cy="100"
+                cx={gaugeSize / 2}
+                cy={gaugeSize / 2}
+                r={gaugeRadius}
+                fill="none"
+                stroke="rgba(148,163,184,0.16)"
+                strokeWidth={gaugeStroke}
+                strokeLinecap="round"
+                strokeDasharray={`${gaugeArcLength} ${gaugeCircumference}`}
+                transform={`rotate(120 ${gaugeSize / 2} ${gaugeSize / 2})`}
+              />
+              <circle
+                cx={gaugeSize / 2}
+                cy={gaugeSize / 2}
                 r={gaugeRadius}
                 fill="none"
                 stroke={currentGaugeSlide?.colorHex ?? "#60A5FA"}
-                strokeWidth="12"
+                strokeWidth={gaugeStroke}
                 strokeLinecap="round"
-                strokeDasharray={`${gaugeCircumference} ${gaugeCircumference}`}
+                strokeDasharray={`${gaugeArcLength} ${gaugeCircumference}`}
                 strokeDashoffset={currentGaugeOffset}
+                transform={`rotate(120 ${gaugeSize / 2} ${gaugeSize / 2})`}
                 opacity={0.95}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <p className="text-3xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
-              <p className="text-base font-semibold">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
+              <p className="text-4xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
+              <p className="mt-1 text-base font-semibold">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
             </div>
           </div>
 
