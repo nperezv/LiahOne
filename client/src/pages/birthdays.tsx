@@ -107,8 +107,8 @@ export default function BirthdaysPage() {
   const origin = searchParams.get("from");
   const originOrgSlug = searchParams.get("orgSlug");
   const originOrgId = searchParams.get("orgId");
-  const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
-  const shouldFilterByOriginOrganization = canGoBackToManagement && Boolean(originOrgId);
+  const isPresidencyOrigin = (origin === "presidency-manage" || origin === "presidency-panel") && Boolean(originOrgSlug);
+  const shouldFilterByOriginOrganization = isPresidencyOrigin && Boolean(originOrgId);
 
   const { data: birthdays = [], isLoading } = useBirthdays();
   const createMutation = useCreateBirthday();
@@ -318,11 +318,11 @@ export default function BirthdaysPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
-          {canGoBackToManagement ? (
+          {isPresidencyOrigin ? (
             <Button
               variant="outline"
               className="rounded-full"
-              onClick={() => navigateWithTransition(setLocation, `/presidency/${originOrgSlug}/manage`)}
+              onClick={() => navigateWithTransition(setLocation, origin === "presidency-manage" ? `/presidency/${originOrgSlug}/manage` : `/presidency/${originOrgSlug}`)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
             </Button>

@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, Mail, MessageCircle, Phone, Plus, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,19 +19,13 @@ import {
   useUpsertOrganizationAttendance,
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
-  useUsers,
-  useAllMemberCallings,
   useOrganizationInterviews,
-  useAssignments,
-  useBirthdays,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { formatCallingLabel } from "@/lib/callings";
 import { useAuth } from "@/lib/auth";
-import { cn, normalizeMemberName } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
-import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
 
 const meetingSchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
@@ -136,29 +130,6 @@ const navigateWithTransition = (navigate: (path: string) => void, path: string) 
   navigate(path);
 };
 
-const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
-
-const getPresidentRoleLabel = (organizationType?: string) =>
-  FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Presidenta" : "Presidente";
-
-const getCounselorRoleLabel = (index: number, organizationType?: string) => {
-  const isFemale = FEMALE_ORG_TYPES.has(organizationType ?? "");
-  if (index === 0) return isFemale ? "Primera consejera" : "Primer consejero";
-  if (index === 1) return isFemale ? "Segunda consejera" : "Segundo consejero";
-  return isFemale ? "Consejera" : "Consejero";
-};
-
-const inferCounselorOrder = (callingName?: string | null, callingOrder?: number | null) => {
-  if (callingOrder === 1 || callingOrder === 2) return callingOrder;
-  const normalized = callingName?.trim().toLowerCase() ?? "";
-  if (normalized.includes("primera") || normalized.includes("primer")) return 1;
-  if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
-  return undefined;
-};
-
-const getSecretaryRoleLabel = (organizationType?: string) =>
-  FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Secretaria" : "Secretario";
-
 const MONTH_NAMES = [
   "enero",
   "febrero",
@@ -186,25 +157,18 @@ export default function PresidencyManageOrganizationPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
-    leadership: false,
     meetings: false,
     interviews: false,
     attendance: false,
-    assignments: false,
-    birthdays: false,
   });
   const { toast } = useToast();
   const { user } = useAuth();
 
   const { data: organizations = [] } = useOrganizations();
-  const { data: users = [] } = useUsers();
-  const { data: allMemberCallings = [] } = useAllMemberCallings({ enabled: Boolean(organizationId) });
   const { data: meetings = [], isLoading: meetingsLoading } = usePresidencyMeetings(organizationId);
   const { data: organizationMembers = [], isLoading: membersLoading } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const { data: organizationInterviews = [] } = useOrganizationInterviews();
-  const { data: assignments = [] } = useAssignments();
-  const { data: birthdays = [] } = useBirthdays();
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
 
@@ -263,59 +227,6 @@ export default function PresidencyManageOrganizationPage() {
   const todayIso = formatLocalDateKey(new Date());
   const selectedDate = useMemo(() => new Date(selectedYear, selectedMonth, 1), [selectedMonth, selectedYear]);
   const sundaysInMonth = useMemo(() => getSundaysForMonth(selectedDate), [selectedDate]);
-
-  const leadership = useMemo(() => {
-    const organizationUsers = (users as any[]).filter((user) => user.organizationId === organizationId);
-    const activeOrgCallings = (allMemberCallings as any[]).filter(
-      (calling) => calling.isActive && calling.organizationId === organizationId
-    );
-
-    const callingByMemberId = new Map<string, any>();
-    activeOrgCallings.forEach((calling) => {
-      if (!calling.memberId) return;
-      const existing = callingByMemberId.get(calling.memberId);
-      if (!existing) {
-        callingByMemberId.set(calling.memberId, calling);
-        return;
-      }
-
-      const existingOrder = Number(existing.callingOrder ?? 999);
-      const incomingOrder = Number(calling.callingOrder ?? 999);
-      if (incomingOrder < existingOrder) {
-        callingByMemberId.set(calling.memberId, calling);
-      }
-    });
-
-    const hydrateLeader = (user: any) => {
-      const matchedCalling = user.memberId ? callingByMemberId.get(user.memberId) : undefined;
-      return {
-        ...user,
-        callingName: matchedCalling?.callingName ?? user.callingName,
-        callingOrder: matchedCalling?.callingOrder ?? user.callingOrder,
-        organizationName: matchedCalling?.organizationName ?? user.organizationName,
-      };
-    };
-
-    const presidents = organizationUsers
-      .filter((user) => user.role === "presidente_organizacion")
-      .map(hydrateLeader);
-    const counselors = organizationUsers
-      .filter((user) => user.role === "consejero_organizacion")
-      .map(hydrateLeader)
-      .sort((a, b) => {
-        const orderA = Number(a.callingOrder ?? inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
-        const orderB = Number(b.callingOrder ?? inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
-        if (orderA !== orderB) return orderA - orderB;
-        return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
-      });
-    const secretaries = organizationUsers
-      .filter((user) => user.role === "secretario_organizacion")
-      .map(hydrateLeader);
-    const leadershipIds = new Set([...presidents, ...counselors, ...secretaries].map((user) => user.id));
-    const otherCallings = organizationUsers.filter((user) => !leadershipIds.has(user.id));
-
-    return { presidents, counselors, secretaries, otherCallings };
-  }, [allMemberCallings, organizationId, users]);
 
   const monthlyAttendanceStats = useMemo(() => {
     const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-`;
@@ -425,53 +336,6 @@ export default function PresidencyManageOrganizationPage() {
     ? Math.min(100, (completedYearInterviews.length / annualInterviewGoal) * 100)
     : 0;
 
-  const assignmentsForOrganization = useMemo(
-    () => {
-      if (!organizationId) return [];
-
-      const organizationByUserId = new Map(
-        (users as any[]).map((item: any) => [item.id, item.organizationId ?? null])
-      );
-
-      return (assignments as any[]).filter((assignment: any) => {
-        if (!assignment) return false;
-
-        const assigneeOrganizationId = assignment.assignedTo
-          ? organizationByUserId.get(assignment.assignedTo)
-          : null;
-        const assignerOrganizationId = assignment.assignedBy
-          ? organizationByUserId.get(assignment.assignedBy)
-          : null;
-
-        return (
-          assigneeOrganizationId === organizationId ||
-          assignerOrganizationId === organizationId
-        );
-      });
-    },
-    [assignments, organizationId, users]
-  );
-
-  const pendingAssignments = useMemo(
-    () => assignmentsForOrganization.filter((assignment: any) => assignment.status === "pendiente"),
-    [assignmentsForOrganization]
-  );
-
-  const organizationBirthdays = useMemo(() => {
-    const today = new Date();
-
-    return (birthdays as any[])
-      .filter((birthday: any) => !birthday.organizationId || birthday.organizationId === organizationId)
-      .map((birthday: any) => ({
-        ...birthday,
-        name: normalizeMemberName(birthday.name),
-        daysUntil: getDaysUntilBirthday(birthday.birthDate, today),
-        nextAge: getAgeTurningOnNextBirthday(birthday.birthDate, today),
-      }))
-      .sort((a: any, b: any) => a.daysUntil - b.daysUntil);
-  }, [birthdays, organizationId]);
-  const birthdayPreview = organizationBirthdays.slice(0, 3);
-
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
@@ -573,55 +437,6 @@ export default function PresidencyManageOrganizationPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
-            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("leadership")}>
-              <div>
-                <CardTitle>Liderazgo y llamamientos</CardTitle>
-                <CardDescription>Presidencia y líderes de organización</CardDescription>
-              </div>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.leadership ? "rotate-180" : "rotate-0")} />
-            </button>
-          </CardHeader>
-          {expandedCards.leadership ? (
-            <CardContent className="space-y-3">
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">Presidencia</p>
-                {[
-                  ...leadership.presidents.map((leader: any) => ({ ...leader, roleLabel: getPresidentRoleLabel(organizationType) })),
-                  ...leadership.counselors.map((leader: any, index: number) => {
-                    const counselorOrder = inferCounselorOrder(leader.callingName, leader.callingOrder);
-                    const roleLabel = counselorOrder
-                      ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
-                      : getCounselorRoleLabel(index, organizationType);
-                    return { ...leader, roleLabel };
-                  }),
-                  ...leadership.secretaries.map((leader: any) => ({ ...leader, roleLabel: getSecretaryRoleLabel(organizationType) })),
-                ].map((leader: any) => {
-                  const phoneDigits = leader.phone?.replace(/[^\d]/g, "") ?? "";
-                  const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined;
-                  const whatsappHref = phoneDigits ? `https://wa.me/${phoneDigits}` : undefined;
-                  const mailHref = leader.email ? `mailto:${leader.email}` : undefined;
-
-                  return (
-                    <div key={leader.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
-                      <div>
-                        <p className="text-sm font-medium">{leader.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatCallingLabel(leader.roleLabel, orgName)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a href={phoneHref} className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full border", phoneHref ? "border-blue-400/60 text-blue-400" : "pointer-events-none border-border/50 text-muted-foreground/50")}><Phone className="h-4 w-4" /></a>
-                        <a href={whatsappHref} target="_blank" rel="noreferrer" className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full border", whatsappHref ? "border-emerald-400/60 text-emerald-400" : "pointer-events-none border-border/50 text-muted-foreground/50")}><MessageCircle className="h-4 w-4" /></a>
-                        <a href={mailHref} className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full border", mailHref ? "border-amber-400/60 text-amber-400" : "pointer-events-none border-border/50 text-muted-foreground/50")}><Mail className="h-4 w-4" /></a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          ) : null}
-        </Card>
-
-        <Card className="rounded-3xl border-border/70 bg-card/95">
-          <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("meetings")}>
               <div>
                 <CardTitle>Reuniones de presidencia</CardTitle>
@@ -662,7 +477,7 @@ export default function PresidencyManageOrganizationPage() {
           ) : null}
         </Card>
 
-{canUseOrganizationInterviews ? (
+        {canUseOrganizationInterviews ? (
         <Card className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("interviews")}>
@@ -766,79 +581,6 @@ export default function PresidencyManageOrganizationPage() {
           ) : null}
         </Card>
 
-        <Card className="rounded-3xl border-border/70 bg-card/95">
-          <CardHeader className="pb-3">
-            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("assignments")}>
-              <div>
-                <CardTitle>Asignaciones pendientes</CardTitle>
-                <CardDescription>Tareas activas de la organización</CardDescription>
-              </div>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.assignments ? "rotate-180" : "rotate-0")} />
-            </button>
-          </CardHeader>
-          {expandedCards.assignments ? (
-            <CardContent className="space-y-3">
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-                <p className="text-sm text-muted-foreground">Pendientes</p>
-                <p className="text-2xl font-semibold">{pendingAssignments.length} tareas</p>
-              </div>
-              <Button variant="outline" className="w-full rounded-full" onClick={() => {
-                const searchParams = new URLSearchParams({
-                  from: "presidency-manage",
-                  orgSlug: params?.org ?? "",
-                  orgId: organizationId ?? "",
-                });
-                navigateWithTransition(setLocation, `/assignments?${searchParams.toString()}`);
-              }}>Ver tareas</Button>
-              <Button className="w-full rounded-full" onClick={() => {
-                const searchParams = new URLSearchParams({
-                  from: "presidency-manage",
-                  orgSlug: params?.org ?? "",
-                  orgId: organizationId ?? "",
-                  create: "1",
-                });
-                navigateWithTransition(setLocation, `/assignments?${searchParams.toString()}`);
-              }}>Nueva asignación</Button>
-            </CardContent>
-          ) : null}
-        </Card>
-
-        <Card className="rounded-3xl border-border/70 bg-card/95">
-          <CardHeader className="pb-3">
-            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("birthdays")}>
-              <div>
-                <CardTitle>Cumpleaños</CardTitle>
-                <CardDescription>Próximos cumpleaños en la organización</CardDescription>
-              </div>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCards.birthdays ? "rotate-180" : "rotate-0")} />
-            </button>
-          </CardHeader>
-          {expandedCards.birthdays ? (
-            <CardContent className="space-y-3">
-              {birthdayPreview.length > 0 ? birthdayPreview.map((birthday: any) => (
-                <div key={birthday.id} className="rounded-2xl border border-border/70 bg-card px-3 py-2 text-sm shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{birthday.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatBirthdayMonthDay(birthday.birthDate, "es-ES")}{typeof birthday.nextAge === "number" ? ` · Cumple ${birthday.nextAge}` : ""}</p>
-                    </div>
-                    <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground">
-                      {birthday.daysUntil === 0 ? "Hoy" : birthday.daysUntil === 1 ? "Mañana" : `${birthday.daysUntil} días`}
-                    </span>
-                  </div>
-                </div>
-              )) : <p className="text-sm text-muted-foreground">No hay cumpleaños registrados.</p>}
-              <Button variant="outline" className="w-full rounded-full" onClick={() => {
-                const searchParams = new URLSearchParams({
-                  from: "presidency-manage",
-                  orgSlug: params?.org ?? "",
-                  orgId: organizationId ?? "",
-                });
-                navigateWithTransition(setLocation, `/birthdays?${searchParams.toString()}`);
-              }}>Ver todo</Button>
-            </CardContent>
-          ) : null}
-        </Card>
       </div>
 
       <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
