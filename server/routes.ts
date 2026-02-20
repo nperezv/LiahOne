@@ -2145,14 +2145,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const normalizedActivityDate = normalizeBudgetRequestActivityDate(req.body?.activityDate);
-      if (normalizedActivityDate === undefined) {
-        return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
-      }
-
       const requestData = insertBudgetRequestSchema.parse({
         ...req.body,
-        activityDate: normalizedActivityDate,
         requestedBy: user.id,
       });
       const budgetRequest = await storage.createBudgetRequest(requestData);

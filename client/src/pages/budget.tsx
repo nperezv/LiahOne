@@ -1726,7 +1726,7 @@ export default function BudgetPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <FormLabel>Nombre del obispo</FormLabel>
+              <label className="text-sm font-medium">Nombre del obispo</label>
               <Input value={signerName} onChange={(event) => setSignerName(event.target.value)} />
             </div>
 
