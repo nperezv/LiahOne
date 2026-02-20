@@ -96,6 +96,7 @@ const budgetRequestSchema = z.object({
   amount: z.string().min(1, "El monto es requerido"),
   category: z.enum(["actividades", "materiales", "otros"]),
   requestType: z.enum(["reembolso", "pago_adelantado"]),
+  activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
   receiptFile: z
     .instanceof(File)
@@ -744,6 +745,7 @@ export default function PresidencyMeetingsPage() {
       amount: "",
       category: "otros",
       requestType: "pago_adelantado",
+      activityDate: "",
       notes: "",
       receiptFile: undefined,
       activityPlanFile: undefined,
@@ -910,6 +912,7 @@ export default function PresidencyMeetingsPage() {
         amount: Number(values.amount),
         category: values.category,
         notes: values.notes || "",
+        activityDate: values.activityDate ? new Date(`${values.activityDate}T00:00:00`) : null,
         organizationId,
         status: "solicitado",
         receipts: uploadedReceipts,
@@ -1566,6 +1569,14 @@ export default function PresidencyMeetingsPage() {
                   </FormItem>
                 )} />
               )}
+
+              <FormField control={budgetRequestForm.control} name="activityDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha prevista de la actividad o gasto</FormLabel>
+                  <FormControl><Input type="date" {...field} data-testid="input-budget-request-activity-date" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
               <FormField control={budgetRequestForm.control} name="notes" render={({ field }) => (
                 <FormItem>

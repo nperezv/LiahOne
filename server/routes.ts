@@ -6,6 +6,7 @@ import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
@@ -171,6 +172,21 @@ const RESOURCES_LIBRARY_ADMIN_ROLES = new Set([
   "consejero_obispo",
   "secretario",
   "secretario_ejecutivo",
+]);
+
+const BUDGET_REQUESTER_ROLES = new Set([
+  "obispo",
+  "consejero_obispo",
+  "secretario_financiero",
+  "presidente_organizacion",
+  "consejero_organizacion",
+  "secretario_organizacion",
+]);
+
+const BUDGET_APPROVER_ROLES = new Set([
+  "obispo",
+  "consejero_obispo",
+  "secretario_financiero",
 ]);
 
 const normalizeSexValue = (value?: string | null) => {
@@ -2075,25 +2091,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/budget-requests", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await storage.getUser(req.session.userId!);
+      if (!user || !BUDGET_REQUESTER_ROLES.has(user.role)) {
+        return res.status(403).json({ error: "No tienes permisos para solicitar presupuestos" });
+      }
+
+      const overdueAssignments = await storage.getOverdueBudgetReceiptAssignments(user.id);
+      if (overdueAssignments.length > 0) {
+        const activeException = await storage.getActiveBudgetUnlockException(user.id);
+        if (!activeException) {
+          const budgetRequests = await storage.getAllBudgetRequests();
+          const details = overdueAssignments.map((assignment: any) => {
+            const relatedBudgetId = assignment.relatedTo?.startsWith("budget:")
+              ? assignment.relatedTo.replace("budget:", "")
+              : null;
+            const relatedRequest = relatedBudgetId
+              ? budgetRequests.find((request: any) => request.id === relatedBudgetId)
+              : null;
+
+            return {
+              assignmentId: assignment.id,
+              title: relatedRequest?.description || assignment.title,
+              amount: relatedRequest?.amount || null,
+              activityDate: relatedRequest?.activityDate || null,
+              dueDate: assignment.dueDate,
+            };
+          });
+
+          return res.status(409).json({
+            error: "Tienes comprobantes vencidos. No puedes solicitar nuevos presupuestos hasta resolverlos.",
+            code: "OVERDUE_BUDGET_RECEIPTS",
+            overdueAssignments: details,
+          });
+        }
+      }
+
       const requestData = insertBudgetRequestSchema.parse({
         ...req.body,
-        requestedBy: user?.id || "system",
+        requestedBy: user.id,
       });
       const budgetRequest = await storage.createBudgetRequest(requestData);
 
       // Notify obispado about new budget request
       const allUsers = await storage.getAllUsers();
-      const obispadoMembers = allUsers.filter((u: any) => 
+      const obispadoMembers = allUsers.filter((u: any) =>
         u.role === "obispo" || u.role === "consejero_obispo" || u.role === "secretario_financiero"
       );
 
       for (const member of obispadoMembers) {
-        if (member.id !== user?.id) {
+        if (member.id !== user.id) {
           const notification = await storage.createNotification({
             userId: member.id,
             type: "reminder",
             title: "Nueva Solicitud de Presupuesto",
-            description: `${user?.name || "Un usuario"} solicita $${budgetRequest.amount} para "${budgetRequest.description}"`,
+            description: `${user.name || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
             relatedId: budgetRequest.id,
             isRead: false,
           });
@@ -2101,7 +2151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (isPushConfigured()) {
             await sendPushNotification(member.id, {
               title: "Nueva Solicitud de Presupuesto",
-              body: `${user?.name || "Un usuario"} solicita $${budgetRequest.amount} para "${budgetRequest.description}"`,
+              body: `${user.name || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
               url: "/budget",
               notificationId: notification.id,
             });
@@ -2220,27 +2270,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/budget-requests/:id/approve", requireAuth, requireRole("obispo", "consejero_obispo", "secretario_financiero"), async (req: Request, res: Response) => {
     try {
+      const actor = (req as any).user;
+      if (!actor || !BUDGET_APPROVER_ROLES.has(actor.role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
       const { id } = req.params;
-      const existingRequest = await storage.getBudgetRequest(id);      
-      const budgetRequest = await storage.approveBudgetRequest(id, req.session.userId!);
+      const existingRequest = await storage.getBudgetRequest(id);
+      if (!existingRequest) {
+        return res.status(404).json({ error: "Budget request not found" });
+      }
+
+      if (existingRequest.status !== "solicitado") {
+        return res.status(400).json({ error: "Solo se pueden aprobar financieramente solicitudes en estado solicitado" });
+      }
+
+      const budgetRequest = await storage.approveBudgetRequestFinancial(id, req.session.userId!);
       if (!budgetRequest) {
         return res.status(404).json({ error: "Budget request not found" });
       }
 
-      if (existingRequest && existingRequest.status !== "aprobado" && budgetRequest.requestedBy) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 7);
+      const allUsers = await storage.getAllUsers();
+      const bishop = allUsers.find((member: any) => member.role === "obispo");
+
+      if (bishop) {
         const assignment = await storage.createAssignment({
-          title: "Adjuntar comprobantes de gasto",
-          description: `Adjunta los comprobantes de gasto para la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}.`,
-          assignedTo: budgetRequest.requestedBy,
+          title: "Firmar solicitud de gasto",
+          description: `Firma la solicitud de gasto "${budgetRequest.description}" por €${budgetRequest.amount}.`,
+          assignedTo: bishop.id,
           assignedBy: req.session.userId!,
-          dueDate,
+          dueDate: budgetRequest.activityDate ? new Date(budgetRequest.activityDate) : new Date(),
           relatedTo: `budget:${budgetRequest.id}`,
         });
 
-        const notification = await storage.createNotification({
-          userId: budgetRequest.requestedBy,
+        const bishopNotification = await storage.createNotification({
+          userId: bishop.id,
           type: "assignment_created",
           title: "Nueva Asignación",
           description: `Se te ha asignado: "${assignment.title}"`,
@@ -2249,39 +2313,219 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         if (isPushConfigured()) {
-          await sendPushNotification(budgetRequest.requestedBy, {
+          await sendPushNotification(bishop.id, {
             title: "Nueva Asignación",
             body: `Se te ha asignado: "${assignment.title}"`,
             url: "/assignments",
-            notificationId: notification.id,
+            notificationId: bishopNotification.id,
           });
         }
-      }      
+      }
 
-      // Create notification for the user who requested the budget
       if (budgetRequest.requestedBy) {
-        const notification = await storage.createNotification({
+        const requesterNotification = await storage.createNotification({
           userId: budgetRequest.requestedBy,
           type: "budget_approved",
-          title: "Presupuesto Aprobado",
-          description: `Tu solicitud "${budgetRequest.description}" por $${budgetRequest.amount} ha sido aprobada`,
+          title: "Aprobación financiera completada",
+          description: `Tu solicitud "${budgetRequest.description}" está pendiente de firma del obispo.`,
           relatedId: budgetRequest.id,
           isRead: false,
         });
-        
-        // Send push notification if configured
+
         if (isPushConfigured()) {
           await sendPushNotification(budgetRequest.requestedBy, {
-            title: "Presupuesto Aprobado",
-            body: `Tu solicitud "${budgetRequest.description}" por $${budgetRequest.amount} ha sido aprobada`,
+            title: "Aprobación financiera completada",
+            body: `Tu solicitud "${budgetRequest.description}" está pendiente de firma del obispo.`,
             url: "/budget",
-            notificationId: notification.id,
+            notificationId: requesterNotification.id,
           });
         }
       }
 
       res.json(budgetRequest);
     } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/budget-requests/:id/sign", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const signatureSchema = z.object({
+        signatureDataUrl: z.string().min(20, "Firma requerida"),
+        signerName: z.string().trim().min(3, "Nombre del obispo requerido"),
+      });
+      const { signatureDataUrl, signerName } = signatureSchema.parse(req.body);
+
+      const existingRequest = await storage.getBudgetRequest(id);
+      if (!existingRequest) {
+        return res.status(404).json({ error: "Budget request not found" });
+      }
+
+      if (existingRequest.status !== "pendiente_firma_obispo") {
+        return res.status(400).json({ error: "La solicitud no está pendiente de firma del obispo" });
+      }
+
+      const planReceipt = (existingRequest.receipts || []).find((receipt: any) => receipt?.category === "plan" && receipt?.url);
+      if (!planReceipt?.url) {
+        return res.status(400).json({ error: "La solicitud no incluye un PDF/archivo de solicitud de gasto para firmar" });
+      }
+
+      const sourceFilename = String(planReceipt.filename || "solicitud-de-gasto.pdf");
+      const sourceStoredFilename = path.basename(String(planReceipt.url));
+      const sourceAbsolutePath = path.join(uploadsPath, sourceStoredFilename);
+
+      try {
+        await fs.promises.access(sourceAbsolutePath, fs.constants.R_OK);
+      } catch {
+        return res.status(404).json({ error: "No se encontró el archivo de solicitud de gasto original" });
+      }
+
+      const extension = path.extname(sourceFilename) || ".pdf";
+      if (extension.toLowerCase() !== ".pdf") {
+        return res.status(400).json({ error: "La solicitud de gasto debe estar en formato PDF para poder firmarse" });
+      }
+
+      const baseName = path.basename(sourceFilename, extension);
+      const signedStoredFilename = `${randomUUID()}-${baseName}-firmado${extension}`;
+      const signedAbsolutePath = path.join(uploadsPath, signedStoredFilename);
+
+      const originalBuffer = await fs.promises.readFile(sourceAbsolutePath);
+      const pdfDoc = await PDFDocument.load(originalBuffer);
+      const pages = pdfDoc.getPages();
+      if (!pages.length) {
+        return res.status(400).json({ error: "El PDF no contiene páginas" });
+      }
+
+      const page = pages[0];
+      const signatureDate = new Date().toLocaleDateString("es-ES", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+
+      // Coordenadas calibradas para la plantilla "Solicitud de gastos" (A4, 1 página)
+      // Área: "Para uso exclusivo del secretario" -> columna "Firma del El obispo (Opcional)"
+      const signatureBox = { x: 38, y: 306, width: 310, height: 30 };
+
+      if (signatureDataUrl.startsWith("data:image/")) {
+        const base64Data = signatureDataUrl.split(",")[1] || "";
+        const imageBytes = Buffer.from(base64Data, "base64");
+        const signatureImage = signatureDataUrl.startsWith("data:image/jpeg")
+          ? await pdfDoc.embedJpg(imageBytes)
+          : await pdfDoc.embedPng(imageBytes);
+
+        page.drawImage(signatureImage, {
+          x: signatureBox.x,
+          y: signatureBox.y,
+          width: signatureBox.width,
+          height: signatureBox.height,
+        });
+      } else {
+        const signatureFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+        page.drawText(signerName, {
+          x: signatureBox.x + 8,
+          y: signatureBox.y + 24,
+          size: 24,
+          font: signatureFont,
+          color: rgb(0.08, 0.08, 0.08),
+        });
+      }
+
+      const detailsFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      page.drawText(`Obispo: ${signerName}`, {
+        x: signatureBox.x,
+        y: signatureBox.y - 18,
+        size: 10,
+        font: detailsFont,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+      page.drawText(`Fecha de firma: ${signatureDate}`, {
+        x: signatureBox.x,
+        y: signatureBox.y - 32,
+        size: 10,
+        font: detailsFont,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+
+      const signedPdfBytes = await pdfDoc.save();
+      await fs.promises.writeFile(signedAbsolutePath, Buffer.from(signedPdfBytes));
+
+      const signedPlanFilename = `${baseName}-firmado${extension}`;
+      const signedPlanUrl = `/uploads/${signedStoredFilename}`;
+
+      const budgetRequest = await storage.approveBudgetRequestBishop(id, req.session.userId!, {
+        dataUrl: signatureDataUrl,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        signedPlanFilename,
+        signedPlanUrl,
+      });
+
+      if (!budgetRequest) {
+        return res.status(404).json({ error: "Budget request not found" });
+      }
+
+      const dueDate = budgetRequest.activityDate ? new Date(budgetRequest.activityDate) : new Date();
+      dueDate.setDate(dueDate.getDate() + 7);
+
+      const assignment = await storage.createAssignment({
+        title: "Adjuntar comprobantes de gasto",
+        description: `Adjunta los comprobantes de gasto para la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}.`,
+        assignedTo: budgetRequest.requestedBy,
+        assignedBy: req.session.userId!,
+        dueDate,
+        relatedTo: `budget:${budgetRequest.id}`,
+      });
+
+      const receiptNotification = await storage.createNotification({
+        userId: budgetRequest.requestedBy,
+        type: "assignment_created",
+        title: "Nueva Asignación",
+        description: `Se te ha asignado: "${assignment.title}"`,
+        relatedId: assignment.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(budgetRequest.requestedBy, {
+          title: "Nueva Asignación",
+          body: `Se te ha asignado: "${assignment.title}"`,
+          url: "/assignments",
+          notificationId: receiptNotification.id,
+        });
+      }
+
+      res.json({ ...budgetRequest, signedPlanUrl, signedPlanFilename });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/budget-requests/unlock-exception", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const unlockSchema = z.object({
+        userId: z.string().uuid("userId inválido"),
+        reason: z.string().trim().min(30, "La justificación debe tener al menos 30 caracteres"),
+        expiresAt: z.string().datetime().optional(),
+      });
+
+      const payload = unlockSchema.parse(req.body);
+      const exception = await storage.createBudgetUnlockException({
+        userId: payload.userId,
+        reason: payload.reason,
+        grantedBy: req.session.userId!,
+        expiresAt: payload.expiresAt ? new Date(payload.expiresAt) : null,
+      });
+
+      res.status(201).json(exception);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });
