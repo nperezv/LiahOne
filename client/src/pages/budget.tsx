@@ -35,6 +35,7 @@ import {
   useUpdateBudgetRequest,
   useApproveBudgetRequest,
   useSignBudgetRequestAsBishop,
+  useReviewBudgetRequestAsBishop,
   useDeleteBudgetRequest,
   useWardBudget,
   useUpdateWardBudget,
@@ -45,6 +46,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { exportBudgetRequests } from "@/lib/export";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { useSearch } from "wouter";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
 
@@ -176,7 +178,7 @@ interface BudgetRequest {
   description: string;
   amount: number;
   category?: "actividades" | "materiales" | "otros";
-  status: "solicitado" | "aprobado_financiero" | "pendiente_firma_obispo" | "aprobado" | "en_proceso" | "completado";
+  status: "solicitado" | "aprobado_financiero" | "pendiente_firma_obispo" | "aprobado" | "en_proceso" | "completado" | "rechazada";
   requestedBy: string;
   approvedBy?: string;
   activityDate?: string;
@@ -208,6 +210,11 @@ export default function BudgetPage() {
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
+  const search = useSearch();
+  const highlightedRequestId = useMemo(() => {
+    const params = new URLSearchParams(search);
+    return params.get("highlight");
+  }, [search]);
 
   const { user } = useAuth();
   const { data: requests = [] as any[], isLoading: requestsLoading } = useBudgetRequests();
@@ -218,6 +225,7 @@ export default function BudgetPage() {
   const updateMutation = useUpdateBudgetRequest();
   const approveMutation = useApproveBudgetRequest();
   const signMutation = useSignBudgetRequestAsBishop();
+  const reviewMutation = useReviewBudgetRequestAsBishop();
   const deleteMutation = useDeleteBudgetRequest();
   const updateWardBudgetMutation = useUpdateWardBudget();
   const createOrgBudgetMutation = useCreateOrganizationBudget();
@@ -263,6 +271,13 @@ export default function BudgetPage() {
   const filteredRequests = isOrgMember
     ? (requests as any[]).filter((r: any) => r.organizationId === user?.organizationId)
     : requests;
+
+  useEffect(() => {
+    if (!highlightedRequestId) return;
+    const row = document.querySelector(`[data-testid="row-request-${highlightedRequestId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightedRequestId, filteredRequests]);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -561,6 +576,16 @@ export default function BudgetPage() {
     setIsSignDialogOpen(true);
   };
 
+  const handleReviewByBishop = (requestId: string, action: "rechazar" | "enmendar") => {
+    const label = action === "rechazar" ? "rechazo" : "enmienda";
+    const reason = window.prompt(`Indica el motivo de ${label} (mínimo 10 caracteres):`);
+    if (!reason || reason.trim().length < 10) {
+      return;
+    }
+
+    reviewMutation.mutate({ requestId, action, reason: reason.trim() });
+  };
+
   const clearSignatureCanvas = () => {
     const canvas = signatureCanvasRef.current;
     if (!canvas) return;
@@ -680,6 +705,11 @@ export default function BudgetPage() {
         label: "Completado",
         icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
       },
+      rechazada: {
+        variant: "destructive",
+        label: "Rechazada",
+        icon: <AlertCircle className="h-3 w-3 mr-1" />,
+      },
     };
 
     const config = variants[status] || variants.solicitado;
@@ -708,7 +738,7 @@ export default function BudgetPage() {
 
   const getReceiptLabel = (receipt?: { filename: string; category?: ReceiptCategory }) => {
     if (receipt?.category === "plan") {
-      return "Plan de actividades";
+      return "Formulario de Solicitud de gastos";
     }
     if (receipt?.category === "expense") {
       return "Comprobante de gasto";
@@ -1578,7 +1608,11 @@ export default function BudgetPage() {
                 (filteredRequests as any[]).map((request: any) => {
                   const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
                   return (
-                  <TableRow key={request.id} data-testid={`row-request-${request.id}`}>
+                  <TableRow
+                    key={request.id}
+                    data-testid={`row-request-${request.id}`}
+                    className={highlightedRequestId === request.id ? "bg-amber-50/60 transition-colors duration-700" : undefined}
+                  >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <span>{request.description}</span>
@@ -1657,15 +1691,35 @@ export default function BudgetPage() {
                             </Button>
                           )}
                           {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleSignAsBishop(request.id)}
-                              data-testid={`button-sign-budget-${request.id}`}
-                              disabled={signMutation.isPending}
-                            >
-                              Firmar solicitud
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleSignAsBishop(request.id)}
+                                data-testid={`button-sign-budget-${request.id}`}
+                                disabled={signMutation.isPending || reviewMutation.isPending}
+                              >
+                                Firmar solicitud
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReviewByBishop(request.id, "enmendar")}
+                                data-testid={`button-amend-budget-${request.id}`}
+                                disabled={signMutation.isPending || reviewMutation.isPending}
+                              >
+                                Enmendar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleReviewByBishop(request.id, "rechazar")}
+                                data-testid={`button-reject-budget-${request.id}`}
+                                disabled={signMutation.isPending || reviewMutation.isPending}
+                              >
+                                Rechazar
+                              </Button>
+                            </>
                           )}
                           {request.status === "aprobado" &&
                             request.requestedBy === user?.id &&
