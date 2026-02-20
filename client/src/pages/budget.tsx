@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -203,6 +203,11 @@ export default function BudgetPage() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [isReceiptsDialogOpen, setIsReceiptsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
+  const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
+  const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
 
   const { user } = useAuth();
   const { data: requests = [] as any[], isLoading: requestsLoading } = useBudgetRequests();
@@ -545,11 +550,90 @@ export default function BudgetPage() {
   };
 
   const handleSignAsBishop = (requestId: string) => {
-    const signerName = window.prompt("Escribe tu nombre completo para registrar la firma del obispo sobre la solicitud de gasto:");
-    if (!signerName || !signerName.trim()) return;
-    const signatureDataUrl = `data:text/plain;base64,${btoa(unescape(encodeURIComponent(signerName.trim())))}`;
-    signMutation.mutate({ requestId, signatureDataUrl, signerName: signerName.trim() });
+    setSigningRequestId(requestId);
+    setSignerName(user?.name || "");
+    setIsSignDialogOpen(true);
   };
+
+  const clearSignatureCanvas = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const getCanvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  const startDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const { x, y } = getCanvasPoint(event);
+    isDrawingRef.current = true;
+    context.beginPath();
+    context.moveTo(x, y);
+  };
+
+  const drawSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const { x, y } = getCanvasPoint(event);
+    context.lineTo(x, y);
+    context.stroke();
+  };
+
+  const stopDrawing = () => {
+    isDrawingRef.current = false;
+  };
+
+  const confirmSignature = () => {
+    if (!signingRequestId) return;
+    const normalizedName = signerName.trim();
+    if (!normalizedName) {
+      alert("Debes indicar el nombre del obispo.");
+      return;
+    }
+
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const signatureDataUrl = canvas.toDataURL("image/png");
+    signMutation.mutate(
+      { requestId: signingRequestId, signatureDataUrl, signerName: normalizedName },
+      {
+        onSuccess: () => {
+          setIsSignDialogOpen(false);
+          setSigningRequestId(null);
+        },
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (!isSignDialogOpen) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.lineWidth = 2;
+    context.lineJoin = "round";
+    context.lineCap = "round";
+    context.strokeStyle = "#111827";
+    clearSignatureCanvas();
+  }, [isSignDialogOpen]);
 
   const handleDelete = (requestId: string) => {
     if (window.confirm("¿Está seguro de que desea eliminar esta solicitud?")) {
@@ -1617,6 +1701,54 @@ export default function BudgetPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={isSignDialogOpen}
+        onOpenChange={(open) => {
+          setIsSignDialogOpen(open);
+          if (!open) {
+            setSigningRequestId(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Firmar solicitud de gasto</DialogTitle>
+            <DialogDescription>
+              Dibuja la firma en el recuadro. Se estampará en la posición fija del PDF junto al nombre y fecha.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <FormLabel>Nombre del obispo</FormLabel>
+              <Input value={signerName} onChange={(event) => setSignerName(event.target.value)} />
+            </div>
+
+            <div className="rounded-md border border-dashed p-3">
+              <canvas
+                ref={signatureCanvasRef}
+                width={700}
+                height={220}
+                className="h-44 w-full rounded border bg-white"
+                onPointerDown={startDrawing}
+                onPointerMove={drawSignature}
+                onPointerUp={stopDrawing}
+                onPointerLeave={stopDrawing}
+                data-testid="canvas-bishop-signature"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Button type="button" variant="outline" onClick={clearSignatureCanvas}>
+                Limpiar firma
+              </Button>
+              <Button type="button" onClick={confirmSignature} disabled={signMutation.isPending || !signingRequestId}>
+                {signMutation.isPending ? "Firmando..." : "Confirmar firma"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
