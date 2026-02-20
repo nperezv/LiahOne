@@ -1351,12 +1351,98 @@ export default function PresidencyMeetingsPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:hidden">
+        <div className="col-span-1 flex flex-col gap-3 md:gap-4">
+          <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
+            <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card">
+              <p className="text-xs text-muted-foreground">Miembros de la organización</p>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.membersCount}</p>
+                <Users className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </button>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Directorio de {orgName}</DialogTitle>
+                <DialogDescription>Miembros asignados a esta organización</DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+                {organizationMembers.length > 0 ? organizationMembers.map((member) => (
+                  <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{member.nameSurename}</p>
+                        <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {member.phone && <a href={`tel:${member.phone}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70"><Phone className="h-4 w-4" /></a>}
+                        {member.email && <a href={`mailto:${member.email}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70"><Mail className="h-4 w-4" /></a>}
+                      </div>
+                    </div>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground">No hay miembros asignados a esta organización.</p>}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-calendar-card">
+            <p className="text-xs text-muted-foreground">Calendario</p>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.monthlyActivities}</p>
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Actividades del mes</p>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
+          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+          data-testid="button-presidency-meetings-overview"
+        >
+          <div>
+            <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthMeetingProgress)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.monthMeetingProgress}
+                centerLabel={String(dashboardStats.monthMeetings)}
+                color="hsl(var(--chart-1))"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Entrevistas</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.interviewProgressPercent)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.interviewProgressPercent}
+                centerLabel={String(dashboardStats.pendingInterviewsCount)}
+                color="hsl(var(--chart-2))"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Asistencia a clases</p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.monthlyAttendancePercent)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.monthlyAttendancePercent}
+                centerLabel={String(Math.round(dashboardStats.averageWeeklyAttendance))}
+                color="hsl(var(--chart-4))"
+              />
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="hidden gap-3 md:gap-4 lg:grid lg:grid-cols-12">
         <Dialog open={leadersDialogOpen} onOpenChange={setLeadersDialogOpen}>
           <button
             type="button"
             onClick={() => setLeadersDialogOpen(true)}
-            className="flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-4"
+            className="flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-6 lg:min-h-[260px]"
             data-testid="button-org-leaders-card"
           >
             <div className="flex items-center justify-between">
@@ -1425,7 +1511,7 @@ export default function PresidencyMeetingsPage() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid gap-3 md:gap-4 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-2">
+        <div className="grid gap-3 md:gap-4 lg:col-span-6">
           <button
             type="button"
             onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-manage&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
@@ -1465,40 +1551,16 @@ export default function PresidencyMeetingsPage() {
           </button>
         </div>
 
-        <div className="col-span-1 flex flex-col gap-3 md:gap-4 sm:grid sm:grid-cols-2 sm:gap-4 lg:col-span-3 lg:flex lg:flex-col">
-          <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
-            <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card">
-              <p className="text-xs text-muted-foreground">Miembros de la organización</p>
-              <div className="mt-2 flex items-center justify-between">
-                <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.membersCount}</p>
-                <Users className="h-5 w-5 text-muted-foreground" />
-              </div>
-            </button>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Directorio de {orgName}</DialogTitle>
-                <DialogDescription>Miembros asignados a esta organización</DialogDescription>
-              </DialogHeader>
-              <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-                {organizationMembers.length > 0 ? organizationMembers.map((member) => (
-                  <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium">{member.nameSurename}</p>
-                        <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {member.phone && <a href={`tel:${member.phone}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70"><Phone className="h-4 w-4" /></a>}
-                        {member.email && <a href={`mailto:${member.email}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70"><Mail className="h-4 w-4" /></a>}
-                      </div>
-                    </div>
-                  </div>
-                )) : <p className="text-sm text-muted-foreground">No hay miembros asignados a esta organización.</p>}
-              </div>
-            </DialogContent>
-          </Dialog>
+        <div className="col-span-1 flex flex-col gap-3 md:gap-4 lg:col-span-6 lg:flex lg:flex-col">
+          <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card-desktop">
+            <p className="text-xs text-muted-foreground">Miembros de la organización</p>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.membersCount}</p>
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </button>
 
-          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-calendar-card">
+          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-calendar-card-desktop">
             <p className="text-xs text-muted-foreground">Calendario</p>
             <div className="mt-2 flex items-center justify-between">
               <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.monthlyActivities}</p>
@@ -1511,8 +1573,8 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-12"
-          data-testid="button-presidency-meetings-overview"
+          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-6"
+          data-testid="button-presidency-meetings-overview-desktop"
         >
           <div>
             <p className="text-xs text-muted-foreground">Reuniones de presidencia</p>
@@ -1548,7 +1610,6 @@ export default function PresidencyMeetingsPage() {
             </div>
           </div>
         </button>
-
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
