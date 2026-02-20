@@ -177,6 +177,7 @@ export default function PresidencyManageOrganizationPage() {
   });
   const [activeGaugeSlide, setActiveGaugeSlide] = useState(0);
   const touchStartXRef = useRef<number | null>(null);
+  const pointerStartXRef = useRef<number | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -408,8 +409,8 @@ export default function PresidencyManageOrganizationPage() {
   }, [activeGaugeSlide, gaugeSlides.length]);
 
   const currentGaugeSlide = gaugeSlides[activeGaugeSlide] ?? gaugeSlides[0];
-  const gaugeSize = 220;
-  const gaugeStroke = 14;
+  const gaugeSize = 240;
+  const gaugeStroke = 16;
   const gaugeRadius = (gaugeSize - gaugeStroke) / 2;
   const gaugeCircumference = 2 * Math.PI * gaugeRadius;
   const gaugeSweepAngle = 300;
@@ -425,21 +426,33 @@ export default function PresidencyManageOrganizationPage() {
     setActiveGaugeSlide((prev) => (prev - 1 + gaugeSlides.length) % gaugeSlides.length);
   };
 
-  const handleGaugeTouchStart = (event: any) => {
-    touchStartXRef.current = event.touches[0]?.clientX ?? null;
-  };
-
-  const handleGaugeTouchEnd = (event: any) => {
-    const touchStartX = touchStartXRef.current;
-    const touchEndX = event.changedTouches[0]?.clientX;
-    if (touchStartX === null || typeof touchEndX !== "number") return;
-    const deltaX = touchStartX - touchEndX;
+  const handleGaugeSwipe = (startX: number | null, endX: number | null) => {
+    if (startX === null || endX === null) return;
+    const deltaX = startX - endX;
     if (Math.abs(deltaX) < 35) return;
     if (deltaX > 0) {
       goToNextGaugeSlide();
     } else {
       goToPrevGaugeSlide();
     }
+  };
+
+  const handleGaugeTouchStart = (event: any) => {
+    touchStartXRef.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handleGaugeTouchEnd = (event: any) => {
+    handleGaugeSwipe(touchStartXRef.current, event.changedTouches[0]?.clientX ?? null);
+    touchStartXRef.current = null;
+  };
+
+  const handleGaugePointerDown = (event: any) => {
+    pointerStartXRef.current = event.clientX ?? null;
+  };
+
+  const handleGaugePointerUp = (event: any) => {
+    handleGaugeSwipe(pointerStartXRef.current, typeof event.clientX === "number" ? event.clientX : null);
+    pointerStartXRef.current = null;
   };
 
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
@@ -554,7 +567,9 @@ export default function PresidencyManageOrganizationPage() {
           </div>
 
           <div
-            className="relative mx-auto flex h-72 w-full max-w-[280px] items-center justify-center touch-pan-y"
+            className="relative mx-auto flex h-[320px] w-full max-w-[320px] items-center justify-center touch-pan-y"
+            onPointerDown={handleGaugePointerDown}
+            onPointerUp={handleGaugePointerUp}
             onTouchStart={handleGaugeTouchStart}
             onTouchEnd={handleGaugeTouchEnd}
           >
@@ -611,15 +626,41 @@ export default function PresidencyManageOrganizationPage() {
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {gaugeMetrics.map((metric) => (
-              <div key={metric.key} className="rounded-xl border border-border/70 bg-background/50 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className={cn("h-2.5 w-2.5 rounded-full", metric.colorClass)} />
-                  <p className="text-xs text-muted-foreground">{metric.label}</p>
-                  <p className="ml-auto text-sm font-semibold">{Math.round(metric.value)}%</p>
-                </div>
+            <button
+              type="button"
+              onClick={() => toggleCard("meetings")}
+              className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
+                <p className="text-xs text-muted-foreground">Reuniones</p>
+                <p className="ml-auto text-sm font-semibold">{Math.round(meetingsProgressPercent)}%</p>
               </div>
-            ))}
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleCard("attendance")}
+              className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
+                <p className="text-xs text-muted-foreground">Asistencia</p>
+                <p className="ml-auto text-sm font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
+              </div>
+            </button>
+            {canUseOrganizationInterviews ? (
+              <button
+                type="button"
+                onClick={() => toggleCard("interviews")}
+                className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                  <p className="text-xs text-muted-foreground">Entrevistas</p>
+                  <p className="ml-auto text-sm font-semibold">{Math.round(interviewCompletionPercent)}%</p>
+                </div>
+              </button>
+            ) : null}
           </div>
 
 
