@@ -368,6 +368,12 @@ export default function BudgetPage() {
   });
 
   const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
+    const parsedAmount = parseBudgetNumber(data.amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert("Ingresa un monto válido. Puedes usar coma o punto para decimales.");
+      return;
+    }
+
     const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
     if (data.requestType === "reembolso" && data.receiptFile) {
@@ -403,7 +409,7 @@ export default function BudgetPage() {
     createMutation.mutate(
       {
         description: data.description,
-        amount: parseFloat(data.amount),
+        amount: parsedAmount,
         category: data.category,
         status: "solicitado",
         activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,

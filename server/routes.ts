@@ -92,6 +92,26 @@ function getUserIdFromRequest(req: Request): string | null {
   return payload.userId;
 }
 
+function normalizeBudgetRequestActivityDate(rawActivityDate: unknown): Date | null | undefined {
+  if (rawActivityDate === null || rawActivityDate === undefined || rawActivityDate === "") {
+    return null;
+  }
+
+  if (rawActivityDate instanceof Date) {
+    return Number.isNaN(rawActivityDate.getTime()) ? undefined : rawActivityDate;
+  }
+
+  if (typeof rawActivityDate === "string") {
+    const normalizedValue = rawActivityDate.includes("T")
+      ? rawActivityDate
+      : `${rawActivityDate}T00:00:00`;
+    const parsedDate = new Date(normalizedValue);
+    return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+  }
+
+  return undefined;
+}
+
 // Auth middleware
   async function requireAuth(req: Request, res: Response, next: NextFunction) {
     const userId = getUserIdFromRequest(req);
@@ -2171,7 +2191,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/budget-requests/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const requestData = insertBudgetRequestSchema.partial().parse(req.body);
+      const hasActivityDate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "activityDate");
+      const normalizedActivityDate = hasActivityDate
+        ? normalizeBudgetRequestActivityDate(req.body?.activityDate)
+        : undefined;
+
+      if (hasActivityDate && normalizedActivityDate === undefined) {
+        return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
+      }
+
+      const requestData = insertBudgetRequestSchema.partial().parse({
+        ...req.body,
+        ...(hasActivityDate ? { activityDate: normalizedActivityDate } : {}),
+      });
 
       const budgetRequest = await storage.updateBudgetRequest(id, requestData);
       if (!budgetRequest) {

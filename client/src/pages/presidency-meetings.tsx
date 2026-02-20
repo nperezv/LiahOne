@@ -245,6 +245,12 @@ const formatCurrencyInputValue = (value: string) => {
   return parsed.toFixed(2);
 };
 
+const parseCurrencyInputValue = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return Number.NaN;
+  return Number.parseFloat(trimmed.replace(",", "."));
+};
+
 const isAllowedDocument = (file: File) => {
   const fileName = file.name.toLowerCase();
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
@@ -884,6 +890,16 @@ export default function PresidencyMeetingsPage() {
   const onSubmitBudgetRequest = async (values: BudgetRequestFormValues) => {
     if (!organizationId) return;
 
+    const parsedAmount = parseCurrencyInputValue(values.amount);
+    if (!Number.isFinite(parsedAmount)) {
+      toast({
+        title: "Monto inválido",
+        description: "Ingresa un monto válido. Puedes usar coma o punto para decimales.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const uploadedReceipts: { filename: string; url: string; category: "receipt" | "plan" }[] = [];
 
     if (values.requestType === "reembolso" && values.receiptFile) {
@@ -909,7 +925,7 @@ export default function PresidencyMeetingsPage() {
     createBudgetRequestMutation.mutate(
       {
         description: values.description,
-        amount: Number(values.amount),
+        amount: parsedAmount,
         category: values.category,
         notes: values.notes || "",
         activityDate: values.activityDate ? new Date(`${values.activityDate}T00:00:00`) : null,
