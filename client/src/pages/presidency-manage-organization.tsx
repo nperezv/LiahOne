@@ -309,6 +309,17 @@ export default function PresidencyManageOrganizationPage() {
     setExpandedCards((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }));
   };
 
+  const openSection = (cardKey: "meetings" | "attendance" | "interviews") => {
+    setExpandedCards((prev) => ({ ...prev, [cardKey]: true }));
+    if (typeof document !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(`management-section-${cardKey}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
+
   const organizationInterviewsList = useMemo(
     () => (organizationInterviews as any[]).filter((item: any) => item.organizationId === organizationId),
     [organizationInterviews, organizationId]
@@ -481,6 +492,24 @@ export default function PresidencyManageOrganizationPage() {
     pointerStartXRef.current = null;
   };
 
+  const goToOrganizationInterviews = () => {
+    if (!hasOrganizationInterviewsAccess) {
+      toast({
+        title: "Acceso restringido",
+        description: "Solo la presidencia de esta organización puede gestionar entrevistas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const searchParams = new URLSearchParams({
+      from: "presidency-manage",
+      orgSlug: params?.org ?? "",
+      orgId: organizationId ?? "",
+    });
+    navigateWithTransition(setLocation, `/organization-interviews?${searchParams.toString()}`);
+  };
+
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
@@ -648,47 +677,40 @@ export default function PresidencyManageOrganizationPage() {
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <button
+            <Button
               type="button"
-              onClick={() => toggleCard("meetings")}
-              className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+              variant="outline"
+              className="justify-start rounded-xl border-border/70 bg-background/50"
+              onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}`)}
             >
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
-                <p className="text-xs text-muted-foreground">Reuniones</p>
-                <p className="ml-auto text-sm font-semibold">{Math.round(meetingsProgressPercent)}%</p>
-              </div>
-            </button>
-            <button
+              <span className="mr-2 h-2.5 w-2.5 rounded-full bg-sky-400" />
+              Reuniones
+            </Button>
+            <Button
               type="button"
-              onClick={() => toggleCard("attendance")}
-              className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+              variant="outline"
+              className="justify-start rounded-xl border-border/70 bg-background/50"
+              onClick={() => openSection("attendance")}
             >
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
-                <p className="text-xs text-muted-foreground">Asistencia</p>
-                <p className="ml-auto text-sm font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
-              </div>
-            </button>
+              <span className="mr-2 h-2.5 w-2.5 rounded-full bg-violet-400" />
+              Asistencia
+            </Button>
             {canUseOrganizationInterviews ? (
-              <button
+              <Button
                 type="button"
-                onClick={() => toggleCard("interviews")}
-                className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+                variant="outline"
+                className="justify-start rounded-xl border-border/70 bg-background/50"
+                onClick={goToOrganizationInterviews}
               >
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                  <p className="text-xs text-muted-foreground">Entrevistas</p>
-                  <p className="ml-auto text-sm font-semibold">{Math.round(interviewCompletionPercent)}%</p>
-                </div>
-              </button>
+                <span className="mr-2 h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                Entrevistas
+              </Button>
             ) : null}
           </div>
 
-
           <div className="border-t border-border/60 pt-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card id="management-section-meetings" className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("meetings")}>
               <div>
@@ -731,7 +753,7 @@ export default function PresidencyManageOrganizationPage() {
         </Card>
 
         {canUseOrganizationInterviews ? (
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card id="management-section-interviews" className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("interviews")}>
               <div>
@@ -757,29 +779,14 @@ export default function PresidencyManageOrganizationPage() {
                 <p className="text-muted-foreground">Objetivo anual ({currentQuarterRange.year})</p>
                 <p className="text-xl font-semibold">{completedYearInterviews.length}/{annualInterviewGoal}</p>
               </div>
-              <Button variant="outline" className="w-full rounded-full" onClick={() => {
-                if (!hasOrganizationInterviewsAccess) {
-                  toast({
-                    title: "Acceso restringido",
-                    description: "Solo la presidencia de esta organización puede gestionar entrevistas.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                const searchParams = new URLSearchParams({
-                  from: "presidency-manage",
-                  orgSlug: params?.org ?? "",
-                  orgId: organizationId ?? "",
-                });
-                navigateWithTransition(setLocation, `/organization-interviews?${searchParams.toString()}`);
-              }}>Ver entrevistas</Button>
+              <Button variant="outline" className="w-full rounded-full" onClick={goToOrganizationInterviews}>Ver entrevistas</Button>
             </CardContent>
           ) : null}
         </Card>
 
         ) : null}
 
-        <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
+        <Card id="management-section-attendance" className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("attendance")}>
               <div>
