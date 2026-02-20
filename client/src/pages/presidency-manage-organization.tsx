@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, Plus, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, Phone, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   useOrganizations,
   useOrganizationMembers,
@@ -20,6 +21,7 @@ import {
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
   useOrganizationInterviews,
+  useUsers,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -145,6 +147,18 @@ const MONTH_NAMES = [
   "diciembre",
 ];
 
+const leadershipRoleOrder: Record<string, number> = {
+  presidente_organizacion: 0,
+  consejero_organizacion: 1,
+  secretario_organizacion: 2,
+};
+
+const leadershipRoleLabels: Record<string, string> = {
+  presidente_organizacion: "Presidencia",
+  consejero_organizacion: "Consejería",
+  secretario_organizacion: "Secretaría",
+};
+
 
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
@@ -169,6 +183,7 @@ export default function PresidencyManageOrganizationPage() {
   const { data: organizationMembers = [], isLoading: membersLoading } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const { data: organizationInterviews = [] } = useOrganizationInterviews();
+  const { data: users = [] } = useUsers();
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
 
@@ -336,6 +351,33 @@ export default function PresidencyManageOrganizationPage() {
     ? Math.min(100, (completedYearInterviews.length / annualInterviewGoal) * 100)
     : 0;
 
+  const monthlyMeetingGoal = Math.max(1, sundaysInMonth.length);
+  const meetingsProgressPercent = Math.min(100, (meetings.length / monthlyMeetingGoal) * 100);
+
+  const leadershipMembers = useMemo(() => {
+    if (!organizationId) return [];
+    return (users as any[])
+      .filter((item: any) =>
+        item.organizationId === organizationId &&
+        ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(item.role)
+      )
+      .sort((a: any, b: any) => (leadershipRoleOrder[a.role] ?? 99) - (leadershipRoleOrder[b.role] ?? 99));
+  }, [organizationId, users]);
+
+  const gaugeMetrics = useMemo(() => {
+    const base = [
+      { key: "meetings", label: "Reuniones", value: meetingsProgressPercent, color: "bg-sky-500/85" },
+      { key: "attendance", label: "Asistencia", value: monthlyAttendanceStats.attendancePercent, color: "bg-violet-500/85" },
+    ];
+
+    if (!canUseOrganizationInterviews) return base;
+
+    return [
+      ...base,
+      { key: "interviews", label: "Entrevistas", value: interviewCompletionPercent, color: "bg-emerald-500/85" },
+    ];
+  }, [canUseOrganizationInterviews, interviewCompletionPercent, meetingsProgressPercent, monthlyAttendanceStats.attendancePercent]);
+
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
@@ -433,6 +475,86 @@ export default function PresidencyManageOrganizationPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
       </div>
+
+      <Card className="rounded-3xl border-border/70 bg-card/95">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Metas de gestión</CardTitle>
+          <CardDescription>
+            Reuniones y asistencia del mes{canUseOrganizationInterviews ? ", más entrevistas anuales" : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="relative h-24 rounded-2xl border border-border/70 bg-muted/20 p-4">
+            <div className="absolute inset-x-4 top-4 h-4 rounded-full bg-muted/50" />
+            {gaugeMetrics.map((metric, index) => (
+              <div
+                key={metric.key}
+                className="absolute left-4 right-4 h-4 rounded-full bg-transparent"
+                style={{ top: `${16 + index * 18}px` }}
+              >
+                <div className="h-full rounded-full bg-muted/50" />
+                <div className={cn("-mt-4 h-4 rounded-full transition-all", metric.color)} style={{ width: `${Math.max(0, metric.value)}%` }} />
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {gaugeMetrics.map((metric) => (
+              <div key={metric.key} className="flex items-center gap-2 rounded-xl border border-border/70 bg-background/50 px-3 py-2">
+                <span className={cn("h-2.5 w-2.5 rounded-full", metric.color)} />
+                <p className="text-sm text-muted-foreground">{metric.label}</p>
+                <p className="ml-auto text-sm font-semibold">{Math.round(metric.value)}%</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden rounded-3xl border-border/60 bg-[radial-gradient(circle_at_top,rgba(41,78,170,0.38),rgba(8,14,30,0.96)_55%)] text-white shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg text-white">Líderes de organización</CardTitle>
+          <CardDescription className="text-slate-300">Presidencia activa de {orgName}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {leadershipMembers.length > 0 ? leadershipMembers.map((leader: any, index: number) => (
+            <div key={leader.id} className={cn("flex items-center gap-3 rounded-xl px-1 py-2", index < leadershipMembers.length - 1 ? "border-b border-white/15" : "") }>
+              <Avatar className="h-12 w-12 border border-white/20">
+                <AvatarFallback className="bg-slate-200 text-slate-700">
+                  {String(leader.name ?? "")
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part: string) => part[0])
+                    .join("")
+                    .toUpperCase() || "--"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-lg font-semibold leading-tight">{leader.name}</p>
+                <p className="text-sm text-slate-300">{leadershipRoleLabels[leader.role] ?? "Liderazgo"}</p>
+              </div>
+              {leader.phone ? (
+                <a
+                  href={`tel:${leader.phone}`}
+                  aria-label={`Llamar a ${leader.name}`}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-slate-100 transition-colors hover:bg-white/20 hover:text-white"
+                >
+                  <Phone className="h-4 w-4" />
+                </a>
+              ) : (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-10 w-10 rounded-full border border-white/20 bg-white/10 text-slate-100"
+                  disabled
+                >
+                  <Phone className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          )) : <p className="py-2 text-sm text-slate-300">Aún no hay líderes asignados para esta organización.</p>}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-3xl border-border/70 bg-card/95">
