@@ -967,7 +967,9 @@ export const insertPresidencyResourceSchema = createInsertSchema(presidencyResou
 export const selectPresidencyResourceSchema = createSelectSchema(presidencyResources);
 
 // Budget Requests
-export const insertBudgetRequestSchema = createInsertSchema(budgetRequests).omit({
+export const insertBudgetRequestSchema = createInsertSchema(budgetRequests, {
+  activityDate: dateSchema.nullable().optional(),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
