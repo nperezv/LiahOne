@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Download, Edit, ArrowLeft, Archive } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Download, Edit, ArrowLeft, Archive, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -40,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAssignments, useCreateAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
+import { useAssignments, useCreateAssignment, useDeleteAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
 import { useLocation, useSearch } from "wouter";
@@ -91,10 +91,11 @@ export default function Assignments() {
 
   const createMutation = useCreateAssignment();
   const updateMutation = useUpdateAssignment();
+  const deleteMutation = useDeleteAssignment();
 
 
   // Assignments are already filtered by backend according to role/organization visibility.
-  const isObispado = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
+  const isObispado = ["obispo", "consejero_obispo"].includes(user?.role || "");
   const isArchivedAssignment = (assignment: any) =>
     assignment.status === "archivada" || ["completada", "cancelada"].includes(assignment.status);
 
@@ -202,35 +203,76 @@ export default function Assignments() {
   const isAutoCompleteAssignment = (assignment: any) =>
     assignment.relatedTo?.startsWith("budget:") &&
     assignment.title === "Adjuntar comprobantes de gasto";
-  const canCompleteAssignment = (assignment: any) =>
-    isObispado &&
-    assignment.status !== "completada" &&
-    !isAutoCompleteAssignment(assignment);
+  const canEditAssignment = (assignment: any) => isObispado || assignment.assignedBy === user?.id;
+  const canDeleteAssignment = (assignment: any) => user?.role === "obispo";
+  const canChangeStatus = (assignment: any) =>
+    assignment.status !== "archivada" &&
+    (isObispado || assignment.assignedBy === user?.id || assignment.assignedTo === user?.id);
+  const statusOptions = (assignment: any) => {
+    if (isAutoCompleteAssignment(assignment)) {
+      return [
+        { value: "pendiente", label: "Pendiente" },
+        { value: "en_proceso", label: "En proceso" },
+      ];
+    }
+
+    return [
+      { value: "pendiente", label: "Pendiente" },
+      { value: "en_proceso", label: "En proceso" },
+      { value: "completada", label: "Completada" },
+      { value: "cancelada", label: "Cancelada" },
+    ];
+  };
+
+  const handleQuickStatusChange = (assignment: any, nextStatus: string) => {
+    if (!nextStatus || nextStatus === assignment.status) return;
+
+    let cancellationReason: string | undefined;
+    if (nextStatus === "cancelada") {
+      const reason = window.prompt("Indica el motivo de cancelación:");
+      if (!reason || !reason.trim()) return;
+      cancellationReason = reason.trim();
+    }
+
+    updateStatus(assignment.id, nextStatus, cancellationReason);
+  };
+
   const renderAssignmentActions = (assignment: any) => (
-    <div className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={(event) => {
-          event.stopPropagation();
-          startEdit(assignment);
-        }}
-      >
-        <Edit className="h-3 w-3 lg:mr-1" />
-        <span className="sr-only lg:not-sr-only">Editar</span>
-      </Button>
-      {canCompleteAssignment(assignment) ? (
+    <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+      {canEditAssignment(assignment) ? (
         <Button
           size="sm"
           variant="outline"
-          onClick={(event) => {
-            event.stopPropagation();
-            updateStatus(assignment.id, "completada");
-          }}
-          data-testid={`button-complete-${assignment.id}`}
+          onClick={() => startEdit(assignment)}
         >
-          <CheckCircle2 className="h-3 w-3 lg:mr-1" />
-          <span className="sr-only lg:not-sr-only">Completar</span>
+          <Edit className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Editar</span>
+        </Button>
+      ) : null}
+      {canChangeStatus(assignment) ? (
+        <Select value={assignment.status} onValueChange={(value) => handleQuickStatusChange(assignment, value)}>
+          <SelectTrigger className="h-8 w-[152px]" data-testid={`select-status-${assignment.id}`}>
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions(assignment).map((option) => (
+              <SelectItem key={`${assignment.id}-${option.value}`} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+      {canDeleteAssignment(assignment) ? (
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => deleteMutation.mutate(assignment.id)}
+          data-testid={`button-delete-assignment-${assignment.id}`}
+          disabled={deleteMutation.isPending}
+        >
+          <Trash2 className="h-3 w-3 lg:mr-1" />
+          <span className="sr-only lg:not-sr-only">Eliminar</span>
         </Button>
       ) : null}
       {["completada", "archivada"].indexOf(assignment.status) === -1 && isAutoCompleteAssignment(assignment) && (
