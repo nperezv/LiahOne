@@ -2580,24 +2580,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const approvalNotification = await storage.createNotification({
-        userId: budgetRequest.requestedBy,
-        type: "budget_approved",
-        title: "Aprobación financiera completada",
-        description: `Se ha aprobado y firmado tu solicitud "${budgetRequest.description}".`,
-        relatedId: budgetRequest.id,
-        isRead: false,
-      });
-
-      if (isPushConfigured()) {
-        await sendPushNotification(budgetRequest.requestedBy, {
-          title: "Aprobación financiera completada",
-          body: `Se ha aprobado y firmado tu solicitud "${budgetRequest.description}".`,
-          url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
-          notificationId: approvalNotification.id,
-        });
-      }
-
       res.json({ ...budgetRequest, signedPlanUrl, signedPlanFilename });
     } catch (error) {
       if (error instanceof z.ZodError) {
