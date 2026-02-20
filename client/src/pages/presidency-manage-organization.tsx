@@ -27,6 +27,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 
 const meetingSchema = z.object({
@@ -176,6 +177,7 @@ export default function PresidencyManageOrganizationPage() {
     attendance: false,
   });
   const [activeGaugeSlide, setActiveGaugeSlide] = useState(0);
+  const [animatedGaugeValue, setAnimatedGaugeValue] = useState(0);
   const touchStartXRef = useRef<number | null>(null);
   const pointerStartXRef = useRef<number | null>(null);
   const { toast } = useToast();
@@ -307,6 +309,17 @@ export default function PresidencyManageOrganizationPage() {
     setExpandedCards((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }));
   };
 
+  const openSection = (cardKey: "meetings" | "attendance" | "interviews") => {
+    setExpandedCards((prev) => ({ ...prev, [cardKey]: true }));
+    if (typeof document !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(`management-section-${cardKey}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
+
   const organizationInterviewsList = useMemo(
     () => (organizationInterviews as any[]).filter((item: any) => item.organizationId === organizationId),
     [organizationInterviews, organizationId]
@@ -409,14 +422,38 @@ export default function PresidencyManageOrganizationPage() {
   }, [activeGaugeSlide, gaugeSlides.length]);
 
   const currentGaugeSlide = gaugeSlides[activeGaugeSlide] ?? gaugeSlides[0];
-  const gaugeSize = 240;
-  const gaugeStroke = 16;
+  const gaugeSize = 196;
+  const gaugeStroke = 14;
   const gaugeRadius = (gaugeSize - gaugeStroke) / 2;
   const gaugeCircumference = 2 * Math.PI * gaugeRadius;
   const gaugeSweepAngle = 300;
   const gaugeArcLength = (gaugeSweepAngle / 360) * gaugeCircumference;
   const currentGaugeValue = Math.max(0, Math.min(100, currentGaugeSlide?.value ?? 0));
   const currentGaugeOffset = gaugeArcLength - (currentGaugeValue / 100) * gaugeArcLength;
+
+  useEffect(() => {
+    let frameId = 0;
+    const startValue = animatedGaugeValue;
+    const endValue = currentGaugeValue;
+    const duration = 420;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      const nextValue = startValue + (endValue - startValue) * easedProgress;
+      setAnimatedGaugeValue(Math.round(nextValue));
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeGaugeSlide, currentGaugeValue]);
 
   const goToNextGaugeSlide = () => {
     setActiveGaugeSlide((prev) => (prev + 1) % gaugeSlides.length);
@@ -453,6 +490,24 @@ export default function PresidencyManageOrganizationPage() {
   const handleGaugePointerUp = (event: any) => {
     handleGaugeSwipe(pointerStartXRef.current, typeof event.clientX === "number" ? event.clientX : null);
     pointerStartXRef.current = null;
+  };
+
+  const goToOrganizationInterviews = () => {
+    if (!hasOrganizationInterviewsAccess) {
+      toast({
+        title: "Acceso restringido",
+        description: "Solo la presidencia de esta organización puede gestionar entrevistas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const searchParams = new URLSearchParams({
+      from: "presidency-manage",
+      orgSlug: params?.org ?? "",
+      orgId: organizationId ?? "",
+    });
+    navigateWithTransition(setLocation, `/organization-interviews?${searchParams.toString()}`);
   };
 
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
@@ -537,7 +592,7 @@ export default function PresidencyManageOrganizationPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6 xl:p-8">
+    <motion.div className="space-y-6 p-4 md:p-6 xl:p-8" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 18 }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
@@ -554,20 +609,15 @@ export default function PresidencyManageOrganizationPage() {
       </div>
 
       <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_12px_40px_rgba(0,0,0,0.2)]">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-1.5">
           <CardTitle className="text-lg">Métricas de avance</CardTitle>
           <CardDescription>
             Seguimiento del avance mensual de la organización
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-2">
-            <p className="text-4xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
-            <p className="pb-1 text-lg text-muted-foreground">{currentGaugeSlide?.title ?? "Global"}</p>
-          </div>
-
           <div
-            className="relative mx-auto flex h-[320px] w-full max-w-[320px] items-center justify-center touch-pan-y"
+            className="relative mx-auto flex h-[220px] w-full max-w-[220px] items-center justify-center touch-pan-y"
             onPointerDown={handleGaugePointerDown}
             onPointerUp={handleGaugePointerUp}
             onTouchStart={handleGaugeTouchStart}
@@ -597,17 +647,18 @@ export default function PresidencyManageOrganizationPage() {
                 strokeDashoffset={currentGaugeOffset}
                 transform={`rotate(120 ${gaugeSize / 2} ${gaugeSize / 2})`}
                 opacity={0.95}
+                style={{ transition: "stroke-dashoffset 450ms ease, stroke 300ms ease" }}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <p className="text-4xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
-              <p className="mt-1 text-base font-semibold">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
+              <p className="text-4xl font-bold leading-none">{animatedGaugeValue}%</p>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">{currentGaugeSlide?.title ?? "Global"}</p>
+              <p className="text-sm font-medium">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
             </div>
           </div>
 
           <div className="space-y-1 text-center text-muted-foreground">
             <p>{completedGoalsCount} de {gaugeMetrics.length} métricas completadas</p>
-            <p>Vista: {currentGaugeSlide?.title ?? "Global"}</p>
           </div>
 
           <div className="flex items-center justify-center gap-2">
@@ -626,47 +677,40 @@ export default function PresidencyManageOrganizationPage() {
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <button
+            <Button
               type="button"
-              onClick={() => toggleCard("meetings")}
-              className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+              variant="outline"
+              className="justify-start rounded-xl border-border/70 bg-background/50"
+              onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}`)}
             >
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
-                <p className="text-xs text-muted-foreground">Reuniones</p>
-                <p className="ml-auto text-sm font-semibold">{Math.round(meetingsProgressPercent)}%</p>
-              </div>
-            </button>
-            <button
+              <span className="mr-2 h-2.5 w-2.5 rounded-full bg-sky-400" />
+              Reuniones
+            </Button>
+            <Button
               type="button"
-              onClick={() => toggleCard("attendance")}
-              className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+              variant="outline"
+              className="justify-start rounded-xl border-border/70 bg-background/50"
+              onClick={() => openSection("attendance")}
             >
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
-                <p className="text-xs text-muted-foreground">Asistencia</p>
-                <p className="ml-auto text-sm font-semibold">{Math.round(monthlyAttendanceStats.attendancePercent)}%</p>
-              </div>
-            </button>
+              <span className="mr-2 h-2.5 w-2.5 rounded-full bg-violet-400" />
+              Asistencia
+            </Button>
             {canUseOrganizationInterviews ? (
-              <button
+              <Button
                 type="button"
-                onClick={() => toggleCard("interviews")}
-                className="rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-left"
+                variant="outline"
+                className="justify-start rounded-xl border-border/70 bg-background/50"
+                onClick={goToOrganizationInterviews}
               >
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                  <p className="text-xs text-muted-foreground">Entrevistas</p>
-                  <p className="ml-auto text-sm font-semibold">{Math.round(interviewCompletionPercent)}%</p>
-                </div>
-              </button>
+                <span className="mr-2 h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                Entrevistas
+              </Button>
             ) : null}
           </div>
 
-
           <div className="border-t border-border/60 pt-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card id="management-section-meetings" className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("meetings")}>
               <div>
@@ -709,7 +753,7 @@ export default function PresidencyManageOrganizationPage() {
         </Card>
 
         {canUseOrganizationInterviews ? (
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card id="management-section-interviews" className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("interviews")}>
               <div>
@@ -735,29 +779,14 @@ export default function PresidencyManageOrganizationPage() {
                 <p className="text-muted-foreground">Objetivo anual ({currentQuarterRange.year})</p>
                 <p className="text-xl font-semibold">{completedYearInterviews.length}/{annualInterviewGoal}</p>
               </div>
-              <Button variant="outline" className="w-full rounded-full" onClick={() => {
-                if (!hasOrganizationInterviewsAccess) {
-                  toast({
-                    title: "Acceso restringido",
-                    description: "Solo la presidencia de esta organización puede gestionar entrevistas.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                const searchParams = new URLSearchParams({
-                  from: "presidency-manage",
-                  orgSlug: params?.org ?? "",
-                  orgId: organizationId ?? "",
-                });
-                navigateWithTransition(setLocation, `/organization-interviews?${searchParams.toString()}`);
-              }}>Ver entrevistas</Button>
+              <Button variant="outline" className="w-full rounded-full" onClick={goToOrganizationInterviews}>Ver entrevistas</Button>
             </CardContent>
           ) : null}
         </Card>
 
         ) : null}
 
-        <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
+        <Card id="management-section-attendance" className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("attendance")}>
               <div>
@@ -995,6 +1024,6 @@ export default function PresidencyManageOrganizationPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }
