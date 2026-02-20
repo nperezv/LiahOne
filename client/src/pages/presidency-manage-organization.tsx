@@ -336,6 +336,34 @@ export default function PresidencyManageOrganizationPage() {
     ? Math.min(100, (completedYearInterviews.length / annualInterviewGoal) * 100)
     : 0;
 
+  const monthlyMeetingGoal = Math.max(1, sundaysInMonth.length);
+  const meetingsProgressPercent = Math.min(100, (meetings.length / monthlyMeetingGoal) * 100);
+
+  const gaugeMetrics = useMemo(() => {
+    const base = [
+      { key: "meetings", label: "Reuniones", value: meetingsProgressPercent, colorClass: "bg-sky-400", colorHex: "#38BDF8" },
+      { key: "attendance", label: "Asistencia", value: monthlyAttendanceStats.attendancePercent, colorClass: "bg-violet-400", colorHex: "#A78BFA" },
+    ];
+
+    if (!canUseOrganizationInterviews) return base;
+
+    return [
+      ...base,
+      { key: "interviews", label: "Entrevistas", value: interviewCompletionPercent, colorClass: "bg-emerald-400", colorHex: "#34D399" },
+    ];
+  }, [canUseOrganizationInterviews, interviewCompletionPercent, meetingsProgressPercent, monthlyAttendanceStats.attendancePercent]);
+
+  const overallGoalsPercent = useMemo(() => {
+    if (gaugeMetrics.length === 0) return 0;
+    const total = gaugeMetrics.reduce((sum, metric) => sum + metric.value, 0);
+    return Math.round(total / gaugeMetrics.length);
+  }, [gaugeMetrics]);
+
+  const completedGoalsCount = useMemo(
+    () => gaugeMetrics.filter((metric) => metric.value >= 100).length,
+    [gaugeMetrics]
+  );
+
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
@@ -433,6 +461,70 @@ export default function PresidencyManageOrganizationPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
       </div>
+
+      <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_12px_40px_rgba(0,0,0,0.2)]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Metas de organización</CardTitle>
+          <CardDescription>
+            Seguimiento del cumplimiento mensual
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-2">
+            <p className="text-5xl font-bold leading-none">{overallGoalsPercent}%</p>
+            <p className="pb-1 text-lg text-muted-foreground">Metas cumplidas</p>
+          </div>
+
+          <div className="relative mx-auto h-52 w-52">
+            <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
+              <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="12" />
+              {gaugeMetrics.map((metric, index) => {
+                const radius = 65;
+                const circumference = 2 * Math.PI * radius;
+                const clamped = Math.max(0, Math.min(100, metric.value));
+                const offset = circumference * (1 - clamped / 100);
+                return (
+                  <circle
+                    key={metric.key}
+                    cx="100"
+                    cy="100"
+                    r={radius}
+                    fill="none"
+                    stroke={metric.colorHex}
+                    strokeWidth={12 - index * 2}
+                    strokeLinecap="round"
+                    strokeDasharray={`${circumference} ${circumference}`}
+                    strokeDashoffset={offset}
+                    transform={`rotate(${index * 24} 100 100)`}
+                    opacity={0.95}
+                  />
+                );
+              })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <p className="text-5xl font-bold leading-none">{overallGoalsPercent}%</p>
+              <p className="text-lg font-semibold">Avance total</p>
+            </div>
+          </div>
+
+          <div className="space-y-1 text-center text-muted-foreground">
+            <p>{completedGoalsCount} de {gaugeMetrics.length} metas completadas</p>
+            <p>Avance total: {overallGoalsPercent}%</p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {gaugeMetrics.map((metric) => (
+              <div key={metric.key} className="rounded-xl border border-border/70 bg-background/50 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className={cn("h-2.5 w-2.5 rounded-full", metric.colorClass)} />
+                  <p className="text-xs text-muted-foreground">{metric.label}</p>
+                  <p className="ml-auto text-sm font-semibold">{Math.round(metric.value)}%</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-3xl border-border/70 bg-card/95">
