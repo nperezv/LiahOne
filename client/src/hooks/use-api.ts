@@ -570,10 +570,19 @@ export function useCreateBudgetRequest() {
         description: "La solicitud de presupuesto ha sido enviada.",
       });
     },
-    onError: () => {
+    onError: async (error: any) => {
+      let message = "No se pudo crear la solicitud. Intenta nuevamente.";
+      try {
+        const payload = await error.response?.json?.();
+        if (payload?.code === "OVERDUE_BUDGET_RECEIPTS") {
+          message = payload.error;
+        }
+      } catch {
+        // ignore response parsing errors
+      }
       toast({
         title: "Error",
-        description: "No se pudo crear la solicitud. Intenta nuevamente.",
+        description: message,
         variant: "destructive",
       });
     },
@@ -615,14 +624,40 @@ export function useApproveBudgetRequest() {
       queryClient.invalidateQueries({ queryKey: ["/api/budget-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
-        title: "Presupuesto aprobado",
-        description: "La solicitud ha sido aprobada exitosamente.",
+        title: "Aprobación financiera completada",
+        description: "La solicitud quedó pendiente de firma del obispo.",
       });
     },
     onError: () => {
       toast({
         title: "Error",
         description: "No se pudo aprobar la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useSignBudgetRequestAsBishop() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ requestId, signatureDataUrl, signerName }: { requestId: string; signatureDataUrl: string; signerName: string }) =>
+      apiRequest("POST", `/api/budget-requests/${requestId}/sign`, { signatureDataUrl, signerName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/budget-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "Solicitud firmada",
+        description: "La firma del obispo se registró y se creó la asignación de comprobantes.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo firmar la solicitud. Intenta nuevamente.",
         variant: "destructive",
       });
     },

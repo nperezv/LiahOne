@@ -126,6 +126,8 @@ export const accessRequestStatusEnum = pgEnum("access_request_status", [
 
 export const budgetStatusEnum = pgEnum("budget_status", [
   "solicitado",
+  "aprobado_financiero",
+  "pendiente_firma_obispo",
   "aprobado",
   "en_proceso",
   "completado",
@@ -468,12 +470,31 @@ export const budgetRequests = pgTable("budget_requests", {
   amount: integer("amount").notNull(),
   category: budgetCategoryEnum("category").notNull().default("otros"),
   status: budgetStatusEnum("status").notNull().default("solicitado"),
+  activityDate: timestamp("activity_date"),
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
+  financialApprovedBy: varchar("financial_approved_by").references(() => users.id),
+  financialApprovedAt: timestamp("financial_approved_at"),
+  bishopApprovedBy: varchar("bishop_approved_by").references(() => users.id),
+  bishopApprovedAt: timestamp("bishop_approved_at"),
+  bishopSignatureDataUrl: text("bishop_signature_data_url"),
+  bishopSignatureIp: text("bishop_signature_ip"),
+  bishopSignatureUserAgent: text("bishop_signature_user_agent"),
+  bishopSignedPlanFilename: text("bishop_signed_plan_filename"),
+  bishopSignedPlanUrl: text("bishop_signed_plan_url"),
   receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const budgetUnlockExceptions = pgTable("budget_unlock_exceptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reason: text("reason").notNull(),
+  grantedBy: varchar("granted_by").notNull().references(() => users.id),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Interviews
@@ -630,6 +651,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   assignmentsGiven: many(assignments, { relationName: "assignedBy" }),
   createdActivities: many(activities),
   notifications: many(notifications),
+  budgetUnlockExceptions: many(budgetUnlockExceptions, { relationName: "budgetUnlockUser" }),
+  budgetUnlockGrants: many(budgetUnlockExceptions, { relationName: "budgetUnlockGrantor" }),
 }));
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -748,6 +771,19 @@ export const budgetRequestsRelations = relations(budgetRequests, ({ one }) => ({
   }),
   approver: one(users, {
     fields: [budgetRequests.approvedBy],
+    references: [users.id],
+  }),
+}));
+
+export const budgetUnlockExceptionsRelations = relations(budgetUnlockExceptions, ({ one }) => ({
+  user: one(users, {
+    relationName: "budgetUnlockUser",
+    fields: [budgetUnlockExceptions.userId],
+    references: [users.id],
+  }),
+  grantedByUser: one(users, {
+    relationName: "budgetUnlockGrantor",
+    fields: [budgetUnlockExceptions.grantedBy],
     references: [users.id],
   }),
 }));
@@ -937,9 +973,23 @@ export const insertBudgetRequestSchema = createInsertSchema(budgetRequests).omit
   updatedAt: true,
   approvedBy: true,
   approvedAt: true,
+  financialApprovedBy: true,
+  financialApprovedAt: true,
+  bishopApprovedBy: true,
+  bishopApprovedAt: true,
+  bishopSignatureDataUrl: true,
+  bishopSignatureIp: true,
+  bishopSignatureUserAgent: true,
+  bishopSignedPlanFilename: true,
+  bishopSignedPlanUrl: true,
 });
 
 export const selectBudgetRequestSchema = createSelectSchema(budgetRequests);
+export const insertBudgetUnlockExceptionSchema = createInsertSchema(budgetUnlockExceptions).omit({
+  id: true,
+  createdAt: true,
+});
+export const selectBudgetUnlockExceptionSchema = createSelectSchema(budgetUnlockExceptions);
 
 // Interviews
 export const insertInterviewSchema = createInsertSchema(interviews, {
@@ -1236,6 +1286,8 @@ export type InsertPresidencyResource = z.infer<typeof insertPresidencyResourceSc
 
 export type BudgetRequest = typeof budgetRequests.$inferSelect;
 export type InsertBudgetRequest = z.infer<typeof insertBudgetRequestSchema>;
+export type BudgetUnlockException = typeof budgetUnlockExceptions.$inferSelect;
+export type InsertBudgetUnlockException = z.infer<typeof insertBudgetUnlockExceptionSchema>;
 
 export type Interview = typeof interviews.$inferSelect;
 export type InsertInterview = z.infer<typeof insertInterviewSchema>;
