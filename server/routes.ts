@@ -2436,7 +2436,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         day: "2-digit",
       });
 
-      const signatureBox = { x: 156, y: 128, width: 283, height: 71 };
+      // Coordenadas calibradas para la plantilla "Solicitud de gastos" (A4, 1 página)
+      // Área: "Para uso exclusivo del secretario" -> columna "Firma del El obispo (Opcional)"
+      const signatureBox = { x: 38, y: 306, width: 310, height: 30 };
 
       if (signatureDataUrl.startsWith("data:image/")) {
         const base64Data = signatureDataUrl.split(",")[1] || "";
@@ -2465,14 +2467,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const detailsFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
       page.drawText(`Obispo: ${signerName}`, {
         x: signatureBox.x,
-        y: signatureBox.y - 14,
+        y: signatureBox.y - 18,
         size: 10,
         font: detailsFont,
         color: rgb(0.1, 0.1, 0.1),
       });
       page.drawText(`Fecha de firma: ${signatureDate}`, {
         x: signatureBox.x,
-        y: signatureBox.y - 28,
+        y: signatureBox.y - 32,
         size: 10,
         font: detailsFont,
         color: rgb(0.1, 0.1, 0.1),

@@ -586,6 +586,7 @@ export default function BudgetPage() {
     const context = canvas.getContext("2d");
     if (!context) return;
     const { x, y } = getCanvasPoint(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
     isDrawingRef.current = true;
     context.beginPath();
     context.moveTo(x, y);
@@ -1736,6 +1737,7 @@ export default function BudgetPage() {
                 width={700}
                 height={220}
                 className="h-44 w-full rounded border bg-white"
+                style={{ touchAction: "none" }}
                 onPointerDown={startDrawing}
                 onPointerMove={drawSignature}
                 onPointerUp={stopDrawing}
