@@ -2504,6 +2504,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Budget request not found" });
       }
 
+      const allAssignments = await storage.getAllAssignments();
+      const signAssignments = allAssignments.filter(
+        (assignment: any) =>
+          assignment.relatedTo === `budget:${budgetRequest.id}` &&
+          assignment.status !== "archivada" &&
+          assignment.title?.toLowerCase().includes("firmar solicitud de gasto")
+      );
+
+      for (const signAssignment of signAssignments) {
+        await storage.updateAssignment(signAssignment.id, {
+          status: "archivada",
+          resolution: "completada",
+          archivedAt: new Date(),
+          notes: [
+            signAssignment.notes,
+            `Completada automáticamente al firmar la solicitud el ${new Date().toLocaleString("es-ES")}.`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        });
+      }
+
       const dueDate = budgetRequest.activityDate ? new Date(budgetRequest.activityDate) : new Date();
       dueDate.setDate(dueDate.getDate() + 7);
 
@@ -2540,6 +2562,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.errors });
       }
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+
+  app.post("/api/budget-requests/:id/review", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const payloadSchema = z.object({
+        action: z.enum(["rechazar", "enmendar"]),
+        reason: z.string().trim().min(10, "El motivo debe tener al menos 10 caracteres"),
+      });
+      const { action, reason } = payloadSchema.parse(req.body);
+
+      const budgetRequest = await storage.getBudgetRequest(id);
+      if (!budgetRequest) {
+        return res.status(404).json({ error: "Budget request not found" });
+      }
+
+      if (budgetRequest.status !== "pendiente_firma_obispo") {
+        return res.status(400).json({ error: "La solicitud no está pendiente de revisión del obispo" });
+      }
+
+      const nextStatus = action === "rechazar" ? "rechazada" : "solicitado";
+      const updatedRequest = await storage.updateBudgetRequest(id, {
+        status: nextStatus as any,
+        notes: [
+          budgetRequest.notes,
+          `${action === "rechazar" ? "Rechazada" : "Devuelta para enmienda"} por obispo: ${reason}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      });
+
+      if (!updatedRequest) {
+        return res.status(404).json({ error: "Budget request not found" });
+      }
+
+      const allAssignments = await storage.getAllAssignments();
+      const signAssignment = allAssignments.find(
+        (assignment: any) =>
+          assignment.relatedTo === `budget:${id}` &&
+          assignment.title === "Firmar solicitud de gasto" &&
+          ["pendiente", "en_proceso"].includes(assignment.status)
+      );
+
+      if (signAssignment) {
+        await storage.updateAssignment(signAssignment.id, {
+          status: "archivada",
+          resolution: "cancelada",
+          cancellationReason: reason,
+          cancelledAt: new Date(),
+          archivedAt: new Date(),
+          notes: [
+            signAssignment.notes,
+            `Cerrada automáticamente por revisión del obispo (${action}): ${reason}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        });
+      }
+
+      const title = action === "rechazar" ? "Solicitud rechazada por obispo" : "Solicitud devuelta para enmienda";
+      const description = action === "rechazar"
+        ? `Tu solicitud "${budgetRequest.description}" fue rechazada. Motivo: ${reason}`
+        : `Tu solicitud "${budgetRequest.description}" requiere enmiendas. Observación: ${reason}`;
+
+      const notification = await storage.createNotification({
+        userId: budgetRequest.requestedBy,
+        type: "budget_rejected",
+        title,
+        description,
+        relatedId: budgetRequest.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(budgetRequest.requestedBy, {
+          title,
+          body: description,
+          url: "/budget",
+          notificationId: notification.id,
+        });
+      }
+
+      return res.json(updatedRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      return res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -5809,14 +5921,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Assignment not found" });
       }
 
-      // Check authorization: obispo, consejero_obispo, secretario, or assigned/created by user
-      const isObispado =
-        user.role === "obispo" || user.role === "consejero_obispo" || user.role === "secretario";
+      // Permisos de edición:
+      // - Obispo y consejero del obispado pueden editar cualquiera.
+      // - Quien asigna puede editar su asignación.
+      // - Quien recibe solo puede cambiar estado (no editar campos estructurales).
+      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
       const isAssignedTo = assignment.assignedTo === user.id;
       const isCreatedBy = assignment.assignedBy === user.id;
+      const canEditAssignment = isObispado || isCreatedBy;
 
-      if (!isObispado && !isAssignedTo && !isCreatedBy) {
+      if (!canEditAssignment && !isAssignedTo) {
         return res.status(403).json({ error: "Forbidden" });
+      }
+
+      if (!canEditAssignment) {
+        const attemptedFields = Object.keys(req.body ?? {}).filter((key) => key !== "status");
+        if (attemptedFields.length > 0) {
+          return res.status(403).json({
+            error: "Solo quien asigna (o el obispado) puede editar esta asignación",
+          });
+        }
+      }
+
+      const isAutoManagedAssignment =
+        assignment.relatedTo?.startsWith("interview:") ||
+        (assignment.relatedTo?.startsWith("budget:") &&
+          ["Adjuntar comprobantes de gasto", "Firmar solicitud de gasto"].includes(assignment.title || ""));
+
+      if (req.body?.status && isAutoManagedAssignment) {
+        return res.status(400).json({
+          error: "El estado de esta asignación se actualiza automáticamente por su flujo relacionado",
+        });
       }
 
       if (
@@ -5848,9 +5983,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (assignmentData.status === "cancelada") {
-        if (!isCreatedBy) {
+        if (!canEditAssignment) {
           return res.status(403).json({
-            error: "Solo quien asignó la tarea puede cancelarla",
+            error: "Solo quien asignó la tarea o el obispado puede cancelarla",
           });
         }
 
@@ -5945,9 +6080,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/assignments/:id", requireAuth, async (_req: Request, res: Response) => {
-    return res.status(403).json({
-      error: "Eliminar asignaciones está deshabilitado. Usa el flujo de archivado.",
-    });
+    try {
+      const req = _req as Request;
+      const user = (req as any).user;
+      const { id } = req.params;
+
+      if (!user || user.role !== "obispo") {
+        return res.status(403).json({
+          error: "Solo el obispo puede eliminar asignaciones",
+        });
+      }
+
+      const assignment = await storage.getAssignment(id);
+      if (!assignment) {
+        return res.status(404).json({ error: "Assignment not found" });
+      }
+
+      await storage.deleteAssignment(id);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   // ========================================
