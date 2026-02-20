@@ -2364,7 +2364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const requesterNotification = await storage.createNotification({
           userId: budgetRequest.requestedBy,
           type: "budget_approved",
-          title: "Aprobación financiera completada",
+          title: "Aprobación financiera en proceso",
           description: `Tu solicitud "${budgetRequest.description}" está pendiente de firma del obispo.`,
           relatedId: budgetRequest.id,
           isRead: false,
@@ -2372,7 +2372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (isPushConfigured()) {
           await sendPushNotification(budgetRequest.requestedBy, {
-            title: "Aprobación financiera completada",
+            title: "Aprobación financiera en proceso",
             body: `Tu solicitud "${budgetRequest.description}" está pendiente de firma del obispo.`,
             url: "/budget",
             notificationId: requesterNotification.id,
@@ -2543,7 +2543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: "assignment_created",
         title: "Nueva Asignación",
         description: `Se te ha asignado: "${assignment.title}"`,
-        relatedId: assignment.id,
+        relatedId: budgetRequest.id,
         isRead: false,
       });
 
@@ -2551,8 +2551,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendPushNotification(budgetRequest.requestedBy, {
           title: "Nueva Asignación",
           body: `Se te ha asignado: "${assignment.title}"`,
-          url: "/assignments",
+          url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
           notificationId: receiptNotification.id,
+        });
+      }
+
+      const approvalNotification = await storage.createNotification({
+        userId: budgetRequest.requestedBy,
+        type: "budget_approved",
+        title: "Aprobación financiera completada",
+        description: `Se ha aprobado y firmado tu solicitud "${budgetRequest.description}".`,
+        relatedId: budgetRequest.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(budgetRequest.requestedBy, {
+          title: "Aprobación financiera completada",
+          body: `Se ha aprobado y firmado tu solicitud "${budgetRequest.description}".`,
+          url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
+          notificationId: approvalNotification.id,
         });
       }
 

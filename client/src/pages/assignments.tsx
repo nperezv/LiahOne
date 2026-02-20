@@ -223,6 +223,16 @@ export default function Assignments() {
     return "Se completará automáticamente por el flujo relacionado.";
   };
 
+  const getBudgetIdFromRelatedTo = (assignment: any) => {
+    if (!assignment.relatedTo?.startsWith("budget:")) return null;
+    return assignment.relatedTo.slice("budget:".length) || null;
+  };
+
+  const canOpenBudgetToUploadReceipts = (assignment: any) =>
+    assignment.assignedTo === user?.id &&
+    assignment.title === "Adjuntar comprobantes de gasto" &&
+    Boolean(getBudgetIdFromRelatedTo(assignment));
+
   const canEditAssignment = (assignment: any) => isObispado || assignment.assignedBy === user?.id;
   const canDeleteAssignment = (assignment: any) => user?.role === "obispo";
   const canChangeStatus = (assignment: any) =>
@@ -259,6 +269,20 @@ export default function Assignments() {
         >
           <Edit className="h-3 w-3 lg:mr-1" />
           <span className="sr-only lg:not-sr-only">Editar</span>
+        </Button>
+      ) : null}
+      {canOpenBudgetToUploadReceipts(assignment) ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            const budgetId = getBudgetIdFromRelatedTo(assignment);
+            if (!budgetId) return;
+            navigateWithTransition(setLocation, `/budget?highlight=${encodeURIComponent(budgetId)}`);
+          }}
+          data-testid={`button-complete-receipts-${assignment.id}`}
+        >
+          Completar
         </Button>
       ) : null}
       {canChangeStatus(assignment) ? (

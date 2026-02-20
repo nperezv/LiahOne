@@ -46,6 +46,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { exportBudgetRequests } from "@/lib/export";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+import { useSearch } from "wouter";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
 
@@ -209,6 +210,11 @@ export default function BudgetPage() {
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
+  const search = useSearch();
+  const highlightedRequestId = useMemo(() => {
+    const params = new URLSearchParams(search);
+    return params.get("highlight");
+  }, [search]);
 
   const { user } = useAuth();
   const { data: requests = [] as any[], isLoading: requestsLoading } = useBudgetRequests();
@@ -265,6 +271,13 @@ export default function BudgetPage() {
   const filteredRequests = isOrgMember
     ? (requests as any[]).filter((r: any) => r.organizationId === user?.organizationId)
     : requests;
+
+  useEffect(() => {
+    if (!highlightedRequestId) return;
+    const row = document.querySelector(`[data-testid="row-request-${highlightedRequestId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightedRequestId, filteredRequests]);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -1595,7 +1608,11 @@ export default function BudgetPage() {
                 (filteredRequests as any[]).map((request: any) => {
                   const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
                   return (
-                  <TableRow key={request.id} data-testid={`row-request-${request.id}`}>
+                  <TableRow
+                    key={request.id}
+                    data-testid={`row-request-${request.id}`}
+                    className={highlightedRequestId === request.id ? "bg-amber-50/60 transition-colors duration-700" : undefined}
+                  >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <span>{request.description}</span>
