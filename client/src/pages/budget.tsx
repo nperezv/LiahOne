@@ -34,6 +34,7 @@ import {
   useCreateBudgetRequest,
   useUpdateBudgetRequest,
   useApproveBudgetRequest,
+  useSignBudgetRequestAsBishop,
   useDeleteBudgetRequest,
   useWardBudget,
   useUpdateWardBudget,
@@ -102,6 +103,7 @@ const budgetSchema = z.object({
   amount: z.string().min(1, "El monto es requerido"),
   category: z.enum(["actividades", "materiales", "otros"]),
   requestType: z.enum(["reembolso", "pago_adelantado"]),
+  activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
   receiptFile: z
     .instanceof(File)
@@ -167,16 +169,19 @@ type ExpenseReceiptsValues = z.infer<typeof expenseReceiptsSchema>;
 type WardBudgetValues = z.infer<typeof wardBudgetSchema>;
 type OrgBudgetAssignValues = z.infer<typeof orgBudgetAssignSchema>;
 
-type ReceiptCategory = "plan" | "receipt" | "expense";
+type ReceiptCategory = "plan" | "receipt" | "expense" | "signed_plan";
 
 interface BudgetRequest {
   id: string;
   description: string;
   amount: number;
   category?: "actividades" | "materiales" | "otros";
-  status: "solicitado" | "aprobado" | "en_proceso" | "completado";
+  status: "solicitado" | "aprobado_financiero" | "pendiente_firma_obispo" | "aprobado" | "en_proceso" | "completado";
   requestedBy: string;
   approvedBy?: string;
+  activityDate?: string;
+  bishopSignedPlanFilename?: string;
+  bishopSignedPlanUrl?: string;
   organizationId?: string;
   notes?: string;
   receipts?: { filename: string; url: string; category?: ReceiptCategory }[];
@@ -207,6 +212,7 @@ export default function BudgetPage() {
   const createMutation = useCreateBudgetRequest();
   const updateMutation = useUpdateBudgetRequest();
   const approveMutation = useApproveBudgetRequest();
+  const signMutation = useSignBudgetRequestAsBishop();
   const deleteMutation = useDeleteBudgetRequest();
   const updateWardBudgetMutation = useUpdateWardBudget();
   const createOrgBudgetMutation = useCreateOrganizationBudget();
@@ -292,6 +298,7 @@ export default function BudgetPage() {
       amount: "",
       category: "otros",
       requestType: "pago_adelantado",
+      activityDate: "",
       notes: "",
       receiptFile: undefined,
       activityPlanFile: undefined,
@@ -394,6 +401,7 @@ export default function BudgetPage() {
         amount: parseFloat(data.amount),
         category: data.category,
         status: "solicitado",
+        activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,
         notes: data.notes || "",
         receipts: uploadedReceipts,
         organizationId: user?.organizationId,
@@ -536,6 +544,13 @@ export default function BudgetPage() {
     approveMutation.mutate(requestId);
   };
 
+  const handleSignAsBishop = (requestId: string) => {
+    const signerName = window.prompt("Escribe tu nombre completo para registrar la firma del obispo sobre la solicitud de gasto:");
+    if (!signerName || !signerName.trim()) return;
+    const signatureDataUrl = `data:text/plain;base64,${btoa(unescape(encodeURIComponent(signerName.trim())))}`;
+    signMutation.mutate({ requestId, signatureDataUrl, signerName: signerName.trim() });
+  };
+
   const handleDelete = (requestId: string) => {
     if (window.confirm("¿Está seguro de que desea eliminar esta solicitud?")) {
       deleteMutation.mutate(requestId);
@@ -547,6 +562,16 @@ export default function BudgetPage() {
       solicitado: {
         variant: "outline",
         label: "Solicitado",
+        icon: <Clock className="h-3 w-3 mr-1" />,
+      },
+      aprobado_financiero: {
+        variant: "secondary",
+        label: "Aprobación financiera",
+        icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
+      },
+      pendiente_firma_obispo: {
+        variant: "outline",
+        label: "Pendiente firma obispo",
         icon: <Clock className="h-3 w-3 mr-1" />,
       },
       aprobado: {
@@ -597,6 +622,10 @@ export default function BudgetPage() {
     if (receipt?.category === "expense") {
       return "Comprobante de gasto";
     }
+  if (receipt?.category === "signed_plan") {
+      return "Solicitud de gasto firmada";
+    }
+
     if (receipt?.category === "receipt") {
       return "Comprobante de compra";
     }
@@ -925,6 +954,20 @@ export default function BudgetPage() {
                             <SelectItem value="pago_adelantado">Pago por adelantado</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={budgetForm.control}
+                    name="activityDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha prevista de la actividad o gasto</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} data-testid="input-activity-date" />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1479,7 +1522,24 @@ export default function BudgetPage() {
                               </span>
                             )
                           )}
+                          {request.bishopSignedPlanUrl && (
+                            <button
+                              type="button"
+                              onClick={() => void downloadReceipt({ filename: request.bishopSignedPlanFilename || "solicitud-firmada.pdf", url: request.bishopSignedPlanUrl })}
+                              className="text-left text-xs text-emerald-700 hover:underline"
+                            >
+                              Solicitud de gasto firmada: {request.bishopSignedPlanFilename || "Descargar"}
+                            </button>
+                          )}
                         </div>
+                      ) : request.bishopSignedPlanUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => void downloadReceipt({ filename: request.bishopSignedPlanFilename || "solicitud-firmada.pdf", url: request.bishopSignedPlanUrl })}
+                          className="text-left text-xs text-emerald-700 hover:underline"
+                        >
+                          Solicitud de gasto firmada: {request.bishopSignedPlanFilename || "Descargar"}
+                        </button>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sin adjuntos</span>
                       )}
@@ -1503,6 +1563,17 @@ export default function BudgetPage() {
                             >
                               <CheckCircle2 className="h-4 w-4 mr-1" />
                               Aprobar
+                            </Button>
+                          )}
+                          {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleSignAsBishop(request.id)}
+                              data-testid={`button-sign-budget-${request.id}`}
+                              disabled={signMutation.isPending}
+                            >
+                              Firmar solicitud
                             </Button>
                           )}
                           {request.status === "aprobado" &&

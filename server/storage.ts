@@ -1,6 +1,6 @@
 // Reference: javascript_database blueprint
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql, asc, type SQLWrapper } from "drizzle-orm";
+import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   users,
@@ -11,6 +11,7 @@ import {
   presidencyMeetings,
   presidencyResources,
   budgetRequests,
+  budgetUnlockExceptions,
   interviews,
   organizationInterviews,
   goals,
@@ -49,6 +50,8 @@ import {
   type InsertPresidencyResource,
   type BudgetRequest,
   type InsertBudgetRequest,
+  type BudgetUnlockException,
+  type InsertBudgetUnlockException,
   type Interview,
   type InsertInterview,
   type OrganizationInterview,
@@ -189,7 +192,21 @@ export interface IStorage {
   getBudgetRequest(id: string): Promise<BudgetRequest | undefined>;
   createBudgetRequest(request: InsertBudgetRequest): Promise<BudgetRequest>;
   updateBudgetRequest(id: string, data: Partial<InsertBudgetRequest>): Promise<BudgetRequest | undefined>;
-  approveBudgetRequest(id: string, approvedBy: string): Promise<BudgetRequest | undefined>;
+  approveBudgetRequestFinancial(id: string, approvedBy: string): Promise<BudgetRequest | undefined>;
+  approveBudgetRequestBishop(
+    id: string,
+    approvedBy: string,
+    signature: {
+      dataUrl: string;
+      ip?: string | null;
+      userAgent?: string | null;
+      signedPlanFilename?: string | null;
+      signedPlanUrl?: string | null;
+    }
+  ): Promise<BudgetRequest | undefined>;
+  getOverdueBudgetReceiptAssignments(userId: string): Promise<Assignment[]>;
+  createBudgetUnlockException(data: InsertBudgetUnlockException): Promise<BudgetUnlockException>;
+  getActiveBudgetUnlockException(userId: string): Promise<BudgetUnlockException | undefined>;
   deleteBudgetRequest(id: string): Promise<void>;
 
   // Interviews
@@ -776,18 +793,84 @@ export class DatabaseStorage implements IStorage {
     return request || undefined;
   }
 
-  async approveBudgetRequest(id: string, approvedBy: string): Promise<BudgetRequest | undefined> {
+  async approveBudgetRequestFinancial(id: string, approvedBy: string): Promise<BudgetRequest | undefined> {
+    const [request] = await db
+      .update(budgetRequests)
+      .set({
+        status: "pendiente_firma_obispo",
+        approvedBy,
+        approvedAt: new Date(),
+        financialApprovedBy: approvedBy,
+        financialApprovedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(budgetRequests.id, id))
+      .returning();
+    return request || undefined;
+  }
+
+  async approveBudgetRequestBishop(
+    id: string,
+    approvedBy: string,
+    signature: {
+      dataUrl: string;
+      ip?: string | null;
+      userAgent?: string | null;
+      signedPlanFilename?: string | null;
+      signedPlanUrl?: string | null;
+    }
+  ): Promise<BudgetRequest | undefined> {
     const [request] = await db
       .update(budgetRequests)
       .set({
         status: "aprobado",
         approvedBy,
         approvedAt: new Date(),
+        bishopApprovedBy: approvedBy,
+        bishopApprovedAt: new Date(),
+        bishopSignatureDataUrl: signature.dataUrl,
+        bishopSignatureIp: signature.ip ?? null,
+        bishopSignatureUserAgent: signature.userAgent ?? null,
+        bishopSignedPlanFilename: signature.signedPlanFilename ?? null,
+        bishopSignedPlanUrl: signature.signedPlanUrl ?? null,
         updatedAt: new Date(),
       })
       .where(eq(budgetRequests.id, id))
       .returning();
     return request || undefined;
+  }
+
+  async getOverdueBudgetReceiptAssignments(userId: string): Promise<Assignment[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(assignments)
+      .where(and(
+        eq(assignments.assignedTo, userId),
+        eq(assignments.title, "Adjuntar comprobantes de gasto"),
+        or(eq(assignments.status, "pendiente"), eq(assignments.status, "en_proceso")),
+        isNull(assignments.archivedAt),
+        lt(assignments.dueDate, now),
+      ));
+  }
+
+  async createBudgetUnlockException(data: InsertBudgetUnlockException): Promise<BudgetUnlockException> {
+    const [exception] = await db.insert(budgetUnlockExceptions).values(data).returning();
+    return exception;
+  }
+
+  async getActiveBudgetUnlockException(userId: string): Promise<BudgetUnlockException | undefined> {
+    const now = new Date();
+    const [exception] = await db
+      .select()
+      .from(budgetUnlockExceptions)
+      .where(and(
+        eq(budgetUnlockExceptions.userId, userId),
+        or(isNull(budgetUnlockExceptions.expiresAt), gte(budgetUnlockExceptions.expiresAt, now)),
+      ))
+      .orderBy(desc(budgetUnlockExceptions.createdAt))
+      .limit(1);
+    return exception || undefined;
   }
 
   async deleteBudgetRequest(id: string): Promise<void> {
