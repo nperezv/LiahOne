@@ -27,6 +27,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 
 const meetingSchema = z.object({
@@ -176,6 +177,7 @@ export default function PresidencyManageOrganizationPage() {
     attendance: false,
   });
   const [activeGaugeSlide, setActiveGaugeSlide] = useState(0);
+  const [animatedGaugeValue, setAnimatedGaugeValue] = useState(0);
   const touchStartXRef = useRef<number | null>(null);
   const pointerStartXRef = useRef<number | null>(null);
   const { toast } = useToast();
@@ -409,14 +411,38 @@ export default function PresidencyManageOrganizationPage() {
   }, [activeGaugeSlide, gaugeSlides.length]);
 
   const currentGaugeSlide = gaugeSlides[activeGaugeSlide] ?? gaugeSlides[0];
-  const gaugeSize = 240;
-  const gaugeStroke = 16;
+  const gaugeSize = 196;
+  const gaugeStroke = 14;
   const gaugeRadius = (gaugeSize - gaugeStroke) / 2;
   const gaugeCircumference = 2 * Math.PI * gaugeRadius;
   const gaugeSweepAngle = 300;
   const gaugeArcLength = (gaugeSweepAngle / 360) * gaugeCircumference;
   const currentGaugeValue = Math.max(0, Math.min(100, currentGaugeSlide?.value ?? 0));
   const currentGaugeOffset = gaugeArcLength - (currentGaugeValue / 100) * gaugeArcLength;
+
+  useEffect(() => {
+    let frameId = 0;
+    const startValue = animatedGaugeValue;
+    const endValue = currentGaugeValue;
+    const duration = 420;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      const nextValue = startValue + (endValue - startValue) * easedProgress;
+      setAnimatedGaugeValue(Math.round(nextValue));
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeGaugeSlide, currentGaugeValue]);
 
   const goToNextGaugeSlide = () => {
     setActiveGaugeSlide((prev) => (prev + 1) % gaugeSlides.length);
@@ -537,7 +563,7 @@ export default function PresidencyManageOrganizationPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6 xl:p-8">
+    <motion.div className="space-y-6 p-4 md:p-6 xl:p-8" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 18 }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
@@ -554,20 +580,15 @@ export default function PresidencyManageOrganizationPage() {
       </div>
 
       <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_12px_40px_rgba(0,0,0,0.2)]">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-1.5">
           <CardTitle className="text-lg">Métricas de avance</CardTitle>
           <CardDescription>
             Seguimiento del avance mensual de la organización
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-2">
-            <p className="text-4xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
-            <p className="pb-1 text-lg text-muted-foreground">{currentGaugeSlide?.title ?? "Global"}</p>
-          </div>
-
           <div
-            className="relative mx-auto flex h-[320px] w-full max-w-[320px] items-center justify-center touch-pan-y"
+            className="relative mx-auto flex h-[220px] w-full max-w-[220px] items-center justify-center touch-pan-y"
             onPointerDown={handleGaugePointerDown}
             onPointerUp={handleGaugePointerUp}
             onTouchStart={handleGaugeTouchStart}
@@ -597,17 +618,18 @@ export default function PresidencyManageOrganizationPage() {
                 strokeDashoffset={currentGaugeOffset}
                 transform={`rotate(120 ${gaugeSize / 2} ${gaugeSize / 2})`}
                 opacity={0.95}
+                style={{ transition: "stroke-dashoffset 450ms ease, stroke 300ms ease" }}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <p className="text-4xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
-              <p className="mt-1 text-base font-semibold">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
+              <p className="text-4xl font-bold leading-none">{animatedGaugeValue}%</p>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">{currentGaugeSlide?.title ?? "Global"}</p>
+              <p className="text-sm font-medium">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
             </div>
           </div>
 
           <div className="space-y-1 text-center text-muted-foreground">
             <p>{completedGoalsCount} de {gaugeMetrics.length} métricas completadas</p>
-            <p>Vista: {currentGaugeSlide?.title ?? "Global"}</p>
           </div>
 
           <div className="flex items-center justify-center gap-2">
@@ -995,6 +1017,6 @@ export default function PresidencyManageOrganizationPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }
