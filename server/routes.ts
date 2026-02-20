@@ -2150,8 +2150,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
       }
 
+      const organizations = await storage.getAllOrganizations();
+      const requestedOrganizationId = typeof req.body?.organizationId === "string"
+        ? req.body.organizationId
+        : undefined;
+
+      let effectiveOrganizationId: string | null = null;
+      if (OBISPADO_ROLES.has(user.role)) {
+        if (!requestedOrganizationId) {
+          return res.status(400).json({
+            error: [{ path: ["organizationId"], message: "Debes seleccionar la organización a nombre de la cual se solicita el presupuesto." }],
+          });
+        }
+
+        const organizationExists = organizations.some((org) => org.id === requestedOrganizationId && org.type !== "barrio");
+        if (!organizationExists) {
+          return res.status(400).json({
+            error: [{ path: ["organizationId"], message: "La organización seleccionada no es válida." }],
+          });
+        }
+
+        effectiveOrganizationId = requestedOrganizationId;
+      } else {
+        effectiveOrganizationId = user.organizationId ?? null;
+      }
+
       const requestData = insertBudgetRequestSchema.parse({
         ...req.body,
+        organizationId: effectiveOrganizationId,
         activityDate: normalizedActivityDate,
         requestedBy: user.id,
       });
