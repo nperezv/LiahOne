@@ -19,6 +19,8 @@ import {
   Users,
   Phone,
   Mail,
+  Cake,
+  UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth";
 import {
   usePresidencyMeetings,
@@ -51,12 +54,16 @@ import {
   useOrganizationAttendanceByOrg,
   useOrganizationInterviews,
   usePresidencyResources,
+  useAllMemberCallings,
+  useAssignments,
+  useBirthdays,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { downloadResourceFile, openResourceFileInBrowser } from "@/lib/resource-download";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
 
 const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
 
@@ -90,6 +97,26 @@ const meetingSchema = z.object({
   notes: z.string().optional(),
   agreementsText: z.string().optional(),
 });
+
+const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
+
+const getPresidentRoleLabel = (organizationType?: string) =>
+  FEMALE_ORG_TYPES.has(organizationType ?? "") ? "Presidenta" : "Presidente";
+
+const getCounselorRoleLabel = (index: number, organizationType?: string) => {
+  const isFemale = FEMALE_ORG_TYPES.has(organizationType ?? "");
+  if (index === 0) return isFemale ? "Primera consejera" : "Primer consejero";
+  if (index === 1) return isFemale ? "Segunda consejera" : "Segundo consejero";
+  return isFemale ? "Consejera" : "Consejero";
+};
+
+const inferCounselorOrder = (callingName?: string | null, callingOrder?: number | null) => {
+  if (callingOrder === 1 || callingOrder === 2) return callingOrder;
+  const normalized = callingName?.trim().toLowerCase() ?? "";
+  if (normalized.includes("primera") || normalized.includes("primer")) return 1;
+  if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
+  return undefined;
+};
 
 const budgetRequestSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
@@ -415,6 +442,7 @@ export default function PresidencyMeetingsPage() {
   const [isBudgetRequestDialogOpen, setIsBudgetRequestDialogOpen] = useState(false);
   const [isBudgetMovementsDialogOpen, setIsBudgetMovementsDialogOpen] = useState(false);
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [leadersDialogOpen, setLeadersDialogOpen] = useState(false);
   const [isResourcesModalOpen, setIsResourcesModalOpen] = useState(false);
   const [latestCreatedMeetingId, setLatestCreatedMeetingId] = useState<string | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
@@ -433,7 +461,10 @@ export default function PresidencyMeetingsPage() {
   const { data: goals = [] } = useGoals();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
   const { data: organizationMembers = [] } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
+  const { data: allMemberCallings = [] } = useAllMemberCallings({ enabled: Boolean(organizationId) });
   const { data: activities = [] } = useActivities();
+  const { data: assignments = [] } = useAssignments();
+  const { data: birthdays = [] } = useBirthdays();
   const { data: sectionResources = [], isLoading: isLoadingSectionResources } = usePresidencyResources({
     organizationId,
     category: selectedResourcesCategory,
@@ -528,12 +559,73 @@ export default function PresidencyMeetingsPage() {
   }, [latestCreatedMeetingId, meetings]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Presidencia";
+  const currentOrganization = organizations.find((org: any) => org.id === organizationId);
+  const organizationType = currentOrganization?.type;
   const isLeadershipOnly = params?.org === "jas";
   const pageTitle = isLeadershipOnly ? `Liderazgo de ${orgName}` : `Presidencia de ${orgName}`;
   const meetingTitle = isLeadershipOnly ? "REUNIÓN DE LIDERAZGO" : "REUNIÓN DE PRESIDENCIA";
 
   const currentDate = new Date();
   const sundaysInMonth = useMemo(() => getSundaysForMonth(currentDate), [currentDate.getMonth(), currentDate.getFullYear()]);
+
+  const leadership = useMemo(() => {
+    const organizationUsers = (users as any[]).filter((member) => member.organizationId === organizationId);
+    const activeOrgCallings = (allMemberCallings as any[]).filter(
+      (calling) => calling.isActive && calling.organizationId === organizationId
+    );
+
+    const callingByMemberId = new Map<string, any>();
+    activeOrgCallings.forEach((calling) => {
+      if (!calling.memberId) return;
+      const existing = callingByMemberId.get(calling.memberId);
+      if (!existing) {
+        callingByMemberId.set(calling.memberId, calling);
+        return;
+      }
+
+      const existingOrder = Number(existing.callingOrder ?? 999);
+      const incomingOrder = Number(calling.callingOrder ?? 999);
+      if (incomingOrder < existingOrder) {
+        callingByMemberId.set(calling.memberId, calling);
+      }
+    });
+
+    const hydrateLeader = (member: any) => {
+      const matchedCalling = member.memberId ? callingByMemberId.get(member.memberId) : undefined;
+      return {
+        ...member,
+        callingName: matchedCalling?.callingName ?? member.callingName,
+        callingOrder: matchedCalling?.callingOrder ?? member.callingOrder,
+      };
+    };
+
+    const presidents = organizationUsers
+      .filter((member) => member.role === "presidente_organizacion")
+      .map((member) => ({ ...hydrateLeader(member), roleLabel: getPresidentRoleLabel(organizationType) }));
+
+    const counselors = organizationUsers
+      .filter((member) => member.role === "consejero_organizacion")
+      .map(hydrateLeader)
+      .sort((a, b) => {
+        const orderA = Number(a.callingOrder ?? inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
+        const orderB = Number(b.callingOrder ?? inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
+      })
+      .map((member, index) => {
+        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder);
+        const roleLabel = counselorOrder
+          ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
+          : getCounselorRoleLabel(index, organizationType);
+        return { ...member, roleLabel };
+      });
+
+    const leaders = [...presidents, ...counselors];
+    const visibleLeaders = leaders.slice(0, 3);
+    const hiddenLeaders = leaders.slice(3);
+
+    return { leaders, visibleLeaders, hiddenLeaders };
+  }, [allMemberCallings, organizationId, organizationType, users]);
 
   const dashboardStats = useMemo(() => {
     const organizationGoals = (goals as any[]).filter((goal: any) => goal.organizationId === organizationId);
@@ -622,6 +714,28 @@ export default function PresidencyMeetingsPage() {
       : 0;
     const pendingInterviewsCount = Math.max(0, annualInterviewGoal - completedYearInterviews);
 
+    const organizationAssignments = (assignments as any[]).filter((assignment: any) => assignment.organizationId === organizationId);
+    const pendingAssignmentsCount = organizationAssignments.filter((assignment: any) => ["pendiente", "en_proceso"].includes(String(assignment.status ?? ""))).length;
+    const completedAssignmentsCount = organizationAssignments.filter((assignment: any) => assignment.status === "completada" || assignment.resolution === "completada").length;
+    const assignmentsTotal = pendingAssignmentsCount + completedAssignmentsCount;
+    const assignmentsCompletionPercent = assignmentsTotal > 0
+      ? Math.min(100, (completedAssignmentsCount / assignmentsTotal) * 100)
+      : 0;
+
+    const nowDate = new Date();
+    const organizationBirthdays = (birthdays as any[])
+      .filter((birthday: any) => birthday.organizationId === organizationId)
+      .map((birthday: any) => ({
+        ...birthday,
+        daysUntil: getDaysUntilBirthday(birthday.birthDate),
+      }))
+      .sort((a: any, b: any) => a.daysUntil - b.daysUntil);
+    const upcomingBirthday = organizationBirthdays.find((birthday: any) => birthday.daysUntil >= 0);
+    const birthdaysThisMonth = organizationBirthdays.filter((birthday: any) => {
+      const date = new Date(birthday.birthDate);
+      return !Number.isNaN(date.getTime()) && date.getMonth() === nowDate.getMonth();
+    }).length;
+
     const byCategory = approvedRequests.reduce(
       (acc: { actividades: number; materiales: number; otros: number }, request: any) => {
         const category: "actividades" | "materiales" | "otros" = request.category === "actividades" || request.category === "materiales"
@@ -682,10 +796,15 @@ export default function PresidencyMeetingsPage() {
       monthMeetingProgress,
       interviewProgressPercent,
       pendingInterviewsCount,
+      pendingAssignmentsCount,
+      completedAssignmentsCount,
+      assignmentsCompletionPercent,
+      upcomingBirthday,
+      birthdaysThisMonth,
       latestMeeting,
       budgetSlides,
     };
-  }, [activities, attendance, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationInterviews, organizationMembers.length, sundaysInMonth.length]);
+  }, [activities, assignments, attendance, birthdays, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationInterviews, organizationMembers.length, sundaysInMonth.length]);
 
   useEffect(() => {
     const maxGoalSlide = dashboardStats.goalsWithPercentage.length;
@@ -1232,8 +1351,121 @@ export default function PresidencyMeetingsPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-12">
-        <div className="col-span-1 flex flex-col gap-3 md:gap-4 lg:col-span-4">
+      <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-12">
+        <Dialog open={leadersDialogOpen} onOpenChange={setLeadersDialogOpen}>
+          <button
+            type="button"
+            onClick={() => setLeadersDialogOpen(true)}
+            className="flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-4"
+            data-testid="button-org-leaders-card"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Líderes de la organización</p>
+              <UsersRound className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="mt-3 space-y-3">
+              {leadership.visibleLeaders.length > 0 ? leadership.visibleLeaders.map((leader: any) => {
+                const displayName = String(leader.name ?? "Sin nombre").trim() || "Sin nombre";
+                const initials = displayName
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part: string) => part[0]?.toUpperCase())
+                  .join("") || "?";
+                return (
+                  <div key={leader.id} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-muted/20 px-3 py-2">
+                    <Avatar className="h-10 w-10 border border-border/60">
+                      <AvatarImage src={leader.avatarUrl ?? undefined} alt={displayName} />
+                      <AvatarFallback>{initials}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-semibold leading-tight">{displayName}</p>
+                      <p className="text-xs text-muted-foreground">{leader.roleLabel}</p>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <p className="text-sm text-muted-foreground">No hay líderes asignados todavía.</p>
+              )}
+            </div>
+            {leadership.hiddenLeaders.length > 0 && (
+              <p className="mt-auto pt-3 text-xs text-muted-foreground">+{leadership.hiddenLeaders.length} líderes más. Pulsa para ver todos.</p>
+            )}
+          </button>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Líderes de {orgName}</DialogTitle>
+              <DialogDescription>Presidencia y consejeros asignados</DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              {leadership.leaders.length > 0 ? leadership.leaders.map((leader: any) => {
+                const displayName = String(leader.name ?? "Sin nombre").trim() || "Sin nombre";
+                const initials = displayName
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part: string) => part[0]?.toUpperCase())
+                  .join("") || "?";
+                return (
+                  <div key={`leader-modal-${leader.id}`} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border border-border/60">
+                        <AvatarImage src={leader.avatarUrl ?? undefined} alt={displayName} />
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{displayName}</p>
+                        <p className="text-xs text-muted-foreground">{leader.roleLabel}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }) : <p className="text-sm text-muted-foreground">No hay líderes registrados en esta organización.</p>}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <div className="grid gap-3 md:gap-4 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-manage&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
+            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            data-testid="button-org-birthdays-card"
+          >
+            <p className="text-xs text-muted-foreground">Cumpleaños de la organización</p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-xl font-semibold">{dashboardStats.upcomingBirthday ? `${dashboardStats.upcomingBirthday.daysUntil} días` : "Sin próximos"}</p>
+              <Cake className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {dashboardStats.upcomingBirthday
+                ? `${dashboardStats.upcomingBirthday.name} · ${formatBirthdayMonthDay(dashboardStats.upcomingBirthday.birthDate)}`
+                : "No hay cumpleaños cargados"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{dashboardStats.birthdaysThisMonth} este mes</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigateWithTransition(setLocation, `/assignments?org=${params?.org ?? ""}`)}
+            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            data-testid="button-org-assignments-progress-card"
+          >
+            <p className="text-xs text-muted-foreground">Asignaciones pendientes</p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-2xl font-semibold">{Math.round(dashboardStats.assignmentsCompletionPercent)}%</p>
+              <MiniStatGauge
+                value={dashboardStats.assignmentsCompletionPercent}
+                centerLabel={String(dashboardStats.pendingAssignmentsCount)}
+                color="hsl(var(--chart-3))"
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Pendientes: {dashboardStats.pendingAssignmentsCount}</p>
+            <p className="text-xs text-muted-foreground">Completadas: {dashboardStats.completedAssignmentsCount}</p>
+          </button>
+        </div>
+
+        <div className="col-span-1 flex flex-col gap-3 md:gap-4 sm:grid sm:grid-cols-2 sm:gap-4 lg:col-span-3 lg:flex lg:flex-col">
           <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
             <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card">
               <p className="text-xs text-muted-foreground">Miembros de la organización</p>
@@ -1279,7 +1511,7 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-3"
+          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-12"
           data-testid="button-presidency-meetings-overview"
         >
           <div>
