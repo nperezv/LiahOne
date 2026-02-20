@@ -1356,7 +1356,7 @@ export default function PresidencyMeetingsPage() {
           <button
             type="button"
             onClick={() => setLeadersDialogOpen(true)}
-            className="flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-4"
+            className="flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-6 lg:min-h-[260px]"
             data-testid="button-org-leaders-card"
           >
             <div className="flex items-center justify-between">
@@ -1425,7 +1425,7 @@ export default function PresidencyMeetingsPage() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid gap-3 md:gap-4 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-2">
+        <div className="grid gap-3 md:gap-4 lg:col-span-6">
           <button
             type="button"
             onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-manage&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
@@ -1465,7 +1465,7 @@ export default function PresidencyMeetingsPage() {
           </button>
         </div>
 
-        <div className="col-span-1 flex flex-col gap-3 md:gap-4 sm:grid sm:grid-cols-2 sm:gap-4 lg:col-span-3 lg:flex lg:flex-col">
+        <div className="col-span-1 flex flex-col gap-3 md:gap-4 sm:grid sm:grid-cols-2 sm:gap-4 lg:col-span-6 lg:flex lg:flex-col">
           <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
             <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card">
               <p className="text-xs text-muted-foreground">Miembros de la organización</p>
@@ -1511,7 +1511,7 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-12"
+          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-6"
           data-testid="button-presidency-meetings-overview"
         >
           <div>
