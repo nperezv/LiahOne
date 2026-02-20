@@ -107,6 +107,7 @@ const budgetSchema = z.object({
   requestType: z.enum(["reembolso", "pago_adelantado"]),
   activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
+  requestingOrganizationId: z.string().optional(),
   receiptFile: z
     .instanceof(File)
     .optional()
@@ -320,6 +321,7 @@ export default function BudgetPage() {
       requestType: "pago_adelantado",
       activityDate: "",
       notes: "",
+      requestingOrganizationId: "",
       receiptFile: undefined,
       activityPlanFile: undefined,
     },
@@ -375,6 +377,11 @@ export default function BudgetPage() {
 
   const budgetRequestType = budgetForm.watch("requestType");
 
+  const requestableOrganizations = useMemo(() =>
+    (organizations as Organization[]).filter((org) => org.type !== "barrio"),
+  [organizations]);
+
+
   const orgBudgetForm = useForm<OrgBudgetAssignValues>({
     resolver: zodResolver(orgBudgetAssignSchema),
     defaultValues: {
@@ -382,10 +389,36 @@ export default function BudgetPage() {
     },
   });
 
+  useEffect(() => {
+    if (!isDialogOpen) return;
+
+    if (isObispado) {
+      const currentSelection = budgetForm.getValues("requestingOrganizationId");
+      if (!currentSelection && requestableOrganizations.length > 0) {
+        budgetForm.setValue("requestingOrganizationId", requestableOrganizations[0].id);
+      }
+      return;
+    }
+
+    budgetForm.setValue("requestingOrganizationId", user?.organizationId ?? "");
+  }, [isDialogOpen, isObispado, requestableOrganizations, budgetForm, user?.organizationId]);
+
   const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
     const parsedAmount = parseBudgetNumber(data.amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       alert("Ingresa un monto válido. Puedes usar coma o punto para decimales.");
+      return;
+    }
+
+    const targetOrganizationId = isObispado
+      ? data.requestingOrganizationId
+      : user?.organizationId;
+
+    if (!targetOrganizationId) {
+      budgetForm.setError("requestingOrganizationId", {
+        type: "manual",
+        message: "Selecciona la organización a nombre de la cual se solicita el presupuesto.",
+      });
       return;
     }
 
@@ -430,12 +463,22 @@ export default function BudgetPage() {
         activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,
         notes: data.notes || "",
         receipts: uploadedReceipts,
-        organizationId: user?.organizationId,
+        organizationId: targetOrganizationId,
       },
       {
         onSuccess: () => {
           setIsDialogOpen(false);
-          budgetForm.reset();
+          budgetForm.reset({
+            description: "",
+            amount: "",
+            category: "otros",
+            requestType: "pago_adelantado",
+            activityDate: "",
+            notes: "",
+            requestingOrganizationId: isObispado ? "" : user?.organizationId ?? "",
+            receiptFile: undefined,
+            activityPlanFile: undefined,
+          });
         },
       }
     );
@@ -1053,6 +1096,44 @@ export default function BudgetPage() {
                             <SelectItem value="otros">Otros</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={budgetForm.control}
+                    name="requestingOrganizationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Solicitar a nombre de</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || ""}
+                          disabled={!isObispado}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-requesting-organization">
+                              <SelectValue placeholder="Selecciona una organización" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {requestableOrganizations.map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {isObispado ? (
+                          <p className="text-xs text-muted-foreground">
+                            Elige si la solicitud se presenta como Obispado o como Cuórum del Sacerdocio Aarónico (u otra organización).
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Las solicitudes se registran automáticamente a nombre de tu organización.
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
