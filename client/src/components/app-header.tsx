@@ -6,6 +6,7 @@ import {
   Calendar,
   Gift,
   DollarSign,
+  Euro,
   UserPlus,
   Clock,
 } from "lucide-react";
@@ -50,7 +51,7 @@ interface AppHeaderProps {
 const notificationTypeIcons: Record<string, typeof Bell> = {
   upcoming_interview: Calendar,
   birthday_today: Gift,
-  budget_approved: DollarSign,
+  budget_approved: Euro,
   budget_rejected: DollarSign,
   assignment_created: UserPlus,
   upcoming_meeting: Calendar,

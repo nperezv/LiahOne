@@ -37,11 +37,21 @@ export const getNotificationDestination = (notification: Notification) => {
       return notification.relatedId
         ? `/interviews?highlight=${encodeURIComponent(notification.relatedId)}`
         : "/interviews";
-    case "assignment_created":
+    case "assignment_created": {
+      const title = notification.title.toLowerCase();
+      const description = (notification.description || "").toLowerCase();
+      if (title.includes("comprobante") || description.includes("adjuntar comprobantes")) {
+        return notification.relatedId
+          ? `/budget?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/budget";
+      }
       return "/assignments";
+    }
     case "budget_approved":
     case "budget_rejected":
-      return "/budget";
+      return notification.relatedId
+        ? `/budget?highlight=${encodeURIComponent(notification.relatedId)}`
+        : "/budget";
     case "birthday_today":
       return "/birthdays";
     case "upcoming_meeting":
