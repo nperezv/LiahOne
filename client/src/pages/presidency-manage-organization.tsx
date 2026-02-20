@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -175,6 +175,8 @@ export default function PresidencyManageOrganizationPage() {
     interviews: false,
     attendance: false,
   });
+  const [activeGaugeSlide, setActiveGaugeSlide] = useState(0);
+  const touchStartXRef = useRef<number | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -379,6 +381,63 @@ export default function PresidencyManageOrganizationPage() {
     [gaugeMetrics]
   );
 
+  const gaugeSlides = useMemo(
+    () => [
+      {
+        key: "global",
+        title: "Global",
+        value: overallGoalsPercent,
+        colorHex: "#60A5FA",
+        subtitle: "Avance total",
+      },
+      ...gaugeMetrics.map((metric) => ({
+        key: metric.key,
+        title: metric.label,
+        value: Math.round(metric.value),
+        colorHex: metric.colorHex,
+        subtitle: `Avance de ${metric.label.toLowerCase()}`,
+      })),
+    ],
+    [gaugeMetrics, overallGoalsPercent]
+  );
+
+  useEffect(() => {
+    if (activeGaugeSlide > gaugeSlides.length - 1) {
+      setActiveGaugeSlide(0);
+    }
+  }, [activeGaugeSlide, gaugeSlides.length]);
+
+  const currentGaugeSlide = gaugeSlides[activeGaugeSlide] ?? gaugeSlides[0];
+  const gaugeRadius = 65;
+  const gaugeCircumference = 2 * Math.PI * gaugeRadius;
+  const currentGaugeValue = Math.max(0, Math.min(100, currentGaugeSlide?.value ?? 0));
+  const currentGaugeOffset = gaugeCircumference * (1 - currentGaugeValue / 100);
+
+  const goToNextGaugeSlide = () => {
+    setActiveGaugeSlide((prev) => (prev + 1) % gaugeSlides.length);
+  };
+
+  const goToPrevGaugeSlide = () => {
+    setActiveGaugeSlide((prev) => (prev - 1 + gaugeSlides.length) % gaugeSlides.length);
+  };
+
+  const handleGaugeTouchStart = (event: any) => {
+    touchStartXRef.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handleGaugeTouchEnd = (event: any) => {
+    const touchStartX = touchStartXRef.current;
+    const touchEndX = event.changedTouches[0]?.clientX;
+    if (touchStartX === null || typeof touchEndX !== "number") return;
+    const deltaX = touchStartX - touchEndX;
+    if (Math.abs(deltaX) < 35) return;
+    if (deltaX > 0) {
+      goToNextGaugeSlide();
+    } else {
+      goToPrevGaugeSlide();
+    }
+  };
+
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
@@ -479,52 +538,61 @@ export default function PresidencyManageOrganizationPage() {
 
       <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_12px_40px_rgba(0,0,0,0.2)]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Metas de organización</CardTitle>
+          <CardTitle className="text-lg">Métricas de avance</CardTitle>
           <CardDescription>
-            Seguimiento del cumplimiento mensual
+            Seguimiento del avance mensual de la organización
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-end gap-2">
-            <p className="text-5xl font-bold leading-none">{overallGoalsPercent}%</p>
-            <p className="pb-1 text-lg text-muted-foreground">Metas cumplidas</p>
+            <p className="text-4xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
+            <p className="pb-1 text-lg text-muted-foreground">{currentGaugeSlide?.title ?? "Global"}</p>
           </div>
 
-          <div className="relative mx-auto h-52 w-52">
+          <div
+            className="relative mx-auto h-64 w-64 touch-pan-y"
+            onTouchStart={handleGaugeTouchStart}
+            onTouchEnd={handleGaugeTouchEnd}
+          >
             <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
-              <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="12" />
-              {gaugeMetrics.map((metric, index) => {
-                const radius = 65;
-                const circumference = 2 * Math.PI * radius;
-                const clamped = Math.max(0, Math.min(100, metric.value));
-                const offset = circumference * (1 - clamped / 100);
-                return (
-                  <circle
-                    key={metric.key}
-                    cx="100"
-                    cy="100"
-                    r={radius}
-                    fill="none"
-                    stroke={metric.colorHex}
-                    strokeWidth={12 - index * 2}
-                    strokeLinecap="round"
-                    strokeDasharray={`${circumference} ${circumference}`}
-                    strokeDashoffset={offset}
-                    transform={`rotate(${index * 24} 100 100)`}
-                    opacity={0.95}
-                  />
-                );
-              })}
+              <circle cx="100" cy="100" r={gaugeRadius} fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="12" />
+              <circle
+                cx="100"
+                cy="100"
+                r={gaugeRadius}
+                fill="none"
+                stroke={currentGaugeSlide?.colorHex ?? "#60A5FA"}
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={`${gaugeCircumference} ${gaugeCircumference}`}
+                strokeDashoffset={currentGaugeOffset}
+                opacity={0.95}
+              />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <p className="text-5xl font-bold leading-none">{overallGoalsPercent}%</p>
-              <p className="text-lg font-semibold">Avance total</p>
+              <p className="text-3xl font-bold leading-none">{currentGaugeSlide?.value ?? 0}%</p>
+              <p className="text-base font-semibold">{currentGaugeSlide?.subtitle ?? "Avance total"}</p>
             </div>
           </div>
 
           <div className="space-y-1 text-center text-muted-foreground">
-            <p>{completedGoalsCount} de {gaugeMetrics.length} metas completadas</p>
-            <p>Avance total: {overallGoalsPercent}%</p>
+            <p>{completedGoalsCount} de {gaugeMetrics.length} métricas completadas</p>
+            <p>Vista: {currentGaugeSlide?.title ?? "Global"}</p>
+          </div>
+
+          <div className="flex items-center justify-center gap-2">
+            {gaugeSlides.map((slide, index) => (
+              <button
+                key={slide.key}
+                type="button"
+                onClick={() => setActiveGaugeSlide(index)}
+                className={cn(
+                  "h-2.5 rounded-full transition-all",
+                  activeGaugeSlide === index ? "w-6 bg-primary" : "w-2.5 bg-muted-foreground/40"
+                )}
+                aria-label={`Ver ${slide.title}`}
+              />
+            ))}
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -538,9 +606,9 @@ export default function PresidencyManageOrganizationPage() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
 
+
+          <div className="border-t border-border/60 pt-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-3xl border-border/70 bg-card/95">
           <CardHeader className="pb-3">
@@ -689,6 +757,9 @@ export default function PresidencyManageOrganizationPage() {
         </Card>
 
       </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={isCreateMeetingOpen} onOpenChange={setIsCreateMeetingOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
