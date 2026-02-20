@@ -738,7 +738,7 @@ export default function BudgetPage() {
 
   const getReceiptLabel = (receipt?: { filename: string; category?: ReceiptCategory }) => {
     if (receipt?.category === "plan") {
-      return "Plan de actividades";
+      return "Formulario de Solicitud de gastos";
     }
     if (receipt?.category === "expense") {
       return "Comprobante de gasto";

@@ -2526,33 +2526,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const dueDate = budgetRequest.activityDate ? new Date(budgetRequest.activityDate) : new Date();
-      dueDate.setDate(dueDate.getDate() + 7);
+      const isReimbursementRequest = (budgetRequest.receipts || []).some(
+        (receipt: any) => receipt?.category === "receipt"
+      );
 
-      const assignment = await storage.createAssignment({
-        title: "Adjuntar comprobantes de gasto",
-        description: `Adjunta los comprobantes de gasto para la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}.`,
-        assignedTo: budgetRequest.requestedBy,
-        assignedBy: req.session.userId!,
-        dueDate,
-        relatedTo: `budget:${budgetRequest.id}`,
-      });
+      if (!isReimbursementRequest) {
+        const dueDate = budgetRequest.activityDate ? new Date(budgetRequest.activityDate) : new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
 
-      const receiptNotification = await storage.createNotification({
+        const assignment = await storage.createAssignment({
+          title: "Adjuntar comprobantes de gasto",
+          description: `Adjunta los comprobantes de gasto para la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}.`,
+          assignedTo: budgetRequest.requestedBy,
+          assignedBy: req.session.userId!,
+          dueDate,
+          relatedTo: `budget:${budgetRequest.id}`,
+        });
+
+        const receiptNotification = await storage.createNotification({
+          userId: budgetRequest.requestedBy,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${assignment.title}"`,
+          relatedId: budgetRequest.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(budgetRequest.requestedBy, {
+            title: "Nueva Asignación",
+            body: `Se te ha asignado: "${assignment.title}"`,
+            url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
+            notificationId: receiptNotification.id,
+          });
+        }
+      }
+
+      const approvalNotification = await storage.createNotification({
         userId: budgetRequest.requestedBy,
-        type: "assignment_created",
-        title: "Nueva Asignación",
-        description: `Se te ha asignado: "${assignment.title}"`,
+        type: "budget_approved",
+        title: "Aprobación financiera completada",
+        description: `Se ha aprobado y firmado tu solicitud "${budgetRequest.description}".`,
         relatedId: budgetRequest.id,
         isRead: false,
       });
 
       if (isPushConfigured()) {
         await sendPushNotification(budgetRequest.requestedBy, {
-          title: "Nueva Asignación",
-          body: `Se te ha asignado: "${assignment.title}"`,
+          title: "Aprobación financiera completada",
+          body: `Se ha aprobado y firmado tu solicitud "${budgetRequest.description}".`,
           url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
-          notificationId: receiptNotification.id,
+          notificationId: approvalNotification.id,
         });
       }
 
