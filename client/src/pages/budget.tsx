@@ -35,6 +35,7 @@ import {
   useUpdateBudgetRequest,
   useApproveBudgetRequest,
   useSignBudgetRequestAsBishop,
+  useReviewBudgetRequestAsBishop,
   useDeleteBudgetRequest,
   useWardBudget,
   useUpdateWardBudget,
@@ -176,7 +177,7 @@ interface BudgetRequest {
   description: string;
   amount: number;
   category?: "actividades" | "materiales" | "otros";
-  status: "solicitado" | "aprobado_financiero" | "pendiente_firma_obispo" | "aprobado" | "en_proceso" | "completado";
+  status: "solicitado" | "aprobado_financiero" | "pendiente_firma_obispo" | "aprobado" | "en_proceso" | "completado" | "rechazada";
   requestedBy: string;
   approvedBy?: string;
   activityDate?: string;
@@ -218,6 +219,7 @@ export default function BudgetPage() {
   const updateMutation = useUpdateBudgetRequest();
   const approveMutation = useApproveBudgetRequest();
   const signMutation = useSignBudgetRequestAsBishop();
+  const reviewMutation = useReviewBudgetRequestAsBishop();
   const deleteMutation = useDeleteBudgetRequest();
   const updateWardBudgetMutation = useUpdateWardBudget();
   const createOrgBudgetMutation = useCreateOrganizationBudget();
@@ -561,6 +563,16 @@ export default function BudgetPage() {
     setIsSignDialogOpen(true);
   };
 
+  const handleReviewByBishop = (requestId: string, action: "rechazar" | "enmendar") => {
+    const label = action === "rechazar" ? "rechazo" : "enmienda";
+    const reason = window.prompt(`Indica el motivo de ${label} (mínimo 10 caracteres):`);
+    if (!reason || reason.trim().length < 10) {
+      return;
+    }
+
+    reviewMutation.mutate({ requestId, action, reason: reason.trim() });
+  };
+
   const clearSignatureCanvas = () => {
     const canvas = signatureCanvasRef.current;
     if (!canvas) return;
@@ -679,6 +691,11 @@ export default function BudgetPage() {
         variant: "default",
         label: "Completado",
         icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
+      },
+      rechazada: {
+        variant: "destructive",
+        label: "Rechazada",
+        icon: <AlertCircle className="h-3 w-3 mr-1" />,
       },
     };
 
@@ -1657,15 +1674,35 @@ export default function BudgetPage() {
                             </Button>
                           )}
                           {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleSignAsBishop(request.id)}
-                              data-testid={`button-sign-budget-${request.id}`}
-                              disabled={signMutation.isPending}
-                            >
-                              Firmar solicitud
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleSignAsBishop(request.id)}
+                                data-testid={`button-sign-budget-${request.id}`}
+                                disabled={signMutation.isPending || reviewMutation.isPending}
+                              >
+                                Firmar solicitud
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReviewByBishop(request.id, "enmendar")}
+                                data-testid={`button-amend-budget-${request.id}`}
+                                disabled={signMutation.isPending || reviewMutation.isPending}
+                              >
+                                Enmendar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleReviewByBishop(request.id, "rechazar")}
+                                data-testid={`button-reject-budget-${request.id}`}
+                                disabled={signMutation.isPending || reviewMutation.isPending}
+                              >
+                                Rechazar
+                              </Button>
+                            </>
                           )}
                           {request.status === "aprobado" &&
                             request.requestedBy === user?.id &&

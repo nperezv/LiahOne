@@ -638,6 +638,33 @@ export function useApproveBudgetRequest() {
   });
 }
 
+
+export function useReviewBudgetRequestAsBishop() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ requestId, action, reason }: { requestId: string; action: "rechazar" | "enmendar"; reason: string }) =>
+      apiRequest("POST", `/api/budget-requests/${requestId}/review`, { action, reason }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/budget-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: variables.action === "rechazar" ? "Solicitud rechazada" : "Solicitud devuelta para enmienda",
+        description: "Se notificó al solicitante y se cerró la tarea de firma.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo revisar la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 export function useSignBudgetRequestAsBishop() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

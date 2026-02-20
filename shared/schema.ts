@@ -131,6 +131,7 @@ export const budgetStatusEnum = pgEnum("budget_status", [
   "aprobado",
   "en_proceso",
   "completado",
+  "rechazada",
 ]);
 
 export const budgetCategoryEnum = pgEnum("budget_category", [
