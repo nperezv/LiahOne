@@ -200,29 +200,41 @@ export default function Assignments() {
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
   const completedAssignments = filteredAssignments.filter((a: any) => a.resolution === "completada" || a.status === "completada");
   const archivedAssignments = assignments.filter((a: any) => isArchivedAssignment(a));
-  const isAutoCompleteAssignment = (assignment: any) =>
-    assignment.relatedTo?.startsWith("budget:") &&
-    assignment.title === "Adjuntar comprobantes de gasto";
+  const isAutoManagedAssignment = (assignment: any) => {
+    if (assignment.relatedTo?.startsWith("interview:")) return true;
+    if (!assignment.relatedTo?.startsWith("budget:")) return false;
+
+    return ["Adjuntar comprobantes de gasto", "Firmar solicitud de gasto"].includes(assignment.title);
+  };
+
+  const getAutoManagedStatusHint = (assignment: any) => {
+    if (assignment.relatedTo?.startsWith("interview:")) {
+      return "Se completará automáticamente al realizar la entrevista.";
+    }
+
+    if (assignment.title === "Adjuntar comprobantes de gasto") {
+      return "Se completará automáticamente al adjuntar comprobantes.";
+    }
+
+    if (assignment.title === "Firmar solicitud de gasto") {
+      return "Se completará automáticamente al firmar la solicitud.";
+    }
+
+    return "Se completará automáticamente por el flujo relacionado.";
+  };
+
   const canEditAssignment = (assignment: any) => isObispado || assignment.assignedBy === user?.id;
   const canDeleteAssignment = (assignment: any) => user?.role === "obispo";
   const canChangeStatus = (assignment: any) =>
+    !isAutoManagedAssignment(assignment) &&
     assignment.status !== "archivada" &&
-    (isObispado || assignment.assignedBy === user?.id || assignment.assignedTo === user?.id);
-  const statusOptions = (assignment: any) => {
-    if (isAutoCompleteAssignment(assignment)) {
-      return [
-        { value: "pendiente", label: "Pendiente" },
-        { value: "en_proceso", label: "En proceso" },
-      ];
-    }
-
-    return [
-      { value: "pendiente", label: "Pendiente" },
-      { value: "en_proceso", label: "En proceso" },
-      { value: "completada", label: "Completada" },
-      { value: "cancelada", label: "Cancelada" },
-    ];
-  };
+    assignment.assignedTo === user?.id &&
+    !canEditAssignment(assignment);
+  const statusOptions = () => [
+    { value: "pendiente", label: "Pendiente" },
+    { value: "en_proceso", label: "En proceso" },
+    { value: "completada", label: "Completada" },
+  ];
 
   const handleQuickStatusChange = (assignment: any, nextStatus: string) => {
     if (!nextStatus || nextStatus === assignment.status) return;
@@ -251,11 +263,11 @@ export default function Assignments() {
       ) : null}
       {canChangeStatus(assignment) ? (
         <Select value={assignment.status} onValueChange={(value) => handleQuickStatusChange(assignment, value)}>
-          <SelectTrigger className="h-8 w-[152px]" data-testid={`select-status-${assignment.id}`}>
-            <SelectValue placeholder="Estado" />
+          <SelectTrigger className="h-8 w-[160px]" data-testid={`select-status-${assignment.id}`}>
+            <SelectValue placeholder="Cambiar estado" />
           </SelectTrigger>
           <SelectContent>
-            {statusOptions(assignment).map((option) => (
+            {statusOptions().map((option) => (
               <SelectItem key={`${assignment.id}-${option.value}`} value={option.value}>
                 {option.label}
               </SelectItem>
@@ -275,11 +287,6 @@ export default function Assignments() {
           <span className="sr-only lg:not-sr-only">Eliminar</span>
         </Button>
       ) : null}
-      {["completada", "archivada"].indexOf(assignment.status) === -1 && isAutoCompleteAssignment(assignment) && (
-        <p className="text-xs text-muted-foreground">
-          Se completará automáticamente al adjuntar comprobantes.
-        </p>
-      )}
     </div>
   );
 
@@ -588,7 +595,14 @@ export default function Assignments() {
                             })
                           : "Sin fecha"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(assignment, showArchived && isArchivedAssignment(assignment))}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {getStatusBadge(assignment, showArchived && isArchivedAssignment(assignment))}
+                          {!showArchived && assignment.status !== "archivada" && isAutoManagedAssignment(assignment) ? (
+                            <p className="text-xs text-muted-foreground">{getAutoManagedStatusHint(assignment)}</p>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       {showArchived ? (
                         <TableCell>{getResolutionLabel(assignment)}</TableCell>
                       ) : null}

@@ -2505,14 +2505,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const allAssignments = await storage.getAllAssignments();
-      const signAssignment = allAssignments.find(
+      const signAssignments = allAssignments.filter(
         (assignment: any) =>
           assignment.relatedTo === `budget:${budgetRequest.id}` &&
-          assignment.title === "Firmar solicitud de gasto" &&
-          ["pendiente", "en_proceso"].includes(assignment.status)
+          assignment.status !== "archivada" &&
+          assignment.title?.toLowerCase().includes("firmar solicitud de gasto")
       );
 
-      if (signAssignment) {
+      for (const signAssignment of signAssignments) {
         await storage.updateAssignment(signAssignment.id, {
           status: "archivada",
           resolution: "completada",
@@ -5941,6 +5941,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             error: "Solo quien asigna (o el obispado) puede editar esta asignación",
           });
         }
+      }
+
+      const isAutoManagedAssignment =
+        assignment.relatedTo?.startsWith("interview:") ||
+        (assignment.relatedTo?.startsWith("budget:") &&
+          ["Adjuntar comprobantes de gasto", "Firmar solicitud de gasto"].includes(assignment.title || ""));
+
+      if (req.body?.status && isAutoManagedAssignment) {
+        return res.status(400).json({
+          error: "El estado de esta asignación se actualiza automáticamente por su flujo relacionado",
+        });
       }
 
       if (
