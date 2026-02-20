@@ -374,6 +374,11 @@ export default function PresidencyManageOrganizationPage() {
     return Math.round(total / gaugeMetrics.length);
   }, [gaugeMetrics]);
 
+  const completedGoalsCount = useMemo(
+    () => gaugeMetrics.filter((metric) => metric.value >= 100).length,
+    [gaugeMetrics]
+  );
+
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
@@ -472,60 +477,63 @@ export default function PresidencyManageOrganizationPage() {
         </Button>
       </div>
 
-      <Card className="rounded-3xl border border-slate-700/70 bg-[radial-gradient(circle_at_top,rgba(31,55,117,0.28),rgba(8,13,27,0.95)_55%)] text-white shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+      <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_12px_40px_rgba(0,0,0,0.2)]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg text-white">Metas de gestión</CardTitle>
-          <CardDescription className="text-slate-300">
-            Seguimiento mensual de reuniones y asistencia{canUseOrganizationInterviews ? ", con entrevistas" : ""}
+          <CardTitle className="text-lg">Metas de organización</CardTitle>
+          <CardDescription>
+            Seguimiento del cumplimiento mensual
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[1fr_220px] lg:items-center">
-            <div>
-              <p className="text-sm text-slate-300">Avance general</p>
-              <p className="text-4xl font-bold leading-tight">{overallGoalsPercent}%</p>
-              <p className="text-sm text-slate-300">{gaugeMetrics.length} metas activas</p>
-            </div>
+          <div className="flex items-end gap-2">
+            <p className="text-5xl font-bold leading-none">{overallGoalsPercent}%</p>
+            <p className="pb-1 text-lg text-muted-foreground">Metas cumplidas</p>
+          </div>
 
-            <div className="relative mx-auto h-44 w-44">
+          <div className="relative mx-auto h-52 w-52">
+            <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
+              <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="12" />
               {gaugeMetrics.map((metric, index) => {
-                const ringSize = 176 - index * 24;
+                const radius = 65;
+                const circumference = 2 * Math.PI * radius;
+                const clamped = Math.max(0, Math.min(100, metric.value));
+                const offset = circumference * (1 - clamped / 100);
                 return (
-                  <div
+                  <circle
                     key={metric.key}
-                    className="absolute left-1/2 top-1/2 rounded-full"
-                    style={{
-                      width: `${ringSize}px`,
-                      height: `${ringSize}px`,
-                      transform: "translate(-50%, -50%)",
-                      background: `conic-gradient(${metric.colorHex} ${metric.value}%, rgba(148,163,184,0.14) ${metric.value}% 100%)`,
-                    }}
-                  >
-                    <div
-                      className="absolute left-1/2 top-1/2 rounded-full bg-[#0a1222]"
-                      style={{
-                        width: `${ringSize - 14}px`,
-                        height: `${ringSize - 14}px`,
-                        transform: "translate(-50%, -50%)",
-                      }}
-                    />
-                  </div>
+                    cx="100"
+                    cy="100"
+                    r={radius}
+                    fill="none"
+                    stroke={metric.colorHex}
+                    strokeWidth={12 - index * 2}
+                    strokeLinecap="round"
+                    strokeDasharray={`${circumference} ${circumference}`}
+                    strokeDashoffset={offset}
+                    transform={`rotate(${index * 24} 100 100)`}
+                    opacity={0.95}
+                  />
                 );
               })}
-              <div className="absolute left-1/2 top-1/2 text-center" style={{ transform: "translate(-50%, -50%)" }}>
-                <p className="text-3xl font-bold">{overallGoalsPercent}%</p>
-                <p className="text-xs text-slate-300">metas</p>
-              </div>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <p className="text-5xl font-bold leading-none">{overallGoalsPercent}%</p>
+              <p className="text-lg font-semibold">Avance total</p>
             </div>
+          </div>
+
+          <div className="space-y-1 text-center text-muted-foreground">
+            <p>{completedGoalsCount} de {gaugeMetrics.length} metas completadas</p>
+            <p>Avance total: {overallGoalsPercent}%</p>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {gaugeMetrics.map((metric) => (
-              <div key={metric.key} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <div key={metric.key} className="rounded-xl border border-border/70 bg-background/50 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <span className={cn("h-2.5 w-2.5 rounded-full", metric.colorClass)} />
-                  <p className="text-xs text-slate-300">{metric.label}</p>
-                  <p className="ml-auto text-sm font-semibold text-white">{Math.round(metric.value)}%</p>
+                  <p className="text-xs text-muted-foreground">{metric.label}</p>
+                  <p className="ml-auto text-sm font-semibold">{Math.round(metric.value)}%</p>
                 </div>
               </div>
             ))}
