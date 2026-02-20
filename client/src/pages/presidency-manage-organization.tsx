@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, Plus, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, Phone, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   useOrganizations,
   useOrganizationMembers,
@@ -20,6 +21,7 @@ import {
   usePresidencyMeetings,
   useCreatePresidencyMeeting,
   useOrganizationInterviews,
+  useUsers,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -145,6 +147,18 @@ const MONTH_NAMES = [
   "diciembre",
 ];
 
+const leadershipRoleOrder: Record<string, number> = {
+  presidente_organizacion: 0,
+  consejero_organizacion: 1,
+  secretario_organizacion: 2,
+};
+
+const leadershipRoleLabels: Record<string, string> = {
+  presidente_organizacion: "Presidencia",
+  consejero_organizacion: "Consejería",
+  secretario_organizacion: "Secretaría",
+};
+
 
 export default function PresidencyManageOrganizationPage() {
   const [, params] = useRoute("/presidency/:org/manage");
@@ -169,6 +183,7 @@ export default function PresidencyManageOrganizationPage() {
   const { data: organizationMembers = [], isLoading: membersLoading } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const { data: organizationInterviews = [] } = useOrganizationInterviews();
+  const { data: users = [] } = useUsers();
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
 
