@@ -17,6 +17,7 @@ import {
   Copy,
   Send,
   Mail,
+  ArrowLeft,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,15 @@ const buildInterviewerReference = (interviewerName?: string, interviewerArticle?
   const name = interviewerName?.trim() || "obispado";
   const article = interviewerArticle?.trim() || "el";
   return `${article} ${name}`;
+};
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
 };
 
 const buildRescheduleLine = (secretaryName?: string) => {
@@ -399,6 +409,7 @@ export default function InterviewsPage() {
   const [detailsInterview, setDetailsInterview] = useState<any>(null);
   const [, setLocation] = useLocation();
   const search = useSearch();
+  const fromDashboardOrg = useMemo(() => new URLSearchParams(search).get("from") === "org-dashboard", [search]);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [messageTemplateId, setMessageTemplateId] = useState("confirmacion");
   const [messageText, setMessageText] = useState("");
@@ -1058,6 +1069,16 @@ export default function InterviewsPage() {
         </div>
 
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          {fromDashboardOrg ? (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => navigateWithTransition(setLocation, "/")}
+              data-testid="button-back-from-interviews"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+            </Button>
+          ) : null}
           <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" data-testid="button-export-interviews">

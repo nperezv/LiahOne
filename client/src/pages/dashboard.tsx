@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Cake, CalendarDays, Check, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
+import { ArrowRight, Cake, CalendarDays, Check, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
@@ -14,6 +14,26 @@ const getGreeting = (date: Date) => {
   if (hour < 12) return "Buenos días";
   if (hour < 19) return "Buenas tardes";
   return "Buenas noches";
+};
+
+const getOrganizationSemaphore = (pendingAssignments: number, upcomingInterviews: number) => {
+  const workload = pendingAssignments + upcomingInterviews;
+  if (workload <= 1) {
+    return { label: "verde", dotClass: "bg-emerald-500", textClass: "text-emerald-600 dark:text-emerald-400" };
+  }
+  if (workload <= 3) {
+    return { label: "amarillo", dotClass: "bg-amber-500", textClass: "text-amber-600 dark:text-amber-400" };
+  }
+  return { label: "rojo", dotClass: "bg-rose-500", textClass: "text-rose-600 dark:text-rose-400" };
+};
+
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+  navigate(path);
 };
 
 function ProgressRing({ value }: { value: number }) {
@@ -129,6 +149,7 @@ export default function DashboardPage() {
     cuorum_elderes: "cuorum-elderes",
   };
   const organizationHref = organization?.type ? `/presidency/${orgSlugMap[organization.type] ?? organization.type.replace(/_/g, "-")}` : "/leadership";
+  const organizationSemaphore = getOrganizationSemaphore(data.pendingAssignments, data.upcomingInterviews);
 
   const roleDashboardTitle: Record<string, string> = {
     secretario: "Panel de Secretaría",
@@ -233,6 +254,47 @@ export default function DashboardPage() {
             </Card>
           </div>
         </>
+      ) : isOrgRole ? (
+        <div className="space-y-4">
+          <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => navigateWithTransition(setLocation, organizationHref)} />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="bg-muted/10 no-hover-interaction-elevate">
+              <CardContent className="space-y-2 pt-5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-muted-foreground">Semáforo semanal</p>
+                  <div className={`inline-flex items-center gap-1 rounded-full border border-current/30 bg-current/10 px-2 py-0.5 text-[11px] ${organizationSemaphore.textClass}`}>
+                    <span className={`h-2 w-2 rounded-full ${organizationSemaphore.dotClass}`} />
+                    {organizationSemaphore.label}
+                  </div>
+                </div>
+                <p className="text-lg font-semibold">Carga controlada</p>
+                <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
+              <CardContent className="space-y-2 pt-5">
+                <p className="text-xs font-semibold text-muted-foreground">Siguiente mejor acción</p>
+                <p className="text-base font-semibold leading-tight">Solicitar entrevista con el Obispado</p>
+                <p className="text-xs text-muted-foreground">{data.upcomingInterviews} entrevistas por coordinar</p>
+                <Button className="h-8 w-full rounded-full" size="sm">
+                  Ir ahora <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
+            <CardContent className="flex items-center justify-between gap-3 pt-5">
+              <div>
+                <p className="text-sm font-semibold">Liderazgo</p>
+                <p className="text-xs text-muted-foreground">Ver líderes y organizaciones del barrio</p>
+              </div>
+              <Users className="h-5 w-5 text-primary" />
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {userRole === "secretario" && (
@@ -256,14 +318,6 @@ export default function DashboardPage() {
               <QuickCard title="Presupuestos" subtitle={`${data.budgetRequests.pending} pendientes`} icon={HandCoins} onClick={() => setLocation("/budget")} />
               <QuickCard title="Reportes" subtitle="Seguimiento financiero" icon={FileText} onClick={() => setLocation("/reports")} />
               <QuickCard title="Calendario" subtitle="Fechas de gestión" icon={CalendarDays} onClick={() => setLocation("/calendar")} />
-            </>
-          )}
-
-          {isOrgRole && (
-            <>
-              <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => setLocation(organizationHref)} />
-              <QuickCard title="Presupuesto" subtitle="Solicitudes y movimientos" icon={Wallet} onClick={() => setLocation("/budget")} />
-              <QuickCard title="Recursos" subtitle="Biblioteca de materiales" icon={FileText} onClick={() => setLocation("/resources-library")} />
             </>
           )}
         </div>
