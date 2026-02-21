@@ -30,6 +30,7 @@ const templateSchema = z.object({
   logoUrl: z.string().optional(),
   footerText: z.string().optional(),
   bizumPhone: z.string().optional(),
+  bizumDeepLink: z.string().optional(),
 });
 
 type TemplateFormValues = z.infer<typeof templateSchema>;
@@ -58,6 +59,7 @@ export default function Settings() {
       logoUrl: template?.logoUrl || "",
       footerText: template?.footerText || "© Barrio - Todos los derechos reservados",
       bizumPhone: template?.bizumPhone || "",
+      bizumDeepLink: template?.bizumDeepLink || "",
     },
   });
 
@@ -122,6 +124,7 @@ export default function Settings() {
         logoUrl: template.logoUrl || "",
         footerText: template.footerText || "© Barrio - Todos los derechos reservados",
         bizumPhone: template.bizumPhone || "",
+        bizumDeepLink: template.bizumDeepLink || "",
       }, { keepValues: false });
     }
   }, [template]);
@@ -244,6 +247,23 @@ export default function Settings() {
                         </FormControl>
                         <FormDescription>
                           Este número se usará en la página pública de donaciones (mismo dominio).
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bizumDeepLink"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Enlace directo de tu banco/Bizum (opcional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://... o app://..." {...field} data-testid="input-bizum-deep-link" />
+                        </FormControl>
+                        <FormDescription>
+                          Si tu banco te da un enlace oficial para abrir Bizum, pégalo aquí y el botón principal lo usará.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

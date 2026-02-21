@@ -7,6 +7,7 @@ import { Heart } from "lucide-react";
 type PublicDonationSettings = {
   wardName?: string;
   bizumPhone?: string;
+  bizumDeepLink?: string;
 };
 
 function normalizePhone(value?: string) {
@@ -18,31 +19,16 @@ function normalizePhone(value?: string) {
   return raw.startsWith("+") ? raw : `+${digits}`;
 }
 
-function openBizumApp(phone: string, smsHref: string) {
-  const nationalPhone = phone.replace("+34", "");
-  const candidates = [
-    `bizum://send?phone=${encodeURIComponent(nationalPhone)}`,
-    `bizum://pay?phone=${encodeURIComponent(nationalPhone)}`,
-  ];
+function openBizumApp(smsHref: string, configuredDeepLink?: string) {
+  const normalizedConfigured = (configuredDeepLink || "").trim();
+  if (normalizedConfigured) {
+    window.location.href = normalizedConfigured;
+    return;
+  }
 
-  let opened = false;
-  const onBlur = () => {
-    opened = true;
-  };
-
-  window.addEventListener("blur", onBlur, { once: true });
-  window.location.href = candidates[0];
-
-  window.setTimeout(() => {
-    if (!opened) {
-      window.location.href = candidates[1];
-      window.setTimeout(() => {
-        if (!opened) {
-          window.location.href = smsHref;
-        }
-      }, 500);
-    }
-  }, 700);
+  // No existe un deep link universal público y estable para Bizum en todos los bancos.
+  // Si no hay enlace oficial configurado, hacemos fallback confiable a SMS.
+  window.location.href = smsHref;
 }
 
 export default function DonationsPage() {
@@ -88,7 +74,7 @@ export default function DonationsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3 justify-center">
-                  <Button onClick={() => openBizumApp(phone, smsHref)} data-testid="button-open-bizum-app">
+                  <Button onClick={() => openBizumApp(smsHref, data?.bizumDeepLink)} data-testid="button-open-bizum-app">
                     Abrir Bizum
                   </Button>
                   <Button variant="outline" asChild>
@@ -98,6 +84,10 @@ export default function DonationsPage() {
                     <a href={smsHref}>SMS</a>
                   </Button>
                 </div>
+
+                <p className="text-center text-xs text-muted-foreground">
+                  {data?.bizumDeepLink ? "Botón principal conectado al enlace oficial configurado." : "Sin enlace oficial configurado: el botón usa SMS como alternativa."}
+                </p>
               </>
             )}
           </CardContent>

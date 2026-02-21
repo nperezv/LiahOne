@@ -4912,6 +4912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logoUrl: undefined,
         footerText: "© Barrio - Todos los derechos reservados",
         bizumPhone: "",
+        bizumDeepLink: "",
       });
     }
     res.json(template);
@@ -4922,6 +4923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({
       wardName: template?.wardName || "Barrio",
       bizumPhone: template?.bizumPhone || "",
+      bizumDeepLink: template?.bizumDeepLink || "",
     });
   });
 
