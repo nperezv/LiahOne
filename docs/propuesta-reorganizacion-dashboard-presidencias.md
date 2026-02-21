@@ -146,3 +146,153 @@ Sí, pero como **dashboard de dominio** (operativo), no como reemplazo del dashb
 - **Dashboard de presidencia:** ejecución diaria de una organización.
 
 Con esta separación, limpias arquitectura, reduces duplicaciones de navegación y mejoras la sensación de orden en toda la app.
+
+---
+
+## Alternativas de solución (de menor a mayor cambio)
+
+## Opción A: Ajuste mínimo sin tocar rutas
+
+- Mantener `Dashboard` + `Presidencia` tal como están hoy.
+- Añadir en el header un **switch de contexto**:
+  - `Vista global`
+  - `Mi organización`
+- Cambiar etiquetas para eliminar ambigüedad:
+  - “Panel de Organización” (en dashboard)
+  - “Centro de presidencia” (en organización)
+
+✅ Ventajas:
+- Implementación rápida.
+- Casi sin deuda técnica ni migración.
+
+⚠️ Trade-off:
+- Persisten dos superficies grandes con separación solo visual/semántica.
+
+## Opción B: Arquitectura recomendada (hub-and-spoke)
+
+- `Dashboard` único como home post-login.
+- “Organización” como dominio contextual con navegación secundaria (tabs o segmented control al estilo iOS):
+  - Resumen, Reuniones, Miembros, Metas, Recursos.
+- Bottom bar enfocado en 4 destinos de frecuencia y “Más”.
+
+✅ Ventajas:
+- Escalable para nuevos módulos.
+- Claridad mental inmediata (global vs operativo).
+- Muy alineado a patrones iOS de jerarquía + contexto.
+
+⚠️ Trade-off:
+- Requiere ordenar componentes y contratos de navegación.
+
+## Opción C: Super-admin / Presidencia de organización separada
+
+- Crear un apartado especial tipo **"Presidencia de Org"** solo para roles con gobierno transversal.
+- Entrar desde un CTA explícito: `Gestionar organizaciones`.
+- Mostrar selector de organización persistente (picker superior).
+
+✅ Ventajas:
+- Potencia workflows de supervisión global.
+- Buen encaje para perfiles de alta gobernanza.
+
+⚠️ Trade-off:
+- Mayor complejidad de permisos y UX si no se limita por rol.
+- Riesgo de “tercer dashboard” si no se define como consola de administración.
+
+---
+
+## ¿Qué se debería ver primero?
+
+Orden recomendado (mobile-first, iOS style):
+
+1. **Bloque de estado inmediato (Hoy)**
+   - Alertas críticas, pendientes vencidos, próximas reuniones.
+2. **Siguiente acción principal**
+   - Un único CTA dominante: “Continuar” / “Ver agenda” / “Registrar seguimiento”.
+3. **Resumen de progreso**
+   - KPIs en tarjetas compactas (3–4 máximo).
+4. **Accesos de segundo nivel**
+   - Organización, presupuesto, recursos, metas.
+
+Regla práctica: el usuario debe entender "qué está pasando" y "qué hago ahora" en los primeros 5 segundos.
+
+---
+
+## ¿Se mantiene el saludo inicial?
+
+Sí, pero con una política clara:
+
+- **Mantener saludo contextual** (`Buenos días, Test 👋`) en `Dashboard` global para cercanía.
+- En vistas operativas densas (como Presidencia), reducirlo a una línea secundaria o retirarlo para priorizar métricas.
+- Si el usuario vuelve muchas veces al día, usar versión compacta para no ocupar altura útil.
+
+Recomendación iOS:
+
+- Saludo grande solo en portada (Large Title feel).
+- En subniveles, usar título funcional + contexto (`Presidencia de Cuórum de Élderes`).
+
+
+---
+
+## Propuesta concreta: ¿qué poner en el Dashboard de bienvenida?
+
+Objetivo: que el usuario vea valor en 5 segundos y tenga una salida directa a su flujo operativo.
+
+### Estructura recomendada (arriba → abajo)
+
+1. **Header compacto + contexto**
+   - Nombre de unidad (`Barrio Madrid 8`), notificaciones, avatar.
+   - Saludo breve (solo en dashboard global): `Buenos días, Test 👋`.
+
+2. **Tarjeta "Estado de hoy" (bloque principal)**
+   - 3 señales máximas:
+     - Reuniones de hoy / semana.
+     - Pendientes críticos.
+     - Recordatorios próximos.
+   - CTA principal único: `Ver agenda` o `Continuar`.
+
+3. **Quick actions (2–4 botones)**
+   - `Registrar entrevista`
+   - `Nueva asignación`
+   - `Ver pendientes`
+   - `Enviar recordatorio`
+
+4. **Bloque "Mi organización" (clave para tu caso)**
+   - Tarjeta fija con etiqueta clara: **Mi organización**.
+   - Subtexto: nombre de la organización activa (ej. `Cuórum de Élderes`).
+   - Acción primaria: `Ir al panel de presidencia` → `/presidency/:org`.
+   - Si tiene varias organizaciones: `Cambiar organización` (sheet/picker estilo iOS).
+
+5. **Resumen ejecutivo (KPIs compactos)**
+   - Miembros activos.
+   - Entrevistas completadas del mes.
+   - Avance de metas.
+   - Asistencia (si aplica por rol).
+
+6. **Feed corto de próximos eventos**
+   - Próximas 3 actividades / entrevistas.
+   - Ver todo en `Agenda`.
+
+### Qué NO debería tener el dashboard de bienvenida
+
+- No meter todos los módulos completos en scroll infinito.
+- No duplicar contenido profundo de Presidencia (eso vive en `/presidency/:org`).
+- No más de 1 CTA principal por bloque crítico.
+
+### Regla de decisión global vs organización
+
+- **Dashboard global:** panorama + priorización + enrutamiento.
+- **Mi organización / Presidencia:** ejecución y gestión detallada.
+
+En una frase: el dashboard debe ayudarte a decidir; el panel de organización debe ayudarte a ejecutar.
+
+
+---
+
+## Recomendación final para tu caso
+
+Si quieres equilibrio entre claridad, velocidad y escalabilidad: **elige la Opción B** y habilita elementos de la C solo para roles de presidencia global.
+
+En síntesis:
+
+- Sí es viable tener un apartado aparte como “Presidencia de Org”,
+- pero debe ser **consola de administración por rol**,
+- no un reemplazo del dashboard principal ni un tercer inicio ambiguo.
