@@ -703,7 +703,7 @@ export default function BudgetPage() {
     if (!canvas) return;
     const context = canvas.getContext("2d");
     if (!context) return;
-    context.lineWidth = 2;
+    context.lineWidth = 2.8;
     context.lineJoin = "round";
     context.lineCap = "round";
     context.strokeStyle = "#111827";

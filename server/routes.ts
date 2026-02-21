@@ -2486,9 +2486,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         const scaledWidth = signatureImage.width * signatureScale;
         const scaledHeight = signatureImage.height * signatureScale;
+        const centeredX = signatureBox.x + (signatureBox.width - scaledWidth) / 2;
+        const drawX = Math.max(
+          signatureBox.x + 4,
+          Math.min(signatureBox.x + signatureBox.width - scaledWidth - 4, centeredX + 14),
+        );
 
         page.drawImage(signatureImage, {
-          x: signatureBox.x,
+          x: drawX,
           y: signatureBox.y + (signatureBox.height - scaledHeight) / 2,
           width: scaledWidth,
           height: scaledHeight,
