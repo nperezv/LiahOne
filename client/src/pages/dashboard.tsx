@@ -265,7 +265,7 @@ export default function DashboardPage() {
           <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => setLocation(organizationHref)} />
 
           <div className="grid grid-cols-2 gap-3">
-            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation(organizationHref)}>
+            <Card className="bg-muted/10 no-hover-interaction-elevate">
               <CardContent className="space-y-2 pt-5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-muted-foreground">Semáforo semanal</p>
