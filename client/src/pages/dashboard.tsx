@@ -268,7 +268,7 @@ export default function DashboardPage() {
             <Card className="hover-elevate cursor-pointer" onClick={() => setLocation(organizationHref)}>
               <CardContent className="space-y-2 pt-5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-muted-foreground">semáforo semanal</p>
+                  <p className="text-xs font-semibold text-muted-foreground">Semáforo semanal</p>
                   <div className={`inline-flex items-center gap-1 rounded-full border border-current/30 bg-current/10 px-2 py-0.5 text-[11px] ${organizationSemaphore.textClass}`}>
                     <span className={`h-2 w-2 rounded-full ${organizationSemaphore.dotClass}`} />
                     {organizationSemaphore.label}
@@ -281,7 +281,7 @@ export default function DashboardPage() {
 
             <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/interviews")}>
               <CardContent className="space-y-2 pt-5">
-                <p className="text-xs font-semibold text-muted-foreground">siguiente mejor acción</p>
+                <p className="text-xs font-semibold text-muted-foreground">Siguiente mejor acción</p>
                 <p className="text-base font-semibold leading-tight">Solicitar entrevista con el Obispado</p>
                 <p className="text-xs text-muted-foreground">{data.upcomingInterviews} entrevistas por coordinar</p>
                 <Button className="h-8 w-full rounded-full" size="sm">
