@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ArrowRight, Cake, CalendarDays, Check, ClipboardList, CloudDrizzle, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
+import { ArrowRight, Cake, CalendarDays, Check, ClipboardList, CloudDrizzle, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
@@ -151,8 +151,6 @@ export default function DashboardPage() {
       ? { title: "Preparar entrevistas", description: `${data.upcomingInterviews} entrevistas por coordinar`, href: "/interviews" }
       : { title: "Planificar semana", description: "Todo al día, define la próxima prioridad", href: "/calendar" };
 
-  const riskCount = data.pendingAssignments + data.organizationHealth.filter((health) => health.status !== "healthy").length;
-  const compactBirthdays = data.upcomingBirthdays.slice(0, 2);
   const weatherAdvice = data.upcomingActivities.length > 0
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
@@ -318,46 +316,6 @@ export default function DashboardPage() {
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="space-y-2 pt-6">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <Target className="h-4 w-4 text-primary" />
-                    Racha de cumplimiento
-                  </div>
-                  <p className="text-2xl font-semibold">{data.goals.percentage}%</p>
-                  <p className="text-xs text-muted-foreground">{data.goals.completed} de {data.goals.total} metas completadas</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="space-y-2 pt-6">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    Riesgos detectados
-                  </div>
-                  <p className="text-2xl font-semibold">{riskCount}</p>
-                  <p className="text-xs text-muted-foreground">Pendientes + alertas de salud organizacional</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="space-y-2 pt-6">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <Cake className="h-4 w-4 text-primary" />
-                    Cumpleaños próximos
-                  </div>
-                  {compactBirthdays.length > 0 ? (
-                    <ul className="space-y-1 text-sm">
-                      {compactBirthdays.map((birthday, idx) => (
-                        <li key={`${birthday.name}-${idx}`} className="truncate">{birthday.name} · {birthday.date}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Sin cumpleaños en las próximas 48h</p>
-                  )}
                 </CardContent>
               </Card>
 
