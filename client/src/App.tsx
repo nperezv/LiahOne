@@ -178,6 +178,52 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const originalPushState = window.history.pushState.bind(window.history);
+    const originalReplaceState = window.history.replaceState.bind(window.history);
+
+    const shouldUseTransition = (url?: string | URL | null) => {
+      if (!url) return false;
+      const current = new URL(window.location.href);
+      const next = new URL(url.toString(), current.origin);
+      if (next.origin !== current.origin) return false;
+      return `${next.pathname}${next.search}${next.hash}` !== `${current.pathname}${current.search}${current.hash}`;
+    };
+
+    const runWithTransition = (callback: () => void) => {
+      if (typeof document !== "undefined" && "startViewTransition" in document) {
+        (document as any).startViewTransition(callback);
+      } else {
+        callback();
+      }
+    };
+
+    window.history.pushState = function pushState(data: any, unused: string, url?: string | URL | null) {
+      if (!shouldUseTransition(url)) {
+        return originalPushState(data, unused, url);
+      }
+      runWithTransition(() => {
+        originalPushState(data, unused, url);
+      });
+    };
+
+    window.history.replaceState = function replaceState(data: any, unused: string, url?: string | URL | null) {
+      if (!shouldUseTransition(url)) {
+        return originalReplaceState(data, unused, url);
+      }
+      runWithTransition(() => {
+        originalReplaceState(data, unused, url);
+      });
+    };
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
