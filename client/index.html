@@ -14,12 +14,12 @@
     <meta name="msapplication-TileColor" content="#0a0a0a" />
     <meta name="msapplication-tap-highlight" content="no" />
     
-    <link rel="manifest" href="/manifest.json?v=4" />
+    <link rel="manifest" href="/manifest.json?v=6" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icons/icon-180x180.png?v=4" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png?v=4" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png?v=4" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167x167.png?v=4" />
+    <link rel="apple-touch-icon" href="/icons/icon-180x180.png?v=6" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png?v=6" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png?v=6" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167x167.png?v=6" />
     
     <title>Liahonaap - Gestión Administrativa de Barrio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,18 +29,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('ServiceWorker registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('ServiceWorker registration failed:', error);
-            });
-        });
-      }
-    </script>
   </body>
 </html>

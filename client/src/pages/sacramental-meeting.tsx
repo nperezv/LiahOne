@@ -312,7 +312,9 @@ export default function SacramentalMeetingPage() {
     () => Array.from(new Set(memberOptions)).map((value) => ({ value })),
     [memberOptions]
   );
-  const { data: memberCallings = [] } = useAllMemberCallings();
+  const { user } = useAuth();
+  const canReadAllMemberCallings = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user?.role || "");
+  const { data: memberCallings = [] } = useAllMemberCallings({ enabled: canReadAllMemberCallings });
   const normalizeText = (value: string) =>
     value
       .normalize("NFD")
@@ -567,7 +569,6 @@ export default function SacramentalMeetingPage() {
     }
     return "";
   };
-  const { user } = useAuth();
   const { data: meetings = [] as any[], isLoading = false } = useSacramentalMeetings();
   const { data: organizations = [] as any[] } = useOrganizations();
   const { data: users = [] as any[] } = useUsers();

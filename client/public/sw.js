@@ -1,7 +1,7 @@
-const CACHE_NAME = 'liahonaap-v4';
+const CACHE_NAME = 'liahonaap-v6';
 const STATIC_ASSETS = [
   '/',
-  '/manifest.json?v=4',
+  '/manifest.json?v=6',
   '/favicon.svg',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
         console.log('Some static assets failed to cache:', err);
-        return cache.addAll(['/', '/manifest.json?v=4']);
+        return cache.addAll(['/', '/manifest.json?v=6']);
       });
     })
   );
@@ -55,22 +55,19 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('chunk-');
 
   if (isAppShell) {
+    // Network-first para evitar servir bundles JS antiguos tras despliegues.
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        const fetchPromise = fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse.status === 200) {
-              const responseClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseClone);
-              });
-            }
-            return networkResponse;
-          })
-          .catch(() => cachedResponse);
-        
-        return cachedResponse || fetchPromise;
-      })
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

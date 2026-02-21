@@ -100,6 +100,9 @@ import { isBirthdayToday } from "@shared/birthday-utils";
 export type DirectoryMember = Member & {
   organizationName: string | null;
   organizationType: Organization["type"] | null;
+  callingName?: string | null;
+  callingType?: string | null;
+  callingOrder?: number | null;
 };
 
 export type DirectoryMemberCalling = MemberCalling & {
@@ -1011,7 +1014,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMembersByOrganization(organizationId: string): Promise<DirectoryMember[]> {
-    return await db
+    const rows = await db
       .select({
         id: members.id,
         nameSurename: members.nameSurename,
@@ -1023,12 +1026,58 @@ export class DatabaseStorage implements IStorage {
         createdAt: members.createdAt,
         organizationName: organizations.name,
         organizationType: organizations.type,
+        callingName: memberCallings.callingName,
+        callingType: memberCallings.callingType,
+        callingOrder: memberCallings.callingOrder,
       })
       .from(memberOrganizations)
       .innerJoin(members, eq(memberOrganizations.memberId, members.id))
       .leftJoin(organizations, eq(members.organizationId, organizations.id))
+      .leftJoin(
+        memberCallings,
+        and(
+          eq(memberCallings.memberId, members.id),
+          eq(memberCallings.organizationId, organizationId),
+          eq(memberCallings.isActive, true),
+        ),
+      )
       .where(and(eq(memberOrganizations.organizationId, organizationId), eq(memberOrganizations.isActive, true)))
       .orderBy(asc(members.nameSurename));
+
+    const normalize = (value?: string | null) =>
+      (value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    const leadershipRank = (callingName?: string | null) => {
+      const text = normalize(callingName);
+      if (text.includes("president")) return 0;
+      if (text.includes("consejer")) return 1;
+      return 2;
+    };
+
+    const compareRows = (current: (typeof rows)[number], incoming: (typeof rows)[number]) => {
+      const currentRank = leadershipRank(current.callingName);
+      const incomingRank = leadershipRank(incoming.callingName);
+      if (currentRank !== incomingRank) return incomingRank < currentRank;
+
+      const currentOrder = Number(current.callingOrder ?? 999);
+      const incomingOrder = Number(incoming.callingOrder ?? 999);
+      if (currentOrder !== incomingOrder) return incomingOrder < currentOrder;
+
+      return new Date(incoming.createdAt).getTime() > new Date(current.createdAt).getTime();
+    };
+
+    const byMember = new Map<string, (typeof rows)[number]>();
+    rows.forEach((row) => {
+      const existing = byMember.get(row.id);
+      if (!existing || compareRows(existing, row)) {
+        byMember.set(row.id, row);
+      }
+    });
+
+    return Array.from(byMember.values());
   }
 
   async syncMemberDerivedMemberships(memberId: string): Promise<void> {
