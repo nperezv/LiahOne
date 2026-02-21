@@ -29,6 +29,7 @@ const templateSchema = z.object({
   accentColor: z.string().min(1, "El color de acento es requerido"),
   logoUrl: z.string().optional(),
   footerText: z.string().optional(),
+  bizumPhone: z.string().optional(),
 });
 
 type TemplateFormValues = z.infer<typeof templateSchema>;
@@ -56,6 +57,7 @@ export default function Settings() {
       accentColor: template?.accentColor || "3B82F6",
       logoUrl: template?.logoUrl || "",
       footerText: template?.footerText || "© Barrio - Todos los derechos reservados",
+      bizumPhone: template?.bizumPhone || "",
     },
   });
 
@@ -119,6 +121,7 @@ export default function Settings() {
         accentColor: template.accentColor || "3B82F6",
         logoUrl: template.logoUrl || "",
         footerText: template.footerText || "© Barrio - Todos los derechos reservados",
+        bizumPhone: template.bizumPhone || "",
       }, { keepValues: false });
     }
   }, [template]);
@@ -224,6 +227,23 @@ export default function Settings() {
                         </FormControl>
                         <FormDescription>
                           Define la hora que mostrará el calendario para la reunión sacramental.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bizumPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Número Bizum para donaciones públicas</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+34612345678" {...field} data-testid="input-bizum-phone" />
+                        </FormControl>
+                        <FormDescription>
+                          Este número se usará en la página pública de donaciones (mismo dominio).
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -368,6 +388,7 @@ export default function Settings() {
           </CardContent>
         </Card>
       )}
+
     </div>
   );
 }
