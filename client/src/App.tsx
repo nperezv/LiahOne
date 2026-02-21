@@ -42,6 +42,7 @@ import NotificationsPage from "@/pages/notifications";
 import DirectoryPage from "@/pages/directory";
 import SecretaryDashboardPage from "@/pages/secretary-dashboard";
 import ResourcesLibraryPage from "@/pages/resources-library";
+import DonationsPage from "@/pages/donations";
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
@@ -143,6 +144,7 @@ function Router() {
       <Route path="/welcome" component={WelcomePage} />
       <Route path="/login" component={LoginRoute} />
       <Route path="/request-access" component={RequestAccessPage} />
+      <Route path="/donar" component={DonationsPage} />
       <Route path="/">
         <Redirect to="/welcome" />
       </Route>
