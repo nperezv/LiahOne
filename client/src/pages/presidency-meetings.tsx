@@ -111,11 +111,16 @@ const getCounselorRoleLabel = (index: number, organizationType?: string) => {
 };
 
 const inferCounselorOrder = (
-  _callingName?: string | null,
+  callingName?: string | null,
   callingOrder?: number | null,
 ) => {
   // Fuente de verdad: el orden explícito capturado en Directorio (1 = primero, 2 = segundo).
   if (callingOrder === 1 || callingOrder === 2) return callingOrder;
+
+  // Respaldo: cuando no hay orden numérico, inferirlo desde el nombre del llamamiento.
+  const normalizedCalling = normalizeLeaderLookupKey(callingName);
+  if (normalizedCalling.includes("primera") || normalizedCalling.includes("primer")) return 1;
+  if (normalizedCalling.includes("segunda") || normalizedCalling.includes("segundo")) return 2;
 
   return undefined;
 };
@@ -580,6 +585,11 @@ export default function PresidencyMeetingsPage() {
 
   const leadership = useMemo(() => {
     const organizationUsers = (users as any[]).filter((member) => member.organizationId === organizationId);
+    const orgMembersById = new Map(
+      (organizationMembers as any[])
+        .filter((member) => member?.id)
+        .map((member) => [String(member.id), member]),
+    );
     const orgMembersByName = new Map(
       (organizationMembers as any[])
         .filter((member) => member?.nameSurename)
@@ -587,8 +597,9 @@ export default function PresidencyMeetingsPage() {
     );
 
     const hydrateLeader = (member: any) => {
+      const directoryById = member?.memberId ? orgMembersById.get(String(member.memberId)) : undefined;
       const key = normalizeLeaderLookupKey(String(member?.name ?? ""));
-      const directoryMember = orgMembersByName.get(key);
+      const directoryMember = directoryById ?? orgMembersByName.get(key);
       return {
         ...member,
         callingName: directoryMember?.callingName ?? member.callingName,
@@ -604,9 +615,6 @@ export default function PresidencyMeetingsPage() {
       .filter((member) => member.role === "consejero_organizacion")
       .map(hydrateLeader);
 
-    // Compatibilidad defensiva: evita ReferenceError si existe un bundle parcial con esta variable.
-    const usesPresidentInclusiveOrder = false;
-
     const counselors = counselorsWithCallings
       .sort((a, b) => {
         const orderA = Number(inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
@@ -615,7 +623,7 @@ export default function PresidencyMeetingsPage() {
         return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
       })
       .map((member, index) => {
-        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder, usesPresidentInclusiveOrder);
+        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder);
         const roleLabel = counselorOrder
           ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
           : getCounselorRoleLabel(index, organizationType);
