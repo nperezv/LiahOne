@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Cake, CalendarDays, Check, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
+import { ArrowRight, Cake, CalendarDays, Check, ClipboardList, CloudDrizzle, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
@@ -139,6 +139,21 @@ export default function DashboardPage() {
     consejero_organizacion: "Panel de Organización",
   };
 
+
+  const weeklyLoad = data.pendingAssignments + data.upcomingInterviews;
+  const weeklyLoadStatus = weeklyLoad <= 2 ? { label: "Verde", tone: "text-emerald-500", dot: "bg-emerald-500", detail: "Carga controlada" } : weeklyLoad <= 5
+    ? { label: "Ámbar", tone: "text-amber-500", dot: "bg-amber-500", detail: "Atención media" }
+    : { label: "Rojo", tone: "text-rose-500", dot: "bg-rose-500", detail: "Semana exigente" };
+
+  const nextBestAction = data.pendingAssignments > 0
+    ? { title: "Cerrar pendientes", description: `Te falta cerrar ${data.pendingAssignments} asignaciones`, href: "/assignments" }
+    : data.upcomingInterviews > 0
+      ? { title: "Preparar entrevistas", description: `${data.upcomingInterviews} entrevistas por coordinar`, href: "/interviews" }
+      : { title: "Planificar semana", description: "Todo al día, define la próxima prioridad", href: "/calendar" };
+
+  const weatherAdvice = data.upcomingActivities.length > 0
+    ? "Clima: revisa lluvia si hay actividades al aire libre"
+    : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
     <div className="space-y-6 px-4 py-6 sm:px-8">
       <div className="space-y-1">
@@ -261,9 +276,61 @@ export default function DashboardPage() {
 
           {isOrgRole && (
             <>
-              <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => setLocation(organizationHref)} />
-              <QuickCard title="Presupuesto" subtitle="Solicitudes y movimientos" icon={Wallet} onClick={() => setLocation("/budget")} />
-              <QuickCard title="Recursos" subtitle="Biblioteca de materiales" icon={FileText} onClick={() => setLocation("/resources-library")} />
+              <Card className="hover-elevate cursor-pointer" onClick={() => setLocation(organizationHref)}>
+                <CardContent className="space-y-2 pt-6">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <Users className="h-4 w-4 text-primary" />
+                    Mi organización
+                  </div>
+                  <p className="text-sm font-medium">{organization?.name ?? "Panel de presidencia"}</p>
+                  <p className="text-xs text-muted-foreground">Ir al panel operativo de presidencia</p>
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-1 gap-4 sm:col-span-2 lg:col-span-3 sm:grid-cols-2">
+                <Card>
+                  <CardContent className="space-y-3 pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-muted-foreground">Semáforo semanal</p>
+                        <p className="text-sm">{weeklyLoadStatus.detail}</p>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-xs font-semibold">
+                        <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
+                        <span className={weeklyLoadStatus.tone}>{weeklyLoadStatus.label}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="space-y-3 pt-6">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-muted-foreground">Siguiente mejor acción</p>
+                      <p className="text-sm font-medium">{nextBestAction.title}</p>
+                      <p className="text-xs text-muted-foreground">{nextBestAction.description}</p>
+                    </div>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setLocation(nextBestAction.href)}>
+                      Ir ahora
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="sm:col-span-2 lg:col-span-3">
+                <CardContent className="flex items-center justify-between gap-3 pt-6">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-muted-foreground">Chip de clima (opcional)</p>
+                    <p className="text-xs text-muted-foreground">{weatherAdvice}</p>
+                  </div>
+                  <div className="rounded-full border border-border/70 bg-muted/30 px-3 py-1 text-xs font-medium">
+                    <CloudDrizzle className="mr-1 inline h-3.5 w-3.5" />
+                    Hoy: lluvia 30%
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
