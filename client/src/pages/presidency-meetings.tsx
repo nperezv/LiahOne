@@ -116,15 +116,20 @@ const inferCounselorOrder = (
   callingOrder?: number | null,
   usesPresidentInclusiveOrder = false,
 ) => {
+  if (callingOrder === 1 || callingOrder === 2 || callingOrder === 3) {
+    if (usesPresidentInclusiveOrder) {
+      if (callingOrder === 2) return 1;
+      if (callingOrder === 3) return 2;
+    }
+
+    if (callingOrder === 3) return 2;
+    return callingOrder;
+  }
+
   const normalized = callingName?.trim().toLowerCase() ?? "";
   if (normalized.includes("primera") || normalized.includes("primer")) return 1;
   if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
 
-  if (callingOrder === 1 || callingOrder === 2) {
-    return usesPresidentInclusiveOrder && callingOrder === 2 ? 1 : callingOrder;
-  }
-
-  if (callingOrder === 3) return 2;
   return undefined;
 };
 
@@ -619,8 +624,12 @@ export default function PresidencyMeetingsPage() {
       .filter((member) => member.role === "consejero_organizacion")
       .map(hydrateLeader);
 
-    const usesPresidentInclusiveOrder = counselorsWithCallings.some(
-      (member) => Number(member.callingOrder ?? 0) === 3,
+    const counselorOrderValues = counselorsWithCallings
+      .map((member) => Number(member.callingOrder))
+      .filter((value) => Number.isFinite(value) && value > 0);
+
+    const usesPresidentInclusiveOrder = counselorOrderValues.some((value) => value === 3) || (
+      counselorOrderValues.length > 0 && counselorOrderValues.every((value) => value >= 2)
     );
 
     const counselors = counselorsWithCallings
