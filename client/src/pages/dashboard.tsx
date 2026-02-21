@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Cake, CalendarDays, Check, ClipboardList, CloudDrizzle, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
+import { ArrowRight, Cake, CalendarDays, Check, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
@@ -248,6 +248,39 @@ export default function DashboardPage() {
             </Card>
           </div>
         </>
+      ) : isOrgRole ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation(organizationHref)}>
+              <CardContent className="space-y-2 pt-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Semáforo semanal</p>
+                <p className="text-lg font-semibold">Carga controlada</p>
+                <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/interviews")}>
+              <CardContent className="space-y-2 pt-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Siguiente mejor acción</p>
+                <p className="text-base font-semibold leading-tight">Solicitar entrevista con el Obispado</p>
+                <p className="text-xs text-muted-foreground">{data.upcomingInterviews} entrevistas por coordinar</p>
+                <Button className="h-8 w-full rounded-full" size="sm">
+                  Ir ahora <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/leadership")}>
+            <CardContent className="flex items-center justify-between gap-3 pt-5">
+              <div>
+                <p className="text-sm font-semibold">Liderazgo</p>
+                <p className="text-xs text-muted-foreground">Ver líderes y organizaciones del barrio</p>
+              </div>
+              <Users className="h-5 w-5 text-primary" />
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {userRole === "secretario" && (
@@ -271,66 +304,6 @@ export default function DashboardPage() {
               <QuickCard title="Presupuestos" subtitle={`${data.budgetRequests.pending} pendientes`} icon={HandCoins} onClick={() => setLocation("/budget")} />
               <QuickCard title="Reportes" subtitle="Seguimiento financiero" icon={FileText} onClick={() => setLocation("/reports")} />
               <QuickCard title="Calendario" subtitle="Fechas de gestión" icon={CalendarDays} onClick={() => setLocation("/calendar")} />
-            </>
-          )}
-
-          {isOrgRole && (
-            <>
-              <Card className="hover-elevate cursor-pointer" onClick={() => setLocation(organizationHref)}>
-                <CardContent className="space-y-2 pt-6">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <Users className="h-4 w-4 text-primary" />
-                    Mi organización
-                  </div>
-                  <p className="text-sm font-medium">{organization?.name ?? "Panel de presidencia"}</p>
-                  <p className="text-xs text-muted-foreground">Ir al panel operativo de presidencia</p>
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 gap-4 sm:col-span-2 lg:col-span-3 sm:grid-cols-2">
-                <Card>
-                  <CardContent className="space-y-3 pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-muted-foreground">Semáforo semanal</p>
-                        <p className="text-sm">{weeklyLoadStatus.detail}</p>
-                      </div>
-                      <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-xs font-semibold">
-                        <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
-                        <span className={weeklyLoadStatus.tone}>{weeklyLoadStatus.label}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="space-y-3 pt-6">
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold text-muted-foreground">Siguiente mejor acción</p>
-                      <p className="text-sm font-medium">{nextBestAction.title}</p>
-                      <p className="text-xs text-muted-foreground">{nextBestAction.description}</p>
-                    </div>
-                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setLocation(nextBestAction.href)}>
-                      Ir ahora
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="sm:col-span-2 lg:col-span-3">
-                <CardContent className="flex items-center justify-between gap-3 pt-6">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-muted-foreground">Chip de clima (opcional)</p>
-                    <p className="text-xs text-muted-foreground">{weatherAdvice}</p>
-                  </div>
-                  <div className="rounded-full border border-border/70 bg-muted/30 px-3 py-1 text-xs font-medium">
-                    <CloudDrizzle className="mr-1 inline h-3.5 w-3.5" />
-                    Hoy: lluvia 30%
-                  </div>
-                </CardContent>
-              </Card>
             </>
           )}
         </div>
