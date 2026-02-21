@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, Smartphone } from "lucide-react";
+import { Heart } from "lucide-react";
 
 type PublicDonationSettings = {
   wardName?: string;
@@ -18,6 +18,33 @@ function normalizePhone(value?: string) {
   return raw.startsWith("+") ? raw : `+${digits}`;
 }
 
+function openBizumApp(phone: string, smsHref: string) {
+  const nationalPhone = phone.replace("+34", "");
+  const candidates = [
+    `bizum://send?phone=${encodeURIComponent(nationalPhone)}`,
+    `bizum://pay?phone=${encodeURIComponent(nationalPhone)}`,
+  ];
+
+  let opened = false;
+  const onBlur = () => {
+    opened = true;
+  };
+
+  window.addEventListener("blur", onBlur, { once: true });
+  window.location.href = candidates[0];
+
+  window.setTimeout(() => {
+    if (!opened) {
+      window.location.href = candidates[1];
+      window.setTimeout(() => {
+        if (!opened) {
+          window.location.href = smsHref;
+        }
+      }, 500);
+    }
+  }, 700);
+}
+
 export default function DonationsPage() {
   const { data } = useQuery<PublicDonationSettings>({
     queryKey: ["/api/public/donation-settings"],
@@ -29,10 +56,8 @@ export default function DonationsPage() {
   });
 
   const phone = useMemo(() => normalizePhone(data?.bizumPhone), [data?.bizumPhone]);
-  const nationalPhone = phone.replace("+34", "");
   const telHref = phone ? `tel:${phone}` : "";
   const smsHref = phone ? `sms:${phone}?body=${encodeURIComponent("Bizum")}` : "";
-  const smsToHref = phone ? `SMSTO:${nationalPhone}:Bizum` : "";
   const telQr = telHref
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(telHref)}`
     : "";
@@ -42,9 +67,7 @@ export default function DonationsPage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Donaciones</h1>
-          <p className="text-muted-foreground">
-            {data?.wardName ? `Apoya ${data.wardName} con un envío por Bizum.` : "Apoya con un envío por Bizum."}
-          </p>
+          <p className="text-muted-foreground">{data?.wardName ?? "Barrio"}</p>
         </div>
 
         <Card>
@@ -53,16 +76,10 @@ export default function DonationsPage() {
               <Heart className="h-5 w-5" />
               Donar por Bizum
             </CardTitle>
-            <CardDescription>
-              Escanea el QR o pulsa en los botones para abrir el flujo en tu móvil.
-            </CardDescription>
+            <CardDescription>Escanea o pulsa un botón.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!phone && (
-              <p className="text-sm text-muted-foreground">
-                Aún no hay un número configurado. Pídelo al administrador en Configuración.
-              </p>
-            )}
+            {!phone && <p className="text-sm text-muted-foreground">Número no disponible.</p>}
 
             {phone && (
               <>
@@ -71,21 +88,15 @@ export default function DonationsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3 justify-center">
-                  <Button asChild>
-                    <a href={telHref}>
-                      <Smartphone className="h-4 w-4 mr-2" />
-                      Abrir llamada (tel:)
-                    </a>
+                  <Button onClick={() => openBizumApp(phone, smsHref)} data-testid="button-open-bizum-app">
+                    Abrir Bizum
                   </Button>
                   <Button variant="outline" asChild>
-                    <a href={smsHref}>Abrir SMS (sms:)</a>
+                    <a href={telHref}>Llamar</a>
                   </Button>
-                </div>
-
-                <div className="rounded-md border bg-muted/20 p-3 text-xs space-y-1">
-                  <p>tel: <code>{telHref}</code></p>
-                  <p>sms: <code>{smsHref}</code></p>
-                  <p>SMSTO (alternativa): <code>{smsToHref}</code></p>
+                  <Button variant="outline" asChild>
+                    <a href={smsHref}>SMS</a>
+                  </Button>
                 </div>
               </>
             )}
