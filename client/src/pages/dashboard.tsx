@@ -287,37 +287,37 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="space-y-3 pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-muted-foreground">Semáforo semanal</p>
-                      <p className="text-sm">{weeklyLoadStatus.detail}</p>
+              <div className="grid grid-cols-1 gap-4 sm:col-span-2 lg:col-span-3 sm:grid-cols-2">
+                <Card>
+                  <CardContent className="space-y-3 pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-muted-foreground">Semáforo semanal</p>
+                        <p className="text-sm">{weeklyLoadStatus.detail}</p>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-xs font-semibold">
+                        <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
+                        <span className={weeklyLoadStatus.tone}>{weeklyLoadStatus.label}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-xs font-semibold">
-                      <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
-                      <span className={weeklyLoadStatus.tone}>{weeklyLoadStatus.label}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
-                </CardContent>
-              </Card>
+                    <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
+                  </CardContent>
+                </Card>
 
-              <Card className="sm:col-span-2 lg:col-span-3">
-                <CardContent className="space-y-3 pt-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                <Card>
+                  <CardContent className="space-y-3 pt-6">
+                    <div className="space-y-2">
                       <p className="text-sm font-semibold text-muted-foreground">Siguiente mejor acción</p>
                       <p className="text-sm font-medium">{nextBestAction.title}</p>
                       <p className="text-xs text-muted-foreground">{nextBestAction.description}</p>
                     </div>
-                    <Button size="sm" className="shrink-0" onClick={() => setLocation(nextBestAction.href)}>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => setLocation(nextBestAction.href)}>
                       Ir ahora
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
 
               <Card className="sm:col-span-2 lg:col-span-3">
                 <CardContent className="flex items-center justify-between gap-3 pt-6">
