@@ -1116,6 +1116,8 @@ export const pdfTemplates = pgTable("pdf_templates", {
   accentColor: text("accent_color").notNull().default("3B82F6"),
   logoUrl: text("logo_url"),
   footerText: text("footer_text").default("© Barrio - Todos los derechos reservados"),
+  bizumPhone: text("bizum_phone").default(""),
+  bizumDeepLink: text("bizum_deep_link").default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -4911,9 +4911,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         accentColor: "3B82F6",
         logoUrl: undefined,
         footerText: "© Barrio - Todos los derechos reservados",
+        bizumPhone: "",
+        bizumDeepLink: "",
       });
     }
     res.json(template);
+  });
+
+  app.get("/api/public/donation-settings", async (_req: Request, res: Response) => {
+    const template = await storage.getPdfTemplate();
+    res.json({
+      wardName: template?.wardName || "Barrio",
+      bizumPhone: template?.bizumPhone || "",
+      bizumDeepLink: template?.bizumDeepLink || "",
+    });
   });
 
   app.patch("/api/pdf-template", requireRole("obispo", "secretario"), async (req: Request, res: Response) => {
