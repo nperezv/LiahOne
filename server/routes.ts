@@ -2471,6 +2471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Coordenadas calibradas para la plantilla "Solicitud de gastos" (A4, 1 página)
       // Área: "Para uso exclusivo del secretario" -> columna "Firma del El obispo (Opcional)"
       const signatureBox = { x: 38, y: 306, width: 310, height: 30 };
+      const dateBox = { x: 350, y: 306, width: 180, height: 30 };
 
       if (signatureDataUrl.startsWith("data:image/")) {
         const base64Data = signatureDataUrl.split(",")[1] || "";
@@ -2479,11 +2480,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? await pdfDoc.embedJpg(imageBytes)
           : await pdfDoc.embedPng(imageBytes);
 
+        const signatureScale = Math.min(
+          signatureBox.width / signatureImage.width,
+          signatureBox.height / signatureImage.height,
+        );
+        const scaledWidth = signatureImage.width * signatureScale;
+        const scaledHeight = signatureImage.height * signatureScale;
+        const centeredX = signatureBox.x + (signatureBox.width - scaledWidth) / 2;
+        const drawX = Math.max(
+          signatureBox.x + 4,
+          Math.min(signatureBox.x + signatureBox.width - scaledWidth - 4, centeredX + 14),
+        );
+
         page.drawImage(signatureImage, {
-          x: signatureBox.x,
-          y: signatureBox.y,
-          width: signatureBox.width,
-          height: signatureBox.height,
+          x: drawX,
+          y: signatureBox.y + (signatureBox.height - scaledHeight) / 2,
+          width: scaledWidth,
+          height: scaledHeight,
         });
       } else {
         const signatureFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
@@ -2504,9 +2517,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         font: detailsFont,
         color: rgb(0.1, 0.1, 0.1),
       });
-      page.drawText(`Fecha de firma: ${signatureDate}`, {
-        x: signatureBox.x,
-        y: signatureBox.y - 32,
+      page.drawText(signatureDate, {
+        x: dateBox.x + 8,
+        y: dateBox.y + 10,
         size: 10,
         font: detailsFont,
         color: rgb(0.1, 0.1, 0.1),
