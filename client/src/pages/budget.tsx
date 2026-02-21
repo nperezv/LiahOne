@@ -259,7 +259,7 @@ export default function BudgetPage() {
   const orgBudgetQueries = useQueries({
     queries: (organizations as Organization[]).map((org) => ({
       queryKey: ["/api/organization-budgets", org.id],
-      enabled: Boolean(org.id),
+      enabled: Boolean(org.id) && (isObispado || org.id === user?.organizationId),
     })),
   });
 
