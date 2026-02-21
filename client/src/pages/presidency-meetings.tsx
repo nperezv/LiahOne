@@ -55,7 +55,6 @@ import {
   useOrganizationAttendanceByOrg,
   useOrganizationInterviews,
   usePresidencyResources,
-  useAllMemberCallings,
   useAssignments,
   useBirthdays,
 } from "@/hooks/use-api";
@@ -111,13 +110,22 @@ const getCounselorRoleLabel = (index: number, organizationType?: string) => {
   return isFemale ? "Consejera" : "Consejero";
 };
 
-const inferCounselorOrder = (callingName?: string | null, callingOrder?: number | null) => {
+const inferCounselorOrder = (
+  _callingName?: string | null,
+  callingOrder?: number | null,
+) => {
+  // Fuente de verdad: el orden explícito capturado en Directorio (1 = primero, 2 = segundo).
   if (callingOrder === 1 || callingOrder === 2) return callingOrder;
-  const normalized = callingName?.trim().toLowerCase() ?? "";
-  if (normalized.includes("primera") || normalized.includes("primer")) return 1;
-  if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
+
   return undefined;
 };
+
+const normalizeLeaderLookupKey = (value?: string | null) =>
+  (value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
 const budgetRequestSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
@@ -464,7 +472,6 @@ export default function PresidencyMeetingsPage() {
   const { data: goals = [] } = useGoals();
   const { data: organizationBudgets = [] } = useOrganizationBudgets(organizationId ?? "");
   const { data: organizationMembers = [] } = useOrganizationMembers(organizationId, { enabled: Boolean(organizationId) });
-  const { data: allMemberCallings = [] } = useAllMemberCallings({ enabled: Boolean(organizationId) });
   const { data: activities = [] } = useActivities();
   const { data: assignments = [] } = useAssignments();
   const { data: birthdays = [] } = useBirthdays();
@@ -573,32 +580,19 @@ export default function PresidencyMeetingsPage() {
 
   const leadership = useMemo(() => {
     const organizationUsers = (users as any[]).filter((member) => member.organizationId === organizationId);
-    const activeOrgCallings = (allMemberCallings as any[]).filter(
-      (calling) => calling.isActive && calling.organizationId === organizationId
+    const orgMembersByName = new Map(
+      (organizationMembers as any[])
+        .filter((member) => member?.nameSurename)
+        .map((member) => [normalizeLeaderLookupKey(String(member.nameSurename)), member]),
     );
 
-    const callingByMemberId = new Map<string, any>();
-    activeOrgCallings.forEach((calling) => {
-      if (!calling.memberId) return;
-      const existing = callingByMemberId.get(calling.memberId);
-      if (!existing) {
-        callingByMemberId.set(calling.memberId, calling);
-        return;
-      }
-
-      const existingOrder = Number(existing.callingOrder ?? 999);
-      const incomingOrder = Number(calling.callingOrder ?? 999);
-      if (incomingOrder < existingOrder) {
-        callingByMemberId.set(calling.memberId, calling);
-      }
-    });
-
     const hydrateLeader = (member: any) => {
-      const matchedCalling = member.memberId ? callingByMemberId.get(member.memberId) : undefined;
+      const key = normalizeLeaderLookupKey(String(member?.name ?? ""));
+      const directoryMember = orgMembersByName.get(key);
       return {
         ...member,
-        callingName: matchedCalling?.callingName ?? member.callingName,
-        callingOrder: matchedCalling?.callingOrder ?? member.callingOrder,
+        callingName: directoryMember?.callingName ?? member.callingName,
+        callingOrder: directoryMember?.callingOrder ?? member.callingOrder,
       };
     };
 
@@ -610,8 +604,8 @@ export default function PresidencyMeetingsPage() {
       .filter((member) => member.role === "consejero_organizacion")
       .map(hydrateLeader)
       .sort((a, b) => {
-        const orderA = Number(a.callingOrder ?? inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
-        const orderB = Number(b.callingOrder ?? inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
+        const orderA = Number(inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
+        const orderB = Number(inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
         if (orderA !== orderB) return orderA - orderB;
         return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
       })
@@ -628,7 +622,7 @@ export default function PresidencyMeetingsPage() {
     const hiddenLeaders = leaders.slice(3);
 
     return { leaders, visibleLeaders, hiddenLeaders };
-  }, [allMemberCallings, organizationId, organizationType, users]);
+  }, [organizationId, organizationMembers, organizationType, users]);
 
   const dashboardStats = useMemo(() => {
     const organizationGoals = (goals as any[]).filter((goal: any) => goal.organizationId === organizationId);
