@@ -620,7 +620,11 @@ export default function PresidencyMeetingsPage() {
         return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
       })
       .map((member, index) => {
-        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder);
+        const counselorOrder = inferCounselorOrder(
+          member.callingName,
+          member.callingOrder,
+          usesPresidentInclusiveOrder,
+        );
         const roleLabel = counselorOrder
           ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
           : getCounselorRoleLabel(index, organizationType);
