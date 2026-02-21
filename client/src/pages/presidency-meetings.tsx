@@ -114,6 +114,7 @@ const getCounselorRoleLabel = (index: number, organizationType?: string) => {
 const inferCounselorOrder = (
   _callingName?: string | null,
   callingOrder?: number | null,
+  _usesPresidentInclusiveOrder?: boolean,
 ) => {
   // Fuente de verdad: el orden explícito capturado en Directorio (1 = primero, 2 = segundo).
   if (callingOrder === 1 || callingOrder === 2) return callingOrder;
@@ -612,19 +613,18 @@ export default function PresidencyMeetingsPage() {
       .filter((member) => member.role === "consejero_organizacion")
       .map(hydrateLeader);
 
+    // Compatibilidad defensiva: evita ReferenceError si existe un bundle parcial con esta variable.
+    const usesPresidentInclusiveOrder = false;
+
     const counselors = counselorsWithCallings
       .sort((a, b) => {
-        const orderA = Number(inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
-        const orderB = Number(inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
+        const orderA = Number(inferCounselorOrder(a.callingName, a.callingOrder, usesPresidentInclusiveOrder) ?? 999);
+        const orderB = Number(inferCounselorOrder(b.callingName, b.callingOrder, usesPresidentInclusiveOrder) ?? 999);
         if (orderA !== orderB) return orderA - orderB;
         return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
       })
       .map((member, index) => {
-        const counselorOrder = inferCounselorOrder(
-          member.callingName,
-          member.callingOrder,
-          usesPresidentInclusiveOrder,
-        );
+        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder, usesPresidentInclusiveOrder);
         const roleLabel = counselorOrder
           ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
           : getCounselorRoleLabel(index, organizationType);

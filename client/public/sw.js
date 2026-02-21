@@ -1,7 +1,7 @@
-const CACHE_NAME = 'liahonaap-v5';
+const CACHE_NAME = 'liahonaap-v6';
 const STATIC_ASSETS = [
   '/',
-  '/manifest.json?v=5',
+  '/manifest.json?v=6',
   '/favicon.svg',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
         console.log('Some static assets failed to cache:', err);
-        return cache.addAll(['/', '/manifest.json?v=5']);
+        return cache.addAll(['/', '/manifest.json?v=6']);
       });
     })
   );
