@@ -600,9 +600,14 @@ export default function PresidencyMeetingsPage() {
       .filter((member) => member.role === "presidente_organizacion")
       .map((member) => ({ ...hydrateLeader(member), roleLabel: getPresidentRoleLabel(organizationType) }));
 
-    const counselors = organizationUsers
+    const counselorsWithCallings = organizationUsers
       .filter((member) => member.role === "consejero_organizacion")
-      .map(hydrateLeader)
+      .map(hydrateLeader);
+
+    // Compatibilidad defensiva: evita ReferenceError si existe un bundle parcial con esta variable.
+    const usesPresidentInclusiveOrder = false;
+
+    const counselors = counselorsWithCallings
       .sort((a, b) => {
         const orderA = Number(inferCounselorOrder(a.callingName, a.callingOrder) ?? 999);
         const orderB = Number(inferCounselorOrder(b.callingName, b.callingOrder) ?? 999);
@@ -610,7 +615,7 @@ export default function PresidencyMeetingsPage() {
         return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es");
       })
       .map((member, index) => {
-        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder);
+        const counselorOrder = inferCounselorOrder(member.callingName, member.callingOrder, usesPresidentInclusiveOrder);
         const roleLabel = counselorOrder
           ? getCounselorRoleLabel(counselorOrder - 1, organizationType)
           : getCounselorRoleLabel(index, organizationType);
