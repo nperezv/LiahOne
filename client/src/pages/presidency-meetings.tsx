@@ -112,16 +112,11 @@ const getCounselorRoleLabel = (index: number, organizationType?: string) => {
 };
 
 const inferCounselorOrder = (
-  callingName?: string | null,
+  _callingName?: string | null,
   callingOrder?: number | null,
 ) => {
-  // Fuente de verdad: el orden explícito capturado en Directorio.
+  // Fuente de verdad: el orden explícito capturado en Directorio (1 = primero, 2 = segundo).
   if (callingOrder === 1 || callingOrder === 2) return callingOrder;
-
-  // Fallback por texto solo cuando no existe orden explícito.
-  const normalized = callingName?.trim().toLowerCase() ?? "";
-  if (normalized.includes("primera") || normalized.includes("primer")) return 1;
-  if (normalized.includes("segunda") || normalized.includes("segundo")) return 2;
 
   return undefined;
 };
