@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,8 @@ import {
 import { useOrganizations, useUsers } from "@/hooks/use-api";
 import { formatCallingLabel } from "@/lib/callings";
 import { cn } from "@/lib/utils";
+import { ArrowLeft } from "lucide-react";
+import { useLocation, useSearch } from "wouter";
 
 interface UserSummary {
   id: string;
@@ -63,6 +66,15 @@ const getOrgRoleLabel = (role: string, orgType?: string | null) => {
   }
 
   return roleLabels[role] ?? role;
+};
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+
+  navigate(path);
 };
 
 const getInitials = (name?: string) => {
@@ -285,6 +297,9 @@ function LeadershipCluster({
 export default function LeadershipPage() {
   const { data: users = [] } = useUsers();
   const { data: organizations = [] } = useOrganizations();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const fromDashboardOrg = new URLSearchParams(search).get("from") === "org-dashboard";
 
   const typedUsers = users as UserSummary[];
 
@@ -309,12 +324,25 @@ export default function LeadershipPage() {
 
   return (
     <div className="container max-w-5xl mx-auto py-8 px-4 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Líderes del barrio:</h1>
-        <p className="text-sm text-muted-foreground">
-          Organigrama del Obispado y líderes del consejo de barrio.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Líderes del barrio:</h1>
+          <p className="text-sm text-muted-foreground">
+            Organigrama del Obispado y líderes del consejo de barrio.
+          </p>
+        </div>
+        {fromDashboardOrg ? (
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => navigateWithTransition(setLocation, "/")}
+            data-testid="button-back-from-leadership"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
+        ) : null}
       </div>
+
 
       <LeadershipCluster
         title="Obispado"

@@ -27,6 +27,15 @@ const getOrganizationSemaphore = (pendingAssignments: number, upcomingInterviews
   return { label: "rojo", dotClass: "bg-rose-500", textClass: "text-rose-600 dark:text-rose-400" };
 };
 
+
+const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
+  if (typeof document !== "undefined" && "startViewTransition" in document) {
+    (document as any).startViewTransition(() => navigate(path));
+    return;
+  }
+  navigate(path);
+};
+
 function ProgressRing({ value }: { value: number }) {
   const size = 72;
   const stroke = 6;
@@ -262,7 +271,7 @@ export default function DashboardPage() {
         </>
       ) : isOrgRole ? (
         <div className="space-y-4">
-          <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => setLocation(organizationHref)} />
+          <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => navigateWithTransition(setLocation, organizationHref)} />
 
           <div className="grid grid-cols-2 gap-3">
             <Card className="bg-muted/10 no-hover-interaction-elevate">
@@ -279,7 +288,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/interviews")}>
+            <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
               <CardContent className="space-y-2 pt-5">
                 <p className="text-xs font-semibold text-muted-foreground">Siguiente mejor acción</p>
                 <p className="text-base font-semibold leading-tight">Solicitar entrevista con el Obispado</p>
@@ -291,7 +300,7 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/leadership")}>
+          <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
             <CardContent className="flex items-center justify-between gap-3 pt-5">
               <div>
                 <p className="text-sm font-semibold">Liderazgo</p>
