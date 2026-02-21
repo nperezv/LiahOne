@@ -160,6 +160,21 @@ export default function DashboardPage() {
     consejero_organizacion: "Panel de Organización",
   };
 
+
+  const weeklyLoad = data.pendingAssignments + data.upcomingInterviews;
+  const weeklyLoadStatus = weeklyLoad <= 2 ? { label: "Verde", tone: "text-emerald-500", dot: "bg-emerald-500", detail: "Carga controlada" } : weeklyLoad <= 5
+    ? { label: "Ámbar", tone: "text-amber-500", dot: "bg-amber-500", detail: "Atención media" }
+    : { label: "Rojo", tone: "text-rose-500", dot: "bg-rose-500", detail: "Semana exigente" };
+
+  const nextBestAction = data.pendingAssignments > 0
+    ? { title: "Cerrar pendientes", description: `Te falta cerrar ${data.pendingAssignments} asignaciones`, href: "/assignments" }
+    : data.upcomingInterviews > 0
+      ? { title: "Preparar entrevistas", description: `${data.upcomingInterviews} entrevistas por coordinar`, href: "/interviews" }
+      : { title: "Planificar semana", description: "Todo al día, define la próxima prioridad", href: "/calendar" };
+
+  const weatherAdvice = data.upcomingActivities.length > 0
+    ? "Clima: revisa lluvia si hay actividades al aire libre"
+    : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
     <div className="space-y-6 px-4 py-6 sm:px-8">
       <div className="space-y-1">
