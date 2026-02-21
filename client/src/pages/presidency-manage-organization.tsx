@@ -104,6 +104,13 @@ function formatLocalDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+const MANUAL_ATTENDEE_PREFIX = "manual:";
+
+const encodeManualAttendee = (name: string) => `${MANUAL_ATTENDEE_PREFIX}${name}`;
+
+const decodeManualAttendee = (value: string) =>
+  value.startsWith(MANUAL_ATTENDEE_PREFIX) ? value.slice(MANUAL_ATTENDEE_PREFIX.length).trim() : "";
+
 const organizationSlugs: Record<string, string> = {
   "hombres-jovenes": "hombres_jovenes",
   "mujeres-jovenes": "mujeres_jovenes",
@@ -167,6 +174,7 @@ export default function PresidencyManageOrganizationPage() {
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, string[]>>({});
   const [attendanceEditorDate, setAttendanceEditorDate] = useState<string | null>(null);
+  const [manualAttendeeName, setManualAttendeeName] = useState("");
   const [isCreateMeetingOpen, setIsCreateMeetingOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -484,11 +492,17 @@ export default function PresidencyManageOrganizationPage() {
   const canEditWeek = (isoDate: string) => isoDate <= todayIso;
 
   const handlePrintAttendance = async (isoDate: string) => {
-    const attendeeIds = attendanceDrafts[isoDate] ?? [];
+    const attendeeEntries = attendanceDrafts[isoDate] ?? [];
+    const attendeeMemberIds = attendeeEntries.filter((entry) => !entry.startsWith(MANUAL_ATTENDEE_PREFIX));
+    const manualAttendeeNames = attendeeEntries
+      .filter((entry) => entry.startsWith(MANUAL_ATTENDEE_PREFIX))
+      .map((entry) => decodeManualAttendee(entry))
+      .filter(Boolean);
     const attendeeNames = organizationMembers
-      .filter((member: any) => attendeeIds.includes(member.id))
+      .filter((member: any) => attendeeMemberIds.includes(member.id))
       .map((member: any) => String(member.nameSurename ?? member.name ?? "").trim())
       .filter(Boolean)
+      .concat(manualAttendeeNames)
       .sort((a: string, b: string) => a.localeCompare(b, "es"));
 
     const sundayDate = new Date(`${isoDate}T00:00:00`);
@@ -518,6 +532,26 @@ export default function PresidencyManageOrganizationPage() {
       attendeeMemberIds,
       attendeesCount: attendeeMemberIds.length,
       totalMembers: organizationMembers.length,
+    });
+  };
+
+  const addManualAttendee = (isoDate: string) => {
+    const normalizedName = manualAttendeeName.trim().replace(/\s+/g, " ");
+    if (!normalizedName) return;
+
+    const encodedName = encodeManualAttendee(normalizedName);
+    setAttendanceDrafts((prev) => {
+      const current = prev[isoDate] ?? [];
+      if (current.includes(encodedName)) return prev;
+      return { ...prev, [isoDate]: [...current, encodedName] };
+    });
+    setManualAttendeeName("");
+  };
+
+  const removeManualAttendee = (isoDate: string, encodedName: string) => {
+    setAttendanceDrafts((prev) => {
+      const current = prev[isoDate] ?? [];
+      return { ...prev, [isoDate]: current.filter((entry) => entry !== encodedName) };
     });
   };
 
@@ -973,7 +1007,12 @@ export default function PresidencyManageOrganizationPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(attendanceEditorDate)} onOpenChange={(open) => { if (!open) setAttendanceEditorDate(null); }}>
+      <Dialog open={Boolean(attendanceEditorDate)} onOpenChange={(open) => {
+        if (!open) {
+          setAttendanceEditorDate(null);
+          setManualAttendeeName("");
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Lista de asistencia</DialogTitle>
@@ -981,7 +1020,52 @@ export default function PresidencyManageOrganizationPage() {
               {attendanceEditorDate ? new Date(`${attendanceEditorDate}T00:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long" }) : ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-border/70 bg-muted/10 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Visitantes o miembros de otro barrio</p>
+              <div className="mt-2 flex gap-2">
+                <Input
+                  value={manualAttendeeName}
+                  onChange={(event) => setManualAttendeeName(event.target.value)}
+                  placeholder="Nombre completo"
+                  className="rounded-xl border-border/70 bg-background/90"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && attendanceEditorDate) {
+                      event.preventDefault();
+                      addManualAttendee(attendanceEditorDate);
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl border-border/70"
+                  disabled={!manualAttendeeName.trim() || !attendanceEditorDate}
+                  onClick={() => attendanceEditorDate && addManualAttendee(attendanceEditorDate)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar
+                </Button>
+              </div>
+              {attendanceEditorDate ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(attendanceDrafts[attendanceEditorDate] ?? [])
+                    .filter((entry) => entry.startsWith(MANUAL_ATTENDEE_PREFIX))
+                    .map((entry) => (
+                      <button
+                        key={entry}
+                        type="button"
+                        onClick={() => removeManualAttendee(attendanceEditorDate, entry)}
+                        className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs"
+                      >
+                        {decodeManualAttendee(entry)} ×
+                      </button>
+                    ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
             {organizationMembers.map((member: any) => {
               const selected = attendanceEditorDate ? (attendanceDrafts[attendanceEditorDate] ?? []).includes(member.id) : false;
               return (
