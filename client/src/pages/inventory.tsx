@@ -98,57 +98,69 @@ export default function InventoryPage() {
 
   const handleCreateCategory = async () => {
     if (!categoryName.trim() || !categoryPrefix.trim()) return;
-    await createCategory.mutateAsync({
-      name: categoryName.trim(),
-      prefix: categoryPrefix.trim().toUpperCase(),
-    });
-    setCategoryName("");
-    setCategoryPrefix("");
+    try {
+      await createCategory.mutateAsync({
+        name: categoryName.trim(),
+        prefix: categoryPrefix.trim().toUpperCase(),
+      });
+      setCategoryName("");
+      setCategoryPrefix("");
+    } catch {
+      // handled by API/error toasts upstream; avoid uncaught promise in UI
+    }
   };
 
   const handleCreateAssetByNfc = async () => {
     if (!assetUid || !assetName.trim() || !assetCategoryId) return;
-    const created = await createItem.mutateAsync({
-      name: assetName.trim(),
-      description: assetDescription.trim() || undefined,
-      categoryId: assetCategoryId,
-      locationId: assetLocationId || undefined,
-      status: "available",
-    });
+    try {
+      const created = await createItem.mutateAsync({
+        name: assetName.trim(),
+        description: assetDescription.trim() || undefined,
+        categoryId: assetCategoryId,
+        locationId: assetLocationId || undefined,
+        status: "available",
+      });
 
-    await registerItemNfc.mutateAsync({
-      asset_code: created.assetCode,
-      nfc_uid: assetUid,
-    });
+      await registerItemNfc.mutateAsync({
+        asset_code: created.assetCode,
+        nfc_uid: assetUid,
+      });
 
-    setCreatedAssetCode(created.assetCode);
-    setQrAssetCode(created.assetCode);
-    setAssetUid("");
-    setAssetName("");
-    setAssetCategoryId("");
-    setAssetLocationId("");
-    setAssetDescription("");
-    stopNfc();
+      setCreatedAssetCode(created.assetCode);
+      setQrAssetCode(created.assetCode);
+      setAssetUid("");
+      setAssetName("");
+      setAssetCategoryId("");
+      setAssetLocationId("");
+      setAssetDescription("");
+      stopNfc();
+    } catch {
+      // prevent unhandled promise in case of upstream 5xx
+    }
   };
 
   const handleCreateLocationByNfc = async () => {
     if (!locationUid || !locationName.trim()) return;
 
-    const created = await createLocation.mutateAsync({
-      name: locationName.trim(),
-      parentId: locationParentId === "none" ? undefined : locationParentId,
-    });
+    try {
+      const created = await createLocation.mutateAsync({
+        name: locationName.trim(),
+        parentId: locationParentId === "none" ? undefined : locationParentId,
+      });
 
-    await registerLocationNfc.mutateAsync({
-      location_code: created.code,
-      nfc_uid: locationUid,
-    });
+      await registerLocationNfc.mutateAsync({
+        location_code: created.code,
+        nfc_uid: locationUid,
+      });
 
-    setCreatedLocationCode(created.code);
-    setLocationUid("");
-    setLocationName("");
-    setLocationParentId("none");
-    stopNfc();
+      setCreatedLocationCode(created.code);
+      setLocationUid("");
+      setLocationName("");
+      setLocationParentId("none");
+      stopNfc();
+    } catch {
+      // prevent unhandled promise in case of upstream 5xx
+    }
   };
 
   return (
