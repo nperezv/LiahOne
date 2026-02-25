@@ -3,8 +3,25 @@ import { getAccessToken, refreshAccessToken } from "./auth-tokens";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    const rawBody = (await res.text()).trim();
+
+    let reason = res.statusText || "Request failed";
+
+    if (contentType.includes("application/json")) {
+      try {
+        const parsed = JSON.parse(rawBody) as { message?: string; error?: string };
+        reason = parsed.message || parsed.error || reason;
+      } catch {
+        reason = rawBody || reason;
+      }
+    } else if (contentType.includes("text/html")) {
+      reason = `Upstream service unavailable (${res.status})`;
+    } else if (rawBody) {
+      reason = rawBody;
+    }
+
+    throw new Error(`${res.status}: ${reason}`);
   }
 }
 

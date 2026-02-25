@@ -10,7 +10,7 @@ import {
   UserPlus,
   Clock,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,21 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     user?.role === "consejero_obispo" ||
     user?.role === "secretario_ejecutivo";
 
-  const wardName = template?.wardName?.trim() || "Barrio";
+  const [cachedWardName, setCachedWardName] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("ward_name_cache") || "";
+  });
+
+  useEffect(() => {
+    const incoming = template?.wardName?.trim();
+    if (!incoming) return;
+    setCachedWardName(incoming);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("ward_name_cache", incoming);
+    }
+  }, [template?.wardName]);
+
+  const wardName = template?.wardName?.trim() || cachedWardName || "Barrio (configurar en Ajustes)";
 
   const getInitials = (name?: string) => {
     if (!name) return "U";
@@ -119,7 +133,10 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
       {/* IZQUIERDA */}
       <div className="flex items-center gap-3">
         <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12" />
-        <h1 className="text-lg font-semibold tracking-tight">{wardName}</h1>
+        <div className="flex items-center gap-2">
+          <img src="/icons/icon.svg" alt="Liahonapp" className="h-7 w-7 rounded-md object-contain" />
+          <h1 className="text-lg font-semibold tracking-tight">{wardName}</h1>
+        </div>
       </div>
 
       {/* DERECHA */}
