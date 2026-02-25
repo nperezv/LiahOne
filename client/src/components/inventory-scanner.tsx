@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Camera, Keyboard, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -25,7 +26,7 @@ export function InventoryScanner({ onDetected }: InventoryScannerProps) {
 
   const startFallbackScanner = async () => {
     if (!("BarcodeDetector" in window)) {
-      setHint("Instala html5-qrcode para máxima compatibilidad. Fallback no disponible en este navegador.");
+      setHint("Tu navegador no soporta escaneo avanzado. Usa entrada manual.");
       return;
     }
 
@@ -51,16 +52,13 @@ export function InventoryScanner({ onDetected }: InventoryScannerProps) {
           return;
         }
       } catch {
-        // ignore frame errors
+        // noop
       }
       requestAnimationFrame(tick);
     };
 
     requestAnimationFrame(tick);
-    setHint("Modo fallback BarcodeDetector activo.");
-    return () => {
-      active = false;
-    };
+    setHint("Escaneo activo (modo compatibilidad)");
   };
 
   const startScanner = async () => {
@@ -75,11 +73,11 @@ export function InventoryScanner({ onDetected }: InventoryScannerProps) {
       html5ScannerRef.current = scanner;
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
         (decodedText: string) => onDetected(extractAssetCode(decodedText)),
       );
 
-      setHint("Escaneo con html5-qrcode");
+      setHint("Escaneo activo");
       return;
     } catch {
       await startFallbackScanner();
@@ -92,7 +90,7 @@ export function InventoryScanner({ onDetected }: InventoryScannerProps) {
         await html5ScannerRef.current.stop();
         await html5ScannerRef.current.clear();
       } catch {
-        // ignore stop errors
+        // noop
       }
       html5ScannerRef.current = null;
     }
@@ -100,28 +98,35 @@ export function InventoryScanner({ onDetected }: InventoryScannerProps) {
     fallbackStreamRef.current?.getTracks().forEach((track) => track.stop());
     fallbackStreamRef.current = null;
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    if (videoRef.current) videoRef.current.srcObject = null;
 
     setIsScanning(false);
   };
 
   return (
-    <div className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
-      <div id="inventory-scanner-region" ref={html5RegionRef} className="overflow-hidden rounded-xl" />
-      <video ref={videoRef} className="h-56 w-full rounded-xl bg-black object-cover" muted playsInline />
-
-      <Button className="h-14 w-full text-base font-semibold" onClick={isScanning ? stopScanner : startScanner}>
-        {isScanning ? "DETENER" : "ESCANEAR"}
-      </Button>
-
-      <div className="flex gap-2">
-        <Input value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="ABM8-0001" />
-        <Button variant="outline" onClick={() => manualCode && onDetected(extractAssetCode(manualCode))}>Abrir</Button>
+    <div className="rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="rounded-full bg-primary/20 p-2 text-primary"><QrCode className="h-4 w-4" /></div>
+        <p className="text-sm font-medium">Escáner rápido</p>
       </div>
 
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      <div id="inventory-scanner-region" ref={html5RegionRef} className="overflow-hidden rounded-2xl" />
+      <video ref={videoRef} className="mt-2 h-56 w-full rounded-2xl border border-white/10 bg-black object-cover" muted playsInline />
+
+      <Button className="mt-3 h-14 w-full rounded-2xl text-base font-semibold" onClick={isScanning ? stopScanner : startScanner}>
+        <Camera className="mr-2 h-5 w-5" />
+        {isScanning ? "Detener escaneo" : "ESCANEAR"}
+      </Button>
+
+      <div className="mt-3 flex gap-2">
+        <div className="relative flex-1">
+          <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="h-11 rounded-xl pl-9" value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="ABM8-0001" />
+        </div>
+        <Button variant="outline" className="h-11 rounded-xl" onClick={() => manualCode && onDetected(extractAssetCode(manualCode))}>Abrir</Button>
+      </div>
+
+      {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
