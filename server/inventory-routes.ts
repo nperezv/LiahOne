@@ -114,10 +114,26 @@ function getLocationTypeCode(name: string) {
   return "LOC";
 }
 
+function buildDynamicAssetPrefix(rawPrefix: string, wardCode: string) {
+  const normalizedWard = wardCode.replace(/[^A-Z0-9]/gi, "").toUpperCase() || "BM8";
+  const cleanedPrefix = rawPrefix.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  if (!cleanedPrefix) return normalizedWard;
+
+  if (cleanedPrefix.endsWith(normalizedWard)) return cleanedPrefix;
+
+  // Compatibilidad: si quedó guardado un sufijo tipo barrio previo (ej. ABM7),
+  // se reemplaza por el barrio actual de configuración.
+  const oldWardSuffixMatch = cleanedPrefix.match(/^(.*?)([A-Z]{1,3}\d{1,3})$/);
+  const basePrefix = oldWardSuffixMatch?.[1] ? oldWardSuffixMatch[1] : cleanedPrefix;
+  return `${basePrefix}${normalizedWard}`;
+}
+
 async function allocateAssetCode(categoryId: string) {
   return db.transaction(async (tx) => {
     const [category] = await tx.select({ prefix: inventoryCategories.prefix }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
     if (!category) throw new Error("Categoría inválida");
+    const wardCode = await getWardCode();
+    const dynamicPrefix = buildDynamicAssetPrefix(category.prefix, wardCode);
 
     const updated = await tx.execute(sql`UPDATE inventory_category_counters SET next_seq = next_seq + 1 WHERE category_id = ${categoryId} RETURNING next_seq - 1 AS seq`);
     const updatedRows = "rows" in updated ? (updated.rows as Array<{ seq: number }>) : [];
@@ -130,7 +146,7 @@ async function allocateAssetCode(categoryId: string) {
       seq = retriedRows[0]?.seq ?? 1;
     }
 
-    return `${category.prefix}-${String(seq).padStart(4, "0")}`;
+    return `${dynamicPrefix}-${String(seq).padStart(4, "0")}`;
   });
 }
 
@@ -264,15 +280,6 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     res.status(201).json(created);
   });
 
-  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
-    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
-    if (!item) return res.status(404).json({ error: "Item no encontrado" });
-    const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
-    const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
-    auditLog(req, "open_item", { assetCode: item.assetCode });
-    res.json({ item, movements, loans });
-  });
-
   app.get("/a/:assetCode", requireAuth, requireRead, async (req, res) => {
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
@@ -300,6 +307,15 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     const code = payload.code || (await allocateLocationCode(payload.name));
     const [created] = await db.insert(inventoryLocations).values({ ...payload, code }).returning();
     res.status(201).json(created);
+  });
+
+  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
+    const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
+    auditLog(req, "open_item", { assetCode: item.assetCode });
+    res.json({ item, movements, loans });
   });
 
   app.get("/loc/:locationCode", requireAuth, requireRead, async (req, res) => {

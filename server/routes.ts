@@ -74,8 +74,10 @@ declare module "express-session" {
 }
 
 function getUserIdFromRequest(req: Request): string | null {
-  if (req.session.userId) {
-    return req.session.userId;
+  const sessionData = req.session as (typeof req.session & { userId?: string }) | undefined;
+
+  if (sessionData?.userId) {
+    return sessionData.userId;
   }
 
   const authHeader = req.headers.authorization;
@@ -89,7 +91,10 @@ function getUserIdFromRequest(req: Request): string | null {
     return null;
   }
 
-  req.session.userId = payload.userId;
+  if (sessionData) {
+    sessionData.userId = payload.userId;
+  }
+
   return payload.userId;
 }
 
