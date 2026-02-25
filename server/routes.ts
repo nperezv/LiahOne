@@ -39,6 +39,7 @@ import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
+import { registerInventoryRoutes } from "./inventory-routes";
 import {
   createAccessToken,
   generateRefreshToken,
@@ -177,6 +178,7 @@ const CALLING_ROLE_LABELS: Record<string, { neutral: string; male?: string; fema
   presidente_organizacion: { neutral: "Presidente/Presidenta", male: "Presidente", female: "Presidenta" },
   consejero_organizacion: { neutral: "Consejero/Consejera", male: "Consejero", female: "Consejera" },
   secretario_organizacion: { neutral: "Secretario/Secretaria", male: "Secretario", female: "Secretaria" },
+  bibliotecario: { neutral: "Bibliotecario/Bibliotecaria", male: "Bibliotecario", female: "Bibliotecaria" },
 };
 
 const OBISPADO_ROLES = new Set([
@@ -185,6 +187,7 @@ const OBISPADO_ROLES = new Set([
   "secretario",
   "secretario_ejecutivo",
   "secretario_financiero",
+  "bibliotecario",
 ]);
 
 const RESOURCES_LIBRARY_ADMIN_ROLES = new Set([
@@ -618,6 +621,7 @@ async function hasInterviewCollision({
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   // Setup session middleware
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable is required");
@@ -1203,7 +1207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       memberForCalling = member;
 
       // Bishop-level roles automatically get the Obispado organizationId
-      const bishopRoles = ["consejero_obispo", "secretario"];
+      const bishopRoles = ["consejero_obispo", "secretario", "bibliotecario"];
       const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
       const finalOrganizationId = bishopRoles.includes(role) ? obispadoId : organizationId || null;
 

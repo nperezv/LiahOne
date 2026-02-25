@@ -26,13 +26,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useNotifications } from "@/hooks/use-notifications";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { apiRequest } from "@/lib/queryClient";
 import {
   formatNotificationTime,
   getNotificationDestination,
 } from "@/lib/notifications";
-const LOGO_SRC = "/favicon.svg";
 import type { Notification } from "@shared/schema";
 
 interface AppHeaderProps {
@@ -65,7 +63,6 @@ const notificationTypeIcons: Record<string, typeof Bell> = {
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const [location, setLocation] = useLocation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const isMobile = useIsMobile();
 
   const { data: template } = useQuery({
     queryKey: ["/api/pdf-template"],
@@ -99,7 +96,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     user?.role === "consejero_obispo" ||
     user?.role === "secretario_ejecutivo";
 
-  const wardName = template?.wardName?.trim() || "Liahonapp";
+  const wardName = template?.wardName?.trim() || "Barrio";
 
   const getInitials = (name?: string) => {
     if (!name) return "U";
@@ -120,14 +117,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
   return (
     <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
-      <div className="flex items-center gap-4">
-        {!isMobile && <SidebarTrigger />}
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/60">
-            <img src={LOGO_SRC} alt="LiahonApp" className="h-6 w-6" />
-          </div>
-          <h1 className="text-lg font-semibold">{wardName}</h1>
-        </div>
+      <div className="flex items-center gap-3">
+        <SidebarTrigger data-testid="button-sidebar-toggle" className="shrink-0" />
+        <h1 className="max-w-[52vw] truncate text-xl font-semibold tracking-tight">{wardName}</h1>
       </div>
 
       {/* DERECHA */}
