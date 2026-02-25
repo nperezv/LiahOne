@@ -1,0 +1,491 @@
+import type { Express, Request, RequestHandler } from "express";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { z } from "zod";
+import { db } from "./db";
+import {
+  inventoryAuditItems,
+  inventoryAudits,
+  inventoryCategories,
+  inventoryCategoryCounters,
+  inventoryItems,
+  inventoryLoans,
+  inventoryLocations,
+  inventoryMovements,
+  inventoryNfcLinks,
+  insertInventoryAuditSchema,
+  insertInventoryCategorySchema,
+  insertInventoryItemSchema,
+  insertInventoryLoanSchema,
+  insertInventoryLocationSchema,
+  pdfTemplates,
+} from "@shared/schema";
+
+const BASE_URL = process.env.APP_URL ?? "http://localhost:5173";
+const QR_PROVIDER_URL = "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=";
+const MM_TO_PT = 2.8346456693;
+const CIRCLE_MM = 25;
+const QR_MM = 14;
+
+const INVENTORY_ALLOWED_ROLES = new Set(["obispo", "consejero_obispo", "bibliotecario"]);
+const ADMIN_ROLES = new Set(["obispo", "consejero_obispo"]);
+const LEADER_ROLES = new Set([...ADMIN_ROLES, "bibliotecario"]);
+
+const moveByScanSchema = z.object({
+  item_asset_code: z.string().optional(),
+  item_nfc_uid: z.string().optional(),
+  location_code: z.string().optional(),
+  location_nfc_uid: z.string().optional(),
+  note: z.string().max(300).optional(),
+});
+
+const registerLocationNfcSchema = z.object({
+  location_id: z.string().optional(),
+  location_code: z.string().optional(),
+  nfc_uid: z.string().min(4),
+});
+
+function isAuthed(req: Request) {
+  return Boolean((req as any).user);
+}
+function hasInventoryAccess(req: Request) {
+  return INVENTORY_ALLOWED_ROLES.has(String((req as any).user?.role ?? ""));
+}
+function isAdmin(req: Request) {
+  return ADMIN_ROLES.has(String((req as any).user?.role ?? ""));
+}
+function isLeader(req: Request) {
+  return LEADER_ROLES.has(String((req as any).user?.role ?? ""));
+}
+
+function requireRead(req: Request, res: any, next: any) {
+  if (!isAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!hasInventoryAccess(req)) return res.status(403).json({ error: "Forbidden" });
+  next();
+}
+function requireLeader(req: Request, res: any, next: any) {
+  if (!isAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!isLeader(req)) return res.status(403).json({ error: "Forbidden" });
+  next();
+}
+function requireAdmin(req: Request, res: any, next: any) {
+  if (!isAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+  if (!isAdmin(req)) return res.status(403).json({ error: "Forbidden" });
+  next();
+}
+
+function auditLog(req: Request, action: string, payload?: Record<string, unknown>) {
+  const userId = (req as any).user?.id;
+  const ip = req.headers["x-forwarded-for"] ?? req.socket.remoteAddress;
+  const userAgent = req.headers["user-agent"];
+  console.log("[inventory-audit]", { action, userId, ip, userAgent, ...payload });
+}
+
+function buildQrUrl(path: string) {
+  return `${QR_PROVIDER_URL}${encodeURIComponent(`${BASE_URL.replace(/\/$/, "")}${path}`)}`;
+}
+
+async function fetchQrPngForPath(path: string) {
+  const response = await fetch(buildQrUrl(path));
+  if (!response.ok) throw new Error("QR generation failed");
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function getWardCode() {
+  const [tpl] = await db.select({ wardName: pdfTemplates.wardName }).from(pdfTemplates).limit(1);
+  const wardName = String(tpl?.wardName ?? "Barrio Madrid 8").trim();
+  const tokens = wardName.split(/\s+/).filter(Boolean);
+  const initials = tokens
+    .map((token) => {
+      const digits = token.replace(/\D/g, "");
+      if (digits) return digits;
+      return token[0]?.toUpperCase() ?? "";
+    })
+    .join("")
+    .replace(/[^A-Z0-9]/g, "");
+  return initials || "BM8";
+}
+
+function getLocationTypeCode(name: string) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("capilla")) return "CAP";
+  if (normalized.includes("armario")) return "ARM";
+  if (normalized.includes("estante")) return "EST";
+  return "LOC";
+}
+
+async function allocateAssetCode(categoryId: string) {
+  return db.transaction(async (tx) => {
+    const [category] = await tx.select({ prefix: inventoryCategories.prefix }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
+    if (!category) throw new Error("Categoría inválida");
+
+    const updated = await tx.execute(sql`UPDATE inventory_category_counters SET next_seq = next_seq + 1 WHERE category_id = ${categoryId} RETURNING next_seq - 1 AS seq`);
+    const updatedRows = "rows" in updated ? (updated.rows as Array<{ seq: number }>) : [];
+    let seq = updatedRows[0]?.seq;
+
+    if (!seq) {
+      await tx.insert(inventoryCategoryCounters).values({ categoryId, nextSeq: 2 }).onConflictDoNothing();
+      const retried = await tx.execute(sql`UPDATE inventory_category_counters SET next_seq = next_seq + 1 WHERE category_id = ${categoryId} RETURNING next_seq - 1 AS seq`);
+      const retriedRows = "rows" in retried ? (retried.rows as Array<{ seq: number }>) : [];
+      seq = retriedRows[0]?.seq ?? 1;
+    }
+
+    return `${category.prefix}-${String(seq).padStart(4, "0")}`;
+  });
+}
+
+async function allocateLocationCode(name: string) {
+  const wardCode = await getWardCode();
+  const type = getLocationTypeCode(name);
+  const result = await db.execute(sql`SELECT COUNT(*)::int AS total FROM inventory_locations WHERE code LIKE ${`LOC-${wardCode}-${type}-%`}`);
+  const rows = "rows" in result ? (result.rows as Array<{ total: number }>) : [];
+  const seq = (rows[0]?.total ?? 0) + 1;
+  return `LOC-${wardCode}-${type}-${String(seq).padStart(2, "0")}`;
+}
+
+async function buildItemCircularLabelPdf(assetCode: string) {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const size = CIRCLE_MM * MM_TO_PT;
+  const qr = QR_MM * MM_TO_PT;
+  const center = size / 2;
+  const page = pdf.addPage([size, size]);
+  page.drawCircle({ x: center, y: center, size: center - 2, borderWidth: 1, borderColor: rgb(0, 0, 0) });
+  page.drawText(assetCode, { x: 3, y: size - 11, size: 6, maxWidth: size - 6, font });
+  try {
+    const png = await fetchQrPngForPath(`/a/${assetCode}`);
+    const image = await pdf.embedPng(png);
+    page.drawImage(image, { x: center - qr / 2, y: 4, width: qr, height: qr });
+  } catch {
+    page.drawText("QR", { x: center - 4, y: center - 4, size: 8, font });
+  }
+  return Buffer.from(await pdf.save());
+}
+
+async function buildLocationRectLabelPdf(locationCode: string) {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const w = 50 * MM_TO_PT;
+  const h = 30 * MM_TO_PT;
+  const page = pdf.addPage([w, h]);
+  page.drawText(locationCode, { x: 6, y: h - 14, size: 9, font });
+  try {
+    const png = await fetchQrPngForPath(`/loc/${locationCode}`);
+    const image = await pdf.embedPng(png);
+    page.drawImage(image, { x: w - 48, y: 4, width: 44, height: 44 });
+  } catch {
+    page.drawText("QR", { x: w - 28, y: 10, size: 9, font });
+  }
+  return Buffer.from(await pdf.save());
+}
+
+async function resolveItemByInputs(input: { item_asset_code?: string; item_nfc_uid?: string }) {
+  if (input.item_asset_code) {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, input.item_asset_code)).limit(1);
+    return item ?? null;
+  }
+  if (input.item_nfc_uid) {
+    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, input.item_nfc_uid.toUpperCase())).limit(1);
+    if (!link || link.targetType !== "item") return null;
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, link.targetId)).limit(1);
+    return item ?? null;
+  }
+  return null;
+}
+
+async function resolveLocationByInputs(input: { location_code?: string; location_nfc_uid?: string }) {
+  if (input.location_code) {
+    const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.code, input.location_code)).limit(1);
+    return location ?? null;
+  }
+  if (input.location_nfc_uid) {
+    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, input.location_nfc_uid.toUpperCase())).limit(1);
+    if (!link || link.targetType !== "location") return null;
+    const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.id, link.targetId)).limit(1);
+    return location ?? null;
+  }
+  return null;
+}
+
+async function buildLocationPath(locationId?: string | null): Promise<string> {
+  if (!locationId) return "Sin ubicación";
+  const names: string[] = [];
+  let current = locationId;
+  for (let i = 0; i < 10 && current; i++) {
+    const [loc] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.id, current)).limit(1);
+    if (!loc) break;
+    names.unshift(loc.name);
+    current = loc.parentId ?? "";
+  }
+  return names.join(" / ");
+}
+
+export function registerInventoryRoutes(app: Express, requireAuth: RequestHandler, getUserIdFromRequest: (req: Request) => string | null) {
+  app.get("/api/inventory", requireAuth, requireRead, async (req, res) => {
+    const search = String(req.query.search ?? "").trim();
+    const where = search
+      ? sql`(${inventoryItems.assetCode} ILIKE ${`%${search}%`} OR ${inventoryItems.name} ILIKE ${`%${search}%`})`
+      : undefined;
+
+    const items = await db
+      .select({
+        id: inventoryItems.id,
+        assetCode: inventoryItems.assetCode,
+        name: inventoryItems.name,
+        description: inventoryItems.description,
+        status: inventoryItems.status,
+        qrUrl: inventoryItems.qrUrl,
+        trackerId: inventoryItems.trackerId,
+        categoryId: inventoryItems.categoryId,
+        categoryName: inventoryCategories.name,
+        locationId: inventoryItems.locationId,
+        locationName: inventoryLocations.name,
+        locationCode: inventoryLocations.code,
+        createdAt: inventoryItems.createdAt,
+        updatedAt: inventoryItems.updatedAt,
+        lastVerifiedAt: inventoryItems.lastVerifiedAt,
+      })
+      .from(inventoryItems)
+      .leftJoin(inventoryCategories, eq(inventoryItems.categoryId, inventoryCategories.id))
+      .leftJoin(inventoryLocations, eq(inventoryItems.locationId, inventoryLocations.id))
+      .where(where)
+      .orderBy(desc(inventoryItems.createdAt));
+
+    auditLog(req, "list_inventory", { count: items.length });
+    res.json(items);
+  });
+
+  app.post("/api/inventory", requireAuth, requireAdmin, async (req, res) => {
+    const payload = insertInventoryItemSchema.parse(req.body);
+    const assetCode = await allocateAssetCode(payload.categoryId);
+    const qrUrl = `${BASE_URL.replace(/\/$/, "")}/a/${assetCode}`;
+    const [created] = await db.insert(inventoryItems).values({ ...payload, assetCode, qrUrl }).returning();
+    auditLog(req, "create_item", { assetCode });
+    res.status(201).json(created);
+  });
+
+  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
+    const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
+    auditLog(req, "open_item", { assetCode: item.assetCode });
+    res.json({ item, movements, loans });
+  });
+
+  app.get("/a/:assetCode", requireAuth, requireRead, async (req, res) => {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    res.json(item);
+  });
+
+  app.get("/api/inventory/categories", requireAuth, requireRead, async (_req, res) => {
+    res.json(await db.select().from(inventoryCategories).orderBy(asc(inventoryCategories.name)));
+  });
+
+  app.post("/api/inventory/categories", requireAuth, requireAdmin, async (req, res) => {
+    const payload = insertInventoryCategorySchema.parse(req.body);
+    const [created] = await db.insert(inventoryCategories).values(payload).returning();
+    await db.insert(inventoryCategoryCounters).values({ categoryId: created.id, nextSeq: 1 }).onConflictDoNothing();
+    res.status(201).json(created);
+  });
+
+  app.get("/api/inventory/locations", requireAuth, requireRead, async (_req, res) => {
+    const rows = await db.select().from(inventoryLocations).orderBy(asc(inventoryLocations.name));
+    res.json(rows);
+  });
+
+  app.post("/api/inventory/locations", requireAuth, requireAdmin, async (req, res) => {
+    const payload = insertInventoryLocationSchema.parse(req.body);
+    const code = payload.code || (await allocateLocationCode(payload.name));
+    const [created] = await db.insert(inventoryLocations).values({ ...payload, code }).returning();
+    res.status(201).json(created);
+  });
+
+  app.get("/loc/:locationCode", requireAuth, requireRead, async (req, res) => {
+    const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.code, req.params.locationCode)).limit(1);
+    if (!location) return res.status(404).json({ error: "Ubicación no encontrada" });
+    const children = await db.select().from(inventoryLocations).where(eq(inventoryLocations.parentId, location.id)).orderBy(asc(inventoryLocations.name));
+    const items = await db.select().from(inventoryItems).where(eq(inventoryItems.locationId, location.id)).orderBy(asc(inventoryItems.name));
+    res.json({ location, children, items, path: await buildLocationPath(location.id) });
+  });
+
+  app.post("/api/inventory/:assetCode/move", requireAuth, requireLeader, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const payload = z.object({ toLocation: z.string().min(1), note: z.string().max(300).optional() }).parse(req.body);
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    await db.insert(inventoryMovements).values({ itemId: item.id, fromLocation: item.locationId, toLocation: payload.toLocation, userId, note: payload.note });
+    await db.update(inventoryItems).set({ locationId: payload.toLocation, updatedAt: new Date() }).where(eq(inventoryItems.id, item.id));
+    auditLog(req, "move_item", { assetCode: item.assetCode, toLocation: payload.toLocation });
+    res.json({ ok: true });
+  });
+
+  const moveByScanHandler = async (req: Request, res: any) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const payload = moveByScanSchema.parse(req.body);
+
+    const item = await resolveItemByInputs(payload);
+    const location = await resolveLocationByInputs(payload);
+    if (!item || !location) return res.status(400).json({ error: "Debe resolverse exactamente 1 item y 1 location" });
+
+    await db.insert(inventoryMovements).values({ itemId: item.id, fromLocation: item.locationId, toLocation: location.id, userId, note: payload.note ?? "Movimiento por doble escaneo" });
+    await db.update(inventoryItems).set({ locationId: location.id, updatedAt: new Date() }).where(eq(inventoryItems.id, item.id));
+
+    const path = await buildLocationPath(location.id);
+    auditLog(req, "move_by_scan", { item: item.assetCode, location: location.code });
+    res.json({ ok: true, item_asset_code: item.assetCode, to_location_path: path });
+  };
+
+  app.post("/api/inventory/move-by-scan", requireAuth, requireLeader, moveByScanHandler);
+  app.post("/inventory/move-by-scan", requireAuth, requireLeader, moveByScanHandler);
+
+  app.post("/api/inventory/loan", requireAuth, requireLeader, async (req, res) => {
+    const payload = insertInventoryLoanSchema.parse(req.body);
+    const [loan] = await db.insert(inventoryLoans).values(payload).returning();
+    await db.update(inventoryItems).set({ status: "loaned", updatedAt: new Date() }).where(eq(inventoryItems.id, payload.itemId));
+    auditLog(req, "loan_item", { itemId: payload.itemId });
+    res.status(201).json(loan);
+  });
+
+  app.post("/api/inventory/return", requireAuth, requireLeader, async (req, res) => {
+    const payload = z.object({ loanId: z.string().min(1) }).parse(req.body);
+    const [loan] = await db.select().from(inventoryLoans).where(eq(inventoryLoans.id, payload.loanId)).limit(1);
+    if (!loan) return res.status(404).json({ error: "Préstamo no encontrado" });
+    await db.update(inventoryLoans).set({ status: "returned", dateReturn: new Date().toISOString().slice(0, 10) }).where(eq(inventoryLoans.id, loan.id));
+    await db.update(inventoryItems).set({ status: "available", updatedAt: new Date() }).where(eq(inventoryItems.id, loan.itemId));
+    auditLog(req, "return_item", { loanId: loan.id });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/inventory/audits", requireAuth, requireLeader, async (req, res) => {
+    const payload = insertInventoryAuditSchema.parse(req.body);
+    const [audit] = await db.insert(inventoryAudits).values(payload).returning();
+    const items = await db.select({ id: inventoryItems.id }).from(inventoryItems);
+    if (items.length) {
+      await db.insert(inventoryAuditItems).values(items.map((item) => ({ auditId: audit.id, itemId: item.id, verified: false })));
+    }
+    res.status(201).json(audit);
+  });
+
+  app.post("/api/inventory/audits/:auditId/verify", requireAuth, requireLeader, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const payload = z.object({ assetCode: z.string().min(1) }).parse(req.body);
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, payload.assetCode)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    await db.update(inventoryAuditItems).set({ verified: true, verifiedAt: new Date(), verifiedBy: userId }).where(and(eq(inventoryAuditItems.auditId, req.params.auditId), eq(inventoryAuditItems.itemId, item.id)));
+    await db.update(inventoryItems).set({ lastVerifiedAt: new Date(), updatedAt: new Date() }).where(eq(inventoryItems.id, item.id));
+
+    const locationCode = typeof req.query.locationCode === "string" ? req.query.locationCode : "";
+    const locationFilter = locationCode
+      ? sql`AND i.location_id = (SELECT id FROM inventory_locations WHERE code = ${locationCode} LIMIT 1)`
+      : sql``;
+
+    const result = await db.execute(sql`
+      SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE ai.verified = true)::int as verified
+      FROM inventory_audit_items ai
+      JOIN inventory_items i ON i.id = ai.item_id
+      WHERE ai.audit_id = ${req.params.auditId}
+      ${locationFilter}
+    `);
+    const rows = "rows" in result ? result.rows : result;
+    res.json(Array.isArray(rows) ? rows[0] : rows);
+  });
+
+  const byNfcHandler = async (req: Request, res: any) => {
+    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, req.params.uid.toUpperCase())).limit(1);
+    if (!link) return res.json({ registered: false });
+
+    if (link.targetType === "item") {
+      const [item] = await db.select({ assetCode: inventoryItems.assetCode }).from(inventoryItems).where(eq(inventoryItems.id, link.targetId)).limit(1);
+      return res.json({ type: "item", asset_code: item?.assetCode ?? null });
+    }
+
+    const [location] = await db.select({ code: inventoryLocations.code }).from(inventoryLocations).where(eq(inventoryLocations.id, link.targetId)).limit(1);
+    return res.json({ type: "location", location_code: location?.code ?? null });
+  };
+
+  app.get("/api/inventory/by-nfc/:uid", requireAuth, requireRead, byNfcHandler);
+  app.get("/inventory/by-nfc/:uid", requireAuth, requireRead, byNfcHandler);
+
+  const registerItemNfcHandler = async (req: Request, res: any) => {
+    const payload = z.object({ asset_code: z.string().min(1), nfc_uid: z.string().min(4) }).parse(req.body);
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, payload.asset_code)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    const [created] = await db
+      .insert(inventoryNfcLinks)
+      .values({ uid: payload.nfc_uid.toUpperCase(), targetType: "item", targetId: item.id })
+      .onConflictDoNothing()
+      .returning();
+    if (!created) return res.status(409).json({ error: "UID ya registrado" });
+    auditLog(req, "register_nfc_item", { assetCode: payload.asset_code });
+    res.status(201).json(created);
+  };
+
+  app.post("/api/inventory/nfc/register-item", requireAuth, requireLeader, registerItemNfcHandler);
+  app.post("/inventory/nfc/register-item", requireAuth, requireLeader, registerItemNfcHandler);
+
+  const registerLocationNfcHandler = async (req: Request, res: any) => {
+    const payload = registerLocationNfcSchema.parse(req.body);
+    const [location] = payload.location_id
+      ? await db.select().from(inventoryLocations).where(eq(inventoryLocations.id, payload.location_id)).limit(1)
+      : await db.select().from(inventoryLocations).where(eq(inventoryLocations.code, payload.location_code ?? "")).limit(1);
+    if (!location) return res.status(404).json({ error: "Ubicación no encontrada" });
+
+    const [created] = await db
+      .insert(inventoryNfcLinks)
+      .values({ uid: payload.nfc_uid.toUpperCase(), targetType: "location", targetId: location.id })
+      .onConflictDoNothing()
+      .returning();
+    if (!created) return res.status(409).json({ error: "UID ya registrado" });
+    auditLog(req, "register_nfc_location", { locationCode: location.code });
+    res.status(201).json(created);
+  };
+
+  app.post("/api/inventory/nfc/register-location", requireAuth, requireLeader, registerLocationNfcHandler);
+  app.post("/inventory/nfc/register-location", requireAuth, requireLeader, registerLocationNfcHandler);
+
+  app.get("/inventory/qr/:assetCode", requireAuth, requireRead, async (req, res) => {
+    try {
+      const png = await fetchQrPngForPath(`/a/${req.params.assetCode}`);
+      res.setHeader("Content-Type", "image/png");
+      res.send(png);
+    } catch {
+      res.status(500).json({ error: "No se pudo generar QR" });
+    }
+  });
+
+  app.get("/inventory/label/:assetCode", requireAuth, requireRead, async (req, res) => {
+    const pdf = await buildItemCircularLabelPdf(req.params.assetCode);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename=item-label-${req.params.assetCode}.pdf`);
+    res.send(pdf);
+  });
+
+  app.get("/inventory/location-label/:locationCode", requireAuth, requireRead, async (req, res) => {
+    const pdf = await buildLocationRectLabelPdf(req.params.locationCode);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename=location-label-${req.params.locationCode}.pdf`);
+    res.send(pdf);
+  });
+
+  app.get("/inventory/labels/batch", requireAuth, requireRead, async (req, res) => {
+    const assetCodes = String(req.query.assetCodes ?? "").split(",").map((v) => v.trim()).filter(Boolean);
+    if (!assetCodes.length) return res.status(400).json({ error: "assetCodes es requerido" });
+
+    const pdf = await PDFDocument.create();
+    for (const code of assetCodes) {
+      const label = await buildItemCircularLabelPdf(code);
+      const src = await PDFDocument.load(label);
+      const [page] = await pdf.copyPages(src, [0]);
+      pdf.addPage(page);
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=inventory-labels.pdf");
+    res.send(Buffer.from(await pdf.save()));
+  });
+}
