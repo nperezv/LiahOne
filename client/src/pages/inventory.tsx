@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { InventoryScanner } from "@/components/inventory-scanner";
 import {
   useCreateInventoryCategory,
@@ -49,7 +50,7 @@ export default function InventoryPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [categoryName, setCategoryName] = useState("");
-  const [categoryPrefix, setCategoryPrefix] = useState("");
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
 
   const [assetUid, setAssetUid] = useState("");
   const [assetName, setAssetName] = useState("");
@@ -120,15 +121,32 @@ export default function InventoryPage() {
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [filteredItems, locations, items]);
 
+  const buildCategoryBasePrefix = (rawName: string) => {
+    const tokens = rawName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .split(/\s+/)
+      .map((token) => token.replace(/[^A-Za-z0-9]/g, ""))
+      .filter(Boolean);
+
+    const fromInitials = tokens.map((token) => token[0]).join("").toUpperCase();
+    const candidate = (fromInitials || "CAT").slice(0, 4);
+    return candidate || "CAT";
+  };
+
   const handleCreateCategory = async () => {
-    if (!categoryName.trim() || !categoryPrefix.trim()) return;
+    if (!categoryName.trim()) return;
+
+    const cleanName = categoryName.trim();
+    const generatedPrefix = buildCategoryBasePrefix(cleanName);
+
     try {
       await createCategory.mutateAsync({
-        name: categoryName.trim(),
-        prefix: categoryPrefix.trim().toUpperCase(),
+        name: cleanName,
+        prefix: generatedPrefix,
       });
       setCategoryName("");
-      setCategoryPrefix("");
+      setCategoryModalOpen(false);
     } catch {
       // handled by API/error toasts upstream; avoid uncaught promise in UI
     }
@@ -296,18 +314,6 @@ export default function InventoryPage() {
 
         <TabsContent value="register" className="mt-0 space-y-4">
           <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Definir categorías</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">Define prefijo base (A, V, IT...). El código final agrega siglas de barrio desde settings (ej: ABM8-0001).</p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input className="h-11 rounded-xl" placeholder="Nombre categoría" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} />
-                <Input className="h-11 rounded-xl" placeholder="Prefijo base" value={categoryPrefix} onChange={(e) => setCategoryPrefix(e.target.value.toUpperCase())} />
-              </div>
-              <Button className="h-11 rounded-xl" disabled={!categoryName.trim() || !categoryPrefix.trim() || createCategory.isPending} onClick={handleCreateCategory}><Plus className="mr-2 h-4 w-4" />Crear categoría</Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl">
             <CardHeader><CardTitle className="text-base">Alta de activo por NFC (inversa)</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: leer NFC activo. Paso 2: completar datos. Paso 3: crear activo + vincular UID.</div>
@@ -367,6 +373,33 @@ export default function InventoryPage() {
               </div>
             </CardContent>
           </Card>
+          <Card className="rounded-3xl border-dashed">
+            <CardHeader><CardTitle className="text-base">Definir categorías</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">Crea una categoría al final del flujo. El prefijo base se calcula automáticamente desde el nombre (ej: Comida → C; código final: CBM8-0001).</p>
+              <Dialog open={categoryModalOpen} onOpenChange={setCategoryModalOpen}>
+                <DialogTrigger asChild>
+                  <Button className="h-11 rounded-xl" variant="outline"><Plus className="mr-2 h-4 w-4" />Nueva categoría</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Crear categoría</DialogTitle>
+                    <DialogDescription>
+                      Indica el nombre y generamos el prefijo base automáticamente según las iniciales.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <Input className="h-11 rounded-xl" placeholder="Nombre categoría (ej: Comida)" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">Prefijo sugerido: <b>{buildCategoryBasePrefix(categoryName || "Categoria")}</b></p>
+                    <Button className="h-11 w-full rounded-xl" disabled={!categoryName.trim() || createCategory.isPending} onClick={handleCreateCategory}>
+                      {createCategory.isPending ? "Creando..." : "Crear categoría"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+
         </TabsContent>
 
         <TabsContent value="audit" className="mt-0 space-y-4">
