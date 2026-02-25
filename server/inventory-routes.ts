@@ -280,15 +280,6 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     res.status(201).json(created);
   });
 
-  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
-    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
-    if (!item) return res.status(404).json({ error: "Item no encontrado" });
-    const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
-    const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
-    auditLog(req, "open_item", { assetCode: item.assetCode });
-    res.json({ item, movements, loans });
-  });
-
   app.get("/a/:assetCode", requireAuth, requireRead, async (req, res) => {
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
@@ -316,6 +307,15 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     const code = payload.code || (await allocateLocationCode(payload.name));
     const [created] = await db.insert(inventoryLocations).values({ ...payload, code }).returning();
     res.status(201).json(created);
+  });
+
+  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
+    const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
+    auditLog(req, "open_item", { assetCode: item.assetCode });
+    res.json({ item, movements, loans });
   });
 
   app.get("/loc/:locationCode", requireAuth, requireRead, async (req, res) => {
