@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
+import { PanelLeft } from "lucide-react"
 import { cva, VariantProps } from "class-variance-authority"
 
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -273,12 +274,11 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <img
-        src="/favicon.svg"
-        alt="Abrir sidebar"
+      <PanelLeft
+        aria-hidden="true"
         className={cn(
-          "h-[2.5rem] w-[2.5rem] transition-all duration-300 ease-out",
-          isExpanded ? "rotate-90 scale-95 opacity-40" : "rotate-0 opacity-100"
+          "h-6 w-6 transition-all duration-300 ease-out",
+          isExpanded ? "rotate-90 scale-95 opacity-55" : "rotate-0 opacity-100"
         )}
       />
       <span className="sr-only">Toggle Sidebar</span>
