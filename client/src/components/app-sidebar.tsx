@@ -94,6 +94,12 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     presidentOnly: true, // Presidents only see their own presidency
   },
   {
+    title: "Inventario",
+    url: "/inventory",
+    icon: Sparkles,
+    roles: ["obispo", "consejero_obispo", "bibliotecario"],
+  },
+  {
     title: "Biblioteca de recursos",
     url: "/resources-library",
     icon: Library,
