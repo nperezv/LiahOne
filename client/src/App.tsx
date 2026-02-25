@@ -43,6 +43,13 @@ import DirectoryPage from "@/pages/directory";
 import SecretaryDashboardPage from "@/pages/secretary-dashboard";
 import ResourcesLibraryPage from "@/pages/resources-library";
 import DonationsPage from "@/pages/donations";
+import InventoryPage from "@/pages/inventory";
+import InventoryNewPage from "@/pages/inventory-new";
+import InventoryDetailPage from "@/pages/inventory-detail";
+import InventoryAuditPage from "@/pages/inventory-audit";
+import InventoryPublicPage from "@/pages/inventory-public";
+import InventoryLocationsPage from "@/pages/inventory-locations";
+import InventoryLocationDetailPage from "@/pages/inventory-location-detail";
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
@@ -126,6 +133,30 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/resources-library">
           <ResourcesLibraryPage />
+        </Route>
+        <Route path="/inventory">
+          <InventoryPage />
+        </Route>
+        <Route path="/inventory/new">
+          <InventoryNewPage />
+        </Route>
+        <Route path="/inventory/audit">
+          <InventoryAuditPage />
+        </Route>
+        <Route path="/inventory/locations">
+          <InventoryLocationsPage />
+        </Route>
+        <Route path="/inventory/locations/:locationCode">
+          <InventoryLocationDetailPage />
+        </Route>
+        <Route path="/inventory/:assetCode">
+          <InventoryDetailPage />
+        </Route>
+        <Route path="/a/:assetCode">
+          <InventoryPublicPage />
+        </Route>
+        <Route path="/loc/:locationCode">
+          <InventoryLocationDetailPage />
         </Route>
         <Route path="/admin/users">
           <AdminUsersPage />

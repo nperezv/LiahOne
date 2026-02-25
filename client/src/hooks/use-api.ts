@@ -1496,3 +1496,159 @@ export function useUpsertOrganizationAttendance() {
     },
   });
 }
+
+// ========================================
+// INVENTORY
+// ========================================
+
+export interface InventoryCategory {
+  id: string;
+  name: string;
+  prefix: string;
+  description?: string | null;
+}
+
+export interface InventoryLocation {
+  id: string;
+  name: string;
+  code: string;
+  parentId?: string | null;
+  description?: string | null;
+}
+
+export interface InventoryItem {
+  id: string;
+  assetCode: string;
+  name: string;
+  description?: string | null;
+  status: "available" | "loaned" | "maintenance";
+  qrUrl: string;
+  trackerId?: string | null;
+  categoryId: string;
+  locationId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastVerifiedAt?: string | null;
+}
+
+export function useInventoryItems(search?: string) {
+  return useQuery<InventoryItem[]>({
+    queryKey: ["/api/inventory", search ?? ""],
+    queryFn: async () => apiRequest("GET", `/api/inventory${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  });
+}
+
+export function useInventoryItem(assetCode?: string) {
+  return useQuery<any>({
+    queryKey: ["/api/inventory", assetCode ?? ""],
+    enabled: Boolean(assetCode),
+    queryFn: async () => {
+      if (!assetCode) return null;
+      return apiRequest("GET", `/api/inventory/${assetCode}`);
+    },
+  });
+}
+
+export function useInventoryCategories() {
+  return useQuery<InventoryCategory[]>({ queryKey: ["/api/inventory/categories"] });
+}
+
+export function useInventoryLocations() {
+  return useQuery<InventoryLocation[]>({ queryKey: ["/api/inventory/locations"] });
+}
+
+export function useCreateInventoryCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<InventoryCategory>) => apiRequest("POST", "/api/inventory/categories", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/inventory/categories"] }),
+  });
+}
+
+export function useCreateInventoryLocation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<InventoryLocation>) => apiRequest("POST", "/api/inventory/locations", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/inventory/locations"] }),
+  });
+}
+
+export function useCreateInventoryItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/inventory", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      toast({ title: "Item creado", description: "El activo se registró correctamente." });
+    },
+    onError: () => toast({ title: "Error", description: "No se pudo crear el item.", variant: "destructive" }),
+  });
+}
+
+export function useMoveInventoryItem(assetCode: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { toLocation: string; note?: string }) => apiRequest("POST", `/api/inventory/${assetCode}/move`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory", assetCode] });
+    },
+  });
+}
+
+export function useMoveByScan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { item_asset_code?: string; item_nfc_uid?: string; location_code?: string; location_nfc_uid?: string; note?: string }) => apiRequest("POST", "/inventory/move-by-scan", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }),
+  });
+}
+
+export function useCreateAudit() {
+  return useMutation({
+    mutationFn: (data: { name: string }) => apiRequest("POST", "/api/inventory/audits", data),
+  });
+}
+
+export function useVerifyAuditItem(auditId: string) {
+  return useMutation({
+    mutationFn: (assetCode: string) => apiRequest("POST", `/api/inventory/audits/${auditId}/verify`, { assetCode }),
+  });
+}
+
+export function useInventoryByNfc(uid?: string) {
+  return useQuery<any>({
+    queryKey: ["/api/inventory/by-nfc", uid ?? ""],
+    enabled: Boolean(uid),
+    queryFn: async () => apiRequest("GET", `/inventory/by-nfc/${uid}`),
+  });
+}
+
+export function useRegisterItemNfc() {
+  return useMutation({
+    mutationFn: (data: { asset_code: string; nfc_uid: string }) => apiRequest("POST", "/inventory/nfc/register-item", data),
+  });
+}
+
+export function useRegisterLocationNfc() {
+  return useMutation({
+    mutationFn: (data: { location_id?: string; location_code?: string; nfc_uid: string }) => apiRequest("POST", "/inventory/nfc/register-location", data),
+  });
+}
+
+export function useInventoryLoan() {
+  return useMutation({ mutationFn: (data: any) => apiRequest("POST", "/api/inventory/loan", data) });
+}
+
+export function useInventoryReturn() {
+  return useMutation({ mutationFn: (loanId: string) => apiRequest("POST", "/api/inventory/return", { loanId }) });
+}
+
+export function useInventoryLocationDetail(locationCode?: string) {
+  return useQuery<any>({
+    queryKey: ["/loc", locationCode ?? ""],
+    enabled: Boolean(locationCode),
+    queryFn: async () => apiRequest("GET", `/loc/${locationCode}`),
+  });
+}
