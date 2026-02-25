@@ -47,6 +47,7 @@ export default function InventoryPage() {
   const moveByScan = useMoveByScan();
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [categoryName, setCategoryName] = useState("");
   const [categoryPrefix, setCategoryPrefix] = useState("");
 
@@ -92,9 +93,32 @@ export default function InventoryPage() {
   );
 
   const filteredItems = useMemo(() => {
-    if (selectedCategoryId === "all") return items;
-    return items.filter((item) => item.categoryId === selectedCategoryId);
-  }, [items, selectedCategoryId]);
+    return items.filter((item) => {
+      const categoryOk = selectedCategoryId === "all" || item.categoryId === selectedCategoryId;
+      const locationOk = selectedLocationId === "all" || item.locationId === selectedLocationId;
+      return categoryOk && locationOk;
+    });
+  }, [items, selectedCategoryId, selectedLocationId]);
+
+  const itemsByLocation = useMemo(() => {
+    const grouped = new Map<string, { id: string; name: string; code: string; count: number; items: typeof items }>();
+
+    locations.forEach((location) => {
+      grouped.set(location.id, { id: location.id, name: location.name, code: location.code, count: 0, items: [] as typeof items });
+    });
+
+    filteredItems.forEach((item) => {
+      if (!item.locationId) return;
+      const entry = grouped.get(item.locationId);
+      if (!entry) return;
+      entry.count += 1;
+      entry.items.push(item);
+    });
+
+    return Array.from(grouped.values())
+      .filter((entry) => entry.count > 0)
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [filteredItems, locations, items]);
 
   const handleCreateCategory = async () => {
     if (!categoryName.trim() || !categoryPrefix.trim()) return;
@@ -202,7 +226,7 @@ export default function InventoryPage() {
 
         <TabsContent value="inventory" className="mt-0 space-y-4">
           <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Filter className="h-4 w-4" />Filtro por categoría</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Filter className="h-4 w-4" />Filtros por categoría y armario</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
                 <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todas las categorías" /></SelectTrigger>
@@ -210,6 +234,15 @@ export default function InventoryPage() {
                   <SelectItem value="all">Todas las categorías</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>{category.name} · {category.prefix}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
+                <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todos los armarios / ubicaciones" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los armarios / ubicaciones</SelectItem>
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -236,6 +269,27 @@ export default function InventoryPage() {
                 </Link>
               ))}
               {filteredItems.length === 0 && <p className="text-sm text-muted-foreground">No hay activos para este filtro.</p>}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl">
+            <CardHeader><CardTitle className="text-base">Visibilidad por armario / ubicación</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {itemsByLocation.map((entry) => (
+                <Link key={entry.id} href={`/inventory/locations/${entry.code}`}>
+                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold">{entry.name} · {entry.code}</p>
+                      <Badge variant="secondary" className="rounded-full">{entry.count} activo(s)</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {entry.items.slice(0, 3).map((item) => item.assetCode).join(" · ")}
+                      {entry.items.length > 3 ? ` · +${entry.items.length - 3} más` : ""}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+              {itemsByLocation.length === 0 && <p className="text-sm text-muted-foreground">No hay activos ubicados en armarios para el filtro actual.</p>}
             </CardContent>
           </Card>
         </TabsContent>
