@@ -34,20 +34,29 @@ ALTER TABLE inventory_locations
   ADD COLUMN IF NOT EXISTS parent_id varchar REFERENCES inventory_locations(id),
   ADD COLUMN IF NOT EXISTS code varchar(40);
 
+WITH numbered_locations AS (
+  SELECT
+    id,
+    row_number() OVER (ORDER BY created_at, id) AS seq
+  FROM inventory_locations
+  WHERE code IS NULL
+)
 UPDATE inventory_locations l
-SET code = COALESCE(
-  code,
+SET code =
   'LOC-' ||
   COALESCE((
     SELECT string_agg(
       CASE WHEN token ~ '^[0-9]+$' THEN token ELSE upper(left(token, 1)) END,
       ''
     )
-    FROM regexp_split_to_table(COALESCE((SELECT ward_name FROM pdf_templates LIMIT 1), 'Barrio Madrid 8'), '\s+') AS token
+    FROM regexp_split_to_table(
+      COALESCE((SELECT ward_name FROM pdf_templates LIMIT 1), 'Barrio Madrid 8'),
+      '\s+'
+    ) AS token
   ), 'BM8')
-  || '-LOC-' || lpad((row_number() over (order by l.created_at))::text, 2, '0')
-)
-WHERE code IS NULL;
+  || '-LOC-' || lpad(nl.seq::text, 2, '0')
+FROM numbered_locations nl
+WHERE l.id = nl.id;
 
 ALTER TABLE inventory_locations
   ALTER COLUMN code SET NOT NULL;
