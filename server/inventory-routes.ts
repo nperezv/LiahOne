@@ -114,10 +114,26 @@ function getLocationTypeCode(name: string) {
   return "LOC";
 }
 
+function buildDynamicAssetPrefix(rawPrefix: string, wardCode: string) {
+  const normalizedWard = wardCode.replace(/[^A-Z0-9]/gi, "").toUpperCase() || "BM8";
+  const cleanedPrefix = rawPrefix.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  if (!cleanedPrefix) return normalizedWard;
+
+  if (cleanedPrefix.endsWith(normalizedWard)) return cleanedPrefix;
+
+  // Compatibilidad: si quedó guardado un sufijo tipo barrio previo (ej. ABM7),
+  // se reemplaza por el barrio actual de configuración.
+  const oldWardSuffixMatch = cleanedPrefix.match(/^(.*?)([A-Z]{1,3}\d{1,3})$/);
+  const basePrefix = oldWardSuffixMatch?.[1] ? oldWardSuffixMatch[1] : cleanedPrefix;
+  return `${basePrefix}${normalizedWard}`;
+}
+
 async function allocateAssetCode(categoryId: string) {
   return db.transaction(async (tx) => {
     const [category] = await tx.select({ prefix: inventoryCategories.prefix }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
     if (!category) throw new Error("Categoría inválida");
+    const wardCode = await getWardCode();
+    const dynamicPrefix = buildDynamicAssetPrefix(category.prefix, wardCode);
 
     const updated = await tx.execute(sql`UPDATE inventory_category_counters SET next_seq = next_seq + 1 WHERE category_id = ${categoryId} RETURNING next_seq - 1 AS seq`);
     const updatedRows = "rows" in updated ? (updated.rows as Array<{ seq: number }>) : [];
@@ -130,7 +146,7 @@ async function allocateAssetCode(categoryId: string) {
       seq = retriedRows[0]?.seq ?? 1;
     }
 
-    return `${category.prefix}-${String(seq).padStart(4, "0")}`;
+    return `${dynamicPrefix}-${String(seq).padStart(4, "0")}`;
   });
 }
 
