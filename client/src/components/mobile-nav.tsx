@@ -39,9 +39,11 @@ export function MobileNav() {
 
   const organizationHref = organizationSlug ? `/presidency/${organizationSlug}` : "/leadership";
 
+  const isBibliotecario = user?.role === "bibliotecario";
+
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: Home },
-    { label: "Agenda", href: "/calendar", icon: CalendarDays },
+    { label: isBibliotecario ? "Inventario" : "Agenda", href: isBibliotecario ? "/inventory" : "/calendar", icon: isBibliotecario ? Users : CalendarDays },
     {
       label: isObispado ? "Directorio" : "Organización",
       href: isObispado ? "/directory" : organizationHref,

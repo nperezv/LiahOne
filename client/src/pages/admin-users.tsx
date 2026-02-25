@@ -49,7 +49,7 @@ const createUserSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email inválido"),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario"]),
   organizationId: z.string().min(1, "Selecciona una organización"),
   memberId: z.string().min(1, "Selecciona un miembro"),
   callingName: z.string().optional().or(z.literal("")),
@@ -65,7 +65,7 @@ const editUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario"]),
   organizationId: z.string().optional(),
   memberId: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
@@ -678,6 +678,7 @@ export default function AdminUsersPage() {
         { value: "secretario", label: "Secretario" },
         { value: "secretario_ejecutivo", label: "Secretario Ejecutivo" },
         { value: "secretario_financiero", label: "Secretario Financiero" },
+        { value: "bibliotecario", label: "Bibliotecario" },
       ];
     }
     return [
@@ -697,6 +698,7 @@ export default function AdminUsersPage() {
       secretario: "secretario",
       "secretario ejecutivo": "secretario_ejecutivo",
       "secretario financiero": "secretario_financiero",
+      bibliotecario: "bibliotecario",
     };
     const organizationMap: Record<string, string> = {
       presidenta: "presidente_organizacion",
@@ -981,6 +983,7 @@ export default function AdminUsersPage() {
     secretario: "Secretario",
     secretario_ejecutivo: "Secretario Ejecutivo",
     secretario_financiero: "Secretario Financiero",
+    bibliotecario: "Bibliotecario",
     presidente_organizacion: "Presidente",
     consejero_organizacion: "Consejero",
   };
@@ -1798,6 +1801,7 @@ export default function AdminUsersPage() {
                                               <SelectItem value="secretario">Secretario</SelectItem>
                                               <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
                                               <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
+                                              <SelectItem value="bibliotecario">Bibliotecario</SelectItem>
                                               <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
                                               <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
                                               <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>

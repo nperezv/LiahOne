@@ -94,6 +94,12 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     presidentOnly: true, // Presidents only see their own presidency
   },
   {
+    title: "Inventario",
+    url: "/inventory",
+    icon: Sparkles,
+    roles: ["obispo", "consejero_obispo", "bibliotecario"],
+  },
+  {
     title: "Biblioteca de recursos",
     url: "/resources-library",
     icon: Library,
@@ -281,6 +287,18 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarContent>
+        <div className="mx-2 mt-3 rounded-[22px] border border-sidebar-border/70 bg-sidebar-accent/20 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80">
+              <img src="/favicon.svg" alt="LiahonApp" className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-none">Liahonapp</p>
+              <p className="truncate pt-1 text-[11px] text-sidebar-foreground/65">Panel principal</p>
+            </div>
+          </div>
+        </div>
+
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">
             Navegación

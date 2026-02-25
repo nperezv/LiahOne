@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric, date } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric, date, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -87,6 +87,7 @@ export const roleEnum = pgEnum("role", [
   "presidente_organizacion",
   "consejero_organizacion",
   "secretario_organizacion",
+  "bibliotecario",
 ]);
 
 export const organizationTypeEnum = pgEnum("organization_type", [
@@ -1247,10 +1248,244 @@ export const insertOrganizationAttendanceMonthlySnapshotSchema = createInsertSch
 
 export const selectOrganizationAttendanceMonthlySnapshotSchema = createSelectSchema(organizationAttendanceMonthlySnapshots);
 
+export const inventoryItemStatusEnum = pgEnum("inventory_item_status", [
+  "available",
+  "loaned",
+  "maintenance",
+]);
+
+export const inventoryLoanStatusEnum = pgEnum("inventory_loan_status", [
+  "active",
+  "returned",
+  "overdue",
+]);
+
+export const inventoryNfcTargetTypeEnum = pgEnum("inventory_nfc_target_type", ["item", "location"]);
+
+export const inventoryCategories = pgTable("inventory_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  prefix: varchar("prefix", { length: 20 }).notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const inventoryCategoryCounters = pgTable("inventory_category_counters", {
+  categoryId: varchar("category_id").primaryKey().references(() => inventoryCategories.id, { onDelete: "cascade" }),
+  nextSeq: integer("next_seq").notNull().default(1),
+});
+
+export const inventoryLocations = pgTable("inventory_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  parentId: varchar("parent_id").references(() => inventoryLocations.id),
+  code: varchar("code", { length: 40 }).notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const inventoryItems = pgTable("inventory_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assetCode: varchar("asset_code", { length: 40 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  categoryId: varchar("category_id").notNull().references(() => inventoryCategories.id),
+  locationId: varchar("location_id").references(() => inventoryLocations.id),
+  status: inventoryItemStatusEnum("status").notNull().default("available"),
+  photoUrl: text("photo_url"),
+  qrUrl: text("qr_url").notNull(),
+  trackerId: varchar("tracker_id", { length: 120 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  lastVerifiedAt: timestamp("last_verified_at"),
+});
+
+export const inventoryMovements = pgTable("inventory_movements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => inventoryItems.id),
+  fromLocation: varchar("from_location").references(() => inventoryLocations.id),
+  toLocation: varchar("to_location").references(() => inventoryLocations.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const inventoryLoans = pgTable("inventory_loans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => inventoryItems.id),
+  borrowerName: text("borrower_name").notNull(),
+  borrowerContact: text("borrower_contact"),
+  dateOut: date("date_out").notNull(),
+  dateReturn: date("date_return"),
+  status: inventoryLoanStatusEnum("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const inventoryAudits = pgTable("inventory_audits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const inventoryAuditItems = pgTable("inventory_audit_items", {
+  auditId: varchar("audit_id").notNull().references(() => inventoryAudits.id, { onDelete: "cascade" }),
+  itemId: varchar("item_id").notNull().references(() => inventoryItems.id, { onDelete: "cascade" }),
+  verified: boolean("verified").notNull().default(false),
+  verifiedAt: timestamp("verified_at"),
+  verifiedBy: varchar("verified_by").references(() => users.id),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.auditId, t.itemId] }),
+}));
+
+export const inventoryNfcLinks = pgTable("inventory_nfc_links", {
+  uid: varchar("uid", { length: 100 }).primaryKey(),
+  targetType: inventoryNfcTargetTypeEnum("target_type").notNull(),
+  targetId: varchar("target_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const inventoryCategoriesRelations = relations(inventoryCategories, ({ many, one }) => ({
+  items: many(inventoryItems),
+  counter: one(inventoryCategoryCounters, {
+    fields: [inventoryCategories.id],
+    references: [inventoryCategoryCounters.categoryId],
+  }),
+}));
+
+export const inventoryCategoryCountersRelations = relations(inventoryCategoryCounters, ({ one }) => ({
+  category: one(inventoryCategories, {
+    fields: [inventoryCategoryCounters.categoryId],
+    references: [inventoryCategories.id],
+  }),
+}));
+
+export const inventoryLocationsRelations = relations(inventoryLocations, ({ many, one }) => ({
+  items: many(inventoryItems),
+  parent: one(inventoryLocations, {
+    fields: [inventoryLocations.parentId],
+    references: [inventoryLocations.id],
+  }),
+  children: many(inventoryLocations),
+}));
+
+export const inventoryItemsRelations = relations(inventoryItems, ({ one, many }) => ({
+  category: one(inventoryCategories, {
+    fields: [inventoryItems.categoryId],
+    references: [inventoryCategories.id],
+  }),
+  location: one(inventoryLocations, {
+    fields: [inventoryItems.locationId],
+    references: [inventoryLocations.id],
+  }),
+  movements: many(inventoryMovements),
+  loans: many(inventoryLoans),
+  auditItems: many(inventoryAuditItems),
+}));
+
+export const inventoryMovementsRelations = relations(inventoryMovements, ({ one }) => ({
+  item: one(inventoryItems, {
+    fields: [inventoryMovements.itemId],
+    references: [inventoryItems.id],
+  }),
+  user: one(users, {
+    fields: [inventoryMovements.userId],
+    references: [users.id],
+  }),
+}));
+
+export const inventoryLoansRelations = relations(inventoryLoans, ({ one }) => ({
+  item: one(inventoryItems, {
+    fields: [inventoryLoans.itemId],
+    references: [inventoryItems.id],
+  }),
+}));
+
+export const inventoryAuditsRelations = relations(inventoryAudits, ({ many }) => ({
+  auditItems: many(inventoryAuditItems),
+}));
+
+export const inventoryAuditItemsRelations = relations(inventoryAuditItems, ({ one }) => ({
+  audit: one(inventoryAudits, {
+    fields: [inventoryAuditItems.auditId],
+    references: [inventoryAudits.id],
+  }),
+  item: one(inventoryItems, {
+    fields: [inventoryAuditItems.itemId],
+    references: [inventoryItems.id],
+  }),
+  verifier: one(users, {
+    fields: [inventoryAuditItems.verifiedBy],
+    references: [users.id],
+  }),
+}));
+
+export const insertInventoryCategorySchema = createInsertSchema(inventoryCategories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInventoryCategoryCounterSchema = createInsertSchema(inventoryCategoryCounters);
+
+export const insertInventoryLocationSchema = createInsertSchema(inventoryLocations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({
+  id: true,
+  assetCode: true,
+  qrUrl: true,
+  createdAt: true,
+  updatedAt: true,
+  lastVerifiedAt: true,
+});
+
+export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({
+  id: true,
+  createdAt: true,
+  userId: true,
+  fromLocation: true,
+});
+
+export const insertInventoryLoanSchema = createInsertSchema(inventoryLoans).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInventoryAuditSchema = createInsertSchema(inventoryAudits).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInventoryAuditItemSchema = createInsertSchema(inventoryAuditItems);
+
+export const insertInventoryNfcLinkSchema = createInsertSchema(inventoryNfcLinks).omit({
+  createdAt: true,
+});
+
+
 export type OrganizationWeeklyAttendance = typeof organizationWeeklyAttendance.$inferSelect;
 export type InsertOrganizationWeeklyAttendance = z.infer<typeof insertOrganizationWeeklyAttendanceSchema>;
 export type OrganizationAttendanceMonthlySnapshot = typeof organizationAttendanceMonthlySnapshots.$inferSelect;
 export type InsertOrganizationAttendanceMonthlySnapshot = z.infer<typeof insertOrganizationAttendanceMonthlySnapshotSchema>;
+export type InventoryCategory = typeof inventoryCategories.$inferSelect;
+export type InventoryCategoryCounter = typeof inventoryCategoryCounters.$inferSelect;
+export type InsertInventoryCategoryCounter = z.infer<typeof insertInventoryCategoryCounterSchema>;
+export type InsertInventoryCategory = z.infer<typeof insertInventoryCategorySchema>;
+export type InventoryLocation = typeof inventoryLocations.$inferSelect;
+export type InsertInventoryLocation = z.infer<typeof insertInventoryLocationSchema>;
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
+export type InventoryLoan = typeof inventoryLoans.$inferSelect;
+export type InsertInventoryLoan = z.infer<typeof insertInventoryLoanSchema>;
+export type InventoryAudit = typeof inventoryAudits.$inferSelect;
+export type InsertInventoryAudit = z.infer<typeof insertInventoryAuditSchema>;
+export type InventoryAuditItem = typeof inventoryAuditItems.$inferSelect;
+export type InsertInventoryAuditItem = z.infer<typeof insertInventoryAuditItemSchema>;
+export type InventoryNfcLink = typeof inventoryNfcLinks.$inferSelect;
+export type InsertInventoryNfcLink = z.infer<typeof insertInventoryNfcLinkSchema>;
 
 export type WardBudget = typeof wardBudgets.$inferSelect;
 export type InsertWardBudget = z.infer<typeof insertWardBudgetSchema>;
