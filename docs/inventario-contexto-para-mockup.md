@@ -34,6 +34,19 @@ El problema principal no es “que no exista backend”, sino que la UX no lo mu
 ### 1.2 “Quiero dar de alta …”
 
 #### A) Dar de alta **categorías** (ej: Audio, Limpieza, Oficina)
+
+### Categorías base sugeridas
+Con la migración `0040_seed_inventory_categories.sql` se dejan precargadas categorías iniciales:
+- Audio (`A`)
+- Video (`V`)
+- Informática (`IT`)
+- Mobiliario (`M`)
+- Limpieza (`L`)
+- Papelería (`P`)
+- Seguridad (`S`)
+
+> El `asset_code` final sigue siendo dinámico por barrio (ej. `ABM8-0001`) porque el ward code se agrega al asignar códigos de activo.
+
 No hay pantalla dedicada hoy en navegación principal, pero sí existe API/hook:
 - Hook: `useCreateInventoryCategory`
 - Endpoint: `POST /api/inventory/categories`

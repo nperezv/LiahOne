@@ -32,6 +32,7 @@ import {
   getNotificationDestination,
 } from "@/lib/notifications";
 import type { Notification } from "@shared/schema";
+import logoImage from "@assets/liahonapplogo2.svg";
 
 interface AppHeaderProps {
   user?: {
@@ -96,7 +97,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     user?.role === "consejero_obispo" ||
     user?.role === "secretario_ejecutivo";
 
-  const wardName = template?.wardName?.trim() || "Barrio";
+  const wardName = template?.wardName?.trim() || "Barrio (configurar en Ajustes)";
 
   const getInitials = (name?: string) => {
     if (!name) return "U";
@@ -118,8 +119,11 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
       <div className="flex items-center gap-3">
-        <SidebarTrigger data-testid="button-sidebar-toggle" className="shrink-0" />
-        <h1 className="max-w-[52vw] truncate text-xl font-semibold tracking-tight">{wardName}</h1>
+        <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12" />
+        <div className="flex items-center gap-2">
+          <img src={logoImage} alt="Liahonapp" className="h-7 w-7 rounded-md object-contain" />
+          <h1 className="text-lg font-semibold tracking-tight">{wardName}</h1>
+        </div>
       </div>
 
       {/* DERECHA */}
