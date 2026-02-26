@@ -70,6 +70,69 @@ function NfcScanRing({ active }: { active: boolean }) {
   );
 }
 
+type GaugeSegment = {
+  label: string;
+  value: number;
+  color: string;
+};
+
+function InventoryGauge({ total, segments }: { total: number; segments: GaugeSegment[] }) {
+  const radius = 92;
+  const strokeWidth = 18;
+  const circumference = 2 * Math.PI * radius;
+  const totalFromSegments = segments.reduce((acc, segment) => acc + segment.value, 0) || 1;
+  let accumulated = 0;
+
+  return (
+    <div className="relative flex h-64 w-64 items-center justify-center">
+      <svg viewBox="0 0 240 240" className="h-full w-full -rotate-90">
+        <circle cx="120" cy="120" r={radius} strokeWidth={strokeWidth} className="fill-none stroke-muted/60" />
+        {segments.map((segment) => {
+          const length = (segment.value / totalFromSegments) * circumference;
+          const offset = -accumulated;
+          accumulated += length;
+
+          return (
+            <circle
+              key={segment.label}
+              cx="120"
+              cy="120"
+              r={radius}
+              strokeWidth={strokeWidth}
+              className="fill-none"
+              style={{
+                stroke: segment.color,
+                strokeDasharray: `${Math.max(length - 4, 0)} ${circumference}`,
+                strokeDashoffset: offset,
+                strokeLinecap: "round",
+                filter: "drop-shadow(0 0 6px rgba(56,189,248,0.35))",
+              }}
+            />
+          );
+        })}
+      </svg>
+
+      <div className="absolute inset-8 flex flex-col items-center justify-center rounded-full border border-border/70 bg-background/85 text-center backdrop-blur">
+        <p className="text-5xl font-semibold leading-none">{total}</p>
+        <p className="text-sm text-muted-foreground">activos</p>
+      </div>
+    </div>
+  );
+}
+
+function NfcScanRing({ active }: { active: boolean }) {
+  return (
+    <div className="relative mx-auto flex h-44 w-44 items-center justify-center">
+      <div className="absolute inset-0 rounded-full border border-primary/30" />
+      <div className={`absolute inset-3 rounded-full border border-primary/40 ${active ? "animate-pulse" : ""}`} />
+      <div className={`absolute inset-6 rounded-full border-2 border-primary/60 shadow-[0_0_24px_hsl(var(--primary)/0.45)] ${active ? "animate-ping" : ""}`} />
+      <div className="relative z-10 rounded-full border border-primary/40 bg-background/80 p-6">
+        <Wifi className="h-10 w-10 text-primary" />
+      </div>
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const { data: items = [], isLoading } = useInventoryItems(search);
