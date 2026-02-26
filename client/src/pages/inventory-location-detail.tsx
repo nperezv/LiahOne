@@ -33,6 +33,48 @@ export default function InventoryLocationDetailPage() {
         </CardContent>
       </Card>
 
+
+      <Card className="rounded-3xl">
+        <CardHeader><CardTitle>Contenido del armario / ubicación</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Activos en esta ubicación</p>
+            {data.items?.length ? (
+              <div className="mt-2 space-y-2">
+                {data.items.map((item: any) => (
+                  <Link key={item.id} href={`/inventory/${item.assetCode}`}>
+                    <div className="cursor-pointer rounded-xl border p-2 text-sm transition-colors hover:bg-muted/60">
+                      <p className="font-medium">{item.assetCode} · {item.name}</p>
+                      <p className="text-xs text-muted-foreground">Estado: {item.status}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">No hay activos asignados a esta ubicación.</p>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Sub-ubicaciones</p>
+            {data.children?.length ? (
+              <div className="mt-2 space-y-2">
+                {data.children.map((child: any) => (
+                  <Link key={child.id} href={`/inventory/locations/${child.code}`}>
+                    <div className="cursor-pointer rounded-xl border p-2 text-sm transition-colors hover:bg-muted/60">
+                      <p className="font-medium">{child.name}</p>
+                      <p className="text-xs text-muted-foreground">{child.code}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">Sin sub-ubicaciones.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="rounded-3xl">
         <CardHeader><CardTitle>Registrar NFC</CardTitle></CardHeader>
         <CardContent className="space-y-3">
