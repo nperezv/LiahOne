@@ -473,7 +473,7 @@ export default function InventoryPage() {
                         <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
                         <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetDescription} onChange={(e) => setAssetDescription(e.target.value)} />
                       </div>
-                      <Button className="h-12 rounded-2xl" disabled={!assetUid || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><Wifi className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
+                      <Button className="h-12 rounded-2xl" disabled={!assetUid || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><ScanLine className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
                       {createdAssetCode && <p className="text-sm text-emerald-700">Activo creado: <b>{createdAssetCode}</b>.</p>}
                     </TabsContent>
 

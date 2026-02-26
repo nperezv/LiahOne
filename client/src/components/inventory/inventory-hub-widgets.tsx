@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
-import { Wifi } from "lucide-react";
+import { ScanLine } from "lucide-react";
 
 export type GaugeSegment = {
   label: string;
@@ -34,7 +34,7 @@ export function NfcScanRing({ active }: { active: boolean }) {
       <div className={`absolute inset-3 rounded-full border border-primary/40 ${active ? "animate-pulse" : ""}`} />
       <div className={`absolute inset-6 rounded-full border-2 border-primary/60 shadow-[0_0_24px_hsl(var(--primary)/0.45)] ${active ? "animate-ping" : ""}`} />
       <div className="relative z-10 rounded-full border border-primary/40 bg-background/80 p-6">
-        <Wifi className="h-10 w-10 text-primary" />
+        <ScanLine className="h-10 w-10 text-primary" />
       </div>
     </div>
   );
