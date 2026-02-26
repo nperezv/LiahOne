@@ -7,6 +7,7 @@ import {
   Plus,
   QrCode,
   ScanLine,
+  ShieldCheck,
   Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -204,6 +205,10 @@ export default function InventoryPage() {
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
               <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/inventory/audit"><Button variant="secondary" className="rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button></Link>
+              <Link href="/inventory/locations"><Button variant="secondary" className="rounded-xl"><FolderTree className="mr-2 h-4 w-4" />Ubicaciones</Button></Link>
             </div>
           </div>
         </CardContent>

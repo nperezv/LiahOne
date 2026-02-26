@@ -14,7 +14,7 @@ export default function InventoryAuditPage() {
   const [verifiedCodes, setVerifiedCodes] = useState<string[]>([]);
   const [auditName, setAuditName] = useState(`Auditoría ${new Date().toLocaleDateString()}`);
 
-  const [scanMode, setScanMode] = useState<"qr" | "nfc">("qr");
+  const [scanMode, setScanMode] = useState<"qr" | "nfc">("nfc");
   const [nfcUid, setNfcUid] = useState("");
   const [lastResolvedAsset, setLastResolvedAsset] = useState("");
   const [lastProcessedUid, setLastProcessedUid] = useState("");
