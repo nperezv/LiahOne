@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -8,7 +8,6 @@ import {
   QrCode,
   ScanLine,
   ShieldCheck,
-  Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +20,7 @@ import {
   useCreateInventoryCategory,
   useCreateInventoryItem,
   useCreateInventoryLocation,
+  useInventoryByNfc,
   useInventoryCategories,
   useInventoryItems,
   useInventoryLocations,
@@ -28,6 +28,7 @@ import {
   useRegisterLocationNfc,
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
+import { GaugeSegment, InventoryGauge, NfcScanRing } from "@/components/inventory/inventory-hub-widgets";
 
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
@@ -45,6 +46,19 @@ export default function InventoryPage() {
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [categoryName, setCategoryName] = useState("");
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [mainTab, setMainTab] = useState<"inventory" | "register">("inventory");
+  const [registerTab, setRegisterTab] = useState<"assets" | "locations">("assets");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("panel") === "register") {
+      setMainTab("register");
+      const kind = params.get("kind");
+      if (kind === "locations") setRegisterTab("locations");
+      if (kind === "assets") setRegisterTab("assets");
+    }
+  }, []);
+  const [inventoryViewMode, setInventoryViewMode] = useState<"assets" | "locations">("assets");
 
   const [assetUid, setAssetUid] = useState("");
   const [assetName, setAssetName] = useState("");
@@ -74,6 +88,10 @@ export default function InventoryPage() {
     if (nfcMode === "location") setLocationUid(uid);
   });
 
+  const assetUidLookup = useInventoryByNfc(assetUid || undefined);
+  const locationUidLookup = useInventoryByNfc(locationUid || undefined);
+
+
   const stopNfc = () => {
     nfc.stop();
     setNfcMode(null);
@@ -89,9 +107,42 @@ export default function InventoryPage() {
       total: items.length,
       available: items.filter((i) => i.status === "available").length,
       loaned: items.filter((i) => i.status === "loaned").length,
+      incidents: items.filter((i) => i.status === "maintenance").length,
     }),
     [items],
   );
+
+  const gaugeSegments = useMemo(() => {
+    const chartPalette = [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+      "hsl(var(--primary))",
+    ];
+
+    const countByCategory = new Map<string, number>();
+    items.forEach((item) => {
+      const category = categories.find((cat) => cat.id === item.categoryId);
+      const label = category?.name ?? "Sin categoría";
+      countByCategory.set(label, (countByCategory.get(label) ?? 0) + 1);
+    });
+
+    return Array.from(countByCategory.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value], index) => ({
+        label,
+        value,
+        color: chartPalette[index % chartPalette.length],
+      }));
+  }, [items, categories]);
+
+  const assetUidResolved = assetUidLookup.data as any;
+  const locationUidResolved = locationUidLookup.data as any;
+  const assetUidInUse = Boolean(assetUid && assetUidResolved?.type);
+  const locationUidInUse = Boolean(locationUid && locationUidResolved?.type);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -245,31 +296,30 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <Card className="border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
-        <CardContent className="p-5 md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-              <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/inventory/audit"><Button variant="secondary" className="rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button></Link>
-              <Link href="/inventory/locations"><Button variant="secondary" className="rounded-xl"><FolderTree className="mr-2 h-4 w-4" />Ubicaciones</Button></Link>
-            </div>
+      <Card className="overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-b from-[#030a1a] to-[#040813] shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+        <CardContent className="space-y-5 p-5 md:p-6">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Inventario</h1>
+            <p className="text-sm text-muted-foreground">Barrio Madrid 8</p>
+          </div>
+
+          <div className="mx-auto w-full max-w-xs rounded-3xl border border-white/10 bg-white/[0.02] p-4 backdrop-blur-sm">
+            <InventoryGauge total={stats.total} segments={gaugeSegments} available={stats.available} incidents={stats.incidents} loaned={stats.loaned} />
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.total}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
-      </div>
+      <Card className="rounded-3xl border border-border/60 bg-card/70 backdrop-blur">
+        <CardContent className="grid gap-2 p-3 sm:grid-cols-3">
+          <Link href="/inventory/scan"><Button className="h-14 w-full justify-start rounded-2xl" variant="secondary"><ScanLine className="mr-2 h-4 w-4" /><span className="text-left leading-tight"><b>Escanear</b><br/><span className="text-xs text-muted-foreground">Ver activo / ubicación</span></span></Button></Link>
+          <Link href="/inventory/register"><Button className="h-14 w-full justify-start rounded-2xl" variant="secondary"><Plus className="mr-2 h-4 w-4" />Registro</Button></Link>
+          <Link href="/inventory/audit"><Button className="h-14 w-full justify-start rounded-2xl" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
+        </CardContent>
+      </Card>
 
-      <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
+      <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as "inventory" | "register")} className="space-y-4">
+        <TabsList className="grid h-auto grid-cols-1 rounded-2xl bg-muted/60 p-1">
           <TabsTrigger value="inventory" className="rounded-xl py-2">Inventario</TabsTrigger>
-          <TabsTrigger value="register" className="rounded-xl py-2">Registro</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="mt-0 space-y-4">
@@ -301,50 +351,68 @@ export default function InventoryPage() {
           </Card>
 
           <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Listado de activos</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Vista de inventario</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <Input className="h-12 rounded-2xl" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código o nombre" />
-              {isLoading && <p>Cargando...</p>}
-              {filteredItems.map((item) => (
-                <Link key={item.id} href={`/inventory/${item.assetCode}`}>
-                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{item.assetCode} · {item.name}</p>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{item.status} · {(item as any).locationCode ?? "Sin ubicación"}</p>
-                  </div>
-                </Link>
-              ))}
-              {filteredItems.length === 0 && <p className="text-sm text-muted-foreground">No hay activos para este filtro.</p>}
-            </CardContent>
-          </Card>
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted/60 p-1">
+                <Button className="rounded-lg" variant={inventoryViewMode === "assets" ? "default" : "ghost"} onClick={() => setInventoryViewMode("assets")}>Ver activos</Button>
+                <Button className="rounded-lg" variant={inventoryViewMode === "locations" ? "default" : "ghost"} onClick={() => setInventoryViewMode("locations")}>Ver ubicaciones</Button>
+              </div>
 
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Visibilidad por armario / ubicación</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {itemsByLocation.map((entry) => (
-                <Link key={entry.id} href={`/inventory/locations/${entry.code}`}>
-                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{entry.name} · {entry.code}</p>
-                      <Badge variant="secondary" className="rounded-full">{entry.count} activo(s)</Badge>
+              {isLoading && <p>Cargando...</p>}
+
+              {inventoryViewMode === "assets" ? (
+                <div className="space-y-2">
+                  {filteredItems.map((item) => (
+                    <div key={item.id} className="rounded-2xl border p-3">
+                      <div className="flex items-start gap-3">
+                        {(item.photoUrl || (item as any).photo_url)
+                          ? <img src={item.photoUrl || (item as any).photo_url} alt={item.name} className="h-12 w-12 rounded-lg object-cover" />
+                          : <div className="h-12 w-12 rounded-lg border bg-muted" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate font-semibold">{item.name}</p>
+                            <Badge variant="secondary" className="rounded-full">{item.status}</Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">{item.assetCode} · {(item as any).categoryName ?? "Sin categoría"} · {(item as any).locationCode ?? "Sin ubicación"}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Ver detalles</Button></Link>
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Mover</Button></Link>
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Prestar</Button></Link>
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Historial</Button></Link>
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {entry.items.slice(0, 3).map((item) => item.assetCode).join(" · ")}
-                      {entry.items.length > 3 ? ` · +${entry.items.length - 3} más` : ""}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-              {itemsByLocation.length === 0 && <p className="text-sm text-muted-foreground">No hay activos ubicados en armarios para el filtro actual.</p>}
+                  ))}
+                  {filteredItems.length === 0 && <p className="text-sm text-muted-foreground">No hay activos para este filtro.</p>}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {itemsByLocation.map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold">{entry.name} · {entry.code}</p>
+                        <Badge variant="secondary" className="rounded-full">{entry.count} activo(s)</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {entry.items.slice(0, 3).map((item) => item.assetCode).join(" · ")}
+                        {entry.items.length > 3 ? ` · +${entry.items.length - 3} más` : ""}
+                      </p>
+                    </div>
+                  ))}
+                  {itemsByLocation.length === 0 && <p className="text-sm text-muted-foreground">No hay activos ubicados en armarios para el filtro actual.</p>}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="register" className="mt-0 space-y-4">
-          <Tabs defaultValue="assets" className="space-y-4">
-            <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
+          <Tabs value={registerTab} onValueChange={(value) => setRegisterTab(value as "assets" | "locations")} className="space-y-4">
+            <TabsList className="grid h-auto grid-cols-1 rounded-2xl bg-muted/60 p-1">
               <TabsTrigger value="assets" className="rounded-xl py-2">Alta de activos</TabsTrigger>
               <TabsTrigger value="locations" className="rounded-xl py-2">Alta de armarios</TabsTrigger>
             </TabsList>
@@ -361,10 +429,28 @@ export default function InventoryPage() {
 
                     <TabsContent value="asset-nfc" className="mt-0 space-y-4">
                       <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: leer NFC activo. Paso 2: completar datos. Paso 3: crear activo + vincular UID.</div>
+                      <NfcScanRing active={nfc.isScanning && nfcMode === "asset"} />
+                      <p className="text-center text-sm text-muted-foreground">Acerca el móvil al sticker NFC del activo o captura el UID manualmente.</p>
                       <div className="flex gap-2">
                         <Button className="h-12 flex-1 rounded-2xl" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "asset" ? stopNfc : () => startNfc("asset")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "asset" ? "Detener lectura" : "Leer NFC activo"}</Button>
                         <Input className="h-12 rounded-2xl" placeholder="UID activo" value={assetUid} onChange={(e) => setAssetUid(e.target.value.toUpperCase())} />
                       </div>
+                      {assetUid && (
+                        <div className="rounded-2xl border bg-muted/30 p-3 text-sm">
+                          <p className="font-medium">UID leído: <span className="font-mono">{assetUid}</span></p>
+                          {!assetUidLookup.isFetching && !assetUidInUse && <p className="mt-1 text-emerald-600">UID disponible. Continúa con el registro del activo.</p>}
+                          {assetUidInUse && (
+                            <div className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2">
+                              <p className="text-amber-700">Este UID ya está registrado como {assetUidResolved?.type === "location" ? "ubicación" : "activo"}.</p>
+                              {assetUidResolved?.asset_code && <p className="text-xs">Activo: <b>{assetUidResolved.asset_code}</b></p>}
+                              {assetUidResolved?.location_code && <p className="text-xs">Ubicación: <b>{assetUidResolved.location_code}</b></p>}
+                              {(assetUidResolved?.photoUrl || assetUidResolved?.photo_url) && (
+                                <img src={assetUidResolved?.photoUrl || assetUidResolved?.photo_url} alt="Activo detectado" className="mt-2 h-14 w-14 rounded-lg object-cover" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="grid gap-3 md:grid-cols-2">
                         <Select value={assetCategoryId} onValueChange={setAssetCategoryId}>
                           <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoría" /></SelectTrigger>
@@ -381,7 +467,7 @@ export default function InventoryPage() {
                         <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
                         <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetDescription} onChange={(e) => setAssetDescription(e.target.value)} />
                       </div>
-                      <Button className="h-12 rounded-2xl" disabled={!assetUid || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><Wifi className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
+                      <Button className="h-12 rounded-2xl" disabled={!assetUid || assetUidInUse || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><ScanLine className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
                       {createdAssetCode && <p className="text-sm text-emerald-700">Activo creado: <b>{createdAssetCode}</b>.</p>}
                     </TabsContent>
 
@@ -431,10 +517,25 @@ export default function InventoryPage() {
 
                     <TabsContent value="location-nfc" className="mt-0 space-y-4">
                       <p className="text-xs text-muted-foreground">Primero UID NFC del armario, luego nombre/jerarquía. Se crea ubicación y queda vinculada al UID.</p>
+                      <NfcScanRing active={nfc.isScanning && nfcMode === "location"} />
+                      <p className="text-center text-sm text-muted-foreground">Acerca una etiqueta NFC de ubicación o escribe el UID.</p>
                       <div className="flex gap-2">
                         <Button className="h-11 flex-1 rounded-xl" variant="outline" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "location" ? stopNfc : () => startNfc("location")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "location" ? "Detener lectura" : "Leer NFC armario"}</Button>
                         <Input className="h-11 rounded-xl" placeholder="UID ubicación" value={locationUid} onChange={(e) => setLocationUid(e.target.value.toUpperCase())} />
                       </div>
+                      {locationUid && (
+                        <div className="rounded-2xl border bg-muted/30 p-3 text-sm">
+                          <p className="font-medium">UID leído: <span className="font-mono">{locationUid}</span></p>
+                          {!locationUidLookup.isFetching && !locationUidInUse && <p className="mt-1 text-emerald-600">UID disponible. Continúa con el registro de ubicación.</p>}
+                          {locationUidInUse && (
+                            <div className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2">
+                              <p className="text-amber-700">Este UID ya está registrado como {locationUidResolved?.type === "item" ? "activo" : "ubicación"}.</p>
+                              {locationUidResolved?.asset_code && <p className="text-xs">Activo: <b>{locationUidResolved.asset_code}</b></p>}
+                              {locationUidResolved?.location_code && <p className="text-xs">Ubicación: <b>{locationUidResolved.location_code}</b></p>}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <Input className="h-11 rounded-xl" placeholder="Nombre ubicación (ej: Armario multimedia)" value={locationName} onChange={(e) => setLocationName(e.target.value)} />
                       <Select value={locationParentId} onValueChange={setLocationParentId}>
                         <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación padre (opcional)" /></SelectTrigger>
@@ -443,7 +544,7 @@ export default function InventoryPage() {
                           {locations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <Button className="h-11 rounded-xl" disabled={!locationUid || !locationName.trim() || createLocation.isPending || registerLocationNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Crear ubicación + vincular NFC</Button>
+                      <Button className="h-11 rounded-xl" disabled={!locationUid || locationUidInUse || !locationName.trim() || createLocation.isPending || registerLocationNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Crear ubicación + vincular NFC</Button>
                       {createdLocationCode && <p className="text-sm text-emerald-700">Ubicación creada: <b>{createdLocationCode}</b>.</p>}
                     </TabsContent>
 
