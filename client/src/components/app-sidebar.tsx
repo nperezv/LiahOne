@@ -19,6 +19,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
 import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
+import logoImage from "@assets/liahonapplogo2.svg";
 
 interface MenuItem {
   title: string;

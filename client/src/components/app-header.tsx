@@ -32,6 +32,7 @@ import {
   getNotificationDestination,
 } from "@/lib/notifications";
 import type { Notification } from "@shared/schema";
+import logoImage from "@assets/liahonapplogo2.svg";
 
 interface AppHeaderProps {
   user?: {
