@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
   ArrowRight,
   Filter,
@@ -28,6 +29,46 @@ import {
   useRegisterLocationNfc,
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
+import { InventoryScanner } from "@/components/inventory-scanner";
+
+type GaugeSegment = {
+  label: string;
+  value: number;
+  color: string;
+};
+
+function InventoryGauge({ total, segments }: { total: number; segments: GaugeSegment[] }) {
+  const chartData = segments.length ? segments : [{ label: "Sin datos", value: 1, color: "hsl(var(--primary))" }];
+
+  return (
+    <div className="relative h-64 w-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie data={chartData} dataKey="value" nameKey="label" innerRadius={70} outerRadius={100} stroke="none" paddingAngle={2}>
+            {chartData.map((entry) => <Cell key={entry.label} fill={entry.color} />)}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <p className="text-5xl font-semibold leading-none">{total}</p>
+        <p className="text-sm text-muted-foreground">activos</p>
+      </div>
+    </div>
+  );
+}
+
+function NfcScanRing({ active }: { active: boolean }) {
+  return (
+    <div className="relative mx-auto flex h-44 w-44 items-center justify-center">
+      <div className="absolute inset-0 rounded-full border border-primary/30" />
+      <div className={`absolute inset-3 rounded-full border border-primary/40 ${active ? "animate-pulse" : ""}`} />
+      <div className={`absolute inset-6 rounded-full border-2 border-primary/60 shadow-[0_0_24px_hsl(var(--primary)/0.45)] ${active ? "animate-ping" : ""}`} />
+      <div className="relative z-10 rounded-full border border-primary/40 bg-background/80 p-6">
+        <Wifi className="h-10 w-10 text-primary" />
+      </div>
+    </div>
+  );
+}
 
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
@@ -45,6 +86,8 @@ export default function InventoryPage() {
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [categoryName, setCategoryName] = useState("");
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [actionPanel, setActionPanel] = useState<"scan" | "asset" | "cabinet" | "audit" | null>(null);
+  const [inventoryViewMode, setInventoryViewMode] = useState<"assets" | "locations">("assets");
 
   const [assetUid, setAssetUid] = useState("");
   const [assetName, setAssetName] = useState("");
@@ -89,9 +132,37 @@ export default function InventoryPage() {
       total: items.length,
       available: items.filter((i) => i.status === "available").length,
       loaned: items.filter((i) => i.status === "loaned").length,
+      incidents: items.filter((i) => i.status === "maintenance").length,
     }),
     [items],
   );
+
+  const gaugeSegments = useMemo(() => {
+    const chartPalette = [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+      "hsl(var(--primary))",
+    ];
+
+    const countByCategory = new Map<string, number>();
+    items.forEach((item) => {
+      const category = categories.find((cat) => cat.id === item.categoryId);
+      const label = category?.name ?? "Sin categoría";
+      countByCategory.set(label, (countByCategory.get(label) ?? 0) + 1);
+    });
+
+    return Array.from(countByCategory.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value], index) => ({
+        label,
+        value,
+        color: chartPalette[index % chartPalette.length],
+      }));
+  }, [items, categories]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -245,26 +316,73 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <Card className="border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
+      <Card className="overflow-hidden rounded-3xl border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
         <CardContent className="p-5 md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-              <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_auto] lg:items-center">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
+                  <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
+                </div>
+                <p className="text-xs text-primary-foreground/80">Centro operativo de inventario: escaneo, alta y auditoría desde una sola pantalla.</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
+                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
+                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Incidencias</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.incidents}</CardContent></Card>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/inventory/audit"><Button variant="secondary" className="rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button></Link>
-              <Link href="/inventory/locations"><Button variant="secondary" className="rounded-xl"><FolderTree className="mr-2 h-4 w-4" />Ubicaciones</Button></Link>
+
+            <div className="mx-auto w-full max-w-xs rounded-3xl border border-primary-foreground/20 bg-background/15 p-4 backdrop-blur-sm">
+              <InventoryGauge total={stats.total} segments={gaugeSegments.length ? gaugeSegments : [{ label: "Sin datos", value: 1, color: "hsl(var(--primary))" }]} />
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
+                {gaugeSegments.length > 0 ? gaugeSegments.map((segment) => (
+                  <Badge key={segment.label} variant="secondary" className="rounded-full border-0 bg-background/35 text-primary-foreground">
+                    <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
+                    {segment.label}
+                  </Badge>
+                )) : <p className="text-xs text-primary-foreground/80">Sin categorías todavía.</p>}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.total}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
-      </div>
+      <Card className="rounded-3xl">
+        <CardHeader><CardTitle className="text-base">Acciones rápidas</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => setActionPanel("scan")}><ScanLine className="mr-2 h-4 w-4" />Escanear</Button>
+          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => setActionPanel("asset")}><Plus className="mr-2 h-4 w-4" />Nuevo activo</Button>
+          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => setActionPanel("cabinet")}><FolderTree className="mr-2 h-4 w-4" />Nuevo armario</Button>
+          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => setActionPanel("audit")}><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button>
+        </CardContent>
+      </Card>
+
+      {actionPanel && (
+        <Card className="rounded-3xl border-dashed">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">{actionPanel === "scan" ? "Escaneo" : actionPanel === "asset" ? "Nuevo activo" : actionPanel === "cabinet" ? "Nuevo armario" : "Auditoría"}</CardTitle>
+            <Button variant="ghost" onClick={() => setActionPanel(null)}>Cerrar</Button>
+          </CardHeader>
+          <CardContent>
+            {actionPanel === "scan" && (
+              <div className="space-y-4">
+                <NfcScanRing active={nfc.isScanning} />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Button className="h-11 rounded-xl" onClick={nfc.isScanning ? stopNfc : () => startNfc("asset")} disabled={!nfc.isSupported}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning ? "Detener NFC" : "Escanear NFC"}</Button>
+                  <InventoryScanner onDetected={(code) => setSearch(code)} />
+                </div>
+                <p className="text-xs text-muted-foreground">Estados: escaneando, activo detectado, ubicación detectada o etiqueta desconocida.</p>
+              </div>
+            )}
+            {actionPanel === "asset" && <p className="text-sm text-muted-foreground">Usa la sección Registro → Alta de activos para crear activos por NFC o QR sin salir de este módulo.</p>}
+            {actionPanel === "cabinet" && <p className="text-sm text-muted-foreground">Usa la sección Registro → Alta de armarios para crear ubicaciones por NFC o QR.</p>}
+            {actionPanel === "audit" && <p className="text-sm text-muted-foreground">Usa la sección Auditoría dentro de Registro para iniciar y seguir auditorías desde este hub.</p>}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="inventory" className="space-y-4">
         <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
@@ -301,43 +419,54 @@ export default function InventoryPage() {
           </Card>
 
           <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Listado de activos</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Vista de inventario</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <Input className="h-12 rounded-2xl" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código o nombre" />
-              {isLoading && <p>Cargando...</p>}
-              {filteredItems.map((item) => (
-                <Link key={item.id} href={`/inventory/${item.assetCode}`}>
-                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{item.assetCode} · {item.name}</p>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{item.status} · {(item as any).locationCode ?? "Sin ubicación"}</p>
-                  </div>
-                </Link>
-              ))}
-              {filteredItems.length === 0 && <p className="text-sm text-muted-foreground">No hay activos para este filtro.</p>}
-            </CardContent>
-          </Card>
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted/60 p-1">
+                <Button className="rounded-lg" variant={inventoryViewMode === "assets" ? "default" : "ghost"} onClick={() => setInventoryViewMode("assets")}>Activos</Button>
+                <Button className="rounded-lg" variant={inventoryViewMode === "locations" ? "default" : "ghost"} onClick={() => setInventoryViewMode("locations")}>Ubicaciones</Button>
+              </div>
 
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Visibilidad por armario / ubicación</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {itemsByLocation.map((entry) => (
-                <Link key={entry.id} href={`/inventory/locations/${entry.code}`}>
-                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{entry.name} · {entry.code}</p>
-                      <Badge variant="secondary" className="rounded-full">{entry.count} activo(s)</Badge>
+              {isLoading && <p>Cargando...</p>}
+
+              {inventoryViewMode === "assets" ? (
+                <div className="space-y-2">
+                  {filteredItems.map((item) => (
+                    <div key={item.id} className="rounded-2xl border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold">{item.name}</p>
+                        <Badge variant="secondary" className="rounded-full">{item.status}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.assetCode} · {(item as any).categoryName ?? "Sin categoría"} · {(item as any).locationCode ?? "Sin ubicación"}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Ver detalles</Button></Link>
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Mover</Button></Link>
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Prestar</Button></Link>
+                        <Link href={`/inventory/${item.assetCode}`}><Button size="sm" variant="outline" className="rounded-xl">Historial</Button></Link>
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {entry.items.slice(0, 3).map((item) => item.assetCode).join(" · ")}
-                      {entry.items.length > 3 ? ` · +${entry.items.length - 3} más` : ""}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-              {itemsByLocation.length === 0 && <p className="text-sm text-muted-foreground">No hay activos ubicados en armarios para el filtro actual.</p>}
+                  ))}
+                  {filteredItems.length === 0 && <p className="text-sm text-muted-foreground">No hay activos para este filtro.</p>}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {itemsByLocation.map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold">{entry.name} · {entry.code}</p>
+                        <Badge variant="secondary" className="rounded-full">{entry.count} activo(s)</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {entry.items.slice(0, 3).map((item) => item.assetCode).join(" · ")}
+                        {entry.items.length > 3 ? ` · +${entry.items.length - 3} más` : ""}
+                      </p>
+                    </div>
+                  ))}
+                  {itemsByLocation.length === 0 && <p className="text-sm text-muted-foreground">No hay activos ubicados en armarios para el filtro actual.</p>}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -361,6 +490,8 @@ export default function InventoryPage() {
 
                     <TabsContent value="asset-nfc" className="mt-0 space-y-4">
                       <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: leer NFC activo. Paso 2: completar datos. Paso 3: crear activo + vincular UID.</div>
+                      <NfcScanRing active={nfc.isScanning && nfcMode === "asset"} />
+                      <p className="text-center text-sm text-muted-foreground">Acerca el móvil al sticker NFC del activo o captura el UID manualmente.</p>
                       <div className="flex gap-2">
                         <Button className="h-12 flex-1 rounded-2xl" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "asset" ? stopNfc : () => startNfc("asset")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "asset" ? "Detener lectura" : "Leer NFC activo"}</Button>
                         <Input className="h-12 rounded-2xl" placeholder="UID activo" value={assetUid} onChange={(e) => setAssetUid(e.target.value.toUpperCase())} />
@@ -431,6 +562,8 @@ export default function InventoryPage() {
 
                     <TabsContent value="location-nfc" className="mt-0 space-y-4">
                       <p className="text-xs text-muted-foreground">Primero UID NFC del armario, luego nombre/jerarquía. Se crea ubicación y queda vinculada al UID.</p>
+                      <NfcScanRing active={nfc.isScanning && nfcMode === "location"} />
+                      <p className="text-center text-sm text-muted-foreground">Acerca una etiqueta NFC de ubicación o escribe el UID.</p>
                       <div className="flex gap-2">
                         <Button className="h-11 flex-1 rounded-xl" variant="outline" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "location" ? stopNfc : () => startNfc("location")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "location" ? "Detener lectura" : "Leer NFC armario"}</Button>
                         <Input className="h-11 rounded-xl" placeholder="UID ubicación" value={locationUid} onChange={(e) => setLocationUid(e.target.value.toUpperCase())} />
