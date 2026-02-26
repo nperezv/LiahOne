@@ -35,6 +35,17 @@ const templateSchema = z.object({
 
 type TemplateFormValues = z.infer<typeof templateSchema>;
 
+const normalizeHexNoHash = (value?: string) => {
+  const cleaned = String(value ?? "").trim().replace(/^#/, "");
+  const safe = cleaned.replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
+  return safe || "1F2937";
+};
+
+const toColorInputValue = (value?: string, fallback = "1F2937") => {
+  const hex = normalizeHexNoHash(value || fallback).padEnd(6, "0").slice(0, 6);
+  return `#${hex}`;
+};
+
 export default function Settings() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"templates" | "reminders">("templates");
@@ -54,8 +65,8 @@ export default function Settings() {
       stakeName: template?.stakeName || "Estaca",
       country: template?.country || "País",
       sacramentMeetingTime: template?.sacramentMeetingTime || "10:00",
-      headerColor: template?.headerColor || "1F2937",
-      accentColor: template?.accentColor || "3B82F6",
+      headerColor: normalizeHexNoHash(template?.headerColor || "1F2937"),
+      accentColor: normalizeHexNoHash(template?.accentColor || "3B82F6"),
       logoUrl: template?.logoUrl || "",
       footerText: template?.footerText || "© Barrio - Todos los derechos reservados",
       bizumPhone: template?.bizumPhone || "",
@@ -66,7 +77,11 @@ export default function Settings() {
   // Update template mutation
   const updateMutation = useMutation({
     mutationFn: (data: TemplateFormValues) =>
-      apiRequest("PATCH", "/api/pdf-template", data),
+      apiRequest("PATCH", "/api/pdf-template", {
+        ...data,
+        headerColor: normalizeHexNoHash(data.headerColor),
+        accentColor: normalizeHexNoHash(data.accentColor),
+      }),
     onSuccess: async (response) => {
       // Update React Query cache with new data
       queryClient.setQueryData(["/api/pdf-template"], response);
@@ -119,8 +134,8 @@ export default function Settings() {
         stakeName: template.stakeName || "Estaca",
         country: template.country || "País",
         sacramentMeetingTime: template.sacramentMeetingTime || "10:00",
-        headerColor: template.headerColor || "1F2937",
-        accentColor: template.accentColor || "3B82F6",
+        headerColor: normalizeHexNoHash(template.headerColor || "1F2937"),
+        accentColor: normalizeHexNoHash(template.accentColor || "3B82F6"),
         logoUrl: template.logoUrl || "",
         footerText: template.footerText || "© Barrio - Todos los derechos reservados",
         bizumPhone: template.bizumPhone || "",
@@ -282,13 +297,15 @@ export default function Settings() {
                               <Input
                                 type="color"
                                 placeholder="#1F2937"
-                                {...field}
+                                value={toColorInputValue(field.value, "1F2937")}
+                                onChange={(event) => field.onChange(normalizeHexNoHash(event.target.value))}
                                 className="h-10 w-16 cursor-pointer"
                                 data-testid="input-header-color"
                               />
                               <Input
                                 placeholder="1F2937"
-                                {...field}
+                                value={normalizeHexNoHash(field.value)}
+                                onChange={(event) => field.onChange(normalizeHexNoHash(event.target.value))}
                                 className="flex-1"
                                 data-testid="input-header-color-text"
                               />
@@ -310,13 +327,15 @@ export default function Settings() {
                               <Input
                                 type="color"
                                 placeholder="#3B82F6"
-                                {...field}
+                                value={toColorInputValue(field.value, "3B82F6")}
+                                onChange={(event) => field.onChange(normalizeHexNoHash(event.target.value))}
                                 className="h-10 w-16 cursor-pointer"
                                 data-testid="input-accent-color"
                               />
                               <Input
                                 placeholder="3B82F6"
-                                {...field}
+                                value={normalizeHexNoHash(field.value)}
+                                onChange={(event) => field.onChange(normalizeHexNoHash(event.target.value))}
                                 className="flex-1"
                                 data-testid="input-accent-color-text"
                               />
