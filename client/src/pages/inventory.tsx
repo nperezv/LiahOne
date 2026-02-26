@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
@@ -49,6 +49,16 @@ export default function InventoryPage() {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [mainTab, setMainTab] = useState<"inventory" | "register">("inventory");
   const [registerTab, setRegisterTab] = useState<"assets" | "locations">("assets");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("panel") === "register") {
+      setMainTab("register");
+      const kind = params.get("kind");
+      if (kind === "locations") setRegisterTab("locations");
+      if (kind === "assets") setRegisterTab("assets");
+    }
+  }, []);
   const [inventoryViewMode, setInventoryViewMode] = useState<"assets" | "locations">("assets");
 
   const [assetUid, setAssetUid] = useState("");
@@ -301,18 +311,16 @@ export default function InventoryPage() {
       </Card>
 
       <Card className="rounded-3xl border border-border/60 bg-card/70 backdrop-blur">
-        <CardContent className="grid gap-2 p-3 sm:grid-cols-2">
-          <Button className="h-14 justify-start rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><ScanLine className="mr-2 h-4 w-4" /><span className="text-left leading-tight"><b>Escanear</b><br/><span className="text-xs text-muted-foreground">NFC</span></span></Button>
-          <Button className="h-14 justify-start rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><QrCode className="mr-2 h-4 w-4" /><span className="text-left leading-tight"><b>Escanear</b><br/><span className="text-xs text-muted-foreground">QR</span></span></Button>
-          <Button className="h-12 justify-start rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><Plus className="mr-2 h-4 w-4" />Nuevo activo</Button>
-          <Link href="/inventory/audit"><Button className="h-12 w-full justify-start rounded-2xl" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
+        <CardContent className="grid gap-2 p-3 sm:grid-cols-3">
+          <Link href="/inventory/scan"><Button className="h-14 w-full justify-start rounded-2xl" variant="secondary"><ScanLine className="mr-2 h-4 w-4" /><span className="text-left leading-tight"><b>Escanear</b><br/><span className="text-xs text-muted-foreground">Ver activo / ubicación</span></span></Button></Link>
+          <Link href="/inventory/register"><Button className="h-14 w-full justify-start rounded-2xl" variant="secondary"><Plus className="mr-2 h-4 w-4" />Registro</Button></Link>
+          <Link href="/inventory/audit"><Button className="h-14 w-full justify-start rounded-2xl" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
         </CardContent>
       </Card>
 
       <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as "inventory" | "register")} className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
+        <TabsList className="grid h-auto grid-cols-1 rounded-2xl bg-muted/60 p-1">
           <TabsTrigger value="inventory" className="rounded-xl py-2">Inventario</TabsTrigger>
-          <TabsTrigger value="register" className="rounded-xl py-2">Registro</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="mt-0 space-y-4">
@@ -405,7 +413,7 @@ export default function InventoryPage() {
 
         <TabsContent value="register" className="mt-0 space-y-4">
           <Tabs value={registerTab} onValueChange={(value) => setRegisterTab(value as "assets" | "locations")} className="space-y-4">
-            <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
+            <TabsList className="grid h-auto grid-cols-1 rounded-2xl bg-muted/60 p-1">
               <TabsTrigger value="assets" className="rounded-xl py-2">Alta de activos</TabsTrigger>
               <TabsTrigger value="locations" className="rounded-xl py-2">Alta de armarios</TabsTrigger>
             </TabsList>

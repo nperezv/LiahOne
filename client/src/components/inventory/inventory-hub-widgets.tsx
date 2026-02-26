@@ -42,6 +42,24 @@ export function InventoryGauge({ total, segments, available, incidents, loaned }
         <div className="absolute inset-[16px] rounded-full bg-background/95" />
         <div className="absolute inset-[24px] rounded-full border border-primary/20 bg-background/90" />
 
+        <div className="pointer-events-none absolute inset-0">
+          {chartData.slice(0, 6).map((segment, index) => {
+            const angle = (-90 + ((index + 0.5) / Math.max(chartData.length, 1)) * 360) * (Math.PI / 180);
+            const radius = 112;
+            const x = 128 + radius * Math.cos(angle);
+            const y = 128 + radius * Math.sin(angle);
+            return (
+              <span
+                key={`label-${segment.label}`}
+                className="absolute -translate-x-1/2 -translate-y-1/2 text-[10px] text-muted-foreground"
+                style={{ left: `${x}px`, top: `${y}px` }}
+              >
+                {segment.label}
+              </span>
+            );
+          })}
+        </div>
+
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <p className="text-5xl font-semibold leading-none">{total}</p>
           <p className="mt-1 text-sm text-muted-foreground">activos</p>
