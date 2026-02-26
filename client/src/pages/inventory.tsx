@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
   ArrowRight,
   Filter,
