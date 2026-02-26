@@ -50,15 +50,6 @@ export default function InventoryPage() {
   const [mainTab, setMainTab] = useState<"inventory" | "register">("inventory");
   const [registerTab, setRegisterTab] = useState<"assets" | "locations">("assets");
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("panel") === "register") {
-      setMainTab("register");
-      const kind = params.get("kind");
-      if (kind === "locations") setRegisterTab("locations");
-      if (kind === "assets") setRegisterTab("assets");
-    }
-  }, []);
   const [inventoryViewMode, setInventoryViewMode] = useState<"assets" | "locations">("assets");
 
   const [assetUid, setAssetUid] = useState("");
@@ -115,12 +106,12 @@ export default function InventoryPage() {
 
   const gaugeSegments = useMemo(() => {
     const chartPalette = [
-      "hsl(var(--chart-1))",
-      "hsl(var(--chart-2))",
-      "hsl(var(--chart-3))",
-      "hsl(var(--chart-4))",
-      "hsl(var(--chart-5))",
-      "hsl(var(--primary))",
+      "#30d5ff",
+      "#52e66d",
+      "#f3d63b",
+      "#ff8a3d",
+      "#cc5de8",
+      "#6d5efc",
     ];
 
     const countByCategory = new Map<string, number>();
