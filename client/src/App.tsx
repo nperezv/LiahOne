@@ -43,12 +43,14 @@ import DirectoryPage from "@/pages/directory";
 import SecretaryDashboardPage from "@/pages/secretary-dashboard";
 import ResourcesLibraryPage from "@/pages/resources-library";
 import DonationsPage from "@/pages/donations";
-import InventoryPage from "@/pages/inventory";
+import InventoryDashboardRoute from "@/pages/inventory-dashboard";
+import InventoryAssetsRoute from "@/pages/inventory-assets";
+import InventoryScanRoute from "@/pages/inventory-scan";
+import InventoryLocationsRouteV2 from "@/pages/inventory-locations-v2";
+import InventoryAuditRouteV2 from "@/pages/inventory-audit-v2";
 import InventoryNewPage from "@/pages/inventory-new";
 import InventoryDetailPage from "@/pages/inventory-detail";
-import InventoryAuditPage from "@/pages/inventory-audit";
 import InventoryPublicPage from "@/pages/inventory-public";
-import InventoryLocationsPage from "@/pages/inventory-locations";
 import InventoryLocationDetailPage from "@/pages/inventory-location-detail";
 
 function LoginRoute() {
@@ -135,16 +137,28 @@ function ProtectedRoutes() {
           <ResourcesLibraryPage />
         </Route>
         <Route path="/inventory">
-          <InventoryPage />
+          <Redirect to="/inventory/dashboard" />
+        </Route>
+        <Route path="/inventory/dashboard">
+          <InventoryDashboardRoute />
+        </Route>
+        <Route path="/inventory/assets">
+          <InventoryAssetsRoute />
+        </Route>
+        <Route path="/inventory/scan">
+          <InventoryScanRoute />
+        </Route>
+        <Route path="/inventory/locations">
+          <InventoryLocationsRouteV2 />
+        </Route>
+        <Route path="/inventory/audit/:locationId">
+          <InventoryAuditRouteV2 />
+        </Route>
+        <Route path="/inventory/audit">
+          <InventoryAuditRouteV2 />
         </Route>
         <Route path="/inventory/new">
           <InventoryNewPage />
-        </Route>
-        <Route path="/inventory/audit">
-          <InventoryAuditPage />
-        </Route>
-        <Route path="/inventory/locations">
-          <InventoryLocationsPage />
         </Route>
         <Route path="/inventory/locations/:locationCode">
           <InventoryLocationDetailPage />
