@@ -121,7 +121,7 @@ export default function InventoryPage() {
       countByCategory.set(label, (countByCategory.get(label) ?? 0) + 1);
     });
 
-    return Array.from(countByCategory.entries())
+    const segmentsFromItems = Array.from(countByCategory.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([label, value], index) => ({
@@ -129,6 +129,18 @@ export default function InventoryPage() {
         value,
         color: chartPalette[index % chartPalette.length],
       }));
+
+    if (segmentsFromItems.length > 0) return segmentsFromItems;
+
+    if (categories.length > 0) {
+      return categories.slice(0, 6).map((category, index) => ({
+        label: category.name,
+        value: 1,
+        color: chartPalette[index % chartPalette.length],
+      }));
+    }
+
+    return [];
   }, [items, categories]);
 
   const assetUidResolved = assetUidLookup.data as any;
