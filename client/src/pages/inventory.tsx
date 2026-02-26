@@ -287,47 +287,25 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <Card className="overflow-hidden rounded-3xl border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
-        <CardContent className="p-5 md:p-6">
-          <div className="grid gap-6 lg:grid-cols-[1.1fr_auto] lg:items-center">
-            <div className="space-y-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-                  <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
-                </div>
-                <p className="text-xs text-primary-foreground/80">Centro operativo de inventario: escaneo, alta y auditoría desde una sola pantalla.</p>
-              </div>
+      <Card className="overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-b from-[#030a1a] to-[#040813] shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+        <CardContent className="space-y-5 p-5 md:p-6">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Inventario</h1>
+            <p className="text-sm text-muted-foreground">Barrio Madrid 8</p>
+          </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
-                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
-                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Incidencias</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.incidents}</CardContent></Card>
-              </div>
-            </div>
-
-            <div className="mx-auto w-full max-w-xs rounded-3xl border border-primary-foreground/20 bg-background/15 p-4 backdrop-blur-sm">
-              <InventoryGauge total={stats.total} segments={gaugeSegments.length ? gaugeSegments : [{ label: "Sin datos", value: 1, color: "hsl(var(--primary))" }]} />
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {gaugeSegments.length > 0 ? gaugeSegments.map((segment) => (
-                  <Badge key={segment.label} variant="secondary" className="rounded-full border-0 bg-background/35 text-primary-foreground">
-                    <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
-                    {segment.label}
-                  </Badge>
-                )) : <p className="text-xs text-primary-foreground/80">Sin categorías todavía.</p>}
-              </div>
-            </div>
+          <div className="mx-auto w-full max-w-xs rounded-3xl border border-white/10 bg-white/[0.02] p-4 backdrop-blur-sm">
+            <InventoryGauge total={stats.total} segments={gaugeSegments} available={stats.available} incidents={stats.incidents} loaned={stats.loaned} />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl">
-        <CardHeader><CardTitle className="text-base">Acciones rápidas</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><ScanLine className="mr-2 h-4 w-4" />Escanear</Button>
-          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><Plus className="mr-2 h-4 w-4" />Nuevo activo</Button>
-          <Button className="h-14 rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("locations"); }}><FolderTree className="mr-2 h-4 w-4" />Nuevo armario</Button>
-          <Link href="/inventory/audit"><Button className="h-14 w-full rounded-2xl" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
+      <Card className="rounded-3xl border border-border/60 bg-card/70 backdrop-blur">
+        <CardContent className="grid gap-2 p-3 sm:grid-cols-2">
+          <Button className="h-14 justify-start rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><ScanLine className="mr-2 h-4 w-4" /><span className="text-left leading-tight"><b>Escanear</b><br/><span className="text-xs text-muted-foreground">NFC</span></span></Button>
+          <Button className="h-14 justify-start rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><QrCode className="mr-2 h-4 w-4" /><span className="text-left leading-tight"><b>Escanear</b><br/><span className="text-xs text-muted-foreground">QR</span></span></Button>
+          <Button className="h-12 justify-start rounded-2xl" variant="secondary" onClick={() => { setMainTab("register"); setRegisterTab("assets"); }}><Plus className="mr-2 h-4 w-4" />Nuevo activo</Button>
+          <Link href="/inventory/audit"><Button className="h-12 w-full justify-start rounded-2xl" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
         </CardContent>
       </Card>
 
