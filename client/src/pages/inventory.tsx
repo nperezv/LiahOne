@@ -1,12 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import {
   ArrowRight,
-  Boxes,
-  ClipboardCheck,
   Filter,
   FolderTree,
-  MapPin,
   Plus,
   QrCode,
   ScanLine,
@@ -19,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { InventoryScanner } from "@/components/inventory-scanner";
 import {
   useCreateInventoryCategory,
   useCreateInventoryItem,
@@ -27,14 +23,12 @@ import {
   useInventoryCategories,
   useInventoryItems,
   useInventoryLocations,
-  useMoveByScan,
   useRegisterItemNfc,
   useRegisterLocationNfc,
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
 
 export default function InventoryPage() {
-  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const { data: items = [], isLoading } = useInventoryItems(search);
   const { data: categories = [] } = useInventoryCategories();
@@ -45,7 +39,6 @@ export default function InventoryPage() {
   const createLocation = useCreateInventoryLocation();
   const registerItemNfc = useRegisterItemNfc();
   const registerLocationNfc = useRegisterLocationNfc();
-  const moveByScan = useMoveByScan();
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
@@ -64,8 +57,6 @@ export default function InventoryPage() {
   const [locationParentId, setLocationParentId] = useState("none");
   const [createdLocationCode, setCreatedLocationCode] = useState("");
 
-  const [scanItemCode, setScanItemCode] = useState("");
-  const [scanLocationCode, setScanLocationCode] = useState("");
   const [qrAssetCode, setQrAssetCode] = useState("");
 
   const [nfcMode, setNfcMode] = useState<"asset" | "location" | null>(null);
@@ -212,18 +203,7 @@ export default function InventoryPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-              <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros, registro rápido y auditoría.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 md:flex">
-              <Button variant="secondary" className="rounded-2xl" onClick={() => navigate("/inventory/audit")}>
-                <ClipboardCheck className="mr-2 h-4 w-4" />Auditoría
-              </Button>
-              <Button variant="secondary" className="rounded-2xl" onClick={() => navigate("/inventory/locations")}>
-                <MapPin className="mr-2 h-4 w-4" />Ubicaciones
-              </Button>
-              <Button className="col-span-2 rounded-2xl md:col-auto bg-white text-primary hover:bg-white/90" onClick={() => navigate("/inventory/new")}>
-                <Boxes className="mr-2 h-4 w-4" />Nuevo activo manual
-              </Button>
+              <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
             </div>
           </div>
         </CardContent>
@@ -236,10 +216,9 @@ export default function InventoryPage() {
       </div>
 
       <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-3 rounded-2xl bg-muted/60 p-1">
+        <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
           <TabsTrigger value="inventory" className="rounded-xl py-2">Inventario</TabsTrigger>
           <TabsTrigger value="register" className="rounded-xl py-2">Registro</TabsTrigger>
-          <TabsTrigger value="audit" className="rounded-xl py-2">Auditoría</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="mt-0 space-y-4">
@@ -402,28 +381,6 @@ export default function InventoryPage() {
 
         </TabsContent>
 
-        <TabsContent value="audit" className="mt-0 space-y-4">
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Auditoría de inventario</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>Escenario recomendado: iniciar auditoría, escanear códigos de activos y revisar verificados desde el módulo dedicado.</p>
-              <div className="flex flex-wrap gap-2">
-                <Button className="rounded-xl" onClick={() => navigate("/inventory/audit")}><ClipboardCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button>
-                <Button variant="outline" className="rounded-xl" onClick={() => navigate("/inventory/locations")}><MapPin className="mr-2 h-4 w-4" />Revisar ubicaciones</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Movimiento rápido en auditoría</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <InventoryScanner onDetected={(assetCode) => navigate(`/inventory/${assetCode}`)} />
-              <Input className="h-12 rounded-2xl" placeholder="asset_code del activo" value={scanItemCode} onChange={(e) => setScanItemCode(e.target.value)} />
-              <Input className="h-12 rounded-2xl" placeholder="location_code destino" value={scanLocationCode} onChange={(e) => setScanLocationCode(e.target.value)} />
-              <Button className="h-12 w-full rounded-2xl" onClick={() => moveByScan.mutate({ item_asset_code: scanItemCode, location_code: scanLocationCode })}>Mover activo</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
