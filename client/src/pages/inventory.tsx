@@ -29,6 +29,69 @@ import {
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
 
+type GaugeSegment = {
+  label: string;
+  value: number;
+  color: string;
+};
+
+function InventoryGauge({ total, segments }: { total: number; segments: GaugeSegment[] }) {
+  const radius = 92;
+  const strokeWidth = 18;
+  const circumference = 2 * Math.PI * radius;
+  const totalFromSegments = segments.reduce((acc, segment) => acc + segment.value, 0) || 1;
+  let accumulated = 0;
+
+  return (
+    <div className="relative flex h-64 w-64 items-center justify-center">
+      <svg viewBox="0 0 240 240" className="h-full w-full -rotate-90">
+        <circle cx="120" cy="120" r={radius} strokeWidth={strokeWidth} className="fill-none stroke-muted/60" />
+        {segments.map((segment) => {
+          const length = (segment.value / totalFromSegments) * circumference;
+          const offset = -accumulated;
+          accumulated += length;
+
+          return (
+            <circle
+              key={segment.label}
+              cx="120"
+              cy="120"
+              r={radius}
+              strokeWidth={strokeWidth}
+              className="fill-none"
+              style={{
+                stroke: segment.color,
+                strokeDasharray: `${Math.max(length - 4, 0)} ${circumference}`,
+                strokeDashoffset: offset,
+                strokeLinecap: "round",
+                filter: "drop-shadow(0 0 6px rgba(56,189,248,0.35))",
+              }}
+            />
+          );
+        })}
+      </svg>
+
+      <div className="absolute inset-8 flex flex-col items-center justify-center rounded-full border border-border/70 bg-background/85 text-center backdrop-blur">
+        <p className="text-5xl font-semibold leading-none">{total}</p>
+        <p className="text-sm text-muted-foreground">activos</p>
+      </div>
+    </div>
+  );
+}
+
+function NfcScanRing({ active }: { active: boolean }) {
+  return (
+    <div className="relative mx-auto flex h-44 w-44 items-center justify-center">
+      <div className="absolute inset-0 rounded-full border border-primary/30" />
+      <div className={`absolute inset-3 rounded-full border border-primary/40 ${active ? "animate-pulse" : ""}`} />
+      <div className={`absolute inset-6 rounded-full border-2 border-primary/60 shadow-[0_0_24px_hsl(var(--primary)/0.45)] ${active ? "animate-ping" : ""}`} />
+      <div className="relative z-10 rounded-full border border-primary/40 bg-background/80 p-6">
+        <Wifi className="h-10 w-10 text-primary" />
+      </div>
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const { data: items = [], isLoading } = useInventoryItems(search);
@@ -92,6 +155,33 @@ export default function InventoryPage() {
     }),
     [items],
   );
+
+  const gaugeSegments = useMemo(() => {
+    const chartPalette = [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+      "hsl(var(--primary))",
+    ];
+
+    const countByCategory = new Map<string, number>();
+    items.forEach((item) => {
+      const category = categories.find((cat) => cat.id === item.categoryId);
+      const label = category?.name ?? "Sin categoría";
+      countByCategory.set(label, (countByCategory.get(label) ?? 0) + 1);
+    });
+
+    return Array.from(countByCategory.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value], index) => ({
+        label,
+        value,
+        color: chartPalette[index % chartPalette.length],
+      }));
+  }, [items, categories]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -245,26 +335,42 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <Card className="border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
+      <Card className="overflow-hidden rounded-3xl border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
         <CardContent className="p-5 md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-              <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_auto] lg:items-center">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
+                  <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/inventory/audit"><Button variant="secondary" className="rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button></Link>
+                  <Link href="/inventory/locations"><Button variant="secondary" className="rounded-xl"><FolderTree className="mr-2 h-4 w-4" />Ubicaciones</Button></Link>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Total</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.total}</CardContent></Card>
+                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
+                <Card className="rounded-2xl border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none"><CardHeader className="pb-2"><CardTitle className="text-sm text-primary-foreground/75">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/inventory/audit"><Button variant="secondary" className="rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button></Link>
-              <Link href="/inventory/locations"><Button variant="secondary" className="rounded-xl"><FolderTree className="mr-2 h-4 w-4" />Ubicaciones</Button></Link>
+
+            <div className="mx-auto w-full max-w-xs rounded-3xl border border-primary-foreground/20 bg-background/15 p-4 backdrop-blur-sm">
+              <InventoryGauge total={stats.total} segments={gaugeSegments.length ? gaugeSegments : [{ label: "Sin datos", value: 1, color: "hsl(var(--primary))" }]} />
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
+                {gaugeSegments.length > 0 ? gaugeSegments.map((segment) => (
+                  <Badge key={segment.label} variant="secondary" className="rounded-full border-0 bg-background/35 text-primary-foreground">
+                    <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
+                    {segment.label}
+                  </Badge>
+                )) : <p className="text-xs text-primary-foreground/80">Sin categorías todavía.</p>}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.total}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
-      </div>
 
       <Tabs defaultValue="inventory" className="space-y-4">
         <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
@@ -361,6 +467,8 @@ export default function InventoryPage() {
 
                     <TabsContent value="asset-nfc" className="mt-0 space-y-4">
                       <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: leer NFC activo. Paso 2: completar datos. Paso 3: crear activo + vincular UID.</div>
+                      <NfcScanRing active={nfc.isScanning && nfcMode === "asset"} />
+                      <p className="text-center text-sm text-muted-foreground">Acerca el móvil al sticker NFC del activo o captura el UID manualmente.</p>
                       <div className="flex gap-2">
                         <Button className="h-12 flex-1 rounded-2xl" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "asset" ? stopNfc : () => startNfc("asset")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "asset" ? "Detener lectura" : "Leer NFC activo"}</Button>
                         <Input className="h-12 rounded-2xl" placeholder="UID activo" value={assetUid} onChange={(e) => setAssetUid(e.target.value.toUpperCase())} />
@@ -431,6 +539,8 @@ export default function InventoryPage() {
 
                     <TabsContent value="location-nfc" className="mt-0 space-y-4">
                       <p className="text-xs text-muted-foreground">Primero UID NFC del armario, luego nombre/jerarquía. Se crea ubicación y queda vinculada al UID.</p>
+                      <NfcScanRing active={nfc.isScanning && nfcMode === "location"} />
+                      <p className="text-center text-sm text-muted-foreground">Acerca una etiqueta NFC de ubicación o escribe el UID.</p>
                       <div className="flex gap-2">
                         <Button className="h-11 flex-1 rounded-xl" variant="outline" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "location" ? stopNfc : () => startNfc("location")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "location" ? "Detener lectura" : "Leer NFC armario"}</Button>
                         <Input className="h-11 rounded-xl" placeholder="UID ubicación" value={locationUid} onChange={(e) => setLocationUid(e.target.value.toUpperCase())} />
