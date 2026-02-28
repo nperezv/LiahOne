@@ -12,6 +12,33 @@ import { apiRequest } from "@/lib/queryClient";
 
 const CHART_PALETTE = ["#30d5ff", "#52e66d", "#f3d63b", "#ff8a3d", "#cc5de8", "#6d5efc"];
 
+function buildGaugeSegments(
+  categories: Array<{ id: string; name: string }>,
+  items: Array<{ categoryId?: string | null }>,
+): GaugeSegment[] {
+  const categoryPool = categories.length
+    ? categories.slice(0, 6).map((category) => ({ id: category.id, label: category.name }))
+    : [{ id: "uncategorized", label: "Sin categoría" }];
+
+  const totalItems = items.length;
+
+  return categoryPool.map((category, index) => {
+    const count = items.filter((item) => {
+      if (category.id === "uncategorized") return !item.categoryId;
+      return item.categoryId === category.id;
+    }).length;
+
+    const percent = totalItems > 0 ? (count / totalItems) * 100 : 0;
+
+    return {
+      label: category.label,
+      count,
+      value: percent,
+      color: CHART_PALETTE[index % CHART_PALETTE.length],
+    };
+  });
+}
+
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
@@ -42,50 +69,6 @@ export default function InventoryPage() {
 
   const wardName = template?.wardName?.trim() || cachedWardName || "Barrio";
 
-  const gaugeSegments = useMemo(() => {
-    const chartPalette = [
-      "#30d5ff",
-      "#52e66d",
-      "#f3d63b",
-      "#ff8a3d",
-      "#cc5de8",
-      "#6d5efc",
-    ];
-
-    const countByCategory = new Map<string, number>();
-    items.forEach((item) => {
-      const category = categories.find((cat) => cat.id === item.categoryId);
-      const label = category?.name ?? "Sin categoría";
-      countByCategory.set(label, (countByCategory.get(label) ?? 0) + 1);
-    });
-
-    const segmentsFromItems = Array.from(countByCategory.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([label, value], index) => ({
-        label,
-        value,
-        color: chartPalette[index % chartPalette.length],
-      }));
-
-    if (segmentsFromItems.length > 0) return segmentsFromItems;
-
-    if (categories.length > 0) {
-      return categories.slice(0, 6).map((category, index) => ({
-        label: category.name,
-        value: 1,
-        color: chartPalette[index % chartPalette.length],
-      }));
-    }
-
-    return [];
-  }, [items, categories]);
-
-  const assetUidResolved = assetUidLookup.data as any;
-  const locationUidResolved = locationUidLookup.data as any;
-  const assetUidInUse = Boolean(assetUid && assetUidResolved?.type);
-  const locationUidInUse = Boolean(locationUid && locationUidResolved?.type);
-
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const categoryOk = selectedCategoryId === "all" || item.categoryId === selectedCategoryId;
@@ -94,29 +77,7 @@ export default function InventoryPage() {
     });
   }, [items, selectedCategoryId, selectedLocationId]);
 
-  const gaugeSegments: GaugeSegment[] = useMemo(() => {
-    const categoryPool = categories.length
-      ? categories.slice(0, 6).map((category) => ({ id: category.id, label: category.name }))
-      : [{ id: "uncategorized", label: "Sin categoría" }];
-
-    const totalItems = items.length;
-
-    return categoryPool.map((category, index) => {
-      const count = items.filter((item) => {
-        if (category.id === "uncategorized") return !item.categoryId;
-        return item.categoryId === category.id;
-      }).length;
-
-      const percent = totalItems > 0 ? (count / totalItems) * 100 : 0;
-
-      return {
-        label: category.label,
-        count,
-        value: percent,
-        color: CHART_PALETTE[index % CHART_PALETTE.length],
-      };
-    });
-  }, [categories, items]);
+  const segmentsForGauge = useMemo(() => buildGaugeSegments(categories, items), [categories, items]);
 
   return (
     <div className="space-y-6 p-4 md:p-8">
@@ -125,7 +86,7 @@ export default function InventoryPage() {
         <p className="text-sm text-muted-foreground">{wardName}</p>
       </header>
 
-      <InventoryGauge total={items.length} segments={gaugeSegments} />
+      <InventoryGauge total={items.length} segments={segmentsForGauge} />
 
       <div className="grid gap-2 sm:grid-cols-3">
         <Link href="/inventory/scan"><Button className="w-full rounded-xl"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
