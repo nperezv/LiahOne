@@ -9,6 +9,18 @@ interface NfcState {
 
 const NFC_TEXT_DECODER = new TextDecoder();
 
+const decodeNdefTextRecord = (data: ArrayBuffer) => {
+  const bytes = new Uint8Array(data);
+  if (!bytes.length) return "";
+
+  const status = bytes[0];
+  const languageLength = status & 0x3f;
+  const payloadStart = 1 + languageLength;
+  if (payloadStart >= bytes.length) return "";
+
+  return NFC_TEXT_DECODER.decode(bytes.slice(payloadStart));
+};
+
 export function useNfcScanner(onUid: (uid: string) => void) {
   const [state, setState] = useState<NfcState>({
     isSupported: typeof window !== "undefined" && "NDEFReader" in window,
@@ -51,7 +63,9 @@ export function useNfcScanner(onUid: (uid: string) => void) {
 
         const data = record?.data;
         if (data) {
-          const decoded = NFC_TEXT_DECODER.decode(data);
+          const decoded = record?.recordType === "text"
+            ? decodeNdefTextRecord(data)
+            : NFC_TEXT_DECODER.decode(data);
           const fromPayload = extractIdFromPayload(decoded);
           if (fromPayload) return fromPayload;
         }
