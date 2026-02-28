@@ -13,7 +13,7 @@ interface InventoryGaugeProps {
   segments: GaugeSegment[];
 }
 
-const GAUGE_SIZE = 220;
+const GAUGE_SIZE = 242;
 const STROKE_WIDTH = 22;
 const SWEEP_ANGLE = 300;
 const SEGMENT_GAP = 8;

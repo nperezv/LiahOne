@@ -47,7 +47,7 @@ export default function InventoryPage() {
         <p className="text-sm text-muted-foreground">Total de activos y bienes de la unidad</p>
       </header>
 
-      <div className="pt-6 pb-4 md:pt-8 md:pb-5">
+      <div className="pt-7 pb-6 md:pt-10 md:pb-7">
         <InventoryGauge total={items.length} segments={segmentsForGauge} />
       </div>
 
