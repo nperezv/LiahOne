@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, FolderTree, QrCode, ScanLine } from "lucide-react";
+import { ArrowRight, FolderTree, Loader2, QrCode, ScanLine, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +32,16 @@ export default function InventoryRegisterHubPage() {
   const [assetCategoryId, setAssetCategoryId] = useState("");
   const [assetLocationId, setAssetLocationId] = useState("");
   const [assetDescription, setAssetDescription] = useState("");
+  const [assetPhotoUrl, setAssetPhotoUrl] = useState("");
+  const [assetPhotoUploading, setAssetPhotoUploading] = useState(false);
   const [createdAssetCode, setCreatedAssetCode] = useState("");
 
   const [assetQrName, setAssetQrName] = useState("");
   const [assetQrCategoryId, setAssetQrCategoryId] = useState("");
   const [assetQrLocationId, setAssetQrLocationId] = useState("");
   const [assetQrDescription, setAssetQrDescription] = useState("");
+  const [assetQrPhotoUrl, setAssetQrPhotoUrl] = useState("");
+  const [assetQrPhotoUploading, setAssetQrPhotoUploading] = useState(false);
   const [createdAssetCodeByQr, setCreatedAssetCodeByQr] = useState("");
 
   const [locationUid, setLocationUid] = useState("");
@@ -74,6 +78,7 @@ export default function InventoryRegisterHubPage() {
     const created = await createItem.mutateAsync({
       name: assetName.trim(),
       description: assetDescription.trim() || undefined,
+      photoUrl: assetPhotoUrl.trim() || undefined,
       categoryId: assetCategoryId,
       locationId: assetLocationId || undefined,
       status: "available",
@@ -85,6 +90,7 @@ export default function InventoryRegisterHubPage() {
     setAssetCategoryId("");
     setAssetLocationId("");
     setAssetDescription("");
+    setAssetPhotoUrl("");
     stopNfc();
   };
 
@@ -93,6 +99,7 @@ export default function InventoryRegisterHubPage() {
     const created = await createItem.mutateAsync({
       name: assetQrName.trim(),
       description: assetQrDescription.trim() || undefined,
+      photoUrl: assetQrPhotoUrl.trim() || undefined,
       categoryId: assetQrCategoryId,
       locationId: assetQrLocationId || undefined,
       status: "available",
@@ -102,6 +109,7 @@ export default function InventoryRegisterHubPage() {
     setAssetQrCategoryId("");
     setAssetQrLocationId("");
     setAssetQrDescription("");
+    setAssetQrPhotoUrl("");
   };
 
   const handleCreateLocationByNfc = async () => {
@@ -127,6 +135,41 @@ export default function InventoryRegisterHubPage() {
     setCreatedLocationCodeByQr(created.code);
     setLocationQrName("");
     setLocationQrParentId("none");
+  };
+
+  const uploadImageToServer = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/uploads", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudo subir la imagen");
+    }
+
+    const uploaded = await response.json();
+    return uploaded?.url as string;
+  };
+
+  const handleAssetPhotoFile = async (file: File | null, mode: "nfc" | "qr") => {
+    if (!file) return;
+    try {
+      if (mode === "nfc") setAssetPhotoUploading(true);
+      else setAssetQrPhotoUploading(true);
+
+      const url = await uploadImageToServer(file);
+      if (mode === "nfc") setAssetPhotoUrl(url);
+      else setAssetQrPhotoUrl(url);
+    } catch {
+      // keep silent to avoid introducing new toast dependency here
+    } finally {
+      if (mode === "nfc") setAssetPhotoUploading(false);
+      else setAssetQrPhotoUploading(false);
+    }
   };
 
   return (
@@ -161,6 +204,19 @@ export default function InventoryRegisterHubPage() {
                     <Select value={assetLocationId} onValueChange={setAssetLocationId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación inicial (opcional)" /></SelectTrigger><SelectContent>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
                     <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
                     <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetDescription} onChange={(e) => setAssetDescription(e.target.value)} />
+                    <Input className="h-11 rounded-xl md:col-span-2" placeholder="URL de foto (opcional)" value={assetPhotoUrl} onChange={(e) => setAssetPhotoUrl(e.target.value)} />
+                    <div className="md:col-span-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
+                        {assetPhotoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {assetPhotoUploading ? "Subiendo foto..." : "Subir foto desde galería"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => void handleAssetPhotoFile(e.target.files?.[0] ?? null, "nfc")}
+                        />
+                      </label>
+                    </div>
                   </div>
                   <Button className="h-12 rounded-2xl" disabled={!assetUid || assetInUse || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><ScanLine className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
                   {createdAssetCode && <p className="text-sm text-emerald-700">Activo creado: <b>{createdAssetCode}</b>.</p>}
@@ -172,6 +228,19 @@ export default function InventoryRegisterHubPage() {
                     <Select value={assetQrLocationId} onValueChange={setAssetQrLocationId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación inicial (opcional)" /></SelectTrigger><SelectContent>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
                     <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetQrName} onChange={(e) => setAssetQrName(e.target.value)} />
                     <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetQrDescription} onChange={(e) => setAssetQrDescription(e.target.value)} />
+                    <Input className="h-11 rounded-xl md:col-span-2" placeholder="URL de foto (opcional)" value={assetQrPhotoUrl} onChange={(e) => setAssetQrPhotoUrl(e.target.value)} />
+                    <div className="md:col-span-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
+                        {assetQrPhotoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {assetQrPhotoUploading ? "Subiendo foto..." : "Subir foto desde galería"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => void handleAssetPhotoFile(e.target.files?.[0] ?? null, "qr")}
+                        />
+                      </label>
+                    </div>
                   </div>
                   <Button className="h-12 rounded-2xl" disabled={!assetQrName.trim() || !assetQrCategoryId || createItem.isPending} onClick={handleCreateAssetByQr}><QrCode className="mr-2 h-4 w-4" />Crear activo (QR)</Button>
                   {createdAssetCodeByQr && <div className="space-y-2 rounded-2xl border p-3"><p className="text-sm">Activo creado: <b>{createdAssetCodeByQr}</b>.</p><div className="flex flex-wrap gap-2"><a href={`/inventory/qr/${createdAssetCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Ver QR</Button></a><a href={`/inventory/label/${createdAssetCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Etiqueta PDF</Button></a></div></div>}
