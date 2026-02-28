@@ -42,6 +42,50 @@ export default function InventoryPage() {
 
   const wardName = template?.wardName?.trim() || cachedWardName || "Barrio";
 
+  const gaugeSegments = useMemo(() => {
+    const chartPalette = [
+      "#30d5ff",
+      "#52e66d",
+      "#f3d63b",
+      "#ff8a3d",
+      "#cc5de8",
+      "#6d5efc",
+    ];
+
+    const countByCategory = new Map<string, number>();
+    items.forEach((item) => {
+      const category = categories.find((cat) => cat.id === item.categoryId);
+      const label = category?.name ?? "Sin categoría";
+      countByCategory.set(label, (countByCategory.get(label) ?? 0) + 1);
+    });
+
+    const segmentsFromItems = Array.from(countByCategory.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, value], index) => ({
+        label,
+        value,
+        color: chartPalette[index % chartPalette.length],
+      }));
+
+    if (segmentsFromItems.length > 0) return segmentsFromItems;
+
+    if (categories.length > 0) {
+      return categories.slice(0, 6).map((category, index) => ({
+        label: category.name,
+        value: 1,
+        color: chartPalette[index % chartPalette.length],
+      }));
+    }
+
+    return [];
+  }, [items, categories]);
+
+  const assetUidResolved = assetUidLookup.data as any;
+  const locationUidResolved = locationUidLookup.data as any;
+  const assetUidInUse = Boolean(assetUid && assetUidResolved?.type);
+  const locationUidInUse = Boolean(locationUid && locationUidResolved?.type);
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const categoryOk = selectedCategoryId === "all" || item.categoryId === selectedCategoryId;
