@@ -7,7 +7,7 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-const SW_HARD_RESET_KEY = "sw-hard-reset-v6";
+const SW_HARD_RESET_KEY = "sw-hard-reset-v7";
 
 const hardResetLegacyServiceWorkerCaches = async () => {
   if (!("serviceWorker" in navigator) || !("caches" in window)) return;
@@ -33,7 +33,7 @@ createRoot(document.getElementById("root")!).render(<App />);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((error) => {
+    navigator.serviceWorker.register("/sw.js?v=7").catch((error) => {
       console.error("Service worker registration failed:", error);
     });
   });
