@@ -1,97 +1,46 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import {
-  ArrowRight,
-  Filter,
-  FolderTree,
-  Plus,
-  QrCode,
-  ScanLine,
-  ShieldCheck,
-  Wifi,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Filter, QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import {
-  useCreateInventoryCategory,
-  useCreateInventoryItem,
-  useCreateInventoryLocation,
-  useInventoryCategories,
-  useInventoryItems,
-  useInventoryLocations,
-  useRegisterItemNfc,
-  useRegisterLocationNfc,
-} from "@/hooks/use-api";
-import { useNfcScanner } from "@/hooks/use-nfc-scanner";
+import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
+import { useInventoryCategories, useInventoryItems, useInventoryLocations } from "@/hooks/use-api";
+import { apiRequest } from "@/lib/queryClient";
+
+const CHART_PALETTE = ["#30d5ff", "#52e66d", "#f3d63b", "#ff8a3d", "#cc5de8", "#6d5efc"];
 
 export default function InventoryPage() {
   const [search, setSearch] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
+
   const { data: items = [], isLoading } = useInventoryItems(search);
   const { data: categories = [] } = useInventoryCategories();
   const { data: locations = [] } = useInventoryLocations();
 
-  const createItem = useCreateInventoryItem();
-  const createCategory = useCreateInventoryCategory();
-  const createLocation = useCreateInventoryLocation();
-  const registerItemNfc = useRegisterItemNfc();
-  const registerLocationNfc = useRegisterLocationNfc();
-
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
-  const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
-  const [categoryName, setCategoryName] = useState("");
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-
-  const [assetUid, setAssetUid] = useState("");
-  const [assetName, setAssetName] = useState("");
-  const [assetCategoryId, setAssetCategoryId] = useState("");
-  const [assetLocationId, setAssetLocationId] = useState("");
-  const [assetDescription, setAssetDescription] = useState("");
-  const [createdAssetCode, setCreatedAssetCode] = useState("");
-  const [assetQrName, setAssetQrName] = useState("");
-  const [assetQrCategoryId, setAssetQrCategoryId] = useState("");
-  const [assetQrLocationId, setAssetQrLocationId] = useState("");
-  const [assetQrDescription, setAssetQrDescription] = useState("");
-  const [createdAssetCodeByQr, setCreatedAssetCodeByQr] = useState("");
-
-  const [locationUid, setLocationUid] = useState("");
-  const [locationName, setLocationName] = useState("");
-  const [locationParentId, setLocationParentId] = useState("none");
-  const [createdLocationCode, setCreatedLocationCode] = useState("");
-  const [locationQrName, setLocationQrName] = useState("");
-  const [locationQrParentId, setLocationQrParentId] = useState("none");
-  const [createdLocationCodeByQr, setCreatedLocationCodeByQr] = useState("");
-
-  const [qrAssetCode, setQrAssetCode] = useState("");
-
-  const [nfcMode, setNfcMode] = useState<"asset" | "location" | null>(null);
-  const nfc = useNfcScanner(async (uid) => {
-    if (nfcMode === "asset") setAssetUid(uid);
-    if (nfcMode === "location") setLocationUid(uid);
+  const { data: template } = useQuery({
+    queryKey: ["/api/pdf-template"],
+    queryFn: () => apiRequest("GET", "/api/pdf-template"),
   });
 
-  const stopNfc = () => {
-    nfc.stop();
-    setNfcMode(null);
-  };
+  const [cachedWardName, setCachedWardName] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("ward_name_cache") || "";
+  });
 
-  const startNfc = (mode: "asset" | "location") => {
-    setNfcMode(mode);
-    nfc.start();
-  };
+  useEffect(() => {
+    const incoming = template?.wardName?.trim();
+    if (!incoming) return;
+    setCachedWardName(incoming);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("ward_name_cache", incoming);
+    }
+  }, [template?.wardName]);
 
-  const stats = useMemo(
-    () => ({
-      total: items.length,
-      available: items.filter((i) => i.status === "available").length,
-      loaned: items.filter((i) => i.status === "loaned").length,
-    }),
-    [items],
-  );
+  const wardName = template?.wardName?.trim() || cachedWardName || "Barrio";
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -101,408 +50,104 @@ export default function InventoryPage() {
     });
   }, [items, selectedCategoryId, selectedLocationId]);
 
-  const itemsByLocation = useMemo(() => {
-    const grouped = new Map<string, { id: string; name: string; code: string; count: number; items: typeof items }>();
+  const gaugeSegments: GaugeSegment[] = useMemo(() => {
+    const categoryPool = categories.length
+      ? categories.slice(0, 6).map((category) => ({ id: category.id, label: category.name }))
+      : [{ id: "uncategorized", label: "Sin categoría" }];
 
-    locations.forEach((location) => {
-      grouped.set(location.id, { id: location.id, name: location.name, code: location.code, count: 0, items: [] as typeof items });
+    const totalItems = items.length;
+
+    return categoryPool.map((category, index) => {
+      const count = items.filter((item) => {
+        if (category.id === "uncategorized") return !item.categoryId;
+        return item.categoryId === category.id;
+      }).length;
+
+      const percent = totalItems > 0 ? (count / totalItems) * 100 : 0;
+
+      return {
+        label: category.label,
+        count,
+        value: percent,
+        color: CHART_PALETTE[index % CHART_PALETTE.length],
+      };
     });
-
-    filteredItems.forEach((item) => {
-      if (!item.locationId) return;
-      const entry = grouped.get(item.locationId);
-      if (!entry) return;
-      entry.count += 1;
-      entry.items.push(item);
-    });
-
-    return Array.from(grouped.values())
-      .filter((entry) => entry.count > 0)
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [filteredItems, locations, items]);
-
-  const buildCategoryBasePrefix = (rawName: string) => {
-    const tokens = rawName
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .split(/\s+/)
-      .map((token) => token.replace(/[^A-Za-z0-9]/g, ""))
-      .filter(Boolean);
-
-    const fromInitials = tokens.map((token) => token[0]).join("").toUpperCase();
-    const candidate = (fromInitials || "CAT").slice(0, 4);
-    return candidate || "CAT";
-  };
-
-  const handleCreateCategory = async () => {
-    if (!categoryName.trim()) return;
-
-    const cleanName = categoryName.trim();
-    const generatedPrefix = buildCategoryBasePrefix(cleanName);
-
-    try {
-      await createCategory.mutateAsync({
-        name: cleanName,
-        prefix: generatedPrefix,
-      });
-      setCategoryName("");
-      setCategoryModalOpen(false);
-    } catch {
-      // handled by API/error toasts upstream; avoid uncaught promise in UI
-    }
-  };
-
-  const handleCreateAssetByNfc = async () => {
-    if (!assetUid || !assetName.trim() || !assetCategoryId) return;
-    try {
-      const created = await createItem.mutateAsync({
-        name: assetName.trim(),
-        description: assetDescription.trim() || undefined,
-        categoryId: assetCategoryId,
-        locationId: assetLocationId || undefined,
-        status: "available",
-      });
-
-      await registerItemNfc.mutateAsync({
-        asset_code: created.assetCode,
-        nfc_uid: assetUid,
-      });
-
-      setCreatedAssetCode(created.assetCode);
-      setQrAssetCode(created.assetCode);
-      setAssetUid("");
-      setAssetName("");
-      setAssetCategoryId("");
-      setAssetLocationId("");
-      setAssetDescription("");
-      stopNfc();
-    } catch {
-      // prevent unhandled promise in case of upstream 5xx
-    }
-  };
-
-  const handleCreateLocationByNfc = async () => {
-    if (!locationUid || !locationName.trim()) return;
-
-    try {
-      const created = await createLocation.mutateAsync({
-        name: locationName.trim(),
-        parentId: locationParentId === "none" ? undefined : locationParentId,
-      });
-
-      await registerLocationNfc.mutateAsync({
-        location_code: created.code,
-        nfc_uid: locationUid,
-      });
-
-      setCreatedLocationCode(created.code);
-      setLocationUid("");
-      setLocationName("");
-      setLocationParentId("none");
-      stopNfc();
-    } catch {
-      // prevent unhandled promise in case of upstream 5xx
-    }
-  };
-
-  const handleCreateAssetByQr = async () => {
-    if (!assetQrName.trim() || !assetQrCategoryId) return;
-    try {
-      const created = await createItem.mutateAsync({
-        name: assetQrName.trim(),
-        description: assetQrDescription.trim() || undefined,
-        categoryId: assetQrCategoryId,
-        locationId: assetQrLocationId || undefined,
-        status: "available",
-      });
-
-      setCreatedAssetCodeByQr(created.assetCode);
-      setQrAssetCode(created.assetCode);
-      setAssetQrName("");
-      setAssetQrCategoryId("");
-      setAssetQrLocationId("");
-      setAssetQrDescription("");
-    } catch {
-      // prevent unhandled promise in case of upstream 5xx
-    }
-  };
-
-  const handleCreateLocationByQr = async () => {
-    if (!locationQrName.trim()) return;
-    try {
-      const created = await createLocation.mutateAsync({
-        name: locationQrName.trim(),
-        parentId: locationQrParentId === "none" ? undefined : locationQrParentId,
-      });
-
-      setCreatedLocationCodeByQr(created.code);
-      setLocationQrName("");
-      setLocationQrParentId("none");
-    } catch {
-      // prevent unhandled promise in case of upstream 5xx
-    }
-  };
+  }, [categories, items]);
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <Card className="border-0 bg-gradient-to-br from-primary via-primary/80 to-primary/60 text-primary-foreground shadow-sm">
-        <CardContent className="p-5 md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-              <p className="mt-1 text-sm text-primary-foreground/85">Dashboard principal con filtros y registro rápido.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/inventory/audit"><Button variant="secondary" className="rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Abrir auditoría</Button></Link>
-              <Link href="/inventory/locations"><Button variant="secondary" className="rounded-xl"><FolderTree className="mr-2 h-4 w-4" />Ubicaciones</Button></Link>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
+        <p className="text-sm text-muted-foreground">{wardName}</p>
+      </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.total}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Presentes</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.available}</CardContent></Card>
-        <Card className="rounded-3xl"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Prestados</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{stats.loaned}</CardContent></Card>
+      <InventoryGauge total={items.length} segments={gaugeSegments} />
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Link href="/inventory/scan"><Button className="w-full rounded-xl"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
+        <Link href="/inventory/register"><Button variant="outline" className="w-full rounded-xl"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
+        <Link href="/inventory/audit"><Button variant="outline" className="w-full rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
       </div>
 
-      <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
-          <TabsTrigger value="inventory" className="rounded-xl py-2">Inventario</TabsTrigger>
-          <TabsTrigger value="register" className="rounded-xl py-2">Registro</TabsTrigger>
-        </TabsList>
+      <section className="space-y-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Filter className="h-4 w-4" />
+          Filtros
+        </div>
 
-        <TabsContent value="inventory" className="mt-0 space-y-4">
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Filter className="h-4 w-4" />Filtros por categoría y armario</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todas las categorías" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las categorías</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>{category.name} · {category.prefix}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
-                <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todos los armarios / ubicaciones" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los armarios / ubicaciones</SelectItem>
-                  {locations.map((location) => (
-                    <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                {categories.map((category) => <Badge key={category.id} variant="outline" className="rounded-full">{category.name} ({category.prefix})</Badge>)}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+            <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todas las categorías" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
+            <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todos los armarios" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los armarios</SelectItem>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Input
+          className="h-11 rounded-xl"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar por nombre o código"
+        />
+      </section>
+
+      <section className="space-y-2">
+        {isLoading ? <p className="text-sm text-muted-foreground">Cargando activos...</p> : null}
+
+        {filteredItems.map((item) => (
+          <Link key={item.id} href={`/inventory/${item.assetCode}`}>
+            <article className="rounded-xl border border-border/70 p-3 transition-colors hover:bg-muted/40">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate font-medium">{item.name}</p>
+                <Badge variant="secondary" className="rounded-full">{item.status}</Badge>
               </div>
-            </CardContent>
-          </Card>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {item.assetCode} · {(item as any).categoryName ?? "Sin categoría"} · {(item as any).locationCode ?? "Sin armario"}
+              </p>
+            </article>
+          </Link>
+        ))}
 
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Listado de activos</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Input className="h-12 rounded-2xl" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código o nombre" />
-              {isLoading && <p>Cargando...</p>}
-              {filteredItems.map((item) => (
-                <Link key={item.id} href={`/inventory/${item.assetCode}`}>
-                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{item.assetCode} · {item.name}</p>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{item.status} · {(item as any).locationCode ?? "Sin ubicación"}</p>
-                  </div>
-                </Link>
-              ))}
-              {filteredItems.length === 0 && <p className="text-sm text-muted-foreground">No hay activos para este filtro.</p>}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl">
-            <CardHeader><CardTitle className="text-base">Visibilidad por armario / ubicación</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {itemsByLocation.map((entry) => (
-                <Link key={entry.id} href={`/inventory/locations/${entry.code}`}>
-                  <div className="cursor-pointer rounded-2xl border p-3 transition-colors hover:bg-muted/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{entry.name} · {entry.code}</p>
-                      <Badge variant="secondary" className="rounded-full">{entry.count} activo(s)</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {entry.items.slice(0, 3).map((item) => item.assetCode).join(" · ")}
-                      {entry.items.length > 3 ? ` · +${entry.items.length - 3} más` : ""}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-              {itemsByLocation.length === 0 && <p className="text-sm text-muted-foreground">No hay activos ubicados en armarios para el filtro actual.</p>}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="register" className="mt-0 space-y-4">
-          <Tabs defaultValue="assets" className="space-y-4">
-            <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
-              <TabsTrigger value="assets" className="rounded-xl py-2">Alta de activos</TabsTrigger>
-              <TabsTrigger value="locations" className="rounded-xl py-2">Alta de armarios</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="assets" className="mt-0">
-              <Card className="rounded-3xl">
-                <CardHeader><CardTitle className="text-base">Activos: elegir método de alta</CardTitle></CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="asset-nfc" className="space-y-4">
-                    <TabsList className="grid h-auto grid-cols-2 rounded-xl bg-muted/60 p-1">
-                      <TabsTrigger value="asset-nfc" className="rounded-lg">Alta por NFC (inversa)</TabsTrigger>
-                      <TabsTrigger value="asset-qr" className="rounded-lg">Alta por QR</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="asset-nfc" className="mt-0 space-y-4">
-                      <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: leer NFC activo. Paso 2: completar datos. Paso 3: crear activo + vincular UID.</div>
-                      <div className="flex gap-2">
-                        <Button className="h-12 flex-1 rounded-2xl" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "asset" ? stopNfc : () => startNfc("asset")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "asset" ? "Detener lectura" : "Leer NFC activo"}</Button>
-                        <Input className="h-12 rounded-2xl" placeholder="UID activo" value={assetUid} onChange={(e) => setAssetUid(e.target.value.toUpperCase())} />
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <Select value={assetCategoryId} onValueChange={setAssetCategoryId}>
-                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoría" /></SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name} · {category.prefix}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Select value={assetLocationId} onValueChange={setAssetLocationId}>
-                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación inicial (opcional)" /></SelectTrigger>
-                          <SelectContent>
-                            {locations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
-                        <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetDescription} onChange={(e) => setAssetDescription(e.target.value)} />
-                      </div>
-                      <Button className="h-12 rounded-2xl" disabled={!assetUid || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><Wifi className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
-                      {createdAssetCode && <p className="text-sm text-emerald-700">Activo creado: <b>{createdAssetCode}</b>.</p>}
-                    </TabsContent>
-
-                    <TabsContent value="asset-qr" className="mt-0 space-y-4">
-                      <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: crear activo con nombre/categoría. Paso 2: generar QR. Paso 3: guardar etiqueta PDF, imprimir y pegar.</div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <Select value={assetQrCategoryId} onValueChange={setAssetQrCategoryId}>
-                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoría" /></SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name} · {category.prefix}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Select value={assetQrLocationId} onValueChange={setAssetQrLocationId}>
-                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación inicial (opcional)" /></SelectTrigger>
-                          <SelectContent>
-                            {locations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetQrName} onChange={(e) => setAssetQrName(e.target.value)} />
-                        <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetQrDescription} onChange={(e) => setAssetQrDescription(e.target.value)} />
-                      </div>
-                      <Button className="h-12 rounded-2xl" disabled={!assetQrName.trim() || !assetQrCategoryId || createItem.isPending} onClick={handleCreateAssetByQr}><QrCode className="mr-2 h-4 w-4" />Crear activo (QR)</Button>
-                      {createdAssetCodeByQr && (
-                        <div className="space-y-2 rounded-2xl border p-3">
-                          <p className="text-sm">Activo creado: <b>{createdAssetCodeByQr}</b>.</p>
-                          <div className="flex flex-wrap gap-2">
-                            <a href={`/inventory/qr/${createdAssetCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Ver QR</Button></a>
-                            <a href={`/inventory/label/${createdAssetCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Etiqueta PDF</Button></a>
-                          </div>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="locations" className="mt-0">
-              <Card className="rounded-3xl">
-                <CardHeader><CardTitle className="text-base">Armarios: elegir método de alta</CardTitle></CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="location-nfc" className="space-y-4">
-                    <TabsList className="grid h-auto grid-cols-2 rounded-xl bg-muted/60 p-1">
-                      <TabsTrigger value="location-nfc" className="rounded-lg">Alta por NFC (inversa)</TabsTrigger>
-                      <TabsTrigger value="location-qr" className="rounded-lg">Alta por QR</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="location-nfc" className="mt-0 space-y-4">
-                      <p className="text-xs text-muted-foreground">Primero UID NFC del armario, luego nombre/jerarquía. Se crea ubicación y queda vinculada al UID.</p>
-                      <div className="flex gap-2">
-                        <Button className="h-11 flex-1 rounded-xl" variant="outline" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "location" ? stopNfc : () => startNfc("location")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "location" ? "Detener lectura" : "Leer NFC armario"}</Button>
-                        <Input className="h-11 rounded-xl" placeholder="UID ubicación" value={locationUid} onChange={(e) => setLocationUid(e.target.value.toUpperCase())} />
-                      </div>
-                      <Input className="h-11 rounded-xl" placeholder="Nombre ubicación (ej: Armario multimedia)" value={locationName} onChange={(e) => setLocationName(e.target.value)} />
-                      <Select value={locationParentId} onValueChange={setLocationParentId}>
-                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación padre (opcional)" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin padre (raíz)</SelectItem>
-                          {locations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Button className="h-11 rounded-xl" disabled={!locationUid || !locationName.trim() || createLocation.isPending || registerLocationNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Crear ubicación + vincular NFC</Button>
-                      {createdLocationCode && <p className="text-sm text-emerald-700">Ubicación creada: <b>{createdLocationCode}</b>.</p>}
-                    </TabsContent>
-
-                    <TabsContent value="location-qr" className="mt-0 space-y-4">
-                      <div className="rounded-2xl bg-muted/40 p-3 text-sm">Paso 1: crear armario/ubicación con nombre. Paso 2: abrir etiqueta con QR de ubicación. Paso 3: imprimir, guardar y pegar.</div>
-                      <Input className="h-11 rounded-xl" placeholder="Nombre armario/ubicación" value={locationQrName} onChange={(e) => setLocationQrName(e.target.value)} />
-                      <Select value={locationQrParentId} onValueChange={setLocationQrParentId}>
-                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación padre (opcional)" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin padre (raíz)</SelectItem>
-                          {locations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Button className="h-11 rounded-xl" disabled={!locationQrName.trim() || createLocation.isPending} onClick={handleCreateLocationByQr}><QrCode className="mr-2 h-4 w-4" />Crear ubicación (QR)</Button>
-                      {createdLocationCodeByQr && (
-                        <div className="space-y-2 rounded-2xl border p-3">
-                          <p className="text-sm">Ubicación creada: <b>{createdLocationCodeByQr}</b>.</p>
-                          <div className="flex flex-wrap gap-2">
-                            <a href={`/loc/${createdLocationCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><ArrowRight className="mr-2 h-4 w-4" />Ver ubicación</Button></a>
-                            <a href={`/inventory/location-label/${createdLocationCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Etiqueta QR ubicación</Button></a>
-                          </div>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-          <Card className="rounded-3xl border-dashed">
-            <CardHeader><CardTitle className="text-base">Definir categorías</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">Crea una categoría al final del flujo. El prefijo base se calcula automáticamente desde el nombre (ej: Comida → C; código final: CBM8-0001).</p>
-              <Dialog open={categoryModalOpen} onOpenChange={setCategoryModalOpen}>
-                <DialogTrigger asChild>
-                  <Button className="h-11 rounded-xl" variant="outline"><Plus className="mr-2 h-4 w-4" />Nueva categoría</Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Crear categoría</DialogTitle>
-                    <DialogDescription>
-                      Indica el nombre y generamos el prefijo base automáticamente según las iniciales.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <Input className="h-11 rounded-xl" placeholder="Nombre categoría (ej: Comida)" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} />
-                    <p className="text-xs text-muted-foreground">Prefijo sugerido: <b>{buildCategoryBasePrefix(categoryName || "Categoria")}</b></p>
-                    <Button className="h-11 w-full rounded-xl" disabled={!categoryName.trim() || createCategory.isPending} onClick={handleCreateCategory}>
-                      {createCategory.isPending ? "Creando..." : "Crear categoría"}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardContent>
-          </Card>
-
-        </TabsContent>
-
-      </Tabs>
+        {!isLoading && filteredItems.length === 0 ? (
+          <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+            No hay activos para estos filtros.
+          </p>
+        ) : null}
+      </section>
     </div>
   );
 }

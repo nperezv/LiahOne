@@ -1522,6 +1522,7 @@ export interface InventoryItem {
   name: string;
   description?: string | null;
   status: "available" | "loaned" | "maintenance";
+  photoUrl?: string | null;
   qrUrl: string;
   trackerId?: string | null;
   categoryId: string;
