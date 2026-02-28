@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState, type TouchEvent } from "react";
-import { ChevronLeft, ChevronRight, ScanLine } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
+import { ScanLine } from "lucide-react";
 
 export type GaugeSegment = {
   label: string;
@@ -50,7 +50,9 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
   }, [normalizedSegments, total]);
 
   const [activeSlide, setActiveSlide] = useState(0);
+  const [animatedValue, setAnimatedValue] = useState(total);
   const startX = useRef<number | null>(null);
+  const pointerStartX = useRef<number | null>(null);
 
   const goToSlide = (nextIndex: number) => {
     const boundedIndex = Math.max(0, Math.min(nextIndex, slides.length - 1));
@@ -61,17 +63,51 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
     startX.current = event.touches[0]?.clientX ?? null;
   };
 
+  const handleSwipe = (fromX: number | null, toX: number | null) => {
+    if (fromX == null || toX == null) return;
+    const delta = fromX - toX;
+    if (Math.abs(delta) < 35) return;
+    goToSlide(activeSlide + (delta > 0 ? 1 : -1));
+  };
+
   const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
-    if (startX.current == null) return;
-    const endX = event.changedTouches[0]?.clientX ?? startX.current;
-    const delta = endX - startX.current;
-    if (Math.abs(delta) > 25) {
-      goToSlide(activeSlide + (delta < 0 ? 1 : -1));
-    }
+    handleSwipe(startX.current, event.changedTouches[0]?.clientX ?? null);
     startX.current = null;
   };
 
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    pointerStartX.current = event.clientX ?? null;
+  };
+
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    handleSwipe(pointerStartX.current, typeof event.clientX === "number" ? event.clientX : null);
+    pointerStartX.current = null;
+  };
+
   const currentSlide = slides[activeSlide] ?? slides[0];
+
+  useEffect(() => {
+    let frameId = 0;
+    const startValue = animatedValue;
+    const endValue = currentSlide?.value ?? 0;
+    const duration = 420;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      const nextValue = startValue + (endValue - startValue) * easedProgress;
+      setAnimatedValue(Math.round(nextValue));
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeSlide, currentSlide?.value]);
 
   let consumedArc = 0;
 
@@ -121,38 +157,22 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
           className="absolute inset-0 flex flex-col items-center justify-center text-center"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
         >
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{currentSlide.title}</p>
-          <p className="text-[2.2rem] font-bold leading-none" style={{ color: currentSlide.color }}>{currentSlide.value}</p>
+          <p className="text-[2.2rem] font-bold leading-none" style={{ color: currentSlide.color }}>{animatedValue}</p>
           <p className="mt-1 text-sm text-muted-foreground">{currentSlide.subtitle}</p>
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => goToSlide(activeSlide - 1)}
-              className="rounded-full border border-border/70 p-1 text-muted-foreground transition hover:text-foreground"
-              aria-label="Categoría anterior"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <div className="flex items-center gap-1">
-              {slides.map((slide, index) => (
-                <button
-                  key={slide.key}
-                  type="button"
-                  onClick={() => goToSlide(index)}
-                  className={`h-1.5 w-1.5 rounded-full transition ${index === activeSlide ? "bg-foreground" : "bg-muted-foreground/40"}`}
-                  aria-label={`Ver ${slide.title}`}
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => goToSlide(activeSlide + 1)}
-              className="rounded-full border border-border/70 p-1 text-muted-foreground transition hover:text-foreground"
-              aria-label="Siguiente categoría"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+          <div className="mt-3 flex items-center gap-2" data-testid="inventory-gauge-dots">
+            {slides.map((slide, index) => (
+              <button
+                key={slide.key}
+                type="button"
+                onClick={() => goToSlide(index)}
+                className={`h-2 rounded-full transition-all ${index === activeSlide ? "w-6 bg-primary" : "w-2 bg-muted-foreground/40"}`}
+                aria-label={`Ver ${slide.title}`}
+              />
+            ))}
           </div>
         </div>
       </div>
