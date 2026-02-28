@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Filter, QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
