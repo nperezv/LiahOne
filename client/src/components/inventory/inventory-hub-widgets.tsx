@@ -117,7 +117,7 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
   let consumedArc = 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="relative mx-auto w-fit" data-testid="inventory-gauge">
         <div className="pointer-events-none absolute inset-0 rounded-full border border-sky-300/10 shadow-[0_0_48px_rgba(56,189,248,0.16)]" />
         <div className="pointer-events-none absolute inset-[22px] rounded-full border border-white/5" />
@@ -195,7 +195,8 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="pt-2">
+        <div className="flex flex-wrap justify-center gap-2">
         {normalizedSegments.length > 0 ? (
           normalizedSegments.map((segment) => (
             <span
@@ -209,6 +210,7 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
         ) : (
           <p className="text-xs text-muted-foreground">Sin categorías todavía.</p>
         )}
+        </div>
       </div>
     </div>
   );

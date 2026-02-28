@@ -47,15 +47,12 @@ export default function InventoryPage() {
         <p className="text-sm text-muted-foreground">Total de activos y bienes de la unidad</p>
       </header>
 
-      <div className="py-4 md:py-6">
+      <div className="pt-6 pb-4 md:pt-8 md:pb-5">
         <InventoryGauge total={items.length} segments={segmentsForGauge} />
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-1">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50">Inventario</Button></Link>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-3">
         <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(37,99,235,0.25)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
         <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
         <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
