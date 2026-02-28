@@ -47,6 +47,9 @@ import InventoryPage from "@/pages/inventory";
 import InventoryNewPage from "@/pages/inventory-new";
 import InventoryDetailPage from "@/pages/inventory-detail";
 import InventoryAuditPage from "@/pages/inventory-audit";
+import InventoryScanPage from "@/pages/inventory-scan";
+import InventoryRegisterHubPage from "@/pages/inventory-register";
+import InventoryListPage from "@/pages/inventory-list";
 import InventoryPublicPage from "@/pages/inventory-public";
 import InventoryLocationsPage from "@/pages/inventory-locations";
 import InventoryLocationDetailPage from "@/pages/inventory-location-detail";
@@ -139,6 +142,15 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/inventory/new">
           <InventoryNewPage />
+        </Route>
+        <Route path="/inventory/scan">
+          <InventoryScanPage />
+        </Route>
+        <Route path="/inventory/register">
+          <InventoryRegisterHubPage />
+        </Route>
+        <Route path="/inventory/list">
+          <InventoryListPage />
         </Route>
         <Route path="/inventory/audit">
           <InventoryAuditPage />
