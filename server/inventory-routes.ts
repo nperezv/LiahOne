@@ -250,6 +250,7 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
         name: inventoryItems.name,
         description: inventoryItems.description,
         status: inventoryItems.status,
+        photoUrl: inventoryItems.photoUrl,
         qrUrl: inventoryItems.qrUrl,
         trackerId: inventoryItems.trackerId,
         categoryId: inventoryItems.categoryId,
@@ -416,8 +417,30 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     if (!link) return res.json({ registered: false });
 
     if (link.targetType === "item") {
-      const [item] = await db.select({ assetCode: inventoryItems.assetCode }).from(inventoryItems).where(eq(inventoryItems.id, link.targetId)).limit(1);
-      return res.json({ type: "item", asset_code: item?.assetCode ?? null });
+      const [item] = await db
+        .select({
+          assetCode: inventoryItems.assetCode,
+          name: inventoryItems.name,
+          photoUrl: inventoryItems.photoUrl,
+          categoryName: inventoryCategories.name,
+          locationName: inventoryLocations.name,
+          locationCode: inventoryLocations.code,
+        })
+        .from(inventoryItems)
+        .leftJoin(inventoryCategories, eq(inventoryItems.categoryId, inventoryCategories.id))
+        .leftJoin(inventoryLocations, eq(inventoryItems.locationId, inventoryLocations.id))
+        .where(eq(inventoryItems.id, link.targetId))
+        .limit(1);
+
+      return res.json({
+        type: "item",
+        asset_code: item?.assetCode ?? null,
+        name: item?.name ?? null,
+        photoUrl: item?.photoUrl ?? null,
+        categoryName: item?.categoryName ?? null,
+        locationName: item?.locationName ?? null,
+        location_code: item?.locationCode ?? null,
+      });
     }
 
     const [location] = await db.select({ code: inventoryLocations.code }).from(inventoryLocations).where(eq(inventoryLocations.id, link.targetId)).limit(1);
