@@ -61,7 +61,7 @@ export default function InventoryPage() {
     <div className="space-y-6 p-4 md:p-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Inventario del barrio</h1>
-        <p className="text-sm text-muted-foreground">Activos y bienes de la unidad</p>
+        <p className="text-sm text-muted-foreground">Total de activos y bienes de la unidad</p>
       </header>
 
       <InventoryGauge total={items.length} segments={segmentsForGauge} />

@@ -132,12 +132,6 @@ export default function InventoryRegisterHubPage() {
   return (
     <div className="space-y-4 p-4 md:p-8">
       <InventoryPageHeader subtitle="Registro de activos y armarios" />
-      <Card className="rounded-3xl border border-border/60 bg-gradient-to-b from-[#030a1a] to-[#040813]">
-        <CardHeader>
-          <CardTitle>Registro</CardTitle>
-          <p className="text-sm text-muted-foreground">NFC inverso por defecto. Si falla NFC, usa QR para generar etiqueta imprimible.</p>
-        </CardHeader>
-      </Card>
 
       <Tabs defaultValue="assets" className="space-y-4">
         <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
