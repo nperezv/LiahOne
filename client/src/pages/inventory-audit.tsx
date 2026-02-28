@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { InventoryScanner } from "@/components/inventory-scanner";
 import { useCreateAudit, useInventoryByNfc, useVerifyAuditItem } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
+import { InventoryPageHeader } from "@/components/inventory/inventory-page-header";
 
 export default function InventoryAuditPage() {
   const createAudit = useCreateAudit();
@@ -51,7 +52,7 @@ export default function InventoryAuditPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <h1 className="text-2xl font-bold">Auditoría de inventario</h1>
+      <InventoryPageHeader subtitle="Auditoría de inventario" />
 
       {!auditId && (
         <Card>
