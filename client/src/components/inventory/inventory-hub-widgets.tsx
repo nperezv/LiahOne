@@ -1,4 +1,5 @@
-import { ScanLine } from "lucide-react";
+import { useMemo, useRef, useState, type TouchEvent } from "react";
+import { ChevronLeft, ChevronRight, ScanLine } from "lucide-react";
 
 export type GaugeSegment = {
   label: string;
@@ -26,6 +27,51 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
     const normalizedValue = Math.max(0, Math.min(100, Number(segment.value) || 0));
     return { ...segment, value: normalizedValue };
   });
+
+  const slides = useMemo(() => {
+    const categorySlides = normalizedSegments.map((segment) => ({
+      key: segment.label,
+      title: segment.label,
+      value: segment.count ?? 0,
+      subtitle: "activos",
+      color: segment.color,
+    }));
+
+    return [
+      {
+        key: "total",
+        title: "Total",
+        value: total,
+        subtitle: "activos",
+        color: "hsl(var(--foreground))",
+      },
+      ...categorySlides,
+    ];
+  }, [normalizedSegments, total]);
+
+  const [activeSlide, setActiveSlide] = useState(0);
+  const startX = useRef<number | null>(null);
+
+  const goToSlide = (nextIndex: number) => {
+    const boundedIndex = Math.max(0, Math.min(nextIndex, slides.length - 1));
+    setActiveSlide(boundedIndex);
+  };
+
+  const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    startX.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (startX.current == null) return;
+    const endX = event.changedTouches[0]?.clientX ?? startX.current;
+    const delta = endX - startX.current;
+    if (Math.abs(delta) > 25) {
+      goToSlide(activeSlide + (delta < 0 ? 1 : -1));
+    }
+    startX.current = null;
+  };
+
+  const currentSlide = slides[activeSlide] ?? slides[0];
 
   let consumedArc = 0;
 
@@ -71,9 +117,43 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
           })}
         </svg>
 
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="text-[2.2rem] font-bold leading-none text-foreground">{total}</p>
-          <p className="mt-1 text-sm text-muted-foreground">activos</p>
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center text-center"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{currentSlide.title}</p>
+          <p className="text-[2.2rem] font-bold leading-none" style={{ color: currentSlide.color }}>{currentSlide.value}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{currentSlide.subtitle}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => goToSlide(activeSlide - 1)}
+              className="rounded-full border border-border/70 p-1 text-muted-foreground transition hover:text-foreground"
+              aria-label="Categoría anterior"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <div className="flex items-center gap-1">
+              {slides.map((slide, index) => (
+                <button
+                  key={slide.key}
+                  type="button"
+                  onClick={() => goToSlide(index)}
+                  className={`h-1.5 w-1.5 rounded-full transition ${index === activeSlide ? "bg-foreground" : "bg-muted-foreground/40"}`}
+                  aria-label={`Ver ${slide.title}`}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => goToSlide(activeSlide + 1)}
+              className="rounded-full border border-border/70 p-1 text-muted-foreground transition hover:text-foreground"
+              aria-label="Siguiente categoría"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -85,7 +165,7 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
               className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
             >
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
-              {segment.label} · {segment.value.toFixed(0)}%
+              {segment.label}
             </span>
           ))
         ) : (

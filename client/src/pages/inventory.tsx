@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
 import { useInventoryCategories, useInventoryItems, useInventoryLocations } from "@/hooks/use-api";
-import { apiRequest } from "@/lib/queryClient";
 
 const CHART_PALETTE = ["#30d5ff", "#52e66d", "#f3d63b", "#ff8a3d", "#cc5de8", "#6d5efc"];
 
@@ -48,27 +47,6 @@ export default function InventoryPage() {
   const { data: categories = [] } = useInventoryCategories();
   const { data: locations = [] } = useInventoryLocations();
 
-  const { data: template } = useQuery({
-    queryKey: ["/api/pdf-template"],
-    queryFn: () => apiRequest("GET", "/api/pdf-template"),
-  });
-
-  const [cachedWardName, setCachedWardName] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return window.localStorage.getItem("ward_name_cache") || "";
-  });
-
-  useEffect(() => {
-    const incoming = template?.wardName?.trim();
-    if (!incoming) return;
-    setCachedWardName(incoming);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("ward_name_cache", incoming);
-    }
-  }, [template?.wardName]);
-
-  const wardName = template?.wardName?.trim() || cachedWardName || "Barrio";
-
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const categoryOk = selectedCategoryId === "all" || item.categoryId === selectedCategoryId;
@@ -82,8 +60,8 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6 p-4 md:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
-        <p className="text-sm text-muted-foreground">{wardName}</p>
+        <h1 className="text-2xl font-bold tracking-tight">Inventario del barrio</h1>
+        <p className="text-sm text-muted-foreground">Activos y bienes de la unidad</p>
       </header>
 
       <InventoryGauge total={items.length} segments={segmentsForGauge} />
