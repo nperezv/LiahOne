@@ -67,9 +67,9 @@ export default function InventoryPage() {
       <InventoryGauge total={items.length} segments={segmentsForGauge} />
 
       <div className="grid gap-2 sm:grid-cols-3">
-        <Link href="/inventory/scan"><Button className="w-full rounded-xl"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
-        <Link href="/inventory/register"><Button variant="outline" className="w-full rounded-xl"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
-        <Link href="/inventory/audit"><Button variant="outline" className="w-full rounded-xl"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
+        <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(37,99,235,0.25)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
+        <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
+        <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
       </div>
 
       <section className="space-y-3">

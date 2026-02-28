@@ -13,9 +13,10 @@ interface InventoryGaugeProps {
   segments: GaugeSegment[];
 }
 
-const GAUGE_SIZE = 190;
-const STROKE_WIDTH = 16;
+const GAUGE_SIZE = 220;
+const STROKE_WIDTH = 22;
 const SWEEP_ANGLE = 300;
+const SEGMENT_GAP = 8;
 
 export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
   const radius = (GAUGE_SIZE - STROKE_WIDTH) / 2;
@@ -27,6 +28,10 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
     const normalizedValue = Math.max(0, Math.min(100, Number(segment.value) || 0));
     return { ...segment, value: normalizedValue };
   });
+
+  const totalPercent = normalizedSegments.reduce((sum, segment) => sum + segment.value, 0);
+  const gapSize = normalizedSegments.length > 1 ? SEGMENT_GAP : 0;
+  const availableArc = Math.max(0, arcLength - gapSize * Math.max(0, normalizedSegments.length - 1));
 
   const slides = useMemo(() => {
     const categorySlides = normalizedSegments.map((segment) => ({
@@ -114,13 +119,25 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
   return (
     <div className="space-y-4">
       <div className="relative mx-auto w-fit" data-testid="inventory-gauge">
+        <div className="pointer-events-none absolute inset-0 rounded-full border border-sky-300/10 shadow-[0_0_48px_rgba(56,189,248,0.16)]" />
+        <div className="pointer-events-none absolute inset-[22px] rounded-full border border-white/5" />
         <svg width={GAUGE_SIZE} height={GAUGE_SIZE} viewBox={`0 0 ${GAUGE_SIZE} ${GAUGE_SIZE}`}>
+          <defs>
+            <filter id="inventoryGaugeGlow" x="-70%" y="-70%" width="240%" height="240%">
+              <feGaussianBlur stdDeviation="2.8" result="coloredBlur" />
+              <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
           <circle
             cx={GAUGE_SIZE / 2}
             cy={GAUGE_SIZE / 2}
             r={radius}
             fill="none"
-            stroke="hsl(var(--muted) / 0.4)"
+            stroke="hsl(var(--muted) / 0.28)"
             strokeWidth={STROKE_WIDTH}
             strokeLinecap="round"
             strokeDasharray={`${arcLength} ${circumference}`}
@@ -128,11 +145,11 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
           />
 
           {normalizedSegments.map((segment, index) => {
-            const segmentLength = (segment.value / 100) * arcLength;
+            const segmentLength = totalPercent > 0 ? (segment.value / totalPercent) * availableArc : 0;
             if (segmentLength <= 0) return null;
 
             const dashOffset = -consumedArc;
-            consumedArc += segmentLength;
+            consumedArc += segmentLength + gapSize;
 
             return (
               <circle
@@ -146,7 +163,8 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
                 strokeLinecap="round"
                 strokeDasharray={`${segmentLength} ${circumference}`}
                 strokeDashoffset={dashOffset}
-                style={{ transition: "stroke-dasharray 400ms ease, stroke-dashoffset 400ms ease" }}
+                filter="url(#inventoryGaugeGlow)"
+                style={{ transition: "stroke-dasharray 500ms ease, stroke-dashoffset 500ms ease, stroke 250ms ease" }}
                 transform={`rotate(120 ${GAUGE_SIZE / 2} ${GAUGE_SIZE / 2})`}
               />
             );
