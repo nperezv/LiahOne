@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { QrCode, ScanLine, ArrowRight, FolderTree, HandCoins } from "lucide-react";
+import { QrCode, ScanLine, FolderTree } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { useInventoryByNfc } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
 import { NfcScanRing } from "@/components/inventory/inventory-hub-widgets";
 import { InventoryPageHeader } from "@/components/inventory/inventory-page-header";
+import { InventoryItemActionsCard } from "@/components/inventory/inventory-item-actions-card";
 
 export default function InventoryScanPage() {
   const [mode, setMode] = useState<"nfc" | "qr">("nfc");
@@ -68,12 +69,18 @@ export default function InventoryScanPage() {
               </>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">{detected.asset_code || code || "Activo"}</p>
-                {(detected.photoUrl || detected.photo_url) && <img src={detected.photoUrl || detected.photo_url} alt="Activo" className="h-16 w-16 rounded-lg object-cover" />}
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Link href={`/inventory/${detected.asset_code || code}`}><Button className="w-full rounded-xl" variant="outline"><ArrowRight className="mr-2 h-4 w-4" />Ver detalles</Button></Link>
-                  <Link href={`/inventory/${detected.asset_code || code}`}><Button className="w-full rounded-xl"><HandCoins className="mr-2 h-4 w-4" />Prestar</Button></Link>
-                </div>
+                <InventoryItemActionsCard
+                  assetCode={detected.asset_code || code}
+                  uid={uid || undefined}
+                  name={detected.name || `Activo ${detected.asset_code || code || ""}`.trim()}
+                  category={detected.categoryName || detected.category_name}
+                  location={detected.locationName || detected.location_name || detected.location_code}
+                  photoUrl={detected.photoUrl || detected.photo_url}
+                  defaultExpanded
+                />
+                <Link href={`/inventory/list?asset=${detected.asset_code || code}`}>
+                  <Button className="w-full rounded-xl" variant="outline">Abrir en Inventario</Button>
+                </Link>
               </>
             )}
           </CardContent>

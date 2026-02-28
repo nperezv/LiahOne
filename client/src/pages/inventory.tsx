@@ -1,13 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Link } from "wouter";
-import { Filter, QrCode, ScanLine, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
-import { useInventoryCategories, useInventoryItems, useInventoryLocations } from "@/hooks/use-api";
+import { useInventoryCategories, useInventoryItems } from "@/hooks/use-api";
 
 const CHART_PALETTE = ["#30d5ff", "#52e66d", "#f3d63b", "#ff8a3d", "#cc5de8", "#6d5efc"];
 
@@ -39,21 +35,8 @@ function buildGaugeSegments(
 }
 
 export default function InventoryPage() {
-  const [search, setSearch] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
-  const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
-
-  const { data: items = [], isLoading } = useInventoryItems(search);
+  const { data: items = [] } = useInventoryItems();
   const { data: categories = [] } = useInventoryCategories();
-  const { data: locations = [] } = useInventoryLocations();
-
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const categoryOk = selectedCategoryId === "all" || item.categoryId === selectedCategoryId;
-      const locationOk = selectedLocationId === "all" || item.locationId === selectedLocationId;
-      return categoryOk && locationOk;
-    });
-  }, [items, selectedCategoryId, selectedLocationId]);
 
   const segmentsForGauge = useMemo(() => buildGaugeSegments(categories, items), [categories, items]);
 
@@ -64,73 +47,19 @@ export default function InventoryPage() {
         <p className="text-sm text-muted-foreground">Total de activos y bienes de la unidad</p>
       </header>
 
-      <InventoryGauge total={items.length} segments={segmentsForGauge} />
+      <div className="py-4 md:py-6">
+        <InventoryGauge total={items.length} segments={segmentsForGauge} />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-1">
+        <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50">Inventario</Button></Link>
+      </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
         <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(37,99,235,0.25)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
         <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
         <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
       </div>
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Filter className="h-4 w-4" />
-          Filtros
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-            <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todas las categorías" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
-            <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Todos los armarios" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los armarios</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Input
-          className="h-11 rounded-xl"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por nombre o código"
-        />
-      </section>
-
-      <section className="space-y-2">
-        {isLoading ? <p className="text-sm text-muted-foreground">Cargando activos...</p> : null}
-
-        {filteredItems.map((item) => (
-          <Link key={item.id} href={`/inventory/${item.assetCode}`}>
-            <article className="rounded-xl border border-border/70 p-3 transition-colors hover:bg-muted/40">
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate font-medium">{item.name}</p>
-                <Badge variant="secondary" className="rounded-full">{item.status}</Badge>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {item.assetCode} · {(item as any).categoryName ?? "Sin categoría"} · {(item as any).locationCode ?? "Sin armario"}
-              </p>
-            </article>
-          </Link>
-        ))}
-
-        {!isLoading && filteredItems.length === 0 ? (
-          <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-            No hay activos para estos filtros.
-          </p>
-        ) : null}
-      </section>
     </div>
   );
 }
