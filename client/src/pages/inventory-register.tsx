@@ -16,6 +16,7 @@ import {
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
 import { NfcScanRing } from "@/components/inventory/inventory-hub-widgets";
+import { InventoryPageHeader } from "@/components/inventory/inventory-page-header";
 
 export default function InventoryRegisterHubPage() {
   const { data: categories = [] } = useInventoryCategories();
@@ -130,6 +131,7 @@ export default function InventoryRegisterHubPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-8">
+      <InventoryPageHeader subtitle="Registro de activos y armarios" />
       <Card className="rounded-3xl border border-border/60 bg-gradient-to-b from-[#030a1a] to-[#040813]">
         <CardHeader>
           <CardTitle>Registro</CardTitle>

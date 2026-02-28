@@ -4,80 +4,93 @@ export type GaugeSegment = {
   label: string;
   value: number;
   color: string;
+  count?: number;
 };
 
 interface InventoryGaugeProps {
   total: number;
   segments: GaugeSegment[];
-  available: number;
-  incidents: number;
-  loaned: number;
 }
 
-export function InventoryGauge({ total, segments, available, incidents, loaned }: InventoryGaugeProps) {
-  const chartData = segments.length ? segments : [{ label: "Sin datos", value: 1, color: "hsl(var(--primary))" }];
-  const totalValue = chartData.reduce((acc, segment) => acc + segment.value, 0) || 1;
+const GAUGE_SIZE = 190;
+const STROKE_WIDTH = 16;
+const SWEEP_ANGLE = 300;
 
-  const gradient = chartData
-    .reduce<{ stops: string[]; acc: number }>((state, segment) => {
-      const percent = (segment.value / totalValue) * 100;
-      const start = state.acc;
-      const end = Math.min(state.acc + percent, 100);
-      state.stops.push(`${segment.color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
-      state.acc = end;
-      return state;
-    }, { stops: [], acc: 0 }).stops
-    .join(", ");
+export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
+  const radius = (GAUGE_SIZE - STROKE_WIDTH) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const arcLength = (SWEEP_ANGLE / 360) * circumference;
+  const chartSegments = segments.slice(0, 6);
+
+  const normalizedSegments = chartSegments.map((segment) => {
+    const normalizedValue = Math.max(0, Math.min(100, Number(segment.value) || 0));
+    return { ...segment, value: normalizedValue };
+  });
+
+  let consumedArc = 0;
 
   return (
-    <div className="space-y-3">
-      <div className="relative mx-auto h-64 w-64">
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: `conic-gradient(${gradient})`,
-            boxShadow: "0 0 20px rgba(56,189,248,0.2)",
-          }}
-        />
-        <div className="absolute inset-[16px] rounded-full bg-background/95" />
-        <div className="absolute inset-[24px] rounded-full border border-primary/20 bg-background/90" />
+    <div className="space-y-4">
+      <div className="relative mx-auto w-fit" data-testid="inventory-gauge">
+        <svg width={GAUGE_SIZE} height={GAUGE_SIZE} viewBox={`0 0 ${GAUGE_SIZE} ${GAUGE_SIZE}`}>
+          <circle
+            cx={GAUGE_SIZE / 2}
+            cy={GAUGE_SIZE / 2}
+            r={radius}
+            fill="none"
+            stroke="hsl(var(--muted) / 0.4)"
+            strokeWidth={STROKE_WIDTH}
+            strokeLinecap="round"
+            strokeDasharray={`${arcLength} ${circumference}`}
+            transform={`rotate(120 ${GAUGE_SIZE / 2} ${GAUGE_SIZE / 2})`}
+          />
 
-        <div className="pointer-events-none absolute inset-0">
-          {chartData.slice(0, 6).map((segment, index) => {
-            const angle = (-90 + ((index + 0.5) / Math.max(chartData.length, 1)) * 360) * (Math.PI / 180);
-            const radius = 112;
-            const x = 128 + radius * Math.cos(angle);
-            const y = 128 + radius * Math.sin(angle);
+          {normalizedSegments.map((segment, index) => {
+            const segmentLength = (segment.value / 100) * arcLength;
+            if (segmentLength <= 0) return null;
+
+            const dashOffset = -consumedArc;
+            consumedArc += segmentLength;
+
             return (
-              <span
-                key={`label-${segment.label}`}
-                className="absolute -translate-x-1/2 -translate-y-1/2 text-[10px] text-muted-foreground"
-                style={{ left: `${x}px`, top: `${y}px` }}
-              >
-                {segment.label}
-              </span>
+              <circle
+                key={`${segment.label}-${index}`}
+                cx={GAUGE_SIZE / 2}
+                cy={GAUGE_SIZE / 2}
+                r={radius}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth={STROKE_WIDTH}
+                strokeLinecap="round"
+                strokeDasharray={`${segmentLength} ${circumference}`}
+                strokeDashoffset={dashOffset}
+                style={{ transition: "stroke-dasharray 400ms ease, stroke-dashoffset 400ms ease" }}
+                transform={`rotate(120 ${GAUGE_SIZE / 2} ${GAUGE_SIZE / 2})`}
+              />
             );
           })}
-        </div>
+        </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="text-5xl font-semibold leading-none">{total}</p>
+          <p className="text-[2.2rem] font-bold leading-none text-foreground">{total}</p>
           <p className="mt-1 text-sm text-muted-foreground">activos</p>
-          <div className="mt-4 grid grid-cols-3 gap-4 text-[11px] text-muted-foreground">
-            <div><p className="text-base font-semibold text-foreground">{available}</p><p>presentes</p></div>
-            <div><p className="text-base font-semibold text-foreground">{incidents}</p><p>incidencias</p></div>
-            <div><p className="text-base font-semibold text-foreground">{loaned}</p><p>prestados</p></div>
-          </div>
         </div>
       </div>
 
       <div className="flex flex-wrap justify-center gap-2">
-        {segments.length > 0 ? chartData.map((segment) => (
-          <span key={segment.label} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/60 px-2 py-0.5 text-[10px] text-muted-foreground">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
-            {segment.label}
-          </span>
-        )) : <p className="text-xs text-muted-foreground">Sin categorías todavía.</p>}
+        {normalizedSegments.length > 0 ? (
+          normalizedSegments.map((segment) => (
+            <span
+              key={segment.label}
+              className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
+              {segment.label} · {segment.value.toFixed(0)}%
+            </span>
+          ))
+        ) : (
+          <p className="text-xs text-muted-foreground">Sin categorías todavía.</p>
+        )}
       </div>
     </div>
   );
