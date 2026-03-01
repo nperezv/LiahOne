@@ -45,7 +45,7 @@ export default function InventoryScanPage() {
               <p className="text-center text-sm text-muted-foreground">Acerca una etiqueta NFC con ID NDEF grabado para identificar activo o ubicación.</p>
               <div className="flex gap-2">
                 <Button className="h-11 flex-1 rounded-xl" onClick={nfc.isScanning ? nfc.stop : nfc.start} disabled={!nfc.isSupported}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning ? "Detener" : "Leer NFC"}</Button>
-                <Input className="h-11 rounded-xl" value={uid} onChange={(e) => setUid(e.target.value.toUpperCase())} placeholder="ID NFC (NDEF)" />
+                <Input className="h-11 rounded-xl" value={uid} onChange={(e) => setUid(e.target.value.toUpperCase())} placeholder="UID NFC" />
               </div>
               {uid && !lookup.isLoading && !detected && <p className="text-sm text-amber-600">NFC leído pero sin vínculo en inventario. Regístralo desde Inventario → Registrar.</p>}
               {nfc.error && <p className="text-xs text-amber-600">{nfc.error}</p>}
