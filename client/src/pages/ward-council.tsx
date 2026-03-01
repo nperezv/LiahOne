@@ -3,7 +3,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Edit, Trash2, Play, CheckCircle2 } from "lucide-react";
+import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import {
   useWardCouncils,
@@ -180,7 +181,7 @@ function CouncilDetailsForm({
   council: any;
   canManage: boolean;
   onAutoSave: (data: CouncilDetailsFormValues) => void;
-  onFinalize: () => void;
+  onFinalize: (data: CouncilDetailsFormValues) => void;
   isUpdating: boolean;
   leaderGroups: { name: string; members: any[] }[];
   leaderLookup: Map<string, any>;
@@ -204,6 +205,7 @@ function CouncilDetailsForm({
     control: form.control,
     name: "newAssignments",
   });
+  const [expandedAssignments, setExpandedAssignments] = useState<Record<string, boolean>>({});
 
   const watchedValues = useWatch({ control: form.control });
   const lastSavedRef = useRef<string>("");
@@ -228,17 +230,29 @@ function CouncilDetailsForm({
   }, [council, form]);
 
   useEffect(() => {
+    setExpandedAssignments((current) => {
+      const next: Record<string, boolean> = {};
+      newAssignments.fields.forEach((item, index) => {
+        next[item.id] = current[item.id] ?? index === 0;
+      });
+      return next;
+    });
+  }, [newAssignments.fields]);
+
+  useEffect(() => {
     if (!isEditable) return;
     if (initialRenderRef.current) {
       initialRenderRef.current = false;
       return;
     }
-    const payload = JSON.stringify(watchedValues ?? {});
+
+    const { newAssignments: _ignoredAssignments, ...autoSaveValues } = watchedValues ?? {};
+    const payload = JSON.stringify(autoSaveValues);
     if (payload === lastSavedRef.current) return;
 
     const timeout = window.setTimeout(() => {
       lastSavedRef.current = payload;
-      onAutoSave(watchedValues ?? {});
+      onAutoSave(autoSaveValues);
     }, 300000);
 
     return () => window.clearTimeout(timeout);
@@ -328,15 +342,15 @@ function CouncilDetailsForm({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
+                  onClick={() => {
                     newAssignments.append({
                       title: "",
                       assignedTo: "",
                       assignedToName: "",
                       dueDate: "",
                       notes: "",
-                    })
-                  }
+                    });
+                  }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Agregar
@@ -350,94 +364,140 @@ function CouncilDetailsForm({
               </p>
             )}
 
-            {newAssignments.fields.map((field, index) => (
-              <div key={field.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
-                <FormField
-                  control={form.control}
-                  name={`newAssignments.${index}.title`}
-                  render={({ field: inputField }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Asignación</FormLabel>
-                      <FormControl>
-                        <Input {...inputField} disabled={!isEditable} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            {newAssignments.fields.map((field, index) => {
+              const assignmentTitle = form.watch(`newAssignments.${index}.title`) || `Asignación ${index + 1}`;
+              const assignedToName = form.watch(`newAssignments.${index}.assignedToName`) || "Sin responsable";
+              const dueDate = form.watch(`newAssignments.${index}.dueDate`);
+              const dueDateLabel = dueDate
+                ? new Date(`${dueDate}T00:00:00`).toLocaleDateString("es-ES")
+                : "Sin fecha";
 
-                <FormField
-                  control={form.control}
-                  name={`newAssignments.${index}.assignedTo`}
-                  render={({ field: inputField }) => (
-                    <FormItem>
-                      <FormLabel>Responsable</FormLabel>
-                      <Select
-                        value={inputField.value}
-                        onValueChange={(value) => {
-                          inputField.onChange(value);
-                          const selected = leaderLookup.get(value);
-                          form.setValue(
-                            `newAssignments.${index}.assignedToName`,
-                            selected?.fullName || selected?.name || selected?.email || ""
-                          );
-                        }}
-                        disabled={!isEditable}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {renderLeaderOptions(leaderGroups, true)}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name={`newAssignments.${index}.dueDate`}
-                  render={({ field: inputField }) => (
-                    <FormItem>
-                      <FormLabel>Fecha límite</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...inputField} disabled={!isEditable} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name={`newAssignments.${index}.notes`}
-                  render={({ field: inputField }) => (
-                    <FormItem className="md:col-span-3">
-                      <FormLabel>Notas</FormLabel>
-                      <FormControl>
-                        <Textarea {...inputField} disabled={!isEditable} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                {isEditable && (
-                  <div className="flex items-end justify-end">
-                    <Button
+              return (
+                <Collapsible
+                  key={field.id}
+                  open={Boolean(expandedAssignments[field.id])}
+                  onOpenChange={(open) =>
+                    setExpandedAssignments((current) => ({
+                      ...current,
+                      [field.id]: open,
+                    }))
+                  }
+                >
+                  <div className="rounded-xl border border-border/60 bg-card/60 p-3 shadow-sm">
+                    <CollapsibleTrigger
+                      className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition hover:bg-muted/40"
                       type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => newAssignments.remove(index)}
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Quitar
-                    </Button>
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold">{assignmentTitle}</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <UserRound className="h-3.5 w-3.5" />
+                            {assignedToName}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            {dueDateLabel}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 transition-transform ${expandedAssignments[field.id] ? "rotate-180" : ""}`}
+                      />
+                    </CollapsibleTrigger>
+
+                    <CollapsibleContent className="pt-3">
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <FormField
+                          control={form.control}
+                          name={`newAssignments.${index}.title`}
+                          render={({ field: inputField }) => (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel>Asignación</FormLabel>
+                              <FormControl>
+                                <Input {...inputField} disabled={!isEditable} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`newAssignments.${index}.assignedTo`}
+                          render={({ field: inputField }) => (
+                            <FormItem>
+                              <FormLabel>Responsable</FormLabel>
+                              <Select
+                                value={inputField.value}
+                                onValueChange={(value) => {
+                                  inputField.onChange(value);
+                                  const selected = leaderLookup.get(value);
+                                  form.setValue(
+                                    `newAssignments.${index}.assignedToName`,
+                                    selected?.fullName || selected?.name || selected?.email || ""
+                                  );
+                                }}
+                                disabled={!isEditable}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {renderLeaderOptions(leaderGroups, true)}
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`newAssignments.${index}.dueDate`}
+                          render={({ field: inputField }) => (
+                            <FormItem>
+                              <FormLabel>Fecha límite</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...inputField} disabled={!isEditable} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`newAssignments.${index}.notes`}
+                          render={({ field: inputField }) => (
+                            <FormItem className="md:col-span-3">
+                              <FormLabel>Notas</FormLabel>
+                              <FormControl>
+                                <Textarea {...inputField} disabled={!isEditable} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        {isEditable && (
+                          <div className="flex items-end justify-end">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => newAssignments.remove(index)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Quitar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CollapsibleContent>
                   </div>
-                )}
-              </div>
-            ))}
+                </Collapsible>
+              );
+            })}
           </div>
 
           <FormField
@@ -472,7 +532,7 @@ function CouncilDetailsForm({
             <Button
               type="button"
               variant="secondary"
-              onClick={onFinalize}
+              onClick={() => onFinalize(form.getValues())}
               disabled={council.status !== "en_progreso" || isUpdating}
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -708,24 +768,63 @@ export default function WardCouncilPage() {
     setIsEditOpen(true);
   };
 
-  const finalizeCouncil = async (council: any) => {
+  const finalizeCouncil = async (council: any, latestData?: CouncilDetailsFormValues) => {
     if (council.status !== "en_progreso") return;
 
-    const draftAssignments = Array.isArray(council.newAssignments)
-      ? council.newAssignments.filter(
-          (assignment: any) => assignment?.title && assignment?.assignedTo
-        )
+    const sourceAssignments = Array.isArray(latestData?.newAssignments)
+      ? latestData.newAssignments
+      : Array.isArray(council.newAssignments)
+      ? council.newAssignments
       : [];
+
+    const normalizedAssignments = sourceAssignments.map((assignment: any) => ({
+      title: assignment?.title?.trim() || "",
+      assignedTo: assignment?.assignedTo || "",
+      assignedToName: assignment?.assignedToName || "",
+      dueDate: assignment?.dueDate || "",
+      notes: assignment?.notes || "",
+    }));
+
+    const touchedAssignments = normalizedAssignments.filter(
+      (assignment: any) =>
+        assignment.title || assignment.assignedTo || assignment.dueDate || assignment.notes
+    );
+
+    const invalidAssignments = touchedAssignments.filter(
+      (assignment: any) => !assignment.title || !assignment.assignedTo || !assignment.dueDate
+    );
+
+    if (invalidAssignments.length > 0) {
+      toast({
+        title: "Faltan datos en asignaciones",
+        description:
+          "Cada asignación debe incluir título, responsable y fecha límite antes de finalizar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const existingIds = Array.isArray(council.assignmentIds) ? council.assignmentIds : [];
 
     try {
+      if (latestData) {
+        await updateMutation.mutateAsync({
+          id: council.id,
+          data: {
+            ...latestData,
+            newAssignments: normalizedAssignments,
+          },
+          silent: true,
+        });
+      }
+
       const createdAssignments = await Promise.all(
-        draftAssignments.map((assignment: any) =>
+        touchedAssignments.map((assignment: any) =>
           createAssignmentMutation.mutateAsync({
             title: assignment.title,
             description: assignment.notes || "",
-            assignedTo: assignment.assignedTo || undefined,
-            dueDate: assignment.dueDate || undefined,
+            assignedTo: assignment.assignedTo,
+            dueDate: assignment.dueDate,
             status: "pendiente",
             relatedTo: council.id,
             silent: true,
@@ -735,7 +834,7 @@ export default function WardCouncilPage() {
 
       const createdIds = createdAssignments.map((assignment: any) => assignment.id);
 
-      updateMutation.mutate({
+      await updateMutation.mutateAsync({
         id: council.id,
         data: {
           status: "finalizado",
@@ -1310,7 +1409,7 @@ export default function WardCouncilPage() {
                     silent: true,
                   })
                 }
-                onFinalize={() => finalizeCouncil(c)}
+                onFinalize={(data) => finalizeCouncil(c, data)}
               />
             )}
           </Card>
