@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowRight, FolderTree, Loader2, QrCode, ScanLine, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,16 +54,19 @@ export default function InventoryRegisterHubPage() {
   const [createdLocationCodeByQr, setCreatedLocationCodeByQr] = useState("");
 
   const [nfcMode, setNfcMode] = useState<"asset" | "location" | null>(null);
+  const nfcModeRef = useRef<"asset" | "location" | null>(null);
   const nfc = useNfcScanner((uid) => {
-    if (nfcMode === "asset") setAssetUid(uid);
-    if (nfcMode === "location") setLocationUid(uid);
+    if (nfcModeRef.current === "asset") setAssetUid(uid);
+    if (nfcModeRef.current === "location") setLocationUid(uid);
   });
 
   const startNfc = (mode: "asset" | "location") => {
+    nfcModeRef.current = mode;
     setNfcMode(mode);
     nfc.start();
   };
   const stopNfc = () => {
+    nfcModeRef.current = null;
     nfc.stop();
     setNfcMode(null);
   };
