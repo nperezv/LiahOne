@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { QrCode, ScanLine, FolderTree } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,13 @@ export default function InventoryScanPage() {
     if (!resolved || resolved.registered === false || !resolved.type) return null;
     return resolved;
   }, [mode, code, uid, resolved]);
+
+  useEffect(() => {
+    if (mode !== "nfc") return;
+    if (!nfc.isScanning) return;
+    if (!uid) return;
+    nfc.stop();
+  }, [mode, nfc.isScanning, uid]);
 
   return (
     <div className="space-y-4 p-4 md:p-8">
