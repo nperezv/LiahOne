@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowRight, FolderTree, Loader2, QrCode, ScanLine, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Eraser, FolderTree, Loader2, QrCode, ScanLine, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,8 @@ export default function InventoryRegisterHubPage() {
   const [createdAssetCodeByQr, setCreatedAssetCodeByQr] = useState("");
 
   const [locationUid, setLocationUid] = useState("");
+  const [assetUidLocked, setAssetUidLocked] = useState(false);
+  const [locationUidLocked, setLocationUidLocked] = useState(false);
   const [locationName, setLocationName] = useState("");
   const [locationParentId, setLocationParentId] = useState("none");
   const [createdLocationCode, setCreatedLocationCode] = useState("");
@@ -54,18 +56,45 @@ export default function InventoryRegisterHubPage() {
   const [createdLocationCodeByQr, setCreatedLocationCodeByQr] = useState("");
 
   const [nfcMode, setNfcMode] = useState<"asset" | "location" | null>(null);
+  const nfcModeRef = useRef<"asset" | "location" | null>(null);
   const nfc = useNfcScanner((uid) => {
-    if (nfcMode === "asset") setAssetUid(uid);
-    if (nfcMode === "location") setLocationUid(uid);
+    if (nfcModeRef.current === "asset") {
+      setAssetUid(uid);
+      setAssetUidLocked(true);
+    }
+    if (nfcModeRef.current === "location") {
+      setLocationUid(uid);
+      setLocationUidLocked(true);
+    }
   });
 
   const startNfc = (mode: "asset" | "location") => {
+    nfcModeRef.current = mode;
     setNfcMode(mode);
     nfc.start();
   };
   const stopNfc = () => {
+    nfcModeRef.current = null;
     nfc.stop();
     setNfcMode(null);
+  };
+
+  useEffect(() => {
+    if (!nfc.isScanning) return;
+    if (nfcMode === "asset" && assetUid) stopNfc();
+    if (nfcMode === "location" && locationUid) stopNfc();
+  }, [nfc.isScanning, nfcMode, assetUid, locationUid]);
+
+  const clearAssetNfcForm = () => {
+    setAssetUid("");
+    setAssetUidLocked(false);
+    setCreatedAssetCode("");
+  };
+
+  const clearLocationNfcForm = () => {
+    setLocationUid("");
+    setLocationUidLocked(false);
+    setCreatedLocationCode("");
   };
 
   const assetLookup = useInventoryByNfc(assetUid || undefined);
@@ -86,6 +115,7 @@ export default function InventoryRegisterHubPage() {
     await registerItemNfc.mutateAsync({ asset_code: created.assetCode, nfc_uid: assetUid });
     setCreatedAssetCode(created.assetCode);
     setAssetUid("");
+    setAssetUidLocked(false);
     setAssetName("");
     setAssetCategoryId("");
     setAssetLocationId("");
@@ -121,6 +151,7 @@ export default function InventoryRegisterHubPage() {
     await registerLocationNfc.mutateAsync({ location_code: created.code, nfc_uid: locationUid });
     setCreatedLocationCode(created.code);
     setLocationUid("");
+    setLocationUidLocked(false);
     setLocationName("");
     setLocationParentId("none");
     stopNfc();
@@ -196,9 +227,9 @@ export default function InventoryRegisterHubPage() {
                   <NfcScanRing active={nfc.isScanning && nfcMode === "asset"} />
                   <div className="flex gap-2">
                     <Button className="h-12 flex-1 rounded-2xl" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "asset" ? stopNfc : () => startNfc("asset")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "asset" ? "Detener lectura" : "Leer NFC activo"}</Button>
-                    <Input className="h-12 rounded-2xl" placeholder="ID NFC activo (NDEF)" value={assetUid} onChange={(e) => setAssetUid(e.target.value.toUpperCase())} />
+                    <Input className="h-12 rounded-2xl" placeholder="UID NFC" value={assetUid} onChange={(e) => { setAssetUid(e.target.value.toUpperCase()); setAssetUidLocked(false); }} disabled={assetUidLocked} />
                   </div>
-                  {assetUid && <p className={`text-sm ${assetInUse ? "text-amber-600" : "text-emerald-600"}`}>{assetInUse ? "ID NFC en uso, escanea otro." : "ID NFC disponible."}</p>}
+                  {assetUid && <p className={`text-sm ${assetInUse ? "text-amber-600" : "text-emerald-600"}`}>{assetInUse ? "UID NFC en uso, escanea otro." : "UID NFC disponible."}</p>}
                   {nfc.error && nfcMode === "asset" && <p className="text-xs text-amber-600">{nfc.error}</p>}
                   <div className="grid gap-3 md:grid-cols-2">
                     <Select value={assetCategoryId} onValueChange={setAssetCategoryId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} · {c.prefix}</SelectItem>)}</SelectContent></Select>
@@ -218,7 +249,10 @@ export default function InventoryRegisterHubPage() {
                       </label>
                     </div>
                   </div>
-                  <Button className="h-12 rounded-2xl" disabled={!assetUid || assetInUse || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><ScanLine className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
+                  <div className="flex gap-2">
+                    <Button className="h-12 flex-1 rounded-2xl" disabled={!assetUid || assetInUse || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><ScanLine className="mr-2 h-4 w-4" />Crear activo + vincular NFC</Button>
+                    <Button className="h-12 rounded-2xl" variant="outline" disabled={!assetUid} onClick={clearAssetNfcForm}><Eraser className="mr-2 h-4 w-4" />Limpiar</Button>
+                  </div>
                   {createdAssetCode && <p className="text-sm text-emerald-700">Activo creado: <b>{createdAssetCode}</b>.</p>}
                 </TabsContent>
 
@@ -263,13 +297,16 @@ export default function InventoryRegisterHubPage() {
                   <NfcScanRing active={nfc.isScanning && nfcMode === "location"} />
                   <div className="flex gap-2">
                     <Button className="h-11 flex-1 rounded-xl" variant="outline" disabled={!nfc.isSupported} onClick={nfc.isScanning && nfcMode === "location" ? stopNfc : () => startNfc("location")}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning && nfcMode === "location" ? "Detener lectura" : "Leer NFC armario"}</Button>
-                    <Input className="h-11 rounded-xl" placeholder="ID NFC ubicación (NDEF)" value={locationUid} onChange={(e) => setLocationUid(e.target.value.toUpperCase())} />
+                    <Input className="h-11 rounded-xl" placeholder="UID NFC" value={locationUid} onChange={(e) => { setLocationUid(e.target.value.toUpperCase()); setLocationUidLocked(false); }} disabled={locationUidLocked} />
                   </div>
-                  {locationUid && <p className={`text-sm ${locationInUse ? "text-amber-600" : "text-emerald-600"}`}>{locationInUse ? "ID NFC en uso, escanea otro." : "ID NFC disponible."}</p>}
+                  {locationUid && <p className={`text-sm ${locationInUse ? "text-amber-600" : "text-emerald-600"}`}>{locationInUse ? "UID NFC en uso, escanea otro." : "UID NFC disponible."}</p>}
                   {nfc.error && nfcMode === "location" && <p className="text-xs text-amber-600">{nfc.error}</p>}
                   <Input className="h-11 rounded-xl" placeholder="Nombre ubicación" value={locationName} onChange={(e) => setLocationName(e.target.value)} />
                   <Select value={locationParentId} onValueChange={setLocationParentId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación padre (opcional)" /></SelectTrigger><SelectContent><SelectItem value="none">Sin padre (raíz)</SelectItem>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
-                  <Button className="h-11 rounded-xl" disabled={!locationUid || locationInUse || !locationName.trim() || createLocation.isPending || registerLocationNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Crear ubicación + vincular NFC</Button>
+                  <div className="flex gap-2">
+                    <Button className="h-11 flex-1 rounded-xl" disabled={!locationUid || locationInUse || !locationName.trim() || createLocation.isPending || registerLocationNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Crear ubicación + vincular NFC</Button>
+                    <Button className="h-11 rounded-xl" variant="outline" disabled={!locationUid} onClick={clearLocationNfcForm}><Eraser className="mr-2 h-4 w-4" />Limpiar</Button>
+                  </div>
                   {createdLocationCode && <p className="text-sm text-emerald-700">Ubicación creada: <b>{createdLocationCode}</b>.</p>}
                 </TabsContent>
 
