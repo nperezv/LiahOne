@@ -22,8 +22,10 @@ export default function InventoryScanPage() {
 
   const detected = useMemo(() => {
     if (mode === "qr" && code) return { type: "item", asset_code: code } as any;
+    if (!uid) return null;
+    if (!resolved || resolved.registered === false || !resolved.type) return null;
     return resolved;
-  }, [mode, code, resolved]);
+  }, [mode, code, uid, resolved]);
 
   return (
     <div className="space-y-4 p-4 md:p-8">
@@ -45,6 +47,7 @@ export default function InventoryScanPage() {
                 <Button className="h-11 flex-1 rounded-xl" onClick={nfc.isScanning ? nfc.stop : nfc.start} disabled={!nfc.isSupported}><ScanLine className="mr-2 h-4 w-4" />{nfc.isScanning ? "Detener" : "Leer NFC"}</Button>
                 <Input className="h-11 rounded-xl" value={uid} onChange={(e) => setUid(e.target.value.toUpperCase())} placeholder="ID NFC (NDEF)" />
               </div>
+              {uid && !lookup.isLoading && !detected && <p className="text-sm text-amber-600">NFC leído pero sin vínculo en inventario. Regístralo desde Inventario → Registrar.</p>}
               {nfc.error && <p className="text-xs text-amber-600">{nfc.error}</p>}
             </>
           ) : (
