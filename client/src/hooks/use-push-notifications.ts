@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -16,6 +16,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
+  const [isSyncingSubscription, setIsSyncingSubscription] = useState(false);
+  const lastSyncAttemptEndpointRef = useRef<string | null>(null);
 
   useEffect(() => {
     const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -60,6 +62,7 @@ export function usePushNotifications() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/push/status"] });
+      lastSyncAttemptEndpointRef.current = null;
     },
   });
 
@@ -81,9 +84,9 @@ export function usePushNotifications() {
     }
 
     const registration = await navigator.serviceWorker.ready;
-    
+
     let subscription = await registration.pushManager.getSubscription();
-    
+
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -92,18 +95,67 @@ export function usePushNotifications() {
     }
 
     await subscribeMutation.mutateAsync(subscription);
+    lastSyncAttemptEndpointRef.current = subscription.endpoint;
     return subscription;
   }, [isSupported, vapidKeyQuery.data?.publicKey, subscribeMutation]);
 
   const unsubscribe = useCallback(async () => {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    
+
     if (subscription) {
       await subscription.unsubscribe();
       await unsubscribeMutation.mutateAsync(subscription.endpoint);
     }
   }, [unsubscribeMutation]);
+
+  useEffect(() => {
+    const syncBrowserSubscription = async () => {
+      if (!isSupported || permission !== "granted") {
+        return;
+      }
+
+      if (!statusQuery.data?.configured || statusQuery.isLoading || statusQuery.data.subscribed) {
+        return;
+      }
+
+      if (!vapidKeyQuery.data?.publicKey || subscribeMutation.isPending || isSyncingSubscription) {
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        return;
+      }
+
+      if (lastSyncAttemptEndpointRef.current === subscription.endpoint) {
+        return;
+      }
+
+      lastSyncAttemptEndpointRef.current = subscription.endpoint;
+      setIsSyncingSubscription(true);
+      try {
+        await subscribeMutation.mutateAsync(subscription);
+      } catch (error) {
+        console.warn("Push subscription reconciliation failed:", error);
+      } finally {
+        setIsSyncingSubscription(false);
+      }
+    };
+
+    void syncBrowserSubscription();
+  }, [
+    isSupported,
+    permission,
+    isSyncingSubscription,
+    statusQuery.data?.configured,
+    statusQuery.data?.subscribed,
+    statusQuery.isLoading,
+    vapidKeyQuery.data?.publicKey,
+    subscribeMutation,
+  ]);
 
   return {
     isSupported,
@@ -111,7 +163,7 @@ export function usePushNotifications() {
     isConfigured: statusQuery.data?.configured ?? false,
     isSubscribed: statusQuery.data?.subscribed ?? false,
     isLoading: statusQuery.isLoading || vapidKeyQuery.isLoading,
-    isSubscribing: subscribeMutation.isPending,
+    isSubscribing: subscribeMutation.isPending || isSyncingSubscription,
     isUnsubscribing: unsubscribeMutation.isPending,
     subscribe: requestPermissionAndSubscribe,
     unsubscribe,
