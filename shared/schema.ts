@@ -88,6 +88,7 @@ export const roleEnum = pgEnum("role", [
   "consejero_organizacion",
   "secretario_organizacion",
   "bibliotecario",
+  "lider_actividades",
 ]);
 
 export const organizationTypeEnum = pgEnum("organization_type", [
@@ -1314,9 +1315,21 @@ export const inventoryLoans = pgTable("inventory_loans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   itemId: varchar("item_id").notNull().references(() => inventoryItems.id),
   borrowerName: text("borrower_name").notNull(),
+  borrowerFirstName: text("borrower_first_name"),
+  borrowerLastName: text("borrower_last_name"),
   borrowerContact: text("borrower_contact"),
+  borrowerPhone: text("borrower_phone"),
+  borrowerEmail: text("borrower_email"),
   dateOut: date("date_out").notNull(),
+  expectedReturnDate: date("expected_return_date"),
   dateReturn: date("date_return"),
+  signatureDataUrl: text("signature_data_url"),
+  requestPdfUrl: text("request_pdf_url"),
+  requestPdfFilename: text("request_pdf_filename"),
+  returnedBy: varchar("returned_by").references(() => users.id),
+  returnedAt: timestamp("returned_at"),
+  returnHasIncident: boolean("return_has_incident").notNull().default(false),
+  returnIncidentNotes: text("return_incident_notes"),
   status: inventoryLoanStatusEnum("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
