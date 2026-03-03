@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
-import { QrCode, ScanLine, ShieldCheck } from "lucide-react";
+import { History, QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
 import { useInventoryCategories, useInventoryItems } from "@/hooks/use-api";
@@ -57,6 +57,12 @@ export default function InventoryPage() {
         <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
         <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
       </div>
+
+      <Link href="/inventory/history">
+        <Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50">
+          <History className="mr-2 h-4 w-4" />Historial
+        </Button>
+      </Link>
     </div>
   );
 }
