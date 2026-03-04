@@ -44,7 +44,7 @@ export default function InventoryLocationsPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8">
-      <Card className="border-0 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+      <Card className="border-border/70 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
         <CardContent className="p-5">
           <h1 className="text-2xl font-semibold tracking-tight">Ubicaciones</h1>
           <p className="mt-1 text-sm text-muted-foreground">Estructura jerárquica: capilla, armarios y estantes.</p>
