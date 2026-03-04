@@ -105,6 +105,23 @@ export function getCountryFromIp(ip?: string | null) {
   return lookup?.country ?? null;
 }
 
+
+export async function sendAgendaReminderEmail(payload: { toEmail: string; subject?: string; body: string }) {
+  const smtp = createSmtpTransport();
+  if (!smtp) {
+    console.warn("SMTP not configured. Agenda reminder email:", payload);
+    return;
+  }
+
+  const { transporter, from } = smtp;
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: payload.subject || "Recordatorio de agenda",
+    text: payload.body,
+  });
+}
+
 export async function sendLoginOtpEmail(toEmail: string, code: string) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
