@@ -586,21 +586,21 @@ export default function DirectoryPage() {
   };
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Directorio</h1>
           <p className="text-sm text-muted-foreground">
             Gestiona los miembros del barrio y sus datos de contacto.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setLocation("/birthdays")}>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => setLocation("/birthdays")}>
             Ver cumpleaños
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={handleOpenCreate}>Agregar miembro</Button>
+              <Button className="w-full sm:w-auto" onClick={handleOpenCreate}>Agregar miembro</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
@@ -727,7 +727,7 @@ export default function DirectoryPage() {
               </Form>
               {editingMember && (
                 <div className="mt-6 space-y-3 border-t border-border/60 pt-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="text-sm font-semibold">Llamamientos</p>
                       <p className="text-xs text-muted-foreground">
@@ -796,7 +796,7 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <Card className="border-border/70 bg-card/90">
+      <Card className="border-border/70 bg-card/90 dark:bg-gradient-to-b dark:from-[#111827] dark:via-[#0f1728] dark:to-[#0b1220]">
         <CardHeader className="px-0">
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Users className="h-5 w-5 text-primary" />
@@ -830,7 +830,7 @@ export default function DirectoryPage() {
               {Array.from({ length: 5 }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between rounded-[14px] border border-border/60 bg-card p-3"
+                  className="flex items-center justify-between rounded-[14px] border border-border/60 bg-card p-3 dark:bg-gradient-to-b dark:from-[#0f1626] dark:to-[#0d1422]"
                 >
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-40" />
@@ -859,7 +859,7 @@ export default function DirectoryPage() {
                 return (
                   <div
                     key={member.id}
-                    className="relative isolate overflow-hidden rounded-[14px] border border-border/60 bg-card"
+                    className="relative isolate overflow-hidden rounded-[14px] border border-border/60 bg-card dark:bg-gradient-to-b dark:from-[#0f1626] dark:to-[#0d1422]"
                   >
                     <div
                       className={`absolute inset-0 m-0 flex h-full items-center justify-start rounded-[14px] border-0 text-foreground shadow-none transition-opacity duration-150 ${
@@ -940,7 +940,7 @@ export default function DirectoryPage() {
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card/90 pr-4 will-change-transform ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card/90 pr-4 will-change-transform dark:bg-gradient-to-r dark:from-[#101829]/95 dark:to-[#0d1422]/95 ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
                       style={{
