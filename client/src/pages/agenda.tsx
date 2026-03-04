@@ -34,6 +34,24 @@ function sourceLabel(sourceType: string) {
   return "Manual";
 }
 
+function normalizeComparableText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatAssignmentReference(relatedTo?: string | null) {
+  if (!relatedTo) return "Sin referencia";
+  if (relatedTo.startsWith("budget:")) return `Presupuesto ${relatedTo.replace("budget:", "#")}`;
+  if (relatedTo.startsWith("interview:")) return `Entrevista ${relatedTo.replace("interview:", "#")}`;
+  if (relatedTo.startsWith("organization_interview:")) return `Entrevista org. ${relatedTo.replace("organization_interview:", "#")}`;
+  return relatedTo;
+}
+
 export default function AgendaPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -83,6 +101,27 @@ export default function AgendaPage() {
     [events, selectedDate]
   );
 
+  const dayTasksDue = useMemo(
+    () => tasks.filter((task: any) => task.dueAt && isSameDay(new Date(task.dueAt), selectedDate) && task.status !== "canceled"),
+    [tasks, selectedDate]
+  );
+
+  const filteredDayEvents = useMemo(() => {
+    const taskTitles = new Set(dayTasksDue.map((task: any) => normalizeComparableText(task.title || "")));
+    const seen = new Set<string>();
+
+    return dayEvents.filter((event: any) => {
+      const normalizedTitle = normalizeComparableText(event.title || "");
+      const eventKey = `${event.sourceType}|${event.date}|${event.startTime || ""}|${normalizedTitle}`;
+      if (seen.has(eventKey)) return false;
+      seen.add(eventKey);
+
+      const looksLikeReminder = event.sourceType === "manual" && /record|recuerd|llamar|comprar|preparar/.test(normalizedTitle);
+      if (looksLikeReminder && taskTitles.has(normalizedTitle)) return false;
+      return true;
+    });
+  }, [dayEvents, dayTasksDue]);
+
   const taskMap = useMemo(() => new Map(tasks.map((t: any) => [t.id, t])), [tasks]);
 
   const dayPlans = useMemo(() =>
@@ -117,6 +156,8 @@ export default function AgendaPage() {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim();
       if (!transcript) return;
       setText(transcript);
+      const confirmed = window.confirm(`He entendido: "${transcript}"\n\n¿Quieres registrarlo en tu Agenda?`);
+      if (!confirmed) return;
       capture.mutate({ text: transcript, idempotencyKey: `capture:${transcript.trim().toLowerCase()}:${Math.floor(Date.now()/15000)}` });
     };
     recognition.start();
@@ -196,7 +237,7 @@ export default function AgendaPage() {
             <CardHeader><CardTitle>Timeline del día</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
-              {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && <p className="text-sm text-muted-foreground">No hay elementos para este día.</p>}
+              {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && <p className="text-sm text-muted-foreground">No hay elementos para este día.</p>}
 
               {dayPlans.map((plan: any) => (
                 <div key={plan.id} className="rounded-lg border p-3 border-blue-500/40">
@@ -208,7 +249,17 @@ export default function AgendaPage() {
                 </div>
               ))}
 
-              {dayEvents.map((event) => {
+              {dayTasksDue.map((task: any) => (
+                <div key={`due-${task.id}`} className="rounded-lg border p-3 border-emerald-500/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{task.title}</p>
+                    <Badge variant={task.status === "done" ? "outline" : "default"}>{task.status === "done" ? "Completada" : "Tarea"}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Vence: {task.dueAt ? new Date(task.dueAt).toLocaleString("es-ES") : "Sin fecha"}</p>
+                </div>
+              ))}
+
+              {filteredDayEvents.map((event) => {
                 const isPast = parseISO(`${event.date}T${event.endTime ?? event.startTime ?? "23:59"}:00`).getTime() < Date.now();
                 return (
                 <div key={event.id} className="rounded-lg border p-3">
@@ -262,6 +313,8 @@ export default function AgendaPage() {
                 <div key={assignment.id} className="rounded border p-2 text-xs">
                   <p className="font-medium">{assignment.title}</p>
                   <p className="text-muted-foreground">Estado: {assignment.status}</p>
+                  <p className="text-muted-foreground">Ref: {formatAssignmentReference(assignment.relatedTo)}</p>
+                  {assignment.dueDate && <p className="text-muted-foreground">Vence: {new Date(assignment.dueDate).toLocaleDateString("es-ES")}</p>}
                 </div>
               ))}
               {pendingAssignments.length === 0 && <p className="text-sm text-muted-foreground">Sin asignaciones pendientes.</p>}
