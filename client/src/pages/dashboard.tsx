@@ -81,7 +81,7 @@ function QuickCard({
   onClick: () => void;
 }) {
   return (
-    <Card className="hover-elevate pilot-purple-surface cursor-pointer" onClick={onClick}>
+    <Card className="hover-elevate cursor-pointer" onClick={onClick}>
       <CardContent className="space-y-2 pt-6">
         <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Icon className="h-4 w-4 text-primary" />
@@ -176,7 +176,7 @@ export default function DashboardPage() {
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
-    <div className="pilot-purple-dashboard space-y-6 px-4 py-6 sm:px-8">
+    <div className="space-y-6 px-4 py-6 sm:px-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">{isBishopric ? "Dashboard" : roleDashboardTitle[userRole] ?? "Dashboard"}</h1>
         <p className="text-sm text-muted-foreground">
@@ -185,17 +185,17 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <Card className="pilot-purple-surface overflow-hidden bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200 dark:from-transparent dark:via-transparent dark:to-transparent">
+      <Card className="overflow-hidden bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200 dark:from-amber-900/60 dark:via-amber-800/50 dark:to-amber-700/40">
         <CardHeader className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/70 text-amber-700 shadow-sm dark:bg-white/10 dark:text-violet-300">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/70 text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-200">
               <CalendarDays className="h-4 w-4" />
             </span>
             <CardTitle className="text-lg font-semibold">{isBishopric ? "Hoy en el barrio" : "Resumen de tu rol"}</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ul className="space-y-2 text-sm text-amber-900/80 dark:text-foreground/85">
+          <ul className="space-y-2 text-sm text-amber-900/80 dark:text-amber-100/80">
             <li className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               {data.upcomingInterviews} entrevistas esta semana
@@ -218,7 +218,7 @@ export default function DashboardPage() {
       {isBishopric ? (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Card className="hover-elevate pilot-purple-surface cursor-pointer" onClick={() => setLocation("/goals")}>
+            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/goals")}>
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
@@ -250,7 +250,7 @@ export default function DashboardPage() {
               <h2 className="text-base font-semibold">Cumpleaños</h2>
               <Button variant="ghost" size="sm" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
             </div>
-            <Card className="pilot-purple-surface">
+            <Card>
               <CardContent className="space-y-3 pt-6">
                 {birthdaysPreview.length > 0 ? (
                   birthdaysPreview.map((birthday, idx) => (
@@ -274,7 +274,7 @@ export default function DashboardPage() {
           <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => navigateWithTransition(setLocation, organizationHref)} />
 
           <div className="grid grid-cols-2 gap-3">
-            <Card className="pilot-purple-surface bg-muted/10 no-hover-interaction-elevate">
+            <Card className="bg-muted/10 no-hover-interaction-elevate">
               <CardContent className="space-y-2 pt-5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-muted-foreground">Semáforo semanal</p>
@@ -288,7 +288,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="hover-elevate pilot-purple-surface cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
+            <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
               <CardContent className="space-y-2 pt-5">
                 <p className="text-xs font-semibold text-muted-foreground">Siguiente mejor acción</p>
                 <p className="text-base font-semibold leading-tight">Solicitar entrevista con el Obispado</p>
@@ -300,7 +300,7 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <Card className="hover-elevate pilot-purple-surface cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
+          <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
             <CardContent className="flex items-center justify-between gap-3 pt-5">
               <div>
                 <p className="text-sm font-semibold">Liderazgo</p>
