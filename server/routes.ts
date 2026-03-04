@@ -5742,6 +5742,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
+  const normalizeComparableText = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const cleanupManualReminderEvents = async (userId: string) => {
+    const [events, tasks] = await Promise.all([
+      storage.getAgendaEventsByUser(userId),
+      storage.getAgendaTasksByUser(userId),
+    ]);
+
+    const taskTitles = new Set(tasks.map((task) => normalizeComparableText(task.title || "")).filter(Boolean));
+    const reminderRegex = /record|recuerd|llamar|comprar|preparar|pendiente|tarea|seguimiento/;
+
+    const junkEventIds = events
+      .filter((event) => {
+        if (event.sourceType !== "manual") return false;
+        const normalizedTitle = normalizeComparableText(event.title || "");
+        const normalizedDescription = normalizeComparableText(event.description || "");
+        const combinedText = `${normalizedTitle} ${normalizedDescription}`.trim();
+        const looksLikeReminder = reminderRegex.test(combinedText);
+        if (looksLikeReminder) return true;
+        return taskTitles.has(normalizedTitle) || taskTitles.has(normalizedDescription);
+      })
+      .map((event) => event.id);
+
+    if (junkEventIds.length === 0) return;
+
+    for (const eventId of junkEventIds) {
+      await storage.deleteAgendaEvent(eventId);
+    }
+  };
+
   const runPlannerForUser = async (user: any) => {
     await syncSourceEventsForUser(user);
     const availability = await getDefaultAvailability(user.id);
@@ -5850,6 +5887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (req as any).user;
       await syncSourceEventsForUser(user);
+      await cleanupManualReminderEvents(user.id);
       const [events, tasks, plans] = await Promise.all([
         storage.getAgendaEventsByUser(user.id),
         storage.getAgendaTasksByUser(user.id),

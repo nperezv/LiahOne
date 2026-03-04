@@ -33,7 +33,7 @@ type TaskFilter = "open" | "planned" | "atRisk" | "done";
 function sourceLabel(sourceType: string) {
   if (sourceType === "activity") return "Actividad";
   if (sourceType === "interview") return "Entrevista";
-  return "Personal";
+  return "Manual";
 }
 
 function normalizeComparableText(value: string) {
@@ -62,7 +62,7 @@ function shouldHideManualReminderEvent(event: any, taskTitles: Set<string>) {
   const combinedText = `${normalizedTitle} ${normalizedDescription}`.trim();
   const reminderLikeText = /record|recuerd|llamar|comprar|preparar|pendiente|tarea|seguimiento/.test(combinedText);
 
-  if (!reminderLikeText) return false;
+  if (reminderLikeText) return true;
   return taskTitles.has(normalizedTitle) || taskTitles.has(normalizedDescription);
 }
 

@@ -299,6 +299,7 @@ export interface IStorage {
   upsertAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent>;
   createAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent>;
   updateAgendaEvent(id: string, data: Partial<InsertAgendaEvent>): Promise<AgendaEvent | undefined>;
+  deleteAgendaEvent(id: string): Promise<void>;
   getAgendaTasksByUser(userId: string): Promise<AgendaTask[]>;
   getAgendaTask(id: string): Promise<AgendaTask | undefined>;
   createAgendaTask(data: InsertAgendaTask): Promise<AgendaTask>;
@@ -1449,6 +1450,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(agendaEvents.id, id))
       .returning();
     return event || undefined;
+  }
+
+  async deleteAgendaEvent(id: string): Promise<void> {
+    await db.update(agendaTasks).set({ eventId: null, updatedAt: new Date() }).where(eq(agendaTasks.eventId, id));
+    await db.delete(agendaReminders).where(eq(agendaReminders.eventId, id));
+    await db.delete(agendaEvents).where(eq(agendaEvents.id, id));
   }
 
   async getAgendaTasksByUser(userId: string): Promise<AgendaTask[]> {
