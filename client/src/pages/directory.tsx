@@ -726,7 +726,7 @@ export default function DirectoryPage() {
                 </form>
               </Form>
               {editingMember && (
-                <div className="mt-6 space-y-3 border-t border-white/10 pt-4">
+                <div className="mt-6 space-y-3 border-t border-border/60 pt-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold">Llamamientos</p>
@@ -753,13 +753,13 @@ export default function DirectoryPage() {
                       {memberCallings.map((calling) => (
                         <div
                           key={calling.id}
-                          className="flex items-center justify-between rounded-[12px] border border-white/10 bg-[#101319] px-3 py-2"
+                          className="flex items-center justify-between rounded-[12px] border border-border/60 bg-card/80 px-3 py-2"
                         >
                           <div className="space-y-0.5">
-                            <p className="text-sm font-medium text-white">
+                            <p className="text-sm font-medium text-foreground">
                               {formatCallingLabel(calling.callingName, calling.organizationName)}
                             </p>
-                            <p className="text-xs text-[#9AA0A6]">
+                            <p className="text-xs text-muted-foreground">
                               {calling.organizationName ?? "Sin organización"}
                             </p>
                           </div>
@@ -768,7 +768,7 @@ export default function DirectoryPage() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="text-[#0A84FF] hover:bg-white/10"
+                              className="text-primary hover:bg-muted/40"
                               onClick={() => handleEditCalling(calling)}
                             >
                               Editar
@@ -777,7 +777,7 @@ export default function DirectoryPage() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="text-[#FF453A] hover:bg-white/10"
+                              className="text-destructive hover:bg-muted/40"
                               onClick={() => handleDeleteCalling(calling.id)}
                             >
                               Quitar
@@ -787,7 +787,7 @@ export default function DirectoryPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-[#9AA0A6]">Sin llamamientos asignados.</p>
+                    <p className="text-sm text-muted-foreground">Sin llamamientos asignados.</p>
                   )}
                 </div>
               )}
@@ -796,15 +796,15 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <Card className="border-0 bg-transparent text-white shadow-none">
+      <Card className="border-border/70 bg-card/90">
         <CardHeader className="px-0">
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Users className="h-5 w-5 text-[#0A84FF]" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Users className="h-5 w-5 text-primary" />
             Miembros del barrio
           </CardTitle>
         </CardHeader>
         <CardContent
-          className="space-y-4 px-0 text-white"
+          className="space-y-4 px-0"
           style={{ fontFamily: "system-ui, -apple-system" }}
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -814,12 +814,12 @@ export default function DirectoryPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nombre, teléfono o correo"
-                className="border-white/10 bg-[#151820] pl-9 text-white placeholder:text-[#9AA0A6]"
+                className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
               />
             </div>
             <Badge
               variant="outline"
-              className="self-start border-white/10 text-[#9AA0A6] sm:self-auto"
+              className="self-start border-border/60 text-muted-foreground sm:self-auto"
             >
               {filteredMembers.length} miembros
             </Badge>
@@ -830,7 +830,7 @@ export default function DirectoryPage() {
               {Array.from({ length: 5 }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between rounded-[14px] border border-white/10 bg-[#151820] p-3"
+                  className="flex items-center justify-between rounded-[14px] border border-border/60 bg-card p-3"
                 >
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-40" />
@@ -859,12 +859,12 @@ export default function DirectoryPage() {
                 return (
                   <div
                     key={member.id}
-                    className="relative isolate overflow-hidden rounded-[14px] border border-white/10 bg-[#151820]"
+                    className="relative isolate overflow-hidden rounded-[14px] border border-border/60 bg-card"
                   >
                     <div
-                      className={`absolute inset-0 m-0 flex h-full items-center justify-start rounded-[14px] border-0 text-white shadow-none transition-opacity duration-150 ${
+                      className={`absolute inset-0 m-0 flex h-full items-center justify-start rounded-[14px] border-0 text-foreground shadow-none transition-opacity duration-150 ${
                         isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
-                      } ${contactDisabled ? "bg-[#2c2c2e]" : "bg-gradient-to-r from-[#1f3b2d] to-[#34C759]"}`}
+                      } ${contactDisabled ? "bg-muted" : "bg-gradient-to-r from-emerald-800 to-emerald-500"}`}
                     >
                       <div className="grid h-full grid-cols-2 overflow-hidden" style={{ width: actionWidth }}>
                         {hasPhone ? (
@@ -908,14 +908,14 @@ export default function DirectoryPage() {
                       </div>
                     </div>
                     <div
-                      className={`absolute inset-0 m-0 flex h-full items-center justify-end rounded-[14px] border-0 bg-[#2c2c2e] text-white shadow-none transition-opacity duration-150 ${
+                      className={`absolute inset-0 m-0 flex h-full items-center justify-end rounded-[14px] border-0 bg-muted text-foreground shadow-none transition-opacity duration-150 ${
                         isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
                       <div className="grid h-full grid-cols-2 overflow-hidden" style={{ width: actionWidth }}>
                         <button
                           type="button"
-                          className="flex h-full flex-col items-center justify-center gap-1 bg-[#2c2c2e] text-[11px] font-medium"
+                          className="flex h-full flex-col items-center justify-center gap-1 bg-muted text-[11px] font-medium"
                           onClick={() => {
                             resetSwipe();
                             handleEditMember(member);
@@ -926,7 +926,7 @@ export default function DirectoryPage() {
                         </button>
                         <button
                           type="button"
-                          className="flex h-full flex-col items-center justify-center gap-1 bg-[#FF453A] text-[11px] font-medium"
+                          className="flex h-full flex-col items-center justify-center gap-1 bg-destructive text-[11px] font-medium text-destructive-foreground"
                           onClick={() => {
                             resetSwipe();
                             handleRequestDelete(member);
@@ -940,7 +940,7 @@ export default function DirectoryPage() {
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-[#151820] pr-4 will-change-transform ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card/90 pr-4 will-change-transform ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
                       style={{
@@ -966,14 +966,14 @@ export default function DirectoryPage() {
                       onPointerLeave={handlePointerEnd}
                       onPointerCapture={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
                     >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0B0B0F] text-sm font-semibold text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background text-sm font-semibold text-foreground">
                         {initials}
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col justify-center px-1 text-left">
-                        <p className="text-left text-sm font-semibold text-white">
+                        <p className="text-left text-sm font-semibold text-foreground">
                           {member.nameSurename}
                         </p>
-                        <p className="text-left text-xs text-[#9AA0A6]">
+                        <p className="text-left text-xs text-muted-foreground">
                           {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
                         </p>
                       </div>
@@ -983,7 +983,7 @@ export default function DirectoryPage() {
               })}
             </div>
           ) : (
-            <div className="rounded-[14px] border border-dashed border-white/10 bg-[#151820] p-6 text-sm text-[#9AA0A6]">
+            <div className="rounded-[14px] border border-dashed border-border/60 bg-card p-6 text-sm text-muted-foreground">
               No hay miembros para mostrar con ese filtro.
             </div>
           )}
@@ -1002,7 +1002,7 @@ export default function DirectoryPage() {
             onClick={handleCloseSheet}
           />
           <div
-            className="relative w-full max-w-2xl rounded-t-[20px] border border-white/10 bg-[#151820] px-6 pb-8 pt-4 text-white shadow-2xl"
+            className="relative w-full max-w-2xl rounded-t-[20px] border border-border/60 bg-card px-6 pb-8 pt-4 text-foreground shadow-[var(--card-shadow-hover)]"
             style={{
               transform: `translateY(${sheetOpen ? sheetOffset : 32}px)`,
               opacity: sheetOpen ? 1 : 0,
@@ -1018,11 +1018,11 @@ export default function DirectoryPage() {
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
             <div className="space-y-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[#9AA0A6]">Miembro</p>
-                <p className="mt-1 text-lg font-semibold text-white">{sheetMember.nameSurename}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Miembro</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">{sheetMember.nameSurename}</p>
               </div>
               <Button
-                className="w-full bg-[#0A84FF] text-white hover:bg-[#0A84FF]/90"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => {
                   const memberName = encodeURIComponent(normalizeMemberName(sheetMember.nameSurename));
                   const basePath = isOrgMember ? "/organization-interviews" : "/interviews";
@@ -1162,7 +1162,7 @@ export default function DirectoryPage() {
       <Button
         type="button"
         onClick={handleOpenCreate}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#0A84FF] text-2xl text-white shadow-lg"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-2xl text-primary-foreground shadow-lg"
       >
         +
       </Button>
