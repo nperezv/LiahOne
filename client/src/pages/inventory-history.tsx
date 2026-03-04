@@ -5,6 +5,7 @@ import { useInventoryHistory } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function InventoryHistoryPage() {
@@ -80,8 +81,26 @@ export default function InventoryHistoryPage() {
               </SelectContent>
             </Select>
 
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <div className="space-y-1">
+              <Label htmlFor="history-from-date" className="text-xs text-muted-foreground">Desde</Label>
+              <Input
+                id="history-from-date"
+                type="date"
+                value={fromDate}
+                aria-label="Fecha inicial del rango"
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="history-to-date" className="text-xs text-muted-foreground">Hasta</Label>
+              <Input
+                id="history-to-date"
+                type="date"
+                value={toDate}
+                aria-label="Fecha final del rango"
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar activo / solicitante" />
           </div>
 
