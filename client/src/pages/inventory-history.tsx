@@ -80,8 +80,28 @@ export default function InventoryHistoryPage() {
               </SelectContent>
             </Select>
 
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <div className="relative">
+              {!fromDate ? <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Desde</span> : null}
+              <Input
+                id="history-from-date"
+                type="date"
+                value={fromDate}
+                aria-label="Fecha inicial del rango"
+                className={!fromDate ? "pl-[72px]" : undefined}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div className="relative">
+              {!toDate ? <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Hasta</span> : null}
+              <Input
+                id="history-to-date"
+                type="date"
+                value={toDate}
+                aria-label="Fecha final del rango"
+                className={!toDate ? "pl-[72px]" : undefined}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar activo / solicitante" />
           </div>
 
