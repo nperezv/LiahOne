@@ -54,6 +54,7 @@ import InventoryListPage from "@/pages/inventory-list";
 import InventoryPublicPage from "@/pages/inventory-public";
 import InventoryLocationsPage from "@/pages/inventory-locations";
 import InventoryLocationDetailPage from "@/pages/inventory-location-detail";
+import InventoryHistoryPage from "@/pages/inventory-history";
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
@@ -158,6 +159,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/inventory/audit">
           <InventoryAuditPage />
+        </Route>
+        <Route path="/inventory/history">
+          <InventoryHistoryPage />
         </Route>
         <Route path="/inventory/locations">
           <InventoryLocationsPage />

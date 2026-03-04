@@ -1765,11 +1765,30 @@ export function useRegisterLocationNfc() {
 }
 
 export function useInventoryLoan() {
-  return useMutation({ mutationFn: (data: any) => apiRequest("POST", "/api/inventory/loan", data) });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/inventory/loan", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/by-nfc"] });
+    },
+  });
 }
 
 export function useInventoryReturn() {
-  return useMutation({ mutationFn: (loanId: string) => apiRequest("POST", "/api/inventory/return", { loanId }) });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { loanId: string; returnHasIncident?: boolean; returnIncidentNotes?: string }) => apiRequest("POST", "/api/inventory/return", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/by-nfc"] });
+    },
+  });
+}
+
+
+export function useInventoryHistory() {
+  return useQuery<any[]>({ queryKey: ["/api/inventory/history"] });
 }
 
 export function useInventoryLocationDetail(locationCode?: string) {

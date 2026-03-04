@@ -98,7 +98,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Inventario",
     url: "/inventory",
     icon: Sparkles,
-    roles: ["obispo", "consejero_obispo", "bibliotecario"],
+    roles: ["obispo", "consejero_obispo", "bibliotecario", "lider_actividades"],
   },
   {
     title: "Biblioteca de recursos",
