@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Settings } from "lucide-react";
 import {
   useAgendaAvailability,
-  useAgendaCapture,
+  useCreateAgendaTask,
   useAgendaData,
   useRunAgendaPlanner,
   useUpdateAgendaAvailability,
@@ -71,13 +71,14 @@ export default function AgendaPage() {
   const { user } = useAuth();
   const { data, isLoading } = useAgendaData();
   const runPlanner = useRunAgendaPlanner();
-  const capture = useAgendaCapture({ onSuccess: () => setText("") });
+  const createAgendaTask = useCreateAgendaTask();
   const updateTaskStatus = useUpdateAgendaTaskStatus();
   const { data: availability } = useAgendaAvailability();
   const updateAvailability = useUpdateAgendaAvailability();
   const { data: assignments } = useAssignments();
 
-  const [text, setText] = useState("");
+  const [dictatedText, setDictatedText] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("open");
   const [quietStart, setQuietStart] = useState("22:00");
@@ -181,15 +182,25 @@ export default function AgendaPage() {
     recognition.lang = "es-ES";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
     recognition.onresult = (event: any) => {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim();
       if (!transcript) return;
-      setText(transcript);
-      const confirmed = window.confirm(`He entendido: "${transcript}"\n\n¿Quieres registrarlo en tu Agenda?`);
-      if (!confirmed) return;
-      capture.mutate({ text: transcript, idempotencyKey: `capture:${transcript.trim().toLowerCase()}:${Math.floor(Date.now()/15000)}` });
+      setDictatedText(transcript);
     };
     recognition.start();
+  };
+
+  const confirmDictationTask = () => {
+    if (!dictatedText) return;
+    createAgendaTask.mutate({
+      title: dictatedText,
+      description: dictatedText,
+    }, {
+      onSuccess: () => setDictatedText(null),
+    });
   };
 
   return (
@@ -247,13 +258,24 @@ export default function AgendaPage() {
       <section className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-3 space-y-4">
           <Card>
-            <CardHeader><CardTitle>Captura rápida</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe o dicta una tarea/evento..." />
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={startDictation}>🎤 Voz</Button>
-                <Button onClick={() => capture.mutate({ text, idempotencyKey: `capture:${text.trim().toLowerCase()}:${Math.floor(Date.now()/15000)}` })} disabled={!text.trim() || capture.isPending}>{capture.isPending ? "Guardando..." : "Agregar"}</Button>
-              </div>
+            <CardHeader><CardTitle>Captura por voz</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Button className="w-full" variant="outline" onClick={startDictation} disabled={isListening || createAgendaTask.isPending}>
+                {isListening ? "Escuchando..." : "🎤 Empezar a dictar"}
+              </Button>
+              <p className="text-xs text-muted-foreground">Dicta la tarea en voz alta. Te mostraremos una confirmación antes de guardarla.</p>
+              {dictatedText && (
+                <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Confirmación</p>
+                  <p className="text-sm">"{dictatedText}"</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={confirmDictationTask} disabled={createAgendaTask.isPending}>
+                      {createAgendaTask.isPending ? "Guardando..." : "Sí, agregar a tareas"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setDictatedText(null)} disabled={createAgendaTask.isPending}>Cancelar</Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
