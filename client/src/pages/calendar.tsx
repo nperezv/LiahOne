@@ -306,12 +306,12 @@ export default function CalendarPage() {
                             <button
                               key={event.id}
                               type="button"
-                              className="w-full text-left p-3 sm:p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800"
+                              className="w-full rounded-xl border border-border/70 bg-card/95 p-3 text-left hover:bg-muted/30 sm:p-4"
                               data-testid={`agenda-event-${event.id}`}
                               onClick={() => handleEventClick(event)}
                             >
                               <div className="flex gap-4">
-                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                <div className="text-sm font-semibold text-foreground/80">
                                   {format(new Date(event.date), "HH:mm")}
                                 </div>
                                 <div className="flex-1">
@@ -427,7 +427,7 @@ export default function CalendarPage() {
                             <button
                               key={event.id}
                               type="button"
-                              className="w-full text-left p-3 sm:p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800"
+                              className="w-full rounded-xl border border-border/70 bg-card/95 p-3 text-left hover:bg-muted/30 sm:p-4"
                               data-testid={`day-event-${event.id}`}
                               onClick={() => handleEventClick(event)}
                             >

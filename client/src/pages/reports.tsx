@@ -69,10 +69,10 @@ export default function ReportsPage() {
   };
 
   const metricCards = [
-    { label: "Reuniones", value: metrics.totalMeetings, icon: Calendar, color: "bg-blue-50" },
-    { label: "Presupuesto Total", value: `$${(metrics.totalBudget / 1000).toFixed(1)}k`, icon: DollarSign, color: "bg-green-50" },
-    { label: "Entrevistas", value: metrics.totalInterviews, icon: Users, color: "bg-purple-50" },
-    { label: "Actividades", value: metrics.totalActivities, icon: TrendingUp, color: "bg-orange-50" },
+    { label: "Reuniones", value: metrics.totalMeetings, icon: Calendar, color: "border-primary/20 bg-primary/10" },
+    { label: "Presupuesto Total", value: `$${(metrics.totalBudget / 1000).toFixed(1)}k`, icon: DollarSign, color: "border-emerald-500/20 bg-emerald-500/10" },
+    { label: "Entrevistas", value: metrics.totalInterviews, icon: Users, color: "border-violet-500/20 bg-violet-500/10" },
+    { label: "Actividades", value: metrics.totalActivities, icon: TrendingUp, color: "border-amber-500/20 bg-amber-500/10" },
   ];
 
   return (
@@ -233,7 +233,7 @@ export default function ReportsPage() {
               <CardContent>
                 <div className="space-y-3">
                   {data.budgetByOrganization.map((org, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                    <div key={idx} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 p-3">
                       <span className="text-sm font-medium">{org.org}</span>
                       <div className="flex gap-2">
                         <Badge variant="outline" className="text-xs">
