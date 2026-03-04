@@ -157,8 +157,8 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     icon: CalendarDays,
   },
   {
-    title: "Calendario Integrado",
-    url: "/calendar",
+    title: "Agenda",
+    url: "/agenda",
     icon: Grid3x3,
   },
   {
