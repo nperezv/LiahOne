@@ -66,6 +66,26 @@ export default function InventoryDetailPage() {
           ))}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Historial de préstamos</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {data.loans.length === 0 && <p className="text-sm text-muted-foreground">Sin préstamos todavía.</p>}
+          {data.loans.map((loan: any) => (
+            <div key={loan.id} className="rounded-xl border p-3 text-sm space-y-1">
+              <p><strong>{loan.borrowerName}</strong> · Estado: <span className="uppercase">{loan.status}</span></p>
+              <p className="text-muted-foreground">Salida: {loan.dateOut} · Estimada: {loan.expectedReturnDate ?? "—"} · Devolución: {loan.dateReturn ?? "—"}</p>
+              {loan.requestPdfUrl ? (
+                <a className="text-primary underline" href={loan.requestPdfUrl} target="_blank" rel="noreferrer">
+                  Descargar PDF de solicitud
+                </a>
+              ) : null}
+              {loan.returnHasIncident ? <p className="text-amber-700">Incidencia: {loan.returnIncidentNotes || "Sin notas"}</p> : null}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
