@@ -33,6 +33,7 @@ import GoalsPage from "@/pages/goals";
 import BirthdaysPage from "@/pages/birthdays";
 import ActivitiesPage from "@/pages/activities";
 import CalendarPage from "@/pages/calendar";
+import AgendaPage from "@/pages/agenda";
 import ReportsPage from "@/pages/reports";
 import SettingsPage from "@/pages/settings";
 import AssignmentsPage from "@/pages/assignments";
@@ -113,6 +114,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/calendar">
           <CalendarPage />
+        </Route>
+        <Route path="/agenda">
+          <AgendaPage />
         </Route>
         <Route path="/reports">
           <ReportsPage />
