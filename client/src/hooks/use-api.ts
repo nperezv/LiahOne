@@ -1239,13 +1239,14 @@ export function useRunAgendaPlanner() {
   });
 }
 
-export function useAgendaCapture() {
+export function useAgendaCapture(options?: { onSuccess?: () => void }) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (text: string) => apiRequest("POST", "/api/agenda/capture", { text }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agenda/plan"] });
+      options?.onSuccess?.();
     },
   });
 }

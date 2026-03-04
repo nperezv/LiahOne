@@ -37,7 +37,7 @@ export default function AgendaPage() {
   const [, setLocation] = useLocation();
   const { data, isLoading } = useAgendaData();
   const runPlanner = useRunAgendaPlanner();
-  const capture = useAgendaCapture();
+  const capture = useAgendaCapture({ onSuccess: () => setText("") });
   const updateTaskStatus = useUpdateAgendaTaskStatus();
   const { data: availability } = useAgendaAvailability();
   const updateAvailability = useUpdateAgendaAvailability();
@@ -79,6 +79,21 @@ export default function AgendaPage() {
   const dayEvents = useMemo(
     () => events.filter((event) => isSameDay(parseISO(`${event.date}T00:00:00`), selectedDate)),
     [events, selectedDate]
+  );
+
+  const taskMap = useMemo(() => new Map(tasks.map((t: any) => [t.id, t])), [tasks]);
+
+  const dayPlans = useMemo(() =>
+    plans
+      .filter((plan: any) => plan.status === "planned" && isSameDay(new Date(plan.startAt), selectedDate))
+      .map((plan: any) => ({
+        id: plan.id,
+        title: taskMap.get(plan.taskId)?.title ?? "Bloque planificado",
+        start: new Date(plan.startAt),
+        end: new Date(plan.endAt),
+      }))
+      .sort((a: any, b: any) => a.start.getTime() - b.start.getTime()),
+    [plans, selectedDate, taskMap]
   );
 
   const taskIdsWithPlans = useMemo(() => new Set(plans.filter((p: any) => p.status === "planned").map((p: any) => p.taskId)), [plans]);
@@ -129,7 +144,7 @@ export default function AgendaPage() {
               <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ej: Recuérdame preparar clase mañana 18:00" />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={startDictation}>🎤 Voz</Button>
-                <Button onClick={() => capture.mutate(text)} disabled={!text.trim()}>Agregar</Button>
+                <Button onClick={() => capture.mutate(text)} disabled={!text.trim() || capture.isPending}>{capture.isPending ? "Guardando..." : "Agregar"}</Button>
               </div>
             </CardContent>
           </Card>
@@ -179,19 +194,35 @@ export default function AgendaPage() {
             <CardHeader><CardTitle>Timeline del día</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
-              {!isLoading && dayEvents.length === 0 && <p className="text-sm text-muted-foreground">No hay eventos para este día.</p>}
-              {dayEvents.map((event) => (
+              {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && <p className="text-sm text-muted-foreground">No hay elementos para este día.</p>}
+
+              {dayPlans.map((plan: any) => (
+                <div key={plan.id} className="rounded-lg border p-3 border-blue-500/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{plan.title}</p>
+                    <Badge variant="default">Plan</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{format(plan.start, "HH:mm", { locale: es })} - {format(plan.end, "HH:mm", { locale: es })}</p>
+                </div>
+              ))}
+
+              {dayEvents.map((event) => {
+                const isPast = parseISO(`${event.date}T${event.endTime ?? event.startTime ?? "23:59"}:00`).getTime() < Date.now();
+                return (
                 <div key={event.id} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">{event.title}</p>
-                    <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
+                    <div className="flex items-center gap-2">
+                      {isPast && <Badge variant="outline">Pasada</Badge>}
+                      <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">{event.startTime ? `${event.startTime} - ${event.endTime ?? ""}` : "Sin hora"}</p>
                   {event.sourceType !== "manual" && (
                     <Button size="sm" variant="link" className="px-0" onClick={() => setLocation(event.sourceType === "activity" ? "/activities" : "/interviews")}>Abrir módulo original</Button>
                   )}
                 </div>
-              ))}
+              )})}
             </CardContent>
           </Card>
         </div>
@@ -222,7 +253,7 @@ export default function AgendaPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Preferencias</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Preferencias</CardTitle><p className="text-xs text-muted-foreground">Silenciar notificaciones en este horario y elegir canal.</p></CardHeader>
             <CardContent className="space-y-2">
               <Input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} />
               <Input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} />
@@ -242,17 +273,6 @@ export default function AgendaPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Auditoría</CardTitle></CardHeader>
-            <CardContent className="space-y-1">
-              {activeLogs.slice(0, 6).map((log) => (
-                <div key={log.id} className="rounded border p-2 text-xs">
-                  <p className="font-medium">{log.intent ?? "acción"}</p>
-                  <p className="text-muted-foreground">{new Date(log.createdAt).toLocaleString("es-ES")}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
       </section>
     </div>

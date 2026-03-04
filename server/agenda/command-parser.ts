@@ -81,10 +81,11 @@ export function parseAgendaCommand(text: string): AgendaCommandParseResult {
     };
   }
 
-  const isTask = /(recordar|recuérdame|tengo que|debo|antes de|pendiente|hacer|tarea)/i.test(normalized);
-  const isEvent = /(reunión|entrevista|cita|evento|a las|mañana a|hoy a|programa|agenda)/i.test(normalized);
+  const isTask = /(recordar|recu[eé]rd(?:a(?:me)?|en)?|tengo que|debo|antes de|pendiente|hacer|tarea|llamar)/i.test(normalized);
+  const isExplicitEvent = /(reunión|entrevista|cita|evento|programa|agenda)/i.test(normalized);
+  const isEvent = isExplicitEvent || /\ba las\b/i.test(normalized);
 
-  if (isTask && !isEvent) {
+  if (isTask && !isExplicitEvent) {
     return {
       intent: "create_task",
       entities: {
