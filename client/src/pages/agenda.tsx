@@ -18,10 +18,10 @@ import {
   useAgendaAvailability,
   useAgendaCapture,
   useAgendaData,
-  useAgendaLogs,
   useRunAgendaPlanner,
   useUpdateAgendaAvailability,
   useUpdateAgendaTaskStatus,
+  useAssignments,
 } from "@/hooks/use-api";
 import { useLocation } from "wouter";
 
@@ -41,7 +41,7 @@ export default function AgendaPage() {
   const updateTaskStatus = useUpdateAgendaTaskStatus();
   const { data: availability } = useAgendaAvailability();
   const updateAvailability = useUpdateAgendaAvailability();
-  const { data: logs } = useAgendaLogs(20);
+  const { data: assignments } = useAssignments();
 
   const [text, setText] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -53,7 +53,7 @@ export default function AgendaPage() {
   const events = data?.events ?? [];
   const plans = data?.plans ?? [];
   const tasks = data?.tasks ?? [];
-  const activeLogs = logs ?? [];
+  const pendingAssignments = useMemo(() => (assignments ?? []).filter((a: any) => a.status === "pendiente" || a.status === "en_proceso"), [assignments]);
 
   const quietWindow = availability?.doNotDisturbWindows?.[0];
   useEffect(() => {
@@ -115,7 +115,7 @@ export default function AgendaPage() {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim();
       if (!transcript) return;
       setText(transcript);
-      capture.mutate(transcript);
+      capture.mutate({ text: transcript, idempotencyKey: `capture:${transcript.trim().toLowerCase()}:${Math.floor(Date.now()/15000)}` });
     };
     recognition.start();
   };
@@ -125,7 +125,7 @@ export default function AgendaPage() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda inteligente</h1>
-          <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario y auditoría.</p>
+          <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario, entrevistas y asignaciones.</p>
         </div>
         <Button onClick={() => runPlanner.mutate()} data-testid="button-plan-week">Planificar semana</Button>
       </header>
@@ -144,7 +144,7 @@ export default function AgendaPage() {
               <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ej: Recuérdame preparar clase mañana 18:00" />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={startDictation}>🎤 Voz</Button>
-                <Button onClick={() => capture.mutate(text)} disabled={!text.trim() || capture.isPending}>{capture.isPending ? "Guardando..." : "Agregar"}</Button>
+                <Button onClick={() => capture.mutate({ text, idempotencyKey: `capture:${text.trim().toLowerCase()}:${Math.floor(Date.now()/15000)}` })} disabled={!text.trim() || capture.isPending}>{capture.isPending ? "Guardando..." : "Agregar"}</Button>
               </div>
             </CardContent>
           </Card>
@@ -213,7 +213,7 @@ export default function AgendaPage() {
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">{event.title}</p>
                     <div className="flex items-center gap-2">
-                      {isPast && <Badge variant="outline">Pasada</Badge>}
+                      {event.sourceType === "interview" ? <Badge variant={isPast ? "outline" : "secondary"}>{isPast ? "Entrevista completada" : "Entrevista programada"}</Badge> : isPast ? <Badge variant="outline">Pasada</Badge> : null}
                       <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
                     </div>
                   </div>
@@ -249,6 +249,20 @@ export default function AgendaPage() {
                   </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+
+          <Card>
+            <CardHeader><CardTitle>Asignaciones pendientes</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {pendingAssignments.slice(0, 6).map((assignment: any) => (
+                <div key={assignment.id} className="rounded border p-2 text-xs">
+                  <p className="font-medium">{assignment.title}</p>
+                  <p className="text-muted-foreground">Estado: {assignment.status}</p>
+                </div>
+              ))}
+              {pendingAssignments.length === 0 && <p className="text-sm text-muted-foreground">Sin asignaciones pendientes.</p>}
             </CardContent>
           </Card>
 

@@ -1242,7 +1242,8 @@ export function useRunAgendaPlanner() {
 export function useAgendaCapture(options?: { onSuccess?: () => void }) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (text: string) => apiRequest("POST", "/api/agenda/capture", { text }),
+    mutationFn: (payload: { text: string; idempotencyKey?: string }) =>
+      apiRequest("POST", "/api/agenda/capture", { text: payload.text }, payload.idempotencyKey ? { "Idempotency-Key": payload.idempotencyKey } : undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agenda/plan"] });
