@@ -49,7 +49,7 @@ const createUserSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email inválido"),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades"]),
   organizationId: z.string().min(1, "Selecciona una organización"),
   memberId: z.string().min(1, "Selecciona un miembro"),
   callingName: z.string().optional().or(z.literal("")),
@@ -65,7 +65,7 @@ const editUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades"]),
   organizationId: z.string().optional(),
   memberId: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
@@ -679,6 +679,7 @@ export default function AdminUsersPage() {
         { value: "secretario_ejecutivo", label: "Secretario Ejecutivo" },
         { value: "secretario_financiero", label: "Secretario Financiero" },
         { value: "bibliotecario", label: "Bibliotecario" },
+        { value: "lider_actividades", label: "Líder de actividades" },
       ];
     }
     return [
@@ -984,6 +985,7 @@ export default function AdminUsersPage() {
     secretario_ejecutivo: "Secretario Ejecutivo",
     secretario_financiero: "Secretario Financiero",
     bibliotecario: "Bibliotecario",
+    lider_actividades: "Líder de actividades",
     presidente_organizacion: "Presidente",
     consejero_organizacion: "Consejero",
   };
