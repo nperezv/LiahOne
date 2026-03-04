@@ -1223,6 +1223,33 @@ export function useUpdateAgendaTaskStatus() {
     },
   });
 }
+
+export function useCreateAgendaTask() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (payload: { title: string; description?: string; dueAt?: string | null }) =>
+      apiRequest("POST", "/api/agenda/tasks", {
+        title: payload.title,
+        description: payload.description ?? payload.title,
+        dueAt: payload.dueAt ?? null,
+        earliestStartAt: null,
+        durationMinutes: 30,
+        priority: "P3",
+        status: "open",
+        eventId: null,
+        metadata: { capturedBy: "voice" },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda/logs"] });
+      toast({ title: "Tarea creada", description: "Se agregó la tarea dictada correctamente." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo crear la tarea dictada.", variant: "destructive" });
+    },
+  });
+}
 export function useRunAgendaPlanner() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
