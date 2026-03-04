@@ -13,7 +13,9 @@ import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Settings } from "lucide-react";
 import {
   useAgendaAvailability,
   useAgendaCapture,
@@ -31,7 +33,7 @@ type TaskFilter = "open" | "planned" | "atRisk" | "done";
 function sourceLabel(sourceType: string) {
   if (sourceType === "activity") return "Actividad";
   if (sourceType === "interview") return "Entrevista";
-  return "Manual";
+  return "Personal";
 }
 
 function normalizeComparableText(value: string) {
@@ -52,6 +54,18 @@ function formatAssignmentReference(relatedTo?: string | null) {
   return relatedTo;
 }
 
+function shouldHideManualReminderEvent(event: any, taskTitles: Set<string>) {
+  if (event.sourceType !== "manual") return false;
+
+  const normalizedTitle = normalizeComparableText(event.title || "");
+  const normalizedDescription = normalizeComparableText(event.description || "");
+  const combinedText = `${normalizedTitle} ${normalizedDescription}`.trim();
+  const reminderLikeText = /record|recuerd|llamar|comprar|preparar|pendiente|tarea|seguimiento/.test(combinedText);
+
+  if (!reminderLikeText) return false;
+  return taskTitles.has(normalizedTitle) || taskTitles.has(normalizedDescription);
+}
+
 export default function AgendaPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -69,6 +83,7 @@ export default function AgendaPage() {
   const [quietStart, setQuietStart] = useState("22:00");
   const [quietEnd, setQuietEnd] = useState("06:00");
   const [emailEnabled, setEmailEnabled] = useState(false);
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
 
   const events = data?.events ?? [];
   const plans = data?.plans ?? [];
@@ -116,11 +131,25 @@ export default function AgendaPage() {
       if (seen.has(eventKey)) return false;
       seen.add(eventKey);
 
-      const looksLikeReminder = event.sourceType === "manual" && /record|recuerd|llamar|comprar|preparar/.test(normalizedTitle);
-      if (looksLikeReminder && taskTitles.has(normalizedTitle)) return false;
+      if (shouldHideManualReminderEvent(event, taskTitles)) return false;
       return true;
     });
   }, [dayEvents, dayTasksDue]);
+
+  const savePreferences = () => {
+    updateAvailability.mutate({
+      timezone: availability?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      workDays: availability?.workDays ?? [1, 2, 3, 4, 5],
+      workStartTime: availability?.workStartTime ?? "09:00",
+      workEndTime: availability?.workEndTime ?? "18:00",
+      bufferMinutes: availability?.bufferMinutes ?? 10,
+      minBlockMinutes: availability?.minBlockMinutes ?? 15,
+      doNotDisturbWindows: [{ start: quietStart, end: quietEnd }],
+      reminderChannels: emailEnabled ? ["push", "email"] : ["push"],
+    }, {
+      onSuccess: () => setIsPreferencesOpen(false),
+    });
+  };
 
   const taskMap = useMemo(() => new Map(tasks.map((t: any) => [t.id, t])), [tasks]);
 
@@ -170,7 +199,43 @@ export default function AgendaPage() {
           <h1 className="text-3xl font-bold tracking-tight">Agenda inteligente</h1>
           <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario y tareas personales.</p>
         </div>
-        <Button onClick={() => runPlanner.mutate()} data-testid="button-plan-week">Planificar semana</Button>
+        <div className="flex items-center gap-2">
+          <Dialog open={isPreferencesOpen} onOpenChange={setIsPreferencesOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Abrir preferencias de agenda">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Preferencias de recordatorios</DialogTitle>
+                <DialogDescription>
+                  Ajusta horas silenciosas y el canal para que la agenda se adapte a tu ritmo.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="space-y-1 text-sm">
+                    <span className="text-muted-foreground">Silencio desde</span>
+                    <Input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-muted-foreground">Hasta</span>
+                    <Input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} />
+                  </label>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
+                  Enviar también por email
+                </label>
+                <Button className="w-full" onClick={savePreferences} disabled={updateAvailability.isPending}>
+                  {updateAvailability.isPending ? "Guardando..." : "Guardar preferencias"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button onClick={() => runPlanner.mutate()} data-testid="button-plan-week">Planificar semana</Button>
+        </div>
       </header>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -184,8 +249,8 @@ export default function AgendaPage() {
           <Card>
             <CardHeader><CardTitle>Captura rápida</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ej: Recuérdame preparar clase mañana 18:00" />
-              <div className="flex gap-2">
+              <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe o dicta una tarea/evento..." />
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={startDictation}>🎤 Voz</Button>
                 <Button onClick={() => capture.mutate({ text, idempotencyKey: `capture:${text.trim().toLowerCase()}:${Math.floor(Date.now()/15000)}` })} disabled={!text.trim() || capture.isPending}>{capture.isPending ? "Guardando..." : "Agregar"}</Button>
               </div>
@@ -318,27 +383,6 @@ export default function AgendaPage() {
                 </div>
               ))}
               {pendingAssignments.length === 0 && <p className="text-sm text-muted-foreground">Sin asignaciones pendientes.</p>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle>Preferencias</CardTitle><p className="text-xs text-muted-foreground">Silenciar notificaciones en este horario y elegir canal.</p></CardHeader>
-            <CardContent className="space-y-2">
-              <Input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} />
-              <Input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} />
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} /> Canal email
-              </label>
-              <Button size="sm" onClick={() => updateAvailability.mutate({
-                timezone: availability?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-                workDays: availability?.workDays ?? [1, 2, 3, 4, 5],
-                workStartTime: availability?.workStartTime ?? "09:00",
-                workEndTime: availability?.workEndTime ?? "18:00",
-                bufferMinutes: availability?.bufferMinutes ?? 10,
-                minBlockMinutes: availability?.minBlockMinutes ?? 15,
-                doNotDisturbWindows: [{ start: quietStart, end: quietEnd }],
-                reminderChannels: emailEnabled ? ["push", "email"] : ["push"],
-              })}>Guardar</Button>
             </CardContent>
           </Card>
 
