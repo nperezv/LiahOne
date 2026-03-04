@@ -1,4 +1,7 @@
 import type { Express, Request, RequestHandler } from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { z } from "zod";
@@ -16,7 +19,6 @@ import {
   insertInventoryAuditSchema,
   insertInventoryCategorySchema,
   insertInventoryItemSchema,
-  insertInventoryLoanSchema,
   insertInventoryLocationSchema,
   pdfTemplates,
 } from "@shared/schema";
@@ -27,9 +29,9 @@ const MM_TO_PT = 2.8346456693;
 const CIRCLE_MM = 25;
 const QR_MM = 14;
 
-const INVENTORY_ALLOWED_ROLES = new Set(["obispo", "consejero_obispo", "bibliotecario"]);
+const INVENTORY_ALLOWED_ROLES = new Set(["obispo", "consejero_obispo", "bibliotecario", "lider_actividades"]);
 const ADMIN_ROLES = new Set(["obispo", "consejero_obispo"]);
-const LEADER_ROLES = new Set([...ADMIN_ROLES, "bibliotecario"]);
+const LEADER_ROLES = new Set([...ADMIN_ROLES, "bibliotecario", "lider_actividades"]);
 
 const moveByScanSchema = z.object({
   item_asset_code: z.string().optional(),
@@ -43,6 +45,19 @@ const registerLocationNfcSchema = z.object({
   location_id: z.string().optional(),
   location_code: z.string().optional(),
   nfc_uid: z.string().min(4),
+});
+
+const LOAN_REQUEST_PDF_DIR = path.resolve(process.cwd(), "uploads", "inventory-loans");
+fs.mkdirSync(LOAN_REQUEST_PDF_DIR, { recursive: true });
+
+const createInventoryLoanRequestSchema = z.object({
+  itemId: z.string().min(1),
+  borrowerFirstName: z.string().min(2),
+  borrowerLastName: z.string().min(2),
+  borrowerPhone: z.string().min(6),
+  borrowerEmail: z.string().email(),
+  expectedReturnDate: z.string().min(10),
+  signatureDataUrl: z.string().min(20),
 });
 
 function isAuthed(req: Request) {
@@ -195,6 +210,42 @@ async function buildLocationRectLabelPdf(locationCode: string) {
   return Buffer.from(await pdf.save());
 }
 
+async function buildLoanRequestPdf(input: {
+  assetCode: string;
+  itemName: string;
+  borrowerFullName: string;
+  borrowerPhone: string;
+  borrowerEmail: string;
+  expectedReturnDate: string;
+  signatureDataUrl: string;
+}) {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const page = pdf.addPage([595, 842]);
+
+  page.drawText("Solicitud de préstamo de activo", { x: 50, y: 790, size: 18, font: bold });
+  page.drawText(`Activo: ${input.assetCode} · ${input.itemName}`, { x: 50, y: 750, size: 12, font });
+  page.drawText(`Solicitante: ${input.borrowerFullName}`, { x: 50, y: 725, size: 12, font });
+  page.drawText(`Teléfono: ${input.borrowerPhone}`, { x: 50, y: 700, size: 12, font });
+  page.drawText(`Correo: ${input.borrowerEmail}`, { x: 50, y: 675, size: 12, font });
+  page.drawText(`Fecha estimada devolución: ${input.expectedReturnDate}`, { x: 50, y: 650, size: 12, font });
+  page.drawText(`Generado: ${new Date().toLocaleString("es-ES")}`, { x: 50, y: 625, size: 10, font });
+
+  if (input.signatureDataUrl.startsWith("data:image/")) {
+    const base64Data = input.signatureDataUrl.split(",")[1] || "";
+    const imageBytes = Buffer.from(base64Data, "base64");
+    const signatureImage = input.signatureDataUrl.startsWith("data:image/jpeg")
+      ? await pdf.embedJpg(imageBytes)
+      : await pdf.embedPng(imageBytes);
+    page.drawRectangle({ x: 50, y: 500, width: 240, height: 80, borderColor: rgb(0.2, 0.2, 0.2), borderWidth: 1 });
+    page.drawImage(signatureImage, { x: 55, y: 505, width: 230, height: 70 });
+    page.drawText("Firma del solicitante", { x: 50, y: 488, size: 10, font });
+  }
+
+  return Buffer.from(await pdf.save());
+}
+
 async function resolveItemByInputs(input: { item_asset_code?: string; item_nfc_uid?: string }) {
   if (input.item_asset_code) {
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, input.item_asset_code)).limit(1);
@@ -310,6 +361,57 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     res.status(201).json(created);
   });
 
+
+  app.get("/api/inventory/history", requireAuth, requireRead, async (_req, res) => {
+    const movements = await db
+      .select({
+        id: inventoryMovements.id,
+        type: sql<string>`'movement'`,
+        createdAt: inventoryMovements.createdAt,
+        assetCode: inventoryItems.assetCode,
+        itemName: inventoryItems.name,
+        fromLocation: inventoryMovements.fromLocation,
+        toLocation: inventoryMovements.toLocation,
+        note: inventoryMovements.note,
+        status: sql<string>`null`,
+        borrowerName: sql<string>`null`,
+        expectedReturnDate: sql<string>`null`,
+        dateReturn: sql<string>`null`,
+        requestPdfUrl: sql<string>`null`,
+      })
+      .from(inventoryMovements)
+      .innerJoin(inventoryItems, eq(inventoryMovements.itemId, inventoryItems.id))
+      .orderBy(desc(inventoryMovements.createdAt))
+      .limit(200);
+
+    const loans = await db
+      .select({
+        id: inventoryLoans.id,
+        type: sql<string>`'loan'`,
+        createdAt: inventoryLoans.createdAt,
+        assetCode: inventoryItems.assetCode,
+        itemName: inventoryItems.name,
+        fromLocation: sql<string>`null`,
+        toLocation: sql<string>`null`,
+        note: inventoryLoans.returnIncidentNotes,
+        status: inventoryLoans.status,
+        borrowerName: inventoryLoans.borrowerName,
+        expectedReturnDate: inventoryLoans.expectedReturnDate,
+        dateReturn: inventoryLoans.dateReturn,
+        requestPdfUrl: inventoryLoans.requestPdfUrl,
+      })
+      .from(inventoryLoans)
+      .innerJoin(inventoryItems, eq(inventoryLoans.itemId, inventoryItems.id))
+      .orderBy(desc(inventoryLoans.createdAt))
+      .limit(200);
+
+    const entries = [...movements, ...loans]
+      .sort((a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime())
+      .slice(0, 250);
+
+    res.json(entries);
+  });
+
   app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
@@ -360,20 +462,73 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
   app.post("/inventory/move-by-scan", requireAuth, requireLeader, moveByScanHandler);
 
   app.post("/api/inventory/loan", requireAuth, requireLeader, async (req, res) => {
-    const payload = insertInventoryLoanSchema.parse(req.body);
-    const [loan] = await db.insert(inventoryLoans).values(payload).returning();
+    const payload = createInventoryLoanRequestSchema.parse(req.body);
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, payload.itemId)).limit(1);
+    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+
+    const borrowerFullName = `${payload.borrowerFirstName} ${payload.borrowerLastName}`.trim();
+    const outDate = new Date().toISOString().slice(0, 10);
+    const pdfBytes = await buildLoanRequestPdf({
+      assetCode: item.assetCode,
+      itemName: item.name,
+      borrowerFullName,
+      borrowerPhone: payload.borrowerPhone,
+      borrowerEmail: payload.borrowerEmail,
+      expectedReturnDate: payload.expectedReturnDate,
+      signatureDataUrl: payload.signatureDataUrl,
+    });
+
+    const storedFilename = `${randomUUID()}-${item.assetCode}-solicitud-prestamo.pdf`;
+    const absolutePath = path.join(LOAN_REQUEST_PDF_DIR, storedFilename);
+    await fs.promises.writeFile(absolutePath, pdfBytes);
+
+    const [loan] = await db.insert(inventoryLoans).values({
+      itemId: payload.itemId,
+      borrowerName: borrowerFullName,
+      borrowerFirstName: payload.borrowerFirstName,
+      borrowerLastName: payload.borrowerLastName,
+      borrowerContact: payload.borrowerPhone,
+      borrowerPhone: payload.borrowerPhone,
+      borrowerEmail: payload.borrowerEmail,
+      dateOut: outDate,
+      expectedReturnDate: payload.expectedReturnDate,
+      signatureDataUrl: payload.signatureDataUrl,
+      requestPdfFilename: `solicitud-prestamo-${item.assetCode}.pdf`,
+      requestPdfUrl: `/uploads/inventory-loans/${storedFilename}`,
+      status: "active",
+    }).returning();
+
     await db.update(inventoryItems).set({ status: "loaned", updatedAt: new Date() }).where(eq(inventoryItems.id, payload.itemId));
     auditLog(req, "loan_item", { itemId: payload.itemId });
     res.status(201).json(loan);
   });
 
   app.post("/api/inventory/return", requireAuth, requireLeader, async (req, res) => {
-    const payload = z.object({ loanId: z.string().min(1) }).parse(req.body);
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const payload = z.object({
+      loanId: z.string().min(1),
+      returnHasIncident: z.boolean().optional(),
+      returnIncidentNotes: z.string().max(1000).optional(),
+    }).parse(req.body);
+
+    if (payload.returnHasIncident && (!payload.returnIncidentNotes || payload.returnIncidentNotes.trim().length < 3)) {
+      return res.status(400).json({ error: "Debe registrar una nota de incidencia." });
+    }
+
     const [loan] = await db.select().from(inventoryLoans).where(eq(inventoryLoans.id, payload.loanId)).limit(1);
     if (!loan) return res.status(404).json({ error: "Préstamo no encontrado" });
-    await db.update(inventoryLoans).set({ status: "returned", dateReturn: new Date().toISOString().slice(0, 10) }).where(eq(inventoryLoans.id, loan.id));
+    await db.update(inventoryLoans).set({
+      status: "returned",
+      dateReturn: new Date().toISOString().slice(0, 10),
+      returnedAt: new Date(),
+      returnedBy: userId,
+      returnHasIncident: Boolean(payload.returnHasIncident),
+      returnIncidentNotes: payload.returnHasIncident ? payload.returnIncidentNotes?.trim() : null,
+    }).where(eq(inventoryLoans.id, loan.id));
     await db.update(inventoryItems).set({ status: "available", updatedAt: new Date() }).where(eq(inventoryItems.id, loan.itemId));
-    auditLog(req, "return_item", { loanId: loan.id });
+    auditLog(req, "return_item", { loanId: loan.id, returnHasIncident: Boolean(payload.returnHasIncident) });
     res.json({ ok: true });
   });
 
@@ -419,12 +574,14 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     if (link.targetType === "item") {
       const [item] = await db
         .select({
+          id: inventoryItems.id,
           assetCode: inventoryItems.assetCode,
           name: inventoryItems.name,
           photoUrl: inventoryItems.photoUrl,
           categoryName: inventoryCategories.name,
           locationName: inventoryLocations.name,
           locationCode: inventoryLocations.code,
+          status: inventoryItems.status,
         })
         .from(inventoryItems)
         .leftJoin(inventoryCategories, eq(inventoryItems.categoryId, inventoryCategories.id))
@@ -432,14 +589,25 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
         .where(eq(inventoryItems.id, link.targetId))
         .limit(1);
 
+      const [activeLoan] = item?.assetCode
+        ? await db.select({ id: inventoryLoans.id })
+          .from(inventoryLoans)
+          .where(and(eq(inventoryLoans.itemId, link.targetId), eq(inventoryLoans.status, "active")))
+          .orderBy(desc(inventoryLoans.createdAt))
+          .limit(1)
+        : [];
+
       return res.json({
         type: "item",
+        item_id: item?.id ?? null,
         asset_code: item?.assetCode ?? null,
         name: item?.name ?? null,
         photoUrl: item?.photoUrl ?? null,
         categoryName: item?.categoryName ?? null,
         locationName: item?.locationName ?? null,
         location_code: item?.locationCode ?? null,
+        status: item?.status ?? null,
+        activeLoanId: activeLoan?.id ?? null,
       });
     }
 

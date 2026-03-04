@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
-import { QrCode, ScanLine, ShieldCheck } from "lucide-react";
+import { Boxes, History, QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
 import { useInventoryCategories, useInventoryItems } from "@/hooks/use-api";
@@ -45,6 +45,14 @@ export default function InventoryPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Inventario del barrio</h1>
         <p className="text-sm text-muted-foreground">Total de activos y bienes de la unidad</p>
+        <Link href="/inventory/history">
+          <Button
+            variant="outline"
+            className="mt-3 h-9 rounded-full border-border/70 bg-background/60 px-4 text-xs font-medium"
+          >
+            <History className="mr-2 h-4 w-4" />Historial
+          </Button>
+        </Link>
       </header>
 
       <div className="pt-7 pb-6 md:pt-10 md:pb-7">
@@ -52,7 +60,7 @@ export default function InventoryPage() {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50">Inventario</Button></Link>
+        <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><Boxes className="mr-2 h-4 w-4" />Inventario</Button></Link>
         <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(37,99,235,0.25)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
         <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
         <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>

@@ -90,6 +90,8 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     presidente_organizacion: "Presidente de Organización",
     secretario_organizacion: "Secretario de Organización",
     consejero_organizacion: "Consejero de Organización",
+    bibliotecario: "Bibliotecario",
+    lider_actividades: "Líder de actividades",
   };
 
   const isAdmin =
