@@ -4,8 +4,12 @@ import { QrCode, ScanLine, FolderTree } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InventoryScanner } from "@/components/inventory-scanner";
-import { useInventoryByNfc } from "@/hooks/use-api";
+import { useInventoryByNfc, useInventoryReturn } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
 import { NfcScanRing } from "@/components/inventory/inventory-hub-widgets";
 import { InventoryPageHeader } from "@/components/inventory/inventory-page-header";
@@ -15,10 +19,14 @@ export default function InventoryScanPage() {
   const [mode, setMode] = useState<"nfc" | "qr">("nfc");
   const [uid, setUid] = useState("");
   const [code, setCode] = useState("");
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [returnHasIncident, setReturnHasIncident] = useState(false);
+  const [returnIncidentNotes, setReturnIncidentNotes] = useState("");
 
   const nfc = useNfcScanner((value) => setUid(value));
   const lookup = useInventoryByNfc(uid || undefined);
   const resolved = lookup.data as any;
+  const returnMutation = useInventoryReturn();
 
   const detected = useMemo(() => {
     if (mode === "qr" && code) return { type: "item", asset_code: code } as any;
@@ -33,6 +41,21 @@ export default function InventoryScanPage() {
     if (!uid) return;
     nfc.stop();
   }, [mode, nfc.isScanning, uid]);
+
+  const finalizeReturn = async () => {
+    if (!detected?.activeLoanId) return;
+    if (returnHasIncident && !returnIncidentNotes.trim()) return;
+
+    await returnMutation.mutateAsync({
+      loanId: detected.activeLoanId,
+      returnHasIncident,
+      returnIncidentNotes: returnHasIncident ? returnIncidentNotes.trim() : undefined,
+    });
+
+    setIsReturnModalOpen(false);
+    setReturnHasIncident(false);
+    setReturnIncidentNotes("");
+  };
 
   return (
     <div className="space-y-4 p-4 md:p-8">
@@ -81,6 +104,7 @@ export default function InventoryScanPage() {
             ) : (
               <>
                 <InventoryItemActionsCard
+                  itemId={detected.item_id || detected.id || ""}
                   assetCode={detected.asset_code || code}
                   uid={uid || undefined}
                   name={detected.name || `Activo ${detected.asset_code || code || ""}`.trim()}
@@ -89,6 +113,13 @@ export default function InventoryScanPage() {
                   photoUrl={detected.photoUrl || detected.photo_url}
                   defaultExpanded
                 />
+
+                {detected.status === "loaned" && detected.activeLoanId ? (
+                  <Button className="w-full rounded-xl" onClick={() => setIsReturnModalOpen(true)}>
+                    Devolución completada
+                  </Button>
+                ) : null}
+
                 <Link href={`/inventory/list?asset=${detected.asset_code || code}`}>
                   <Button className="w-full rounded-xl" variant="outline">Abrir en Inventario</Button>
                 </Link>
@@ -97,6 +128,31 @@ export default function InventoryScanPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cerrar devolución</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox checked={returnHasIncident} onCheckedChange={(checked) => setReturnHasIncident(Boolean(checked))} id="return-has-incident" />
+              <Label htmlFor="return-has-incident">Hubo incidencia en la devolución</Label>
+            </div>
+
+            {returnHasIncident ? (
+              <div className="space-y-1">
+                <Label>Notas de incidencia (obligatorio)</Label>
+                <Textarea value={returnIncidentNotes} onChange={(e) => setReturnIncidentNotes(e.target.value)} placeholder="Describe qué ocurrió" />
+              </div>
+            ) : null}
+
+            <Button onClick={() => void finalizeReturn()} disabled={returnMutation.isPending || (returnHasIncident && !returnIncidentNotes.trim())}>
+              {returnMutation.isPending ? "Finalizando..." : "Finalizar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
