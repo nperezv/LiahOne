@@ -81,7 +81,7 @@ export function parseAgendaCommand(text: string): AgendaCommandParseResult {
     };
   }
 
-  const isTask = /(recordar|recu[eé]rd(?:a(?:me)?|en)?|tengo que|debo|antes de|pendiente|hacer|tarea|llamar)/i.test(normalized);
+  const isTask = /(recordar|recu[eé]rd(?:a(?:me)?|en)?|tengo que|debo|antes de|pendiente|hacer|tarea|llamar|comprar|preparar|enviar|revisar|pagar)/i.test(normalized);
   const isExplicitEvent = /(reunión|entrevista|cita|evento|programa|agenda)/i.test(normalized);
   const isEvent = isExplicitEvent || /\ba las\b/i.test(normalized);
 
@@ -123,10 +123,16 @@ export function parseAgendaCommand(text: string): AgendaCommandParseResult {
   }
 
   return {
-    intent: "unknown",
-    entities: { description: text },
-    confidence: 0.4,
-    needsConfirmation: true,
+    intent: "create_task",
+    entities: {
+      title: text.slice(0, 120),
+      description: text,
+      dueAt: parsedDate,
+      durationMinutes: parseDurationMinutes(normalized) ?? 30,
+      priority: inferPriority(normalized),
+    },
+    confidence: 0.55,
+    needsConfirmation: !parsedDate,
     parser: "rules",
   };
 }

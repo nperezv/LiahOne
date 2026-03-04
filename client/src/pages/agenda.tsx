@@ -24,6 +24,7 @@ import {
   useAssignments,
 } from "@/hooks/use-api";
 import { useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
 
 type TaskFilter = "open" | "planned" | "atRisk" | "done";
 
@@ -35,6 +36,7 @@ function sourceLabel(sourceType: string) {
 
 export default function AgendaPage() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const { data, isLoading } = useAgendaData();
   const runPlanner = useRunAgendaPlanner();
   const capture = useAgendaCapture({ onSuccess: () => setText("") });
@@ -53,7 +55,7 @@ export default function AgendaPage() {
   const events = data?.events ?? [];
   const plans = data?.plans ?? [];
   const tasks = data?.tasks ?? [];
-  const pendingAssignments = useMemo(() => (assignments ?? []).filter((a: any) => a.status === "pendiente" || a.status === "en_proceso"), [assignments]);
+  const pendingAssignments = useMemo(() => (assignments ?? []).filter((a: any) => (a.status === "pendiente" || a.status === "en_proceso") && a.assignedTo === user?.id && !String(a.relatedTo ?? "").startsWith("interview:") && !String(a.relatedTo ?? "").startsWith("organization_interview:")), [assignments, user?.id]);
 
   const quietWindow = availability?.doNotDisturbWindows?.[0];
   useEffect(() => {
@@ -125,7 +127,7 @@ export default function AgendaPage() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda inteligente</h1>
-          <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario, entrevistas y asignaciones.</p>
+          <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario y tareas personales.</p>
         </div>
         <Button onClick={() => runPlanner.mutate()} data-testid="button-plan-week">Planificar semana</Button>
       </header>
