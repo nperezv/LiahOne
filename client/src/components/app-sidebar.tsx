@@ -250,7 +250,7 @@ function getRenamedTitle(item: MenuItem, userRole?: string) {
 }
 
 export function AppSidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user } = useAuth();
   const { isMobile, setOpenMobile } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
@@ -260,6 +260,23 @@ export function AppSidebar() {
       setOpenMobile(false);
     }
   }, [isMobile, setOpenMobile]);
+
+  const navigateWithTransition = React.useCallback((path: string) => {
+    const navigate = () => {
+      setLocation(path);
+      if (isMobile) {
+        setOpenMobile(false);
+      }
+    };
+
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      (document as any).startViewTransition(navigate);
+      return;
+    }
+
+    navigate();
+  }, [isMobile, setLocation, setOpenMobile]);
+
   // Fetch organizations to map organization ID to type
   const { data: organizations = [] } = useOrganizations();
 
@@ -322,7 +339,7 @@ export function AppSidebar() {
                         className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
                         data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <Link href={item.url!} onClick={handleLinkClick}>
+                        <Link href={item.url!} onClick={(event) => { event.preventDefault(); navigateWithTransition(item.url!); handleLinkClick(); }}>
                           <item.icon className="h-5 w-5" />
                           <span>{title}</span>
                         </Link>
@@ -370,7 +387,7 @@ export function AppSidebar() {
                                   isActive={location === subItem.url}
                                   data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
                                 >
-                                  <Link href={subItem.url} onClick={handleLinkClick}>
+                                  <Link href={subItem.url} onClick={(event) => { event.preventDefault(); navigateWithTransition(subItem.url); handleLinkClick(); }}>
                                     <span>{subItem.title}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
@@ -391,7 +408,7 @@ export function AppSidebar() {
                       className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
                       data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <Link href={item.url!} onClick={handleLinkClick}>
+                      <Link href={item.url!} onClick={(event) => { event.preventDefault(); navigateWithTransition(item.url!); handleLinkClick(); }}>
                         <item.icon className="h-5 w-5" />
                         <span>{title}</span>
                       </Link>

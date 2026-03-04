@@ -55,6 +55,8 @@
   --shadow-lg: 0px 24px 48px hsl(220 20% 20% / 0.16);
   --shadow-xl: 0px 30px 60px hsl(220 20% 20% / 0.18);
   --shadow-2xl: 0px 40px 80px hsl(220 20% 20% / 0.20);
+  --card-shadow: 0 16px 34px hsl(220 18% 28% / 0.10), 0 2px 10px hsl(220 18% 20% / 0.05);
+  --card-shadow-hover: 0 22px 46px hsl(220 18% 24% / 0.14), 0 6px 18px hsl(220 18% 20% / 0.08);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -94,12 +96,12 @@
   --opaque-button-border-intensity: 7;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .10);
-  --background: 220 20% 6%;
+  --background: 228 32% 3.5%;
   --foreground: 0 0% 98%;
   --border: 220 12% 18%;
-  --card: 220 18% 10%;
+  --card: 228 20% 9%;
   --card-foreground: 0 0% 98%;
-  --card-border: 220 14% 15%;
+  --card-border: 228 18% 12%;
   --sidebar: 220 18% 10%;
   --sidebar-foreground: 0 0% 98%;
   --sidebar-border: 220 14% 16%;
@@ -136,6 +138,8 @@
   --shadow-lg: 0px 26px 48px hsl(220 30% 2% / 0.65);
   --shadow-xl: 0px 34px 64px hsl(220 30% 2% / 0.70);
   --shadow-2xl: 0px 44px 84px hsl(220 30% 2% / 0.75);
+  --card-shadow: 0 16px 34px hsl(220 16% 2% / 0.30), 0 2px 10px hsl(220 16% 2% / 0.22);
+  --card-shadow-hover: 0 24px 52px hsl(220 16% 2% / 0.36), 0 8px 20px hsl(220 16% 2% / 0.28);
 
 /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
@@ -173,6 +177,58 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+
+  .shadcn-card {
+    position: relative;
+    isolation: isolate;
+    box-shadow: none;
+  }
+
+  .shadcn-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: var(--card-shadow);
+    opacity: 0.95;
+  }
+
+  .dark .shadcn-card {
+    background-image: linear-gradient(160deg, hsl(228 20% 12% / 0.96), hsl(228 20% 8.6% / 0.96));
+    border-color: transparent !important;
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.035);
+  }
+
+  .dark body {
+    background-image: radial-gradient(1200px 700px at 10% -10%, hsl(230 55% 13% / 0.22), transparent 60%),
+      radial-gradient(1000px 640px at 110% 10%, hsl(245 65% 14% / 0.20), transparent 58%),
+      hsl(var(--background));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .shadcn-card::before {
+      transition: box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .shadcn-card:hover::before {
+      box-shadow: var(--card-shadow-hover);
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a,
+    button,
+    [role="button"],
+    .shadcn-card {
+      transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+      transition-duration: 220ms;
+      transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
   }
 }
 
@@ -240,6 +296,58 @@
 
   .animate-logo-float {
     animation: logo-float 3s ease-in-out infinite;
+  }
+
+
+
+
+  .pilot-purple-surface {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dark .pilot-purple-surface {
+    background-image:
+      radial-gradient(120% 120% at 0% 0%, hsl(272 92% 60% / 0.18), transparent 44%),
+      radial-gradient(120% 140% at 100% 100%, hsl(238 86% 58% / 0.14), transparent 52%),
+      linear-gradient(165deg, hsl(228 24% 11% / 0.98), hsl(228 24% 8% / 0.98));
+    border-color: transparent;
+  }
+
+  .dark .pilot-purple-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+    opacity: 0.9;
+  }
+
+  .dark .pilot-purple-accent {
+    color: hsl(271 100% 72%);
+  }
+
+  .dark .pilot-purple-dashboard {
+    background-image: radial-gradient(720px 420px at -8% 8%, hsl(276 100% 60% / 0.10), transparent 56%),
+      radial-gradient(900px 520px at 108% 14%, hsl(241 92% 62% / 0.08), transparent 58%);
+  }
+
+  .app-route-fade {
+    animation: route-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes route-fade-in {
+    from {
+      opacity: 0.78;
+      transform: translateY(4px);
+      filter: saturate(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: saturate(1);
+    }
   }
 
   .app-splash {
@@ -352,5 +460,43 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  ::view-transition-old(root) {
+    animation-name: fade-out-soft;
+  }
+
+  ::view-transition-new(root) {
+    animation-name: fade-in-soft;
+  }
+
+  @keyframes fade-out-soft {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0.97;
+      transform: translateY(-2px);
+    }
+  }
+
+  @keyframes fade-in-soft {
+    from {
+      opacity: 0.92;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
