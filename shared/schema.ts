@@ -179,6 +179,20 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "archivada",
 ]);
 
+export const agendaEventSourceEnum = pgEnum("agenda_event_source", ["manual", "activity", "interview"]);
+
+export const agendaTaskPriorityEnum = pgEnum("agenda_task_priority", ["P1", "P2", "P3", "P4"]);
+
+export const agendaTaskStatusEnum = pgEnum("agenda_task_status", ["open", "done", "canceled"]);
+
+export const agendaReminderChannelEnum = pgEnum("agenda_reminder_channel", ["push", "email"]);
+
+export const agendaReminderStatusEnum = pgEnum("agenda_reminder_status", ["pending", "sent", "failed"]);
+
+export const taskPlanStatusEnum = pgEnum("task_plan_status", ["planned", "done", "bumped", "canceled"]);
+
+export const taskPlanGeneratedByEnum = pgEnum("task_plan_generated_by", ["planner", "manual"]);
+
 
 export const archiveResolutionEnum = pgEnum("archive_resolution", [
   "completada",
@@ -604,6 +618,100 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const agendaEvents = pgTable("agenda_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  date: date("date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  location: text("location"),
+  sourceType: agendaEventSourceEnum("source_type").notNull().default("manual"),
+  sourceId: varchar("source_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const agendaTasks = pgTable("agenda_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueAt: timestamp("due_at"),
+  earliestStartAt: timestamp("earliest_start_at"),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+  priority: agendaTaskPriorityEnum("priority").notNull().default("P3"),
+  status: agendaTaskStatusEnum("status").notNull().default("open"),
+  eventId: varchar("event_id").references(() => agendaEvents.id),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const agendaReminders = pgTable("agenda_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  eventId: varchar("event_id").references(() => agendaEvents.id),
+  taskId: varchar("task_id").references(() => agendaTasks.id),
+  remindAt: timestamp("remind_at").notNull(),
+  channel: agendaReminderChannelEnum("channel").notNull().default("push"),
+  status: agendaReminderStatusEnum("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const agendaTaskPlans = pgTable("agenda_task_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  taskId: varchar("task_id").notNull().references(() => agendaTasks.id),
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at").notNull(),
+  status: taskPlanStatusEnum("status").notNull().default("planned"),
+  generatedBy: taskPlanGeneratedByEnum("generated_by").notNull().default("planner"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const userAvailability = pgTable("user_availability", {
+  userId: varchar("user_id").primaryKey().references(() => users.id),
+  timezone: text("timezone").notNull().default("UTC"),
+  workDays: integer("work_days").array().notNull().default([1, 2, 3, 4, 5]),
+  workStartTime: text("work_start_time").notNull().default("09:00"),
+  workEndTime: text("work_end_time").notNull().default("18:00"),
+  bufferMinutes: integer("buffer_minutes").notNull().default(10),
+  minBlockMinutes: integer("min_block_minutes").notNull().default(15),
+  doNotDisturbWindows: jsonb("do_not_disturb_windows").$type<Array<{ start: string; end: string }>>(),
+  reminderChannels: text("reminder_channels").array().notNull().default(["push"]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+
+export const agendaIdempotencyKeys = pgTable("agenda_idempotency_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  key: text("key").notNull(),
+  endpoint: text("endpoint").notNull(),
+  responseBody: jsonb("response_body").$type<Record<string, unknown>>(),
+  statusCode: integer("status_code"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const agendaCommandLogs = pgTable("agenda_command_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  endpoint: text("endpoint").notNull(),
+  requestText: text("request_text"),
+  intent: text("intent"),
+  confidence: numeric("confidence", { precision: 5, scale: 2 }),
+  resultRecordType: text("result_record_type"),
+  resultRecordId: varchar("result_record_id"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Notifications
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -652,6 +760,16 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   assignmentsReceived: many(assignments, { relationName: "assignedTo" }),
   assignmentsGiven: many(assignments, { relationName: "assignedBy" }),
   createdActivities: many(activities),
+  agendaEvents: many(agendaEvents),
+  agendaTasks: many(agendaTasks),
+  agendaReminders: many(agendaReminders),
+  agendaTaskPlans: many(agendaTaskPlans),
+  agendaIdempotencyKeys: many(agendaIdempotencyKeys),
+  agendaCommandLogs: many(agendaCommandLogs),
+  availability: one(userAvailability, {
+    fields: [users.id],
+    references: [userAvailability.userId],
+  }),
   notifications: many(notifications),
   budgetUnlockExceptions: many(budgetUnlockExceptions, { relationName: "budgetUnlockUser" }),
   budgetUnlockGrants: many(budgetUnlockExceptions, { relationName: "budgetUnlockGrantor" }),
@@ -860,6 +978,76 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
   }),
   creator: one(users, {
     fields: [activities.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const agendaEventsRelations = relations(agendaEvents, ({ one, many }) => ({
+  user: one(users, {
+    fields: [agendaEvents.userId],
+    references: [users.id],
+  }),
+  tasks: many(agendaTasks),
+  reminders: many(agendaReminders),
+}));
+
+export const agendaTasksRelations = relations(agendaTasks, ({ one, many }) => ({
+  user: one(users, {
+    fields: [agendaTasks.userId],
+    references: [users.id],
+  }),
+  event: one(agendaEvents, {
+    fields: [agendaTasks.eventId],
+    references: [agendaEvents.id],
+  }),
+  reminders: many(agendaReminders),
+  taskPlans: many(agendaTaskPlans),
+}));
+
+export const agendaRemindersRelations = relations(agendaReminders, ({ one }) => ({
+  user: one(users, {
+    fields: [agendaReminders.userId],
+    references: [users.id],
+  }),
+  event: one(agendaEvents, {
+    fields: [agendaReminders.eventId],
+    references: [agendaEvents.id],
+  }),
+  task: one(agendaTasks, {
+    fields: [agendaReminders.taskId],
+    references: [agendaTasks.id],
+  }),
+}));
+
+export const agendaTaskPlansRelations = relations(agendaTaskPlans, ({ one }) => ({
+  user: one(users, {
+    fields: [agendaTaskPlans.userId],
+    references: [users.id],
+  }),
+  task: one(agendaTasks, {
+    fields: [agendaTaskPlans.taskId],
+    references: [agendaTasks.id],
+  }),
+}));
+
+
+export const agendaIdempotencyKeysRelations = relations(agendaIdempotencyKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [agendaIdempotencyKeys.userId],
+    references: [users.id],
+  }),
+}));
+
+export const agendaCommandLogsRelations = relations(agendaCommandLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [agendaCommandLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userAvailabilityRelations = relations(userAvailability, ({ one }) => ({
+  user: one(users, {
+    fields: [userAvailability.userId],
     references: [users.id],
   }),
 }));
@@ -1105,6 +1293,59 @@ export const insertActivitySchema = createInsertSchema(activities, {
 });
 
 export const selectActivitySchema = createSelectSchema(activities);
+
+export const insertAgendaEventSchema = createInsertSchema(agendaEvents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectAgendaEventSchema = createSelectSchema(agendaEvents);
+
+export const insertAgendaTaskSchema = createInsertSchema(agendaTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectAgendaTaskSchema = createSelectSchema(agendaTasks);
+
+export const insertAgendaReminderSchema = createInsertSchema(agendaReminders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectAgendaReminderSchema = createSelectSchema(agendaReminders);
+
+export const insertAgendaTaskPlanSchema = createInsertSchema(agendaTaskPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectAgendaTaskPlanSchema = createSelectSchema(agendaTaskPlans);
+
+export const insertUserAvailabilitySchema = createInsertSchema(userAvailability).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectUserAvailabilitySchema = createSelectSchema(userAvailability);
+
+export const insertAgendaIdempotencyKeySchema = createInsertSchema(agendaIdempotencyKeys).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const selectAgendaIdempotencyKeySchema = createSelectSchema(agendaIdempotencyKeys);
+
+export const insertAgendaCommandLogSchema = createInsertSchema(agendaCommandLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const selectAgendaCommandLogSchema = createSelectSchema(agendaCommandLogs);
 
 // PDF Templates
 export const pdfTemplates = pgTable("pdf_templates", {
@@ -1543,6 +1784,27 @@ export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;
 
 export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
+
+export type AgendaEvent = typeof agendaEvents.$inferSelect;
+export type InsertAgendaEvent = z.infer<typeof insertAgendaEventSchema>;
+
+export type AgendaTask = typeof agendaTasks.$inferSelect;
+export type InsertAgendaTask = z.infer<typeof insertAgendaTaskSchema>;
+
+export type AgendaReminder = typeof agendaReminders.$inferSelect;
+export type InsertAgendaReminder = z.infer<typeof insertAgendaReminderSchema>;
+
+export type AgendaTaskPlan = typeof agendaTaskPlans.$inferSelect;
+export type InsertAgendaTaskPlan = z.infer<typeof insertAgendaTaskPlanSchema>;
+
+export type UserAvailability = typeof userAvailability.$inferSelect;
+export type InsertUserAvailability = z.infer<typeof insertUserAvailabilitySchema>;
+
+export type AgendaIdempotencyKey = typeof agendaIdempotencyKeys.$inferSelect;
+export type InsertAgendaIdempotencyKey = z.infer<typeof insertAgendaIdempotencyKeySchema>;
+
+export type AgendaCommandLog = typeof agendaCommandLogs.$inferSelect;
+export type InsertAgendaCommandLog = z.infer<typeof insertAgendaCommandLogSchema>;
 
 export type PdfTemplate = typeof pdfTemplates.$inferSelect;
 export type InsertPdfTemplate = z.infer<typeof insertPdfTemplateSchema>;
