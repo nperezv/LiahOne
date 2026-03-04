@@ -1126,6 +1126,160 @@ export function useCreateActivity() {
 }
 
 // ========================================
+// AGENDA
+// ========================================
+
+export interface AgendaEvent {
+  id: string;
+  title: string;
+  description?: string | null;
+  date: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  location?: string | null;
+  sourceType: "manual" | "activity" | "interview";
+  sourceId?: string | null;
+}
+
+export interface AgendaTask {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+  earliestStartAt?: string | null;
+  durationMinutes: number;
+  priority: "P1" | "P2" | "P3" | "P4";
+  status: "open" | "done" | "canceled";
+  metadata?: Record<string, unknown>;
+}
+
+
+export interface AgendaAvailability {
+  timezone: string;
+  workDays: number[];
+  workStartTime: string;
+  workEndTime: string;
+  bufferMinutes: number;
+  minBlockMinutes: number;
+  doNotDisturbWindows?: Array<{ start: string; end: string }> | null;
+  reminderChannels: Array<"push" | "email">;
+}
+
+export interface AgendaLogEntry {
+  id: string;
+  endpoint: string;
+  requestText?: string | null;
+  intent?: string | null;
+  confidence?: string | null;
+  resultRecordType?: string | null;
+  resultRecordId?: string | null;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}
+export function useAgendaData() {
+  return useQuery<{ events: AgendaEvent[]; tasks: AgendaTask[]; plans: any[] }>({
+    queryKey: ["/api/agenda"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+
+export function useAgendaAvailability() {
+  return useQuery<AgendaAvailability>({
+    queryKey: ["/api/agenda/availability"],
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useUpdateAgendaAvailability() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (payload: Partial<AgendaAvailability>) => apiRequest("PUT", "/api/agenda/availability", payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda/availability"] });
+      toast({ title: "Preferencias guardadas", description: "Quiet hours y canales actualizados." });
+    },
+    onError: () => toast({ title: "Error", description: "No se pudo guardar preferencias.", variant: "destructive" }),
+  });
+}
+
+export function useAgendaLogs(limit = 20) {
+  return useQuery<AgendaLogEntry[]>({
+    queryKey: ["/api/agenda/logs", limit],
+    queryFn: () => apiRequest("GET", `/api/agenda/logs?limit=${limit}`),
+    staleTime: 10_000,
+  });
+}
+
+export function useUpdateAgendaTaskStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { id: string; status: "open" | "done" | "canceled" }) =>
+      apiRequest("PATCH", `/api/agenda/tasks/${payload.id}/status`, { status: payload.status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda/logs"] });
+    },
+  });
+}
+
+export function useCreateAgendaTask() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (payload: { title: string; description?: string; dueAt?: string | null }) =>
+      apiRequest("POST", "/api/agenda/tasks", {
+        title: payload.title,
+        description: payload.description ?? payload.title,
+        dueAt: payload.dueAt ?? null,
+        earliestStartAt: null,
+        durationMinutes: 30,
+        priority: "P3",
+        status: "open",
+        eventId: null,
+        metadata: { capturedBy: "voice" },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda/logs"] });
+      toast({ title: "Tarea creada", description: "Se agregó la tarea dictada correctamente." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo crear la tarea dictada.", variant: "destructive" });
+    },
+  });
+}
+export function useRunAgendaPlanner() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: () => apiRequest("POST", "/api/agenda/plan/run", {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda/plan"] });
+      toast({ title: "Planificador ejecutado", description: "Tu semana fue planificada automáticamente." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo ejecutar el planificador.", variant: "destructive" });
+    },
+  });
+}
+
+export function useAgendaCapture(options?: { onSuccess?: () => void }) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { text: string; idempotencyKey?: string }) =>
+      apiRequest("POST", "/api/agenda/capture", { text: payload.text }, payload.idempotencyKey ? { "Idempotency-Key": payload.idempotencyKey } : undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda/plan"] });
+      options?.onSuccess?.();
+    },
+  });
+}
+
+// ========================================
 // ASSIGNMENTS
 // ========================================
 
