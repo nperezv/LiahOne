@@ -94,6 +94,7 @@ export default function InventoryListPage() {
         {filteredItems.map((item) => (
           <InventoryItemActionsCard
             key={item.id}
+            itemId={item.id}
             assetCode={item.assetCode}
             name={item.name}
             category={categoryNameById.get(item.categoryId)}
