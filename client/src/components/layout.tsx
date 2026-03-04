@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -14,6 +14,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const isMobile = useIsMobile();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -48,7 +49,9 @@ export function Layout({ children }: LayoutProps) {
             onLogout={logout}
           />
           <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-            {children}
+            <div key={location} className="app-route-fade">
+              {children}
+            </div>
           </main>
           {isMobile && <MobileNav />}
         </div>
