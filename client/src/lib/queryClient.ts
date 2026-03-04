@@ -29,11 +29,13 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  extraHeaders?: Record<string, string>,
 ): Promise<any> {
   const token = getAccessToken();
   const headers = {
     ...(data ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extraHeaders ?? {}),
   };
 
   let res = await fetch(url, {

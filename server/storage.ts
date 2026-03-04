@@ -21,6 +21,13 @@ import {
   memberCallings,
   memberOrganizations,
   activities,
+  agendaEvents,
+  agendaTasks,
+  agendaReminders,
+  agendaTaskPlans,
+  userAvailability,
+  agendaIdempotencyKeys,
+  agendaCommandLogs,
   assignments,
   pdfTemplates,
   wardBudgets,
@@ -70,6 +77,20 @@ import {
   type InsertMemberCalling,
   type Activity,
   type InsertActivity,
+  type AgendaEvent,
+  type InsertAgendaEvent,
+  type AgendaTask,
+  type InsertAgendaTask,
+  type AgendaReminder,
+  type InsertAgendaReminder,
+  type AgendaTaskPlan,
+  type InsertAgendaTaskPlan,
+  type UserAvailability,
+  type InsertUserAvailability,
+  type AgendaIdempotencyKey,
+  type InsertAgendaIdempotencyKey,
+  type AgendaCommandLog,
+  type InsertAgendaCommandLog,
   type Assignment,
   type InsertAssignment,
   type PdfTemplate,
@@ -272,6 +293,32 @@ export interface IStorage {
   createActivity(activity: InsertActivity): Promise<Activity>;
   updateActivity(id: string, data: Partial<InsertActivity>): Promise<Activity | undefined>;
   deleteActivity(id: string): Promise<void>;
+
+  // Agenda
+  getAgendaEventsByUser(userId: string): Promise<AgendaEvent[]>;
+  upsertAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent>;
+  createAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent>;
+  updateAgendaEvent(id: string, data: Partial<InsertAgendaEvent>): Promise<AgendaEvent | undefined>;
+  deleteAgendaEvent(id: string): Promise<void>;
+  getAgendaTasksByUser(userId: string): Promise<AgendaTask[]>;
+  getAgendaTask(id: string): Promise<AgendaTask | undefined>;
+  createAgendaTask(data: InsertAgendaTask): Promise<AgendaTask>;
+  updateAgendaTask(id: string, data: Partial<InsertAgendaTask>): Promise<AgendaTask | undefined>;
+  getAgendaRemindersDue(at: Date): Promise<AgendaReminder[]>;
+  getAgendaRemindersByEvent(eventId: string): Promise<AgendaReminder[]>;
+  getAgendaRemindersByTask(taskId: string): Promise<AgendaReminder[]>;
+  createAgendaReminder(data: InsertAgendaReminder): Promise<AgendaReminder>;
+  updateAgendaReminder(id: string, data: Partial<InsertAgendaReminder>): Promise<AgendaReminder | undefined>;
+  getAgendaTaskPlansByUser(userId: string): Promise<AgendaTaskPlan[]>;
+  getAgendaTaskPlansByTask(taskId: string): Promise<AgendaTaskPlan[]>;
+  createAgendaTaskPlan(data: InsertAgendaTaskPlan): Promise<AgendaTaskPlan>;
+  updateAgendaTaskPlan(id: string, data: Partial<InsertAgendaTaskPlan>): Promise<AgendaTaskPlan | undefined>;
+  getAvailabilityByUser(userId: string): Promise<UserAvailability | undefined>;
+  upsertAvailability(data: InsertUserAvailability): Promise<UserAvailability>;
+  getAgendaIdempotencyKey(userId: string, endpoint: string, key: string): Promise<AgendaIdempotencyKey | undefined>;
+  upsertAgendaIdempotencyKey(data: InsertAgendaIdempotencyKey): Promise<AgendaIdempotencyKey>;
+  createAgendaCommandLog(data: InsertAgendaCommandLog): Promise<AgendaCommandLog>;
+  getAgendaCommandLogsByUser(userId: string, limit?: number): Promise<AgendaCommandLog[]>;
 
   // Assignments
   getAllAssignments(): Promise<Assignment[]>;
@@ -1361,6 +1408,203 @@ export class DatabaseStorage implements IStorage {
   async deleteActivity(id: string): Promise<void> {
     await this.deleteNotificationsByRelatedId(id);
     await db.delete(activities).where(eq(activities.id, id));
+  }
+
+  // ========================================
+  // AGENDA
+  // ========================================
+
+  async getAgendaEventsByUser(userId: string): Promise<AgendaEvent[]> {
+    return await db.select().from(agendaEvents).where(eq(agendaEvents.userId, userId)).orderBy(asc(agendaEvents.date));
+  }
+
+  async upsertAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent> {
+    if (data.sourceType !== "manual" && data.sourceId) {
+      const [existing] = await db
+        .select()
+        .from(agendaEvents)
+        .where(and(eq(agendaEvents.userId, data.userId), eq(agendaEvents.sourceType, data.sourceType), eq(agendaEvents.sourceId, data.sourceId)))
+        .limit(1);
+      if (existing) {
+        const [updated] = await db
+          .update(agendaEvents)
+          .set({ ...data, updatedAt: new Date() })
+          .where(eq(agendaEvents.id, existing.id))
+          .returning();
+        return updated;
+      }
+    }
+
+    return this.createAgendaEvent(data);
+  }
+
+  async createAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent> {
+    const [event] = await db.insert(agendaEvents).values(data).returning();
+    return event;
+  }
+
+  async updateAgendaEvent(id: string, data: Partial<InsertAgendaEvent>): Promise<AgendaEvent | undefined> {
+    const [event] = await db
+      .update(agendaEvents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(agendaEvents.id, id))
+      .returning();
+    return event || undefined;
+  }
+
+  async deleteAgendaEvent(id: string): Promise<void> {
+    await db.update(agendaTasks).set({ eventId: null, updatedAt: new Date() }).where(eq(agendaTasks.eventId, id));
+    await db.delete(agendaReminders).where(eq(agendaReminders.eventId, id));
+    await db.delete(agendaEvents).where(eq(agendaEvents.id, id));
+  }
+
+  async getAgendaTasksByUser(userId: string): Promise<AgendaTask[]> {
+    return await db.select().from(agendaTasks).where(eq(agendaTasks.userId, userId)).orderBy(asc(agendaTasks.dueAt), desc(agendaTasks.createdAt));
+  }
+
+  async getAgendaTask(id: string): Promise<AgendaTask | undefined> {
+    const [task] = await db.select().from(agendaTasks).where(eq(agendaTasks.id, id)).limit(1);
+    return task || undefined;
+  }
+
+  async createAgendaTask(data: InsertAgendaTask): Promise<AgendaTask> {
+    const [task] = await db.insert(agendaTasks).values(data).returning();
+    return task;
+  }
+
+  async updateAgendaTask(id: string, data: Partial<InsertAgendaTask>): Promise<AgendaTask | undefined> {
+    const [task] = await db
+      .update(agendaTasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(agendaTasks.id, id))
+      .returning();
+    return task || undefined;
+  }
+
+  async getAgendaRemindersDue(at: Date): Promise<AgendaReminder[]> {
+    return await db
+      .select()
+      .from(agendaReminders)
+      .where(and(eq(agendaReminders.status, "pending"), lte(agendaReminders.remindAt, at)))
+      .orderBy(asc(agendaReminders.remindAt));
+  }
+
+  async getAgendaRemindersByEvent(eventId: string): Promise<AgendaReminder[]> {
+    return await db
+      .select()
+      .from(agendaReminders)
+      .where(eq(agendaReminders.eventId, eventId))
+      .orderBy(asc(agendaReminders.remindAt));
+  }
+
+  async getAgendaRemindersByTask(taskId: string): Promise<AgendaReminder[]> {
+    return await db
+      .select()
+      .from(agendaReminders)
+      .where(eq(agendaReminders.taskId, taskId))
+      .orderBy(asc(agendaReminders.remindAt));
+  }
+
+  async createAgendaReminder(data: InsertAgendaReminder): Promise<AgendaReminder> {
+    const [reminder] = await db.insert(agendaReminders).values(data).returning();
+    return reminder;
+  }
+
+  async updateAgendaReminder(id: string, data: Partial<InsertAgendaReminder>): Promise<AgendaReminder | undefined> {
+    const [reminder] = await db
+      .update(agendaReminders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(agendaReminders.id, id))
+      .returning();
+    return reminder || undefined;
+  }
+
+  async getAgendaTaskPlansByUser(userId: string): Promise<AgendaTaskPlan[]> {
+    return await db.select().from(agendaTaskPlans).where(eq(agendaTaskPlans.userId, userId)).orderBy(asc(agendaTaskPlans.startAt));
+  }
+
+  async getAgendaTaskPlansByTask(taskId: string): Promise<AgendaTaskPlan[]> {
+    return await db.select().from(agendaTaskPlans).where(eq(agendaTaskPlans.taskId, taskId)).orderBy(asc(agendaTaskPlans.startAt));
+  }
+
+  async createAgendaTaskPlan(data: InsertAgendaTaskPlan): Promise<AgendaTaskPlan> {
+    const [plan] = await db.insert(agendaTaskPlans).values(data).returning();
+    return plan;
+  }
+
+  async updateAgendaTaskPlan(id: string, data: Partial<InsertAgendaTaskPlan>): Promise<AgendaTaskPlan | undefined> {
+    const [plan] = await db
+      .update(agendaTaskPlans)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(agendaTaskPlans.id, id))
+      .returning();
+    return plan || undefined;
+  }
+
+  async getAvailabilityByUser(userId: string): Promise<UserAvailability | undefined> {
+    const [availability] = await db.select().from(userAvailability).where(eq(userAvailability.userId, userId));
+    return availability || undefined;
+  }
+
+  async upsertAvailability(data: InsertUserAvailability): Promise<UserAvailability> {
+    const [existing] = await db.select().from(userAvailability).where(eq(userAvailability.userId, data.userId)).limit(1);
+    if (existing) {
+      const [updated] = await db
+        .update(userAvailability)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(userAvailability.userId, data.userId))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db.insert(userAvailability).values(data).returning();
+    return created;
+  }
+
+  async getAgendaIdempotencyKey(userId: string, endpoint: string, key: string): Promise<AgendaIdempotencyKey | undefined> {
+    const [record] = await db
+      .select()
+      .from(agendaIdempotencyKeys)
+      .where(and(eq(agendaIdempotencyKeys.userId, userId), eq(agendaIdempotencyKeys.endpoint, endpoint), eq(agendaIdempotencyKeys.key, key)))
+      .limit(1);
+
+    if (!record) return undefined;
+    if (new Date(record.expiresAt) <= new Date()) return undefined;
+    return record;
+  }
+
+  async upsertAgendaIdempotencyKey(data: InsertAgendaIdempotencyKey): Promise<AgendaIdempotencyKey> {
+    const [existing] = await db
+      .select()
+      .from(agendaIdempotencyKeys)
+      .where(and(eq(agendaIdempotencyKeys.userId, data.userId), eq(agendaIdempotencyKeys.endpoint, data.endpoint), eq(agendaIdempotencyKeys.key, data.key)))
+      .limit(1);
+
+    if (existing) {
+      const [updated] = await db
+        .update(agendaIdempotencyKeys)
+        .set(data)
+        .where(eq(agendaIdempotencyKeys.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db.insert(agendaIdempotencyKeys).values(data).returning();
+    return created;
+  }
+
+  async createAgendaCommandLog(data: InsertAgendaCommandLog): Promise<AgendaCommandLog> {
+    const [created] = await db.insert(agendaCommandLogs).values(data).returning();
+    return created;
+  }
+
+  async getAgendaCommandLogsByUser(userId: string, limit = 20): Promise<AgendaCommandLog[]> {
+    return await db
+      .select()
+      .from(agendaCommandLogs)
+      .where(eq(agendaCommandLogs.userId, userId))
+      .orderBy(desc(agendaCommandLogs.createdAt))
+      .limit(limit);
   }
 
   // ========================================

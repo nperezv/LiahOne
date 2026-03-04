@@ -31,6 +31,10 @@ import {
   insertAccessRequestSchema,
   insertNotificationSchema,
   insertPushSubscriptionSchema,
+  insertAgendaEventSchema,
+  insertAgendaTaskSchema,
+  insertAgendaTaskPlanSchema,
+  insertUserAvailabilitySchema,
   notifications,
   interviews,
   organizationInterviews,
@@ -40,6 +44,11 @@ import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-u
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
+import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
+import { parseAgendaCommand } from "./agenda/command-parser";
+import { getPreferredReminderChannels } from "./agenda/reminder-utils";
+import { processAgendaReminder } from "./agenda/reminder-worker";
+import { readIdempotencyKey, toReplayResponse } from "./agenda/idempotency-utils";
 import {
   createAccessToken,
   generateRefreshToken,
@@ -63,6 +72,7 @@ import {
   sendAssignmentDueReminderEmail,
   sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
+  sendAgendaReminderEmail,
   verifyAccessToken,
 } from "./auth";
 
@@ -5587,6 +5597,540 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // ========================================
+  // SMART AGENDA
+  // ========================================
+
+  const getDefaultAvailability = async (userId: string) => {
+    const existing = await storage.getAvailabilityByUser(userId);
+    if (existing) return existing;
+    return storage.upsertAvailability({ userId, timezone: "UTC", workDays: [1, 2, 3, 4, 5], workStartTime: "09:00", workEndTime: "18:00", bufferMinutes: 10, minBlockMinutes: 15, reminderChannels: ["push"] });
+  };
+
+  const persistAgendaAudit = async (params: {
+    userId: string;
+    endpoint: string;
+    requestText?: string | null;
+    intent?: string | null;
+    confidence?: number | null;
+    resultRecordType?: string | null;
+    resultRecordId?: string | null;
+    metadata?: Record<string, unknown>;
+  }) => {
+    await storage.createAgendaCommandLog({
+      userId: params.userId,
+      endpoint: params.endpoint,
+      requestText: params.requestText ?? null,
+      intent: params.intent ?? null,
+      confidence: params.confidence != null ? String(params.confidence) : null,
+      resultRecordType: params.resultRecordType ?? null,
+      resultRecordId: params.resultRecordId ?? null,
+      metadata: params.metadata ?? {},
+    });
+  };
+
+  const syncSourceEventsForUser = async (user: any) => {
+    const isObispado = user.role === "obispo" || user.role === "consejero_obispo" || user.role === "secretario_ejecutivo";
+    const [activities, interviews] = await Promise.all([storage.getAllActivities(), storage.getAllInterviews()]);
+
+    const visibleActivities = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role)
+      ? activities.filter((a) => a && (!a.organizationId || a.organizationId === user.organizationId))
+      : activities;
+    const visibleInterviews = isObispado ? interviews : interviews.filter((i) => i && i.assignedToId === user.id);
+
+    for (const activity of visibleActivities) {
+      const when = new Date(activity.date);
+      await storage.upsertAgendaEvent({
+        userId: user.id,
+        title: activity.title,
+        description: activity.description ?? null,
+        date: when.toISOString().slice(0, 10),
+        startTime: `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
+        endTime: `${String((when.getHours() + 2) % 24).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
+        location: activity.location ?? null,
+        sourceType: "activity",
+        sourceId: activity.id,
+      });
+    }
+
+    for (const interview of visibleInterviews) {
+      const when = new Date(interview.date);
+      await storage.upsertAgendaEvent({
+        userId: user.id,
+        title: `Entrevista con ${interview.personName}`,
+        description: interview.notes ?? null,
+        date: when.toISOString().slice(0, 10),
+        startTime: `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
+        endTime: `${String((when.getHours() + 1) % 24).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
+        location: "Oficina",
+        sourceType: "interview",
+        sourceId: interview.id,
+      });
+    }
+  };
+
+  const createReminderIfMissing = async (params: {
+    userId: string;
+    eventId?: string | null;
+    taskId?: string | null;
+    remindAt: Date;
+  }) => {
+    const availability = await getDefaultAvailability(params.userId);
+    const preferredChannels = getPreferredReminderChannels(availability);
+    const existing = params.eventId
+      ? await storage.getAgendaRemindersByEvent(params.eventId)
+      : params.taskId
+        ? await storage.getAgendaRemindersByTask(params.taskId)
+        : [];
+
+    for (const channel of preferredChannels) {
+      const alreadyExists = existing.some((reminder) => {
+        const sameChannel = reminder.channel === channel;
+        const sameTime = new Date(reminder.remindAt).getTime() === params.remindAt.getTime();
+        return sameChannel && sameTime;
+      });
+      if (alreadyExists) continue;
+
+      await storage.createAgendaReminder({
+        userId: params.userId,
+        eventId: params.eventId ?? null,
+        taskId: params.taskId ?? null,
+        remindAt: params.remindAt,
+        channel,
+        status: "pending",
+      });
+    }
+  };
+
+  const scheduleDefaultEventReminders = async (userId: string, event: { id: string; date: string; startTime?: string | null }) => {
+    const eventStart = new Date(`${event.date}T${event.startTime || "09:00"}:00`);
+    if (Number.isNaN(eventStart.getTime())) return;
+
+    const reminderOffsets = [24 * 60, 2 * 60, 30];
+    const now = new Date();
+
+    for (const offset of reminderOffsets) {
+      const remindAt = new Date(eventStart.getTime() - offset * 60_000);
+      if (remindAt <= now) continue;
+      await createReminderIfMissing({ userId, eventId: event.id, remindAt });
+    }
+  };
+
+  const scheduleDefaultTaskReminders = async (userId: string, task: { id: string; dueAt?: Date | string | null }, options?: { atRiskImmediate?: boolean }) => {
+    const now = new Date();
+
+    if (options?.atRiskImmediate) {
+      await createReminderIfMissing({ userId, taskId: task.id, remindAt: now });
+      return;
+    }
+
+    if (!task.dueAt) return;
+    const dueAt = new Date(task.dueAt);
+    if (Number.isNaN(dueAt.getTime())) return;
+
+    const sameDayMorning = new Date(dueAt);
+    sameDayMorning.setHours(8, 0, 0, 0);
+
+    const reminderDates = [
+      new Date(dueAt.getTime() - 3 * 24 * 60 * 60_000),
+      new Date(dueAt.getTime() - 24 * 60 * 60_000),
+      sameDayMorning,
+    ];
+
+    for (const remindAt of reminderDates) {
+      if (remindAt <= now) continue;
+      await createReminderIfMissing({ userId, taskId: task.id, remindAt });
+    }
+  };
+
+  const normalizeComparableText = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const cleanupManualReminderEvents = async (userId: string) => {
+    const [events, tasks] = await Promise.all([
+      storage.getAgendaEventsByUser(userId),
+      storage.getAgendaTasksByUser(userId),
+    ]);
+
+    const taskTitles = new Set(tasks.map((task) => normalizeComparableText(task.title || "")).filter(Boolean));
+    const reminderRegex = /record|recuerd|llamar|comprar|preparar|pendiente|tarea|seguimiento/;
+
+    const junkEventIds = events
+      .filter((event) => {
+        if (event.sourceType !== "manual") return false;
+        const normalizedTitle = normalizeComparableText(event.title || "");
+        const normalizedDescription = normalizeComparableText(event.description || "");
+        const combinedText = `${normalizedTitle} ${normalizedDescription}`.trim();
+        const looksLikeReminder = reminderRegex.test(combinedText);
+        if (looksLikeReminder) return true;
+        return taskTitles.has(normalizedTitle) || taskTitles.has(normalizedDescription);
+      })
+      .map((event) => event.id);
+
+    if (junkEventIds.length === 0) return;
+
+    for (const eventId of junkEventIds) {
+      await storage.deleteAgendaEvent(eventId);
+    }
+  };
+
+  const runPlannerForUser = async (user: any) => {
+    await syncSourceEventsForUser(user);
+    const availability = await getDefaultAvailability(user.id);
+    const [events, tasks, plans] = await Promise.all([
+      storage.getAgendaEventsByUser(user.id),
+      storage.getAgendaTasksByUser(user.id),
+      storage.getAgendaTaskPlansByUser(user.id),
+    ]);
+
+    const activePlannerPlans = plans.filter((plan) => plan.status === "planned" && plan.generatedBy === "planner");
+    for (const plan of activePlannerPlans) {
+      await storage.updateAgendaTaskPlan(plan.id, { status: "canceled" });
+    }
+
+    const existingManualPlans = plans
+      .filter((plan) => plan.status === "planned" && plan.generatedBy === "manual")
+      .map((plan) => ({ start: new Date(plan.startAt), end: new Date(plan.endAt) }));
+
+    const result = computePlan({
+      now: new Date(),
+      availability,
+      tasks,
+      events: events.map(toRangeFromEvent),
+      existingPlans: existingManualPlans,
+    });
+
+    for (const plan of result.planned) {
+      const parsed = insertAgendaTaskPlanSchema.parse({
+        userId: user.id,
+        taskId: plan.taskId,
+        startAt: plan.startAt,
+        endAt: plan.endAt,
+        status: "planned",
+        generatedBy: "planner",
+      });
+      await storage.createAgendaTaskPlan(parsed);
+    }
+
+    for (const task of tasks) {
+      const isAtRisk = result.atRiskTaskIds.includes(task.id);
+      const metadata = { ...(task.metadata ?? {}), atRisk: isAtRisk };
+      await storage.updateAgendaTask(task.id, { metadata });
+      if (isAtRisk) {
+        await scheduleDefaultTaskReminders(user.id, task, { atRiskImmediate: true });
+      } else {
+        await scheduleDefaultTaskReminders(user.id, task);
+      }
+    }
+
+    return result;
+  };
+
+  const handleReplanningForNewEvent = async (user: any, newEvent: { date: string; startTime?: string | null; endTime?: string | null }) => {
+    const plans = await storage.getAgendaTaskPlansByUser(user.id);
+    const activePlans = plans.filter((plan) => plan.status === "planned");
+    if (activePlans.length === 0) return;
+
+    const overlapIds = findOverlappingPlanIds(activePlans, [toRangeFromEvent({
+      id: "tmp",
+      userId: user.id,
+      title: "tmp",
+      description: null,
+      date: newEvent.date,
+      startTime: newEvent.startTime ?? null,
+      endTime: newEvent.endTime ?? null,
+      location: null,
+      sourceType: "manual",
+      sourceId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })]);
+
+    if (overlapIds.length === 0) return;
+
+    for (const planId of overlapIds) {
+      await storage.updateAgendaTaskPlan(planId, { status: "bumped" });
+    }
+
+    await runPlannerForUser(user);
+  };
+
+  const tryIdempotentResponse = async (req: Request, endpoint: string) => {
+    const key = readIdempotencyKey(req.headers as Record<string, string | string[] | undefined>);
+    const user = (req as any).user;
+    if (!key || !user?.id) return null;
+    const existing = await storage.getAgendaIdempotencyKey(user.id, endpoint, key);
+    const replay = toReplayResponse(existing ? { statusCode: existing.statusCode, responseBody: existing.responseBody as any } : null);
+    return replay ? { ...replay, key } : null;
+  };
+
+  const storeIdempotentResponse = async (req: Request, endpoint: string, statusCode: number, body: Record<string, unknown>) => {
+    const key = readIdempotencyKey(req.headers as Record<string, string | string[] | undefined>);
+    const user = (req as any).user;
+    if (!key || !user?.id) return;
+    await storage.upsertAgendaIdempotencyKey({
+      userId: user.id,
+      key,
+      endpoint,
+      responseBody: body,
+      statusCode,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+  };
+
+  app.get("/api/agenda", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      await syncSourceEventsForUser(user);
+      await cleanupManualReminderEvents(user.id);
+      const [events, tasks, plans] = await Promise.all([
+        storage.getAgendaEventsByUser(user.id),
+        storage.getAgendaTasksByUser(user.id),
+        storage.getAgendaTaskPlansByUser(user.id),
+      ]);
+      res.json({ events, tasks, plans });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/agenda/events", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const idempotent = await tryIdempotentResponse(req, "/api/agenda/events");
+      if (idempotent) return res.status(idempotent.statusCode).json(idempotent.body);
+      const parsed = insertAgendaEventSchema.parse({ ...req.body, userId: user.id, sourceType: "manual", sourceId: null });
+      const event = await storage.createAgendaEvent(parsed);
+      await scheduleDefaultEventReminders(user.id, event);
+      await handleReplanningForNewEvent(user, event);
+      await persistAgendaAudit({ userId: user.id, endpoint: "/api/agenda/events", intent: "create_event", resultRecordType: "event", resultRecordId: event.id });
+      await storeIdempotentResponse(req, "/api/agenda/events", 201, event as any);
+      res.status(201).json(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/agenda/tasks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const idempotent = await tryIdempotentResponse(req, "/api/agenda/tasks");
+      if (idempotent) return res.status(idempotent.statusCode).json(idempotent.body);
+      const parsed = insertAgendaTaskSchema.parse({ ...req.body, userId: user.id });
+      const task = await storage.createAgendaTask(parsed);
+      await scheduleDefaultTaskReminders(user.id, task);
+      await persistAgendaAudit({ userId: user.id, endpoint: "/api/agenda/tasks", intent: "create_task", resultRecordType: "task", resultRecordId: task.id });
+      await storeIdempotentResponse(req, "/api/agenda/tasks", 201, task as any);
+      res.status(201).json(task);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/agenda/capture", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const idempotent = await tryIdempotentResponse(req, "/api/agenda/capture");
+      if (idempotent) return res.status(idempotent.statusCode).json(idempotent.body);
+      const text = String(req.body?.text ?? "").trim();
+      if (!text) return res.status(400).json({ error: "text is required" });
+
+      const parsed = parseAgendaCommand(text);
+
+      if (parsed.intent === "plan_week") {
+        const response = {
+          action: "plan_week",
+          parser: parsed.parser,
+          confidence: parsed.confidence,
+          needsConfirmation: parsed.needsConfirmation,
+          parsed,
+          message: "Comando reconocido. Ejecuta 'Plan my week' para planificar automáticamente.",
+        };
+        await persistAgendaAudit({ userId: user.id, endpoint: "/api/agenda/capture", requestText: text, intent: parsed.intent, confidence: parsed.confidence, resultRecordType: "command" });
+        await storeIdempotentResponse(req, "/api/agenda/capture", 200, response as any);
+        return res.status(200).json(response);
+      }
+
+      if (parsed.intent === "create_event") {
+        const created = await storage.createAgendaEvent({
+          userId: user.id,
+          title: parsed.entities.title ?? text.slice(0, 120),
+          description: parsed.entities.description ?? text,
+          date: parsed.entities.date ?? new Date().toISOString().slice(0, 10),
+          startTime: parsed.entities.startTime ?? null,
+          endTime: parsed.entities.endTime ?? null,
+          location: null,
+          sourceType: "manual",
+          sourceId: null,
+        });
+        await scheduleDefaultEventReminders(user.id, created);
+        await handleReplanningForNewEvent(user, created);
+
+        const response = {
+          action: "create_event",
+          parser: parsed.parser,
+          confidence: parsed.confidence,
+          needsConfirmation: parsed.needsConfirmation,
+          parsed,
+          record: created,
+        };
+        await persistAgendaAudit({ userId: user.id, endpoint: "/api/agenda/capture", requestText: text, intent: parsed.intent, confidence: parsed.confidence, resultRecordType: "event", resultRecordId: created.id });
+        await storeIdempotentResponse(req, "/api/agenda/capture", 201, response as any);
+        return res.status(201).json(response);
+      }
+
+      if (parsed.intent === "create_task") {
+        const created = await storage.createAgendaTask({
+          userId: user.id,
+          title: parsed.entities.title ?? text.slice(0, 120),
+          description: parsed.entities.description ?? text,
+          dueAt: parsed.entities.dueAt ?? null,
+          earliestStartAt: null,
+          durationMinutes: parsed.entities.durationMinutes ?? 30,
+          priority: parsed.entities.priority ?? "P3",
+          status: "open",
+          eventId: null,
+          metadata: { capturedBy: "rules", confidence: parsed.confidence },
+        });
+        await scheduleDefaultTaskReminders(user.id, created);
+
+        const response = {
+          action: "create_task",
+          parser: parsed.parser,
+          confidence: parsed.confidence,
+          needsConfirmation: parsed.needsConfirmation,
+          parsed,
+          record: created,
+        };
+        await persistAgendaAudit({ userId: user.id, endpoint: "/api/agenda/capture", requestText: text, intent: parsed.intent, confidence: parsed.confidence, resultRecordType: "task", resultRecordId: created.id });
+        await storeIdempotentResponse(req, "/api/agenda/capture", 201, response as any);
+        return res.status(201).json(response);
+      }
+
+      return res.status(422).json({
+        error: "No se pudo interpretar el comando",
+        parser: parsed.parser,
+        confidence: parsed.confidence,
+        needsConfirmation: true,
+        parsed,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/agenda/availability", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const availability = await getDefaultAvailability(user.id);
+      res.json(availability);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/agenda/availability", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const payload = insertUserAvailabilitySchema.parse({ ...req.body, userId: user.id });
+      const availability = await storage.upsertAvailability(payload);
+      res.json(availability);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/agenda/plan/run", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const idempotent = await tryIdempotentResponse(req, "/api/agenda/plan/run");
+      if (idempotent) return res.status(idempotent.statusCode).json(idempotent.body);
+      const result = await runPlannerForUser(user);
+      await persistAgendaAudit({ userId: user.id, endpoint: "/api/agenda/plan/run", intent: "plan_week", resultRecordType: "plan", metadata: { plannedCount: result.planned.length, atRiskCount: result.atRiskTaskIds.length } });
+      await storeIdempotentResponse(req, "/api/agenda/plan/run", 200, result as any);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/agenda/plan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const [plans, tasks] = await Promise.all([
+        storage.getAgendaTaskPlansByUser(user.id),
+        storage.getAgendaTasksByUser(user.id),
+      ]);
+      const atRiskTasks = tasks.filter((task) => (task.metadata as any)?.atRisk);
+      res.json({ plans, atRiskTasks });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+
+  app.patch("/api/agenda/tasks/:id/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { id } = req.params;
+      const nextStatus = req.body?.status;
+      if (!["open", "done", "canceled"].includes(nextStatus)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      const task = await storage.getAgendaTask(id);
+      if (!task || task.userId !== user.id) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      const updated = await storage.updateAgendaTask(id, { status: nextStatus });
+      if (!updated) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      if (nextStatus !== "open") {
+        const plans = await storage.getAgendaTaskPlansByTask(id);
+        for (const plan of plans.filter((p) => p.status === "planned")) {
+          await storage.updateAgendaTaskPlan(plan.id, { status: nextStatus === "done" ? "done" : "canceled" });
+        }
+      }
+
+      await persistAgendaAudit({
+        userId: user.id,
+        endpoint: "/api/agenda/tasks/:id/status",
+        intent: "update_task_status",
+        resultRecordType: "task",
+        resultRecordId: id,
+        metadata: { status: nextStatus },
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/agenda/logs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const limitRaw = Number(req.query.limit ?? 20);
+      const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
+      const logs = await storage.getAgendaCommandLogsByUser(user.id, limit);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
   // EVENTS (Integrated Calendar)
   // ========================================
 
@@ -6642,10 +7186,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  async function runAgendaReminderWorker() {
+    try {
+      const due = await storage.getAgendaRemindersDue(new Date());
+      for (const reminder of due) {
+        try {
+          const availability = await getDefaultAvailability(reminder.userId);
+          const result = await processAgendaReminder({
+            reminder,
+            availability,
+            deps: {
+              getUserById: (userId) => storage.getUser(userId),
+              getEventById: (eventId) => storage.getAgendaEvent(eventId),
+              getTaskById: (taskId) => storage.getAgendaTask(taskId),
+              sendPush: (userId, payload) => sendPushNotification(userId, payload),
+              sendEmail: (payload) => sendAgendaReminderEmail(payload),
+              isPushConfigured,
+            },
+          });
+
+          if (result.action === "reschedule") {
+            await storage.updateAgendaReminder(reminder.id, { remindAt: result.nextRemindAt || new Date(Date.now() + 15 * 60_000) });
+            continue;
+          }
+
+          await storage.updateAgendaReminder(reminder.id, { status: result.action === "sent" ? "sent" : "failed" });
+        } catch (error) {
+          await storage.updateAgendaReminder(reminder.id, { status: "failed" });
+        }
+      }
+    } catch (error) {
+      console.error("[Agenda Reminders] Error:", error);
+    }
+  }
+
+  async function sendAgendaDailyBriefing() {
+    try {
+      const users = await storage.getAllUsers();
+      const now = new Date();
+      for (const user of users) {
+        const availability = await storage.getAvailabilityByUser(user.id);
+        const timezone = availability?.timezone || "UTC";
+        const localHour = Number(
+          new Intl.DateTimeFormat("en-US", { hour: "2-digit", hour12: false, timeZone: timezone }).format(now)
+        );
+        if (localHour !== 8) continue;
+
+        const [events, tasks] = await Promise.all([
+          storage.getAgendaEventsByUser(user.id),
+          storage.getAgendaTasksByUser(user.id),
+        ]);
+
+        const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now);
+        const todayEvents = events.filter((event) => String(event.date) === todayKey);
+        const openTasks = tasks.filter((task) => task.status === "open");
+        const body = `Hoy tienes ${todayEvents.length} eventos y ${openTasks.length} tareas pendientes.`;
+
+        const preferredChannels = getPreferredReminderChannels(availability as any);
+        if (preferredChannels.includes("push") && isPushConfigured()) {
+          await sendPushNotification(user.id, {
+            title: "Briefing diario",
+            body,
+            url: "/agenda",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("[Agenda Briefing] Error:", error);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
+  startHourlyAlignedTask(sendAgendaDailyBriefing);
+  setInterval(() => {
+    void runAgendaReminderWorker();
+  }, 60 * 1000);
 
   return httpServer;
 }

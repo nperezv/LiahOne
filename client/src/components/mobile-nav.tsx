@@ -43,7 +43,7 @@ export function MobileNav() {
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: Home },
-    { label: isBibliotecario ? "Inventario" : "Agenda", href: isBibliotecario ? "/inventory" : "/calendar", icon: isBibliotecario ? Users : CalendarDays },
+    { label: isBibliotecario ? "Inventario" : "Agenda", href: isBibliotecario ? "/inventory" : "/agenda", icon: isBibliotecario ? Users : CalendarDays },
     {
       label: isObispado ? "Directorio" : "Organización",
       href: isObispado ? "/directory" : organizationHref,
