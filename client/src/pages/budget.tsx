@@ -1656,7 +1656,7 @@ export default function BudgetPage() {
 
       {activeSection === "solicitudes" && (
       <>
-      <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mb-4 grid w-full grid-cols-5 gap-1.5">
         {[
           ["todas", "Todas"],
           ["pendientes", "Pendientes"],
@@ -1668,9 +1668,9 @@ export default function BudgetPage() {
             key={value}
             type="button"
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
-            className={requestStatusFilter === value ? "shrink-0 rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)]" : "shrink-0 rounded-full border border-slate-700/60 bg-[#171b26] px-4 py-2 text-sm font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
+            className={requestStatusFilter === value ? "rounded-full border border-violet-400/70 bg-[#171b26] px-2 py-1.5 text-[11px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "rounded-full border border-slate-700/60 bg-[#171b26] px-2 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
-            {label}
+            <span className="truncate">{label}</span>
           </button>
         ))}
       </div>
