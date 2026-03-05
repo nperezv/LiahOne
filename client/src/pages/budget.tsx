@@ -1433,7 +1433,7 @@ export default function BudgetPage() {
               <div className="text-[42px] font-extrabold leading-none tracking-[-0.03em] text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
               <div className="mt-7 grid grid-cols-4 gap-2">
                 {[1, 2, 3, 4].map((quarter) => (
-                  <div key={quarter} className="rounded-xl bg-white/5 px-4 py-3">
+                  <div key={quarter} className="rounded-xl bg-white/5 px-3 py-3">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
                     <p className={`mx-auto w-fit whitespace-nowrap text-[12px] font-extrabold leading-none md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
