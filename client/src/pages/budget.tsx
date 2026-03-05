@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Edit2, Upload, Trash2, Settings } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -199,6 +199,7 @@ export default function BudgetPage() {
   const [isReceiptsDialogOpen, setIsReceiptsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
+  const [attachmentsDialogRequest, setAttachmentsDialogRequest] = useState<BudgetRequest | null>(null);
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -857,7 +858,7 @@ export default function BudgetPage() {
     <div className="min-h-screen bg-[#04060d] p-6 text-slate-100 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
-          <h1 className="mb-2 text-2xl font-extrabold tracking-tight md:text-3xl">Presupuestos</h1>
+          <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl">Presupuestos</h1>
           <p className="text-xs text-slate-400 md:text-sm">
             {isOrgMember ? "Control de presupuesto de tu organización" : "Gestiona presupuestos globales y asignaciones"}
           </p>
@@ -1655,7 +1656,7 @@ export default function BudgetPage() {
 
       {activeSection === "solicitudes" && (
       <>
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {[
           ["todas", "Todas"],
           ["pendientes", "Pendientes"],
@@ -1667,7 +1668,7 @@ export default function BudgetPage() {
             key={value}
             type="button"
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
-            className={requestStatusFilter === value ? "rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.45)]" : "rounded-full bg-[#171b26] px-5 py-2 text-sm font-semibold text-slate-400"}
+            className={requestStatusFilter === value ? "shrink-0 rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)]" : "shrink-0 rounded-full border border-slate-700/60 bg-[#171b26] px-4 py-2 text-sm font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
             {label}
           </button>
@@ -1696,30 +1697,22 @@ export default function BudgetPage() {
                         {org && <span className="text-sm text-slate-500">{org.name}</span>}
                       </div>
                       <p className="text-lg font-semibold leading-tight text-foreground md:text-xl">{request.description}</p>
-                      <p className="text-xs text-muted-foreground md:text-sm">
-                        {new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground md:text-sm">
+                        <span>{new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}</span>
                         {request.receipts && request.receipts.length > 0 && (
-                          <span className="ml-3 text-violet-400">{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentsDialogRequest(request)}
+                            className="inline-flex items-center gap-1.5 text-violet-400 transition-colors hover:text-violet-300"
+                          >
+                            <Paperclip className="h-3.5 w-3.5" />
+                            <span>{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
+                          </button>
                         )}
-                      </p>
+                      </div>
                     </div>
                     <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{request.amount.toFixed(2)}</p>
                   </div>
-
-                  {request.receipts && request.receipts.length > 0 && (
-                    <div className="mb-4 flex flex-col gap-1">
-                      {request.receipts.map((receipt: any, index: number) => (
-                        <button
-                          key={`${request.id}-receipt-${index}`}
-                          type="button"
-                          onClick={() => void downloadReceipt(receipt)}
-                          className="text-left text-xs text-violet-300 hover:underline"
-                        >
-                          {getReceiptLabel(receipt)}: {receipt.filename}
-                        </button>
-                      ))}
-                    </div>
-                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {canApprove && request.status === "solicitado" && (
@@ -1754,6 +1747,41 @@ export default function BudgetPage() {
       </>
       )}
       </Tabs>
+
+      <Dialog
+        open={Boolean(attachmentsDialogRequest)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAttachmentsDialogRequest(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adjuntos de la solicitud</DialogTitle>
+            <DialogDescription>
+              {attachmentsDialogRequest?.description || "Revisa y descarga los documentos adjuntos."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {attachmentsDialogRequest?.receipts?.length ? (
+              attachmentsDialogRequest.receipts.map((receipt, index) => (
+                <button
+                  key={`${attachmentsDialogRequest.id}-dialog-receipt-${index}`}
+                  type="button"
+                  onClick={() => void downloadReceipt(receipt)}
+                  className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
+                >
+                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                  <span className="min-w-0 truncate">{getReceiptLabel(receipt)}: {receipt.filename}</span>
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay adjuntos disponibles.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isSignDialogOpen}
