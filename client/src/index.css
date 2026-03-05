@@ -218,8 +218,8 @@
     border-radius: 1rem;
     border: none !important;
     background: linear-gradient(135deg, rgb(248 250 252 / 0.92) 0%, rgb(248 250 252 / 0.88) 55%, rgb(226 232 240 / 0.84) 100%);
-    backdrop-filter: blur(24px) saturate(165%);
-    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.06);
     transition: all 300ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
@@ -240,8 +240,8 @@
   }
 
   .dark .pilot-glass-card {
-    background: linear-gradient(135deg, rgb(30 30 38 / 0.95) 0%, rgb(22 22 30 / 0.90) 56%, rgb(38 38 48 / 0.85) 100%);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, rgb(13 13 16 / 0.78) 0%, rgb(13 13 16 / 0.72) 55%, rgb(30 30 34 / 0.66) 100%);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   .dark .pilot-glass-card::before {
@@ -285,8 +285,8 @@
     border-radius: 1rem;
     border: none !important;
     background: linear-gradient(135deg, rgb(248 250 252 / 0.92) 0%, rgb(248 250 252 / 0.88) 55%, rgb(226 232 240 / 0.84) 100%);
-    backdrop-filter: blur(24px) saturate(165%);
-    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
     box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.06);
     transition: all 300ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
@@ -302,8 +302,8 @@
   }
 
   .dark .shadcn-card {
-    background: linear-gradient(135deg, rgb(30 30 38 / 0.95) 0%, rgb(22 22 30 / 0.90) 56%, rgb(38 38 48 / 0.85) 100%);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, rgb(13 13 16 / 0.78) 0%, rgb(13 13 16 / 0.72) 55%, rgb(30 30 34 / 0.66) 100%);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   .dark .shadcn-card::before {
