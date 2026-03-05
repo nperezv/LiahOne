@@ -1353,15 +1353,15 @@ export default function BudgetPage() {
       </div>
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
-        <TabsList className="mb-6 flex h-auto w-full items-center gap-1.5 overflow-x-auto bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <TabsTrigger value="resumen" className="shrink-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-4">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="shrink-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
-            <span>Solicitudes</span>
+        <TabsList className={`mb-6 grid h-auto w-full gap-2 overflow-visible bg-transparent p-0 ${isObispado ? "grid-cols-[0.95fr_1.05fr_1.2fr]" : "grid-cols-[1fr_1.1fr]"}`}>
+          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-4">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+            <span className="truncate">Solicitudes</span>
             <span className={`ml-1.5 inline-flex h-5 min-w-[1.3rem] items-center justify-center rounded-md px-1 text-[11px] font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
           {isObispado ? (
-            <TabsTrigger value="organizaciones" className="shrink-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
-              <span>Organizaciones</span>
+            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+              <span className="truncate">Organizaciones</span>
             </TabsTrigger>
           ) : null}
         </TabsList>
