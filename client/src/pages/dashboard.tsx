@@ -225,7 +225,7 @@ export default function DashboardPage() {
 
       {isBishopric ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4">
             <GlassCard className="cursor-pointer" onClick={() => setLocation("/goals")}>
               <div className="flex items-center justify-between gap-4 p-5">
                 <div className="space-y-1">
