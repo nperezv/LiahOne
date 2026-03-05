@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -37,7 +37,6 @@ import {
   useOrganizations,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { exportBudgetRequests } from "@/lib/export";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
 
@@ -864,21 +863,17 @@ export default function BudgetPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
-          <Button
-            variant="outline"
-            onClick={() => exportBudgetRequests(filteredRequests)}
-            data-testid="button-export-budget"
-            className="rounded-2xl border-0 bg-[#171b26] text-slate-300 hover:bg-[#202637]"
-          >
-            <Download className="h-4 w-4 lg:mr-2" />
-            <span className="sr-only lg:not-sr-only">Exportar</span>
-          </Button>
           {isObispado && (
             <Dialog open={isBudgetDialogOpen} onOpenChange={setIsBudgetDialogOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="button-edit-ward-budget" className="rounded-2xl bg-[#171b26] text-slate-300 hover:bg-[#202637]">
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Presupuesto Global
+                <Button
+                  data-testid="button-edit-ward-budget"
+                  variant="outline"
+                  size="icon"
+                  className="rounded-lg border-[#2b3245] bg-[#171b26] text-slate-300 transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span className="sr-only">Configurar presupuesto global</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -1012,8 +1007,11 @@ export default function BudgetPage() {
           )}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-request" className="rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-500 text-white shadow-[0_0_24px_rgba(124,58,237,0.55)] hover:from-violet-500 hover:to-indigo-400">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button
+                data-testid="button-create-request"
+                className="rounded-lg border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)] transition-all duration-200 hover:-translate-y-0.5 hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.55)]"
+              >
+                <Plus className="mr-2 h-4 w-4" />
                 Nueva Solicitud
               </Button>
             </DialogTrigger>
@@ -1355,19 +1353,17 @@ export default function BudgetPage() {
       </div>
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
-        <TabsList className="mb-6 grid h-auto w-full grid-cols-3 gap-2 rounded-xl bg-transparent p-0">
-          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2.5 text-center text-sm font-semibold text-slate-300 shadow-none transition data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)]">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2.5 text-center text-sm font-semibold text-slate-300 shadow-none transition data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)]">
-            <span className="truncate">Solicitudes</span>
-            <span className={`ml-2 inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-md px-1.5 text-xs font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
+        <TabsList className="mb-6 flex h-auto w-full items-center gap-1.5 overflow-x-auto bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsTrigger value="resumen" className="shrink-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-4">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="shrink-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+            <span>Solicitudes</span>
+            <span className={`ml-1.5 inline-flex h-5 min-w-[1.3rem] items-center justify-center rounded-md px-1 text-[11px] font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
           {isObispado ? (
-            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2.5 text-center text-sm font-semibold text-slate-300 shadow-none transition data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)]">
-              <span className="truncate">Organizaciones</span>
+            <TabsTrigger value="organizaciones" className="shrink-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+              <span>Organizaciones</span>
             </TabsTrigger>
-          ) : (
-            <div className="hidden" />
-          )}
+          ) : null}
         </TabsList>
 
       {/* Organization Member Budget Card */}
