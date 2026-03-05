@@ -181,20 +181,15 @@ export default function DashboardPage() {
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
     <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8" style={{ fontFamily: "'Outfit', 'DM Sans', sans-serif" }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-sm text-slate-500 dark:text-white/45">
-            {getGreeting(new Date())} 👋
-          </p>
-          <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.03em] sm:text-[44px]">Hola,{user?.name ? user.name.split(" ")[0] : ""}</h1>
-          <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${weeklyLoadStatus.tone}`}>
-            <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
-            <span>{weeklyLoadStatus.label}</span>
-            <span className="font-normal text-slate-500 dark:text-white/45">· {weeklyLoadStatus.detail}</span>
-          </div>
-        </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-base font-bold text-white shadow-[0_8px_24px_rgba(79,70,229,0.35)]">
-          {(user?.name?.trim()?.charAt(0) || "U").toUpperCase()}
+      <div className="space-y-1">
+        <h1 className="text-[34px] leading-[1.06] font-extrabold tracking-[-0.03em] sm:text-[38px]">Hola, {user?.name ? user.name.split(" ")[0] : ""}</h1>
+        <p className="text-sm text-slate-500 dark:text-white/45">
+          {getGreeting(new Date())} 👋
+        </p>
+        <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${weeklyLoadStatus.tone}`}>
+          <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
+          <span>{weeklyLoadStatus.label}</span>
+          <span className="font-normal text-slate-500 dark:text-white/45">· {weeklyLoadStatus.detail}</span>
         </div>
       </div>
 
@@ -242,15 +237,26 @@ export default function DashboardPage() {
               </div>
             </GlassCard>
 
-            <div className="grid grid-cols-2 gap-4">
-              <QuickCard title="Presupuesto" subtitle={`${data.budgetRequests.pending} solicitudes`} icon={Wallet} onClick={() => setLocation("/budget")} />
-              <QuickCard
-                title="Tareas"
-                subtitle={data.pendingAssignments > 0 ? `${data.pendingAssignments} pendientes` : "Todo hecho 🎉"}
-                icon={Target}
-                onClick={() => setLocation("/assignments")}
-              />
-            </div>
+            <GlassCard className="cursor-pointer" onClick={() => setLocation('/budget')}>
+              <div className="space-y-3 p-5">
+                <p className="text-[11px] uppercase tracking-[0.07em] text-slate-500 dark:text-white/40">Presupuesto</p>
+                <p className="text-2xl font-extrabold">{data.budgetRequests.pending}<span className="text-sm font-medium text-slate-500 dark:text-white/30"> pend.</span></p>
+                <p className="text-xs text-slate-500 dark:text-white/45">{data.budgetRequests.approved} aprobados · {data.budgetRequests.total} total</p>
+                <div className="flex gap-1.5 pt-1">
+                  {Array.from({ length: 5 }).map((_, i) => {
+                    const filled = i < Math.round((data.budgetRequests.total > 0 ? data.budgetRequests.approved / data.budgetRequests.total : 0) * 5);
+                    return (
+                      <span
+                        key={i}
+                        className={filled
+                          ? "h-1.5 flex-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400"
+                          : "h-1.5 flex-1 rounded-full bg-slate-300/70 dark:bg-white/15"}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </GlassCard>
           </div>
 
           <GlassCard className="cursor-pointer" onClick={() => setLocation(nextBestAction.href)}>
