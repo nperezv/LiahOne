@@ -179,7 +179,7 @@ export default function DashboardPage() {
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
-    <div className="space-y-6 px-4 py-6 sm:px-8">
+    <div className="min-h-screen bg-[#05060A] space-y-6 px-4 py-6 sm:px-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">{isBishopric ? "Dashboard" : roleDashboardTitle[userRole] ?? "Dashboard"}</h1>
         <p className="text-sm text-muted-foreground">
