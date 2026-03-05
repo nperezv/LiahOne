@@ -1356,12 +1356,12 @@ export default function BudgetPage() {
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
         <TabsList className="mb-6 h-auto w-full justify-start gap-2 rounded-2xl bg-transparent p-0">
-          <TabsTrigger value="resumen" className="rounded-full px-5 py-2.5 text-sm font-semibold data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="rounded-full px-5 py-2.5 text-sm font-semibold data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">
+          <TabsTrigger value="resumen" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">
             Solicitudes
-            <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{filteredRequests.length}</span>
+            <span className={`ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
-          {isObispado && <TabsTrigger value="organizaciones" className="rounded-full px-5 py-2.5 text-sm font-semibold data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Organizaciones</TabsTrigger>}
+          {isObispado && <TabsTrigger value="organizaciones" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Organizaciones</TabsTrigger>}
         </TabsList>
 
       {/* Organization Member Budget Card */}
