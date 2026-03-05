@@ -1424,12 +1424,12 @@ export default function BudgetPage() {
           <Card className="mb-5">
             <CardContent className="p-7">
               <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Presupuesto anual {wardBudget?.year ?? currentYear}</p>
-              <div className="text-6xl font-extrabold tracking-tight text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
+              <div className="text-[3.25rem] font-extrabold leading-none tracking-tight text-slate-100 md:text-[3.5rem]" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
               <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[1, 2, 3, 4].map((quarter) => (
                   <div key={quarter} className="rounded-2xl bg-white/5 p-4">
                     <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">T{quarter}</p>
-                    <p className={`text-4 font-extrabold ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
+                    <p className={`text-[2rem] font-extrabold leading-none ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
                 ))}
               </div>
@@ -1440,21 +1440,21 @@ export default function BudgetPage() {
             <Card>
               <CardContent className="p-6">
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Trimestre actual</p>
-                <p className="text-5 font-extrabold text-slate-100" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
+                <p className="text-[2.1rem] font-extrabold leading-none text-slate-100" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
                 <p className="mt-1 text-sm text-slate-500">T{currentQuarter}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Solicitado</p>
-                <p className="text-5 font-extrabold text-amber-400" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
+                <p className="text-[2.1rem] font-extrabold leading-none text-amber-400" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
                 <p className="mt-1 text-sm text-slate-500">{(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Aprobado</p>
-                <p className="text-5 font-extrabold text-emerald-400" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
+                <p className="text-[2.1rem] font-extrabold leading-none text-emerald-400" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
                 <p className="mt-1 text-sm text-slate-500">{(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas</p>
               </CardContent>
             </Card>
@@ -1474,7 +1474,7 @@ export default function BudgetPage() {
             </CardContent>
           </Card>
 
-          <div className="mb-2 text-3 font-bold text-slate-200">Requieren acción ⚡</div>
+          <div className="mb-2 text-2xl font-bold text-slate-200">Requieren acción ⚡</div>
           <div className="mb-6 space-y-3">
             {(filteredRequests as any[])
               .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
@@ -1485,14 +1485,14 @@ export default function BudgetPage() {
                   <Card key={`summary-action-${request.id}`} data-testid={`summary-action-${request.id}`}>
                     <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
                       <div className="min-w-[220px] flex-1">
-                        <p className="mb-2 text-2xl font-semibold leading-tight text-slate-100">{request.description}</p>
+                        <p className="mb-2 text-[1.8rem] font-semibold leading-tight text-slate-100">{request.description}</p>
                         <div className="flex items-center gap-3">
                           {getStatusBadge(request.status)}
                           <span className="text-sm text-slate-500">{org?.name || "Sin organización"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <p className="text-4xl font-extrabold text-slate-100">€{request.amount.toFixed(2)}</p>
+                        <p className="text-[2rem] font-extrabold leading-none text-slate-100">€{request.amount.toFixed(2)}</p>
                         {request.status === "solicitado" ? (
                           <Button size="sm" className="rounded-xl bg-emerald-700 text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} disabled={approveMutation.isPending}>Aprobar</Button>
                         ) : (
