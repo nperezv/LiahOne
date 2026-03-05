@@ -1433,9 +1433,9 @@ export default function BudgetPage() {
               <div className="text-[42px] font-extrabold leading-none tracking-[-0.03em] text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
               <div className="mt-7 grid grid-cols-4 gap-3">
                 {[1, 2, 3, 4].map((quarter) => (
-                  <div key={quarter} className="rounded-xl bg-white/5 px-3 py-2.5">
+                  <div key={quarter} className="rounded-xl bg-white/5 px-2 py-2 text-center">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
-                    <p className={`text-[16px] font-extrabold ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
+                    <p className={`text-[12px] font-extrabold leading-tight md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
                 ))}
               </div>
@@ -1444,23 +1444,23 @@ export default function BudgetPage() {
 
           <div className="mb-5 grid grid-cols-3 gap-3">
             <Card>
-              <CardContent className="px-[18px] py-4">
+              <CardContent className="px-[14px] py-4 text-center">
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Trimestre actual</p>
-                <p className="text-[24px] font-extrabold leading-none text-slate-100" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
+                <p className="text-[18px] font-extrabold leading-none text-slate-100 md:text-[20px]" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
                 <p className="mt-1 text-[11px] text-slate-500">T{currentQuarter}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="px-[18px] py-4">
+              <CardContent className="px-[14px] py-4 text-center">
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Solicitado</p>
-                <p className="text-[24px] font-extrabold leading-none text-amber-400" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
+                <p className="text-[18px] font-extrabold leading-none text-amber-400 md:text-[20px]" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="px-[18px] py-4">
+              <CardContent className="px-[14px] py-4 text-center">
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Aprobado</p>
-                <p className="text-[24px] font-extrabold leading-none text-emerald-400" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
+                <p className="text-[18px] font-extrabold leading-none text-emerald-400 md:text-[20px]" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas</p>
               </CardContent>
             </Card>
