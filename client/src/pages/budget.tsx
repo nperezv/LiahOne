@@ -1671,7 +1671,7 @@ export default function BudgetPage() {
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
             className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-violet-400/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
-            {label}
+            <span className="truncate">{label}</span>
           </button>
         ))}
       </div>
