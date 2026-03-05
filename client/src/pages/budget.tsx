@@ -1431,7 +1431,7 @@ export default function BudgetPage() {
             <CardContent className="p-6 pb-5">
               <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Presupuesto anual {wardBudget?.year ?? currentYear}</p>
               <div className="text-[42px] font-extrabold leading-none tracking-[-0.03em] text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
-              <div className="mt-7 grid grid-cols-4 gap-2 px-2">
+              <div className="mt-7 grid grid-cols-4 gap-2 pl-2 pr-4">
                 {[1, 2, 3, 4].map((quarter) => (
                   <div key={quarter} className="rounded-xl bg-white/5 px-3 py-3">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
