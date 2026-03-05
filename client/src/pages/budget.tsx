@@ -6,7 +6,6 @@ import { z } from "zod";
 import { Plus, CheckCircle2, Clock, FileText, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { GlassCard } from "@/components/ui/glass-card";
 import { IconBadge } from "@/components/ui/icon-badge";
 import {
   Dialog,
@@ -1696,7 +1695,7 @@ export default function BudgetPage() {
                   : "from-amber-500/45";
 
             return (
-              <GlassCard key={request.id} className={highlightedRequestId === request.id ? "ring-2 ring-white/70" : ""} data-testid={`row-request-${request.id}`}>
+              <Card key={request.id} className={highlightedRequestId === request.id ? "ring-2 ring-white/70" : ""} data-testid={`row-request-${request.id}`}>
                 <div className="p-6">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-2">
@@ -1751,13 +1750,13 @@ export default function BudgetPage() {
 
                   <div className={`mt-5 h-px bg-gradient-to-r ${accent} to-transparent`} />
                 </div>
-              </GlassCard>
+              </Card>
             );
           })
         ) : (
-          <GlassCard>
+          <Card>
             <div className="p-10 text-center text-sm text-muted-foreground">No hay solicitudes de presupuesto</div>
-          </GlassCard>
+          </Card>
         )}
       </div>
       </>
