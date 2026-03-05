@@ -119,7 +119,7 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
   return (
     <div className="space-y-6">
       <div className="relative mx-auto w-fit" data-testid="inventory-gauge">
-        <div className="pointer-events-none absolute inset-0 rounded-full border border-sky-300/10 shadow-[0_0_48px_rgba(56,189,248,0.16)]" />
+        <div className="pointer-events-none absolute inset-0 rounded-full border border-violet-300/20 shadow-[0_0_48px_rgba(139,92,246,0.24)]" />
         <div className="pointer-events-none absolute inset-[22px] rounded-full border border-white/5" />
         <svg width={GAUGE_SIZE} height={GAUGE_SIZE} viewBox={`0 0 ${GAUGE_SIZE} ${GAUGE_SIZE}`}>
           <defs>
@@ -219,11 +219,11 @@ export function InventoryGauge({ total, segments }: InventoryGaugeProps) {
 export function NfcScanRing({ active }: { active: boolean }) {
   return (
     <div className="relative mx-auto flex h-44 w-44 items-center justify-center">
-      <div className="absolute inset-0 rounded-full border border-cyan-400/30 shadow-[0_0_40px_rgba(34,211,238,0.2)]" />
-      <div className={`absolute inset-3 rounded-full border border-cyan-300/40 ${active ? "animate-pulse" : ""}`} />
-      <div className={`absolute inset-6 rounded-full border-2 border-cyan-200/70 shadow-[0_0_28px_rgba(56,189,248,0.45)] ${active ? "animate-ping" : ""}`} />
-      <div className="relative z-10 rounded-full border border-cyan-300/40 bg-background/80 p-6">
-        <ScanLine className="h-10 w-10 text-cyan-300" />
+      <div className="absolute inset-0 rounded-full border border-violet-400/35 shadow-[0_0_40px_rgba(124,58,237,0.28)]" />
+      <div className={`absolute inset-3 rounded-full border border-fuchsia-300/35 ${active ? "animate-pulse" : ""}`} />
+      <div className={`absolute inset-6 rounded-full border-2 border-indigo-200/70 shadow-[0_0_28px_rgba(147,51,234,0.5)] ${active ? "animate-ping" : ""}`} />
+      <div className="relative z-10 rounded-full border border-violet-300/45 bg-background/80 p-6 shadow-[0_0_30px_rgba(139,92,246,0.25)]">
+        <ScanLine className="h-10 w-10 text-violet-300" />
       </div>
     </div>
   );

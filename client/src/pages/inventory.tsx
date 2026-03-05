@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
 import { useInventoryCategories, useInventoryItems } from "@/hooks/use-api";
 
-const CHART_PALETTE = ["#30d5ff", "#52e66d", "#f3d63b", "#ff8a3d", "#cc5de8", "#6d5efc"];
+const CHART_PALETTE = ["#a78bfa", "#8b5cf6", "#d946ef", "#6366f1", "#c084fc", "#7c3aed"];
 
 function buildGaugeSegments(
   categories: Array<{ id: string; name: string }>,
@@ -61,7 +61,7 @@ export default function InventoryPage() {
 
       <div className="grid gap-2 sm:grid-cols-2">
         <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><Boxes className="mr-2 h-4 w-4" />Inventario</Button></Link>
-        <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(37,99,235,0.25)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
+        <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(124,58,237,0.35)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
         <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
         <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>
       </div>
