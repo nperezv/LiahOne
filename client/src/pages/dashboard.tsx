@@ -20,12 +20,12 @@ const getGreeting = (date: Date) => {
 const getOrganizationSemaphore = (pendingAssignments: number, upcomingInterviews: number) => {
   const workload = pendingAssignments + upcomingInterviews;
   if (workload <= 1) {
-    return { label: "verde", dotClass: "bg-emerald-500", textClass: "text-emerald-600 dark:text-emerald-400" };
+    return { label: "verde", dotClass: "bg-emerald-500", textClass: "text-emerald-400" };
   }
   if (workload <= 3) {
-    return { label: "amarillo", dotClass: "bg-amber-500", textClass: "text-amber-600 dark:text-amber-400" };
+    return { label: "amarillo", dotClass: "bg-amber-400", textClass: "text-amber-400" };
   }
-  return { label: "rojo", dotClass: "bg-rose-500", textClass: "text-rose-600 dark:text-rose-400" };
+  return { label: "rojo", dotClass: "bg-rose-400", textClass: "text-rose-400" };
 };
 
 const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
