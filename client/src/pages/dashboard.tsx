@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Cake, CalendarDays, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
+import { ArrowRight, CalendarDays, ClipboardList, DollarSign, FileText, HandCoins, SquareCheckBig, UserCheck, UserRound, Users, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
@@ -78,17 +78,19 @@ function QuickCard({
   title,
   subtitle,
   icon: Icon,
+  iconTone = "violet",
   onClick,
 }: {
   title: string;
   subtitle: string;
   icon: any;
+  iconTone?: "violet" | "blue" | "teal" | "orange";
   onClick: () => void;
 }) {
   return (
     <GlassCard className="cursor-pointer" onClick={onClick}>
       <div className="space-y-3 p-4">
-        <IconBadge>
+        <IconBadge tone={iconTone}>
           <Icon className="h-4 w-4 text-white" />
         </IconBadge>
         <div>
@@ -263,7 +265,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between gap-3 p-5">
               <div className="flex items-center gap-3">
                 <IconBadge tone="violet">
-                  <ArrowRight className="h-4 w-4 text-white" />
+                  <Zap className="h-4 w-4 text-white" />
                 </IconBadge>
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.07em] text-slate-500 dark:text-white/40">Siguiente acción</p>
@@ -271,7 +273,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500 dark:text-white/45">{nextBestAction.description}</p>
                 </div>
               </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-500/20 text-violet-300">
                 <ArrowRight className="h-4 w-4" />
               </div>
             </div>
@@ -288,7 +290,7 @@ export default function DashboardPage() {
                   birthdaysPreview.map((birthday, idx) => (
                     <div key={`${birthday.name}-${idx}`} className="flex items-center justify-between rounded-xl px-2 py-2 text-sm" data-testid={`birthday-item-${idx}`}>
                       <div className="flex items-center gap-2">
-                        <IconBadge tone="violet" className="h-8 w-8 rounded-lg">
+                        <IconBadge tone={idx === 1 ? "rose" : idx === 2 ? "amber" : "violet"} className="h-8 w-8 rounded-lg">
                           <span className="text-xs font-bold text-white">{birthday.name.charAt(0)}</span>
                         </IconBadge>
                         <p className="font-medium text-slate-900 dark:text-white">{birthday.name}</p>
@@ -304,10 +306,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <QuickCard title="Tareas" subtitle={data.pendingAssignments > 0 ? `${data.pendingAssignments} pend.` : "Sin pendientes"} icon={Target} onClick={() => setLocation("/assignments")} />
-            <QuickCard title="Liderazgo" subtitle="Organizaciones" icon={Users} onClick={() => setLocation("/leadership")} />
-            <QuickCard title="Entrevistas" subtitle={`${data.upcomingInterviews} próximas`} icon={UserCheck} onClick={() => setLocation("/interviews")} />
-            <QuickCard title="Presupuesto" subtitle={`${data.budgetRequests.pending} solicitudes`} icon={Wallet} onClick={() => setLocation("/budget")} />
+            <QuickCard title="Tareas" subtitle={data.pendingAssignments > 0 ? `${data.pendingAssignments} pend.` : "Sin pendientes"} icon={SquareCheckBig} iconTone="violet" onClick={() => setLocation("/assignments")} />
+            <QuickCard title="Liderazgo" subtitle="Organizaciones" icon={Users} iconTone="blue" onClick={() => setLocation("/leadership")} />
+            <QuickCard title="Entrevistas" subtitle={`${data.upcomingInterviews} próximas`} icon={UserRound} iconTone="teal" onClick={() => setLocation("/interviews")} />
+            <QuickCard title="Presupuesto" subtitle={`${data.budgetRequests.pending} solicitudes`} icon={DollarSign} iconTone="orange" onClick={() => setLocation("/budget")} />
           </div>
         </>
       ) : isOrgRole ? (
