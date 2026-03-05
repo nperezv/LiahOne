@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -37,7 +37,6 @@ import {
   useOrganizations,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { exportBudgetRequests } from "@/lib/export";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
 
@@ -200,6 +199,7 @@ export default function BudgetPage() {
   const [isReceiptsDialogOpen, setIsReceiptsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
+  const [attachmentsDialogRequest, setAttachmentsDialogRequest] = useState<BudgetRequest | null>(null);
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -840,6 +840,10 @@ export default function BudgetPage() {
     }
   });
 
+  const actionRequests = (filteredRequests as any[])
+    .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
+    .slice(0, 3);
+
   if (requestsLoading || wardBudgetLoading || orgsLoading) {
     return (
       <div className="p-8">
@@ -855,30 +859,26 @@ export default function BudgetPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#04060d] p-6 text-slate-100 md:p-8">
+    <div className="bg-[#04060d] p-6 text-slate-100 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
-          <h1 className="mb-2 text-2xl font-extrabold tracking-tight md:text-3xl">Presupuestos</h1>
+          <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl">Presupuestos</h1>
           <p className="text-xs text-slate-400 md:text-sm">
             {isOrgMember ? "Control de presupuesto de tu organización" : "Gestiona presupuestos globales y asignaciones"}
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
-          <Button
-            variant="outline"
-            onClick={() => exportBudgetRequests(filteredRequests)}
-            data-testid="button-export-budget"
-            className="rounded-2xl border-0 bg-[#171b26] text-slate-300 hover:bg-[#202637]"
-          >
-            <Download className="h-4 w-4 lg:mr-2" />
-            <span className="sr-only lg:not-sr-only">Exportar</span>
-          </Button>
           {isObispado && (
             <Dialog open={isBudgetDialogOpen} onOpenChange={setIsBudgetDialogOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="button-edit-ward-budget" className="rounded-2xl bg-[#171b26] text-slate-300 hover:bg-[#202637]">
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Presupuesto Global
+                <Button
+                  data-testid="button-edit-ward-budget"
+                  variant="outline"
+                  size="icon"
+                  className="rounded-lg border-[#2b3245] bg-[#171b26] text-slate-300 transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#202637] hover:text-white"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span className="sr-only">Configurar presupuesto global</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -1012,8 +1012,11 @@ export default function BudgetPage() {
           )}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-request" className="rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-500 text-white shadow-[0_0_24px_rgba(124,58,237,0.55)] hover:from-violet-500 hover:to-indigo-400">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button
+                data-testid="button-create-request"
+                className="h-9 rounded-lg border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)] transition-all duration-200 hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.55)]"
+              >
+                <Plus className="mr-2 h-4 w-4" />
                 Nueva Solicitud
               </Button>
             </DialogTrigger>
@@ -1355,13 +1358,17 @@ export default function BudgetPage() {
       </div>
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
-        <TabsList className="mb-6 h-auto w-full justify-start gap-2 rounded-2xl bg-transparent p-0">
-          <TabsTrigger value="resumen" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">
-            Solicitudes
-            <span className={`ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
+        <TabsList className={`mb-6 grid h-auto w-full gap-2 overflow-visible bg-transparent p-0 ${isObispado ? "grid-cols-[0.95fr_1.05fr_1.2fr]" : "grid-cols-[1fr_1.1fr]"}`}>
+          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-4">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+            <span className="truncate">Solicitudes</span>
+            <span className={`ml-1.5 inline-flex h-5 min-w-[1.3rem] items-center justify-center rounded-md px-1 text-[11px] font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
-          {isObispado && <TabsTrigger value="organizaciones" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Organizaciones</TabsTrigger>}
+          {isObispado ? (
+            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+              <span className="truncate">Organizaciones</span>
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
       {/* Organization Member Budget Card */}
@@ -1480,12 +1487,9 @@ export default function BudgetPage() {
             </CardContent>
           </Card>
 
-          <div className="mb-2 text-[13px] font-semibold text-white/70">Requieren acción ⚡</div>
-          <div className="mb-6 space-y-3">
-            {(filteredRequests as any[])
-              .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
-              .slice(0, 3)
-              .map((request: any) => {
+          {actionRequests.length > 0 && (
+            <div className="mb-6 space-y-3">
+              {actionRequests.map((request: any) => {
                 const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
                 return (
                   <Card key={`summary-action-${request.id}`} data-testid={`summary-action-${request.id}`}>
@@ -1509,14 +1513,14 @@ export default function BudgetPage() {
                   </Card>
                 );
               })}
-          </div>
+            </div>
+          )}
         </>
       )}
 
       {/* Organization Budget Cards - Only for Obispado */}
       {activeSection === "organizaciones" && isObispado && (
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-4">Presupuestos por Organización</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {(organizations as Organization[]).map((org: Organization) => {
               const now = new Date();
@@ -1653,7 +1657,7 @@ export default function BudgetPage() {
 
       {activeSection === "solicitudes" && (
       <>
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex w-full items-center justify-between gap-1">
         {[
           ["todas", "Todas"],
           ["pendientes", "Pendientes"],
@@ -1665,7 +1669,7 @@ export default function BudgetPage() {
             key={value}
             type="button"
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
-            className={requestStatusFilter === value ? "rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.45)]" : "rounded-full bg-[#171b26] px-5 py-2 text-sm font-semibold text-slate-400"}
+            className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-violet-400/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
             {label}
           </button>
@@ -1694,30 +1698,22 @@ export default function BudgetPage() {
                         {org && <span className="text-sm text-slate-500">{org.name}</span>}
                       </div>
                       <p className="text-lg font-semibold leading-tight text-foreground md:text-xl">{request.description}</p>
-                      <p className="text-xs text-muted-foreground md:text-sm">
-                        {new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground md:text-sm">
+                        <span>{new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}</span>
                         {request.receipts && request.receipts.length > 0 && (
-                          <span className="ml-3 text-violet-400">{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentsDialogRequest(request)}
+                            className="inline-flex items-center gap-1.5 text-violet-400 transition-colors hover:text-violet-300"
+                          >
+                            <Paperclip className="h-3.5 w-3.5" />
+                            <span>{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
+                          </button>
                         )}
-                      </p>
+                      </div>
                     </div>
                     <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{request.amount.toFixed(2)}</p>
                   </div>
-
-                  {request.receipts && request.receipts.length > 0 && (
-                    <div className="mb-4 flex flex-col gap-1">
-                      {request.receipts.map((receipt: any, index: number) => (
-                        <button
-                          key={`${request.id}-receipt-${index}`}
-                          type="button"
-                          onClick={() => void downloadReceipt(receipt)}
-                          className="text-left text-xs text-violet-300 hover:underline"
-                        >
-                          {getReceiptLabel(receipt)}: {receipt.filename}
-                        </button>
-                      ))}
-                    </div>
-                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {canApprove && request.status === "solicitado" && (
@@ -1752,6 +1748,41 @@ export default function BudgetPage() {
       </>
       )}
       </Tabs>
+
+      <Dialog
+        open={Boolean(attachmentsDialogRequest)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAttachmentsDialogRequest(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adjuntos de la solicitud</DialogTitle>
+            <DialogDescription>
+              {attachmentsDialogRequest?.description || "Revisa y descarga los documentos adjuntos."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {attachmentsDialogRequest?.receipts?.length ? (
+              attachmentsDialogRequest.receipts.map((receipt, index) => (
+                <button
+                  key={`${attachmentsDialogRequest.id}-dialog-receipt-${index}`}
+                  type="button"
+                  onClick={() => void downloadReceipt(receipt)}
+                  className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
+                >
+                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                  <span className="min-w-0 truncate">{getReceiptLabel(receipt)}: {receipt.filename}</span>
+                </button>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay adjuntos disponibles.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isSignDialogOpen}
