@@ -180,7 +180,7 @@ export default function DashboardPage() {
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
-    <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8" style={{ fontFamily: "'Outfit', 'DM Sans', sans-serif" }}>
+    <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8">
       <div className="space-y-1">
         <h1 className="text-[34px] leading-[1.06] font-extrabold tracking-[-0.03em] sm:text-[38px]">Hola, {user?.name ? user.name.split(" ")[0] : ""}</h1>
         <p className="text-sm text-slate-500 dark:text-white/45">
