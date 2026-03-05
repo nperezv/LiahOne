@@ -127,7 +127,7 @@ export function InventoryItemActionsCard({
 
   return (
     <>
-      <article className={cn("rounded-2xl border border-border/70 bg-background/70 p-3", expanded && "shadow-[0_0_0_1px_rgba(59,130,246,0.25)]") }>
+      <article className={cn("rounded-2xl border border-border/70 bg-background/70 p-3", expanded && "shadow-[0_0_0_1px_rgba(139,92,246,0.35)]") }>
         {uid ? <p className="text-xs uppercase tracking-wide text-muted-foreground">UID: {uid}</p> : null}
 
         <button

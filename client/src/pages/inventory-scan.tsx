@@ -61,7 +61,7 @@ export default function InventoryScanPage() {
     <div className="space-y-4 p-4 md:p-8">
       <InventoryPageHeader subtitle="Escaneo NFC y QR" />
 
-      <Card className="rounded-3xl border border-border/60 bg-gradient-to-b from-[#030a1a] to-[#040813]">
+      <Card className="rounded-3xl border border-border/60 bg-gradient-to-b from-[#130a24] to-[#080513]">
         <CardHeader><CardTitle className="text-center tracking-wide">ESCANEAR</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted/60 p-1">
