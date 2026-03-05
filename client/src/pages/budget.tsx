@@ -1435,7 +1435,7 @@ export default function BudgetPage() {
                 {[1, 2, 3, 4].map((quarter) => (
                   <div key={quarter} className="rounded-xl bg-white/5 px-3 py-2">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
-                    <p className={`whitespace-nowrap text-center text-[12px] font-extrabold leading-tight md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
+                    <p className={`whitespace-nowrap text-[12px] font-extrabold leading-tight md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
                 ))}
               </div>
@@ -1446,21 +1446,21 @@ export default function BudgetPage() {
             <Card>
               <CardContent className="px-[14px] py-3">
                 <p className="mb-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Trimestre actual</p>
-                <p className="whitespace-nowrap text-center text-[18px] font-extrabold leading-none text-slate-100 md:text-[20px]" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
+                <p className="whitespace-nowrap text-[18px] font-extrabold leading-none text-slate-100 md:text-[20px]" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
                 <p className="mt-1 text-[11px] text-slate-500">T{currentQuarter}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="px-[14px] py-3">
                 <p className="mb-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Solicitado</p>
-                <p className="text-center text-[18px] font-extrabold leading-none text-amber-400 md:text-[20px]" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
+                <p className="whitespace-nowrap text-[18px] font-extrabold leading-none text-amber-400 md:text-[20px]" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="px-[14px] py-3">
                 <p className="mb-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Aprobado</p>
-                <p className="text-center text-[18px] font-extrabold leading-none text-emerald-400 md:text-[20px]" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
+                <p className="whitespace-nowrap text-[18px] font-extrabold leading-none text-emerald-400 md:text-[20px]" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas</p>
               </CardContent>
             </Card>
