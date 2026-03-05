@@ -1363,7 +1363,7 @@ export default function PresidencyMeetingsPage() {
 
       <div className="mt-3 grid grid-cols-2 gap-3 md:gap-4 lg:hidden">
         <div
-          className="col-span-1 flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm"
+          className="pilot-glass-card col-span-1 flex min-h-[220px] flex-col rounded-3xl p-4 text-left"
           data-testid="card-org-leaders-mobile"
         >
           <div className="flex items-center justify-between">
@@ -1397,7 +1397,7 @@ export default function PresidencyMeetingsPage() {
           <button
             type="button"
             onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
-            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            className="pilot-glass-card rounded-3xl p-4 text-left transition-colors"
             data-testid="button-org-birthdays-card-mobile"
           >
             <p className="text-xs text-muted-foreground">Cumpleaños de la organización</p>
@@ -1416,7 +1416,7 @@ export default function PresidencyMeetingsPage() {
           <button
             type="button"
             onClick={() => navigateWithTransition(setLocation, `/assignments?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
-            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            className="pilot-glass-card rounded-3xl p-4 text-left transition-colors"
             data-testid="button-org-assignments-progress-card-mobile"
           >
             <p className="text-xs text-muted-foreground">Asignaciones pendientes</p>
@@ -1437,7 +1437,7 @@ export default function PresidencyMeetingsPage() {
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:hidden">
         <div className="col-span-1 flex flex-col gap-3 md:gap-4">
           <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
-            <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card">
+            <button type="button" onClick={() => setMembersDialogOpen(true)} className="pilot-glass-card rounded-3xl p-4 text-left transition-colors" data-testid="button-org-members-card">
               <p className="text-xs text-muted-foreground">Miembros de la organización</p>
               <div className="mt-2 flex items-center justify-between">
                 <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.membersCount}</p>
@@ -1468,7 +1468,7 @@ export default function PresidencyMeetingsPage() {
             </DialogContent>
           </Dialog>
 
-          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-calendar-card">
+          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="pilot-glass-card rounded-3xl p-4 text-left transition-colors" data-testid="button-org-calendar-card">
             <p className="text-xs text-muted-foreground">Calendario</p>
             <div className="mt-2 flex items-center justify-between">
               <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.monthlyActivities}</p>
@@ -1481,7 +1481,7 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+          className="pilot-glass-card col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl p-4 text-left transition-colors"
           data-testid="button-presidency-meetings-overview"
         >
           <div>
@@ -1523,7 +1523,7 @@ export default function PresidencyMeetingsPage() {
       <div className="hidden gap-3 md:gap-4 lg:grid lg:grid-cols-12">
         <Dialog open={leadersDialogOpen} onOpenChange={setLeadersDialogOpen}>
           <div
-            className="flex min-h-[220px] flex-col rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm lg:col-span-6 lg:min-h-[260px]"
+            className="pilot-glass-card flex min-h-[220px] flex-col rounded-3xl p-4 text-left lg:col-span-6 lg:min-h-[260px]"
             data-testid="card-org-leaders"
           >
             <div className="flex items-center justify-between">
@@ -1592,7 +1592,7 @@ export default function PresidencyMeetingsPage() {
           <button
             type="button"
             onClick={() => navigateWithTransition(setLocation, `/birthdays?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
-            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            className="pilot-glass-card rounded-3xl p-4 text-left transition-colors"
             data-testid="button-org-birthdays-card"
           >
             <p className="text-xs text-muted-foreground">Cumpleaños de la organización</p>
@@ -1611,7 +1611,7 @@ export default function PresidencyMeetingsPage() {
           <button
             type="button"
             onClick={() => navigateWithTransition(setLocation, `/assignments?from=presidency-panel&orgSlug=${params?.org ?? ""}&orgId=${organizationId ?? ""}`)}
-            className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card"
+            className="pilot-glass-card rounded-3xl p-4 text-left transition-colors"
             data-testid="button-org-assignments-progress-card"
           >
             <p className="text-xs text-muted-foreground">Asignaciones pendientes</p>
@@ -1629,7 +1629,7 @@ export default function PresidencyMeetingsPage() {
         </div>
 
         <div className="col-span-1 flex flex-col gap-3 md:gap-4 lg:col-span-6 lg:flex lg:flex-col">
-          <button type="button" onClick={() => setMembersDialogOpen(true)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-members-card-desktop">
+          <button type="button" onClick={() => setMembersDialogOpen(true)} className="pilot-glass-card rounded-3xl p-4 text-left transition-colors" data-testid="button-org-members-card-desktop">
             <p className="text-xs text-muted-foreground">Miembros de la organización</p>
             <div className="mt-2 flex items-center justify-between">
               <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.membersCount}</p>
@@ -1637,7 +1637,7 @@ export default function PresidencyMeetingsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card" data-testid="button-org-calendar-card-desktop">
+          <button type="button" onClick={() => setLocation(`/calendar?org=${params?.org ?? ""}`)} className="pilot-glass-card rounded-3xl p-4 text-left transition-colors" data-testid="button-org-calendar-card-desktop">
             <p className="text-xs text-muted-foreground">Calendario</p>
             <div className="mt-2 flex items-center justify-between">
               <p className="text-2xl font-semibold md:text-3xl">{dashboardStats.monthlyActivities}</p>
@@ -1650,7 +1650,7 @@ export default function PresidencyMeetingsPage() {
         <button
           type="button"
           onClick={() => navigateWithTransition(setLocation, `/presidency/${params?.org ?? ""}/manage`)}
-          className="col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl border border-border/70 bg-card/90 p-4 text-left shadow-sm transition-colors hover:bg-card lg:col-span-6"
+          className="pilot-glass-card col-span-1 flex h-full min-h-[220px] flex-col justify-between overflow-hidden rounded-3xl p-4 text-left transition-colors lg:col-span-6"
           data-testid="button-presidency-meetings-overview-desktop"
         >
           <div>
@@ -1739,7 +1739,7 @@ export default function PresidencyMeetingsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
 
-        <Card className="flex h-full flex-col rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="flex h-full flex-col rounded-3xl border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Metas de organización</CardTitle>
             <CardDescription>Seguimiento del cumplimiento mensual</CardDescription>
@@ -1789,7 +1789,7 @@ export default function PresidencyMeetingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="flex h-full flex-col rounded-3xl border-border/70 bg-card/95 shadow-sm">
+        <Card className="flex h-full flex-col rounded-3xl border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Presupuesto de organización</CardTitle>
             <CardDescription>Uso del trimestre actual</CardDescription>
@@ -2029,7 +2029,7 @@ export default function PresidencyMeetingsPage() {
       </Dialog>
 
       {dashboardStats.latestMeeting && (
-        <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
+        <Card className="rounded-3xl border-border/70">
           <CardHeader>
             <CardTitle>Última reunión</CardTitle>
             <CardDescription>
@@ -2117,7 +2117,7 @@ export default function PresidencyMeetingsPage() {
       </Dialog>
 
       <div className="grid gap-4 xl:grid-cols-12">
-        <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm xl:col-span-8">
+        <Card className="rounded-3xl border-border/70 xl:col-span-8">
           <CardHeader>
             <CardTitle>Historial de reuniones</CardTitle>
             <CardDescription>Fecha, hora y acuerdos más recientes por reunión</CardDescription>
@@ -2200,7 +2200,7 @@ export default function PresidencyMeetingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm xl:col-span-4">
+        <Card className="rounded-3xl border-border/70 xl:col-span-4">
           <CardHeader>
             <CardTitle>Recursos</CardTitle>
             <CardDescription>Acceso rápido para presidencias</CardDescription>

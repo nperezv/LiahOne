@@ -161,7 +161,7 @@ export default function PresidencyMeetingReportPage() {
         </Button>
       </div>
 
-      <Card className="rounded-3xl border-border/70 bg-card/95">
+      <Card className="rounded-3xl border-border/70">
         <CardHeader>
           <CardTitle>Datos de la reunión</CardTitle>
           <CardDescription>Se completa al crear la reunión</CardDescription>
@@ -173,7 +173,7 @@ export default function PresidencyMeetingReportPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl border-border/70 bg-card/95">
+      <Card className="rounded-3xl border-border/70">
         <CardHeader>
           <CardTitle>Redacción del informe</CardTitle>
           <CardDescription>Usa este formulario al iniciar la reunión para tomar notas y acuerdos.</CardDescription>

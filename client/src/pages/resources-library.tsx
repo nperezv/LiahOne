@@ -167,7 +167,7 @@ export default function ResourcesLibraryPage() {
       </div>
 
       {isLibraryAdmin && (
-        <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
+        <Card className="rounded-3xl border-border/70">
           <CardHeader className="pb-4">
             <CardTitle>Publicar recurso</CardTitle>
             <CardDescription>Solo se permiten categorías Manuales, Plantillas y Capacitación.</CardDescription>
@@ -274,7 +274,7 @@ export default function ResourcesLibraryPage() {
         </Card>
       )}
 
-      <Card className="rounded-3xl border-border/70 bg-card/90 shadow-sm">
+      <Card className="rounded-3xl border-border/70">
         <CardHeader className="pb-4">
           <CardTitle>Recursos disponibles</CardTitle>
           <CardDescription>
