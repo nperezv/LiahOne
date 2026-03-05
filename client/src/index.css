@@ -249,7 +249,7 @@
   }
 
   .dark .pilot-glass-card {
-    background: linear-gradient(135deg, #0d0d10 0%, #0d0d10 55%, #1e1e22 100%);
+    background: linear-gradient(135deg, #0b0b0e 0%, #0d0d10 46%, #17171d 72%, #262632 100%);
     backdrop-filter: blur(18px) saturate(150%);
     -webkit-backdrop-filter: blur(18px) saturate(150%);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -261,7 +261,7 @@
   }
 
   .dark .pilot-glass-card:hover {
-    background: linear-gradient(135deg, #0d0d10 0%, #0d0d10 55%, #222226 100%);
+    background: linear-gradient(135deg, #0b0b0e 0%, #0d0d10 46%, #1a1a21 72%, #2a2a38 100%);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
   }
 
@@ -324,7 +324,7 @@
   }
 
   .dark .shadcn-card {
-    background: linear-gradient(135deg, #0d0d10 0%, #0d0d10 55%, #1e1e22 100%);
+    background: linear-gradient(135deg, #0b0b0e 0%, #0d0d10 46%, #17171d 72%, #262632 100%);
     backdrop-filter: blur(18px) saturate(150%);
     -webkit-backdrop-filter: blur(18px) saturate(150%);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -348,7 +348,7 @@
     }
 
     .dark .shadcn-card:hover {
-      background: linear-gradient(135deg, #0d0d10 0%, #0d0d10 55%, #222226 100%);
+      background: linear-gradient(135deg, #0b0b0e 0%, #0d0d10 46%, #1a1a21 72%, #2a2a38 100%);
       box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
     }
   }
