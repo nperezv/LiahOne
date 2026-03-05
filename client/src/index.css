@@ -234,39 +234,18 @@
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), transparent 35%);
   }
 
-  .pilot-glass-card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background: linear-gradient(0deg, rgba(148, 163, 184, 0.14) 0%, rgba(148, 163, 184, 0.06) 22%, transparent 58%);
-  }
-
   .pilot-glass-card:hover {
     transform: translateY(-1px) scale(1.01);
     box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14), 0 4px 16px rgba(15, 23, 42, 0.10);
   }
 
   .dark .pilot-glass-card {
-    background: linear-gradient(
-      145deg,
-      hsl(240 15% 17% / 1) 0%,
-      hsl(240 12% 14% / 1) 55%,
-      hsl(248 14% 16% / 1) 100%
-    );
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.07),
-      0 8px 28px rgba(0, 0, 0, 0.50),
-      0 2px 8px rgba(0, 0, 0, 0.30);
+    background: linear-gradient(135deg, rgb(13 13 16 / 0.78) 0%, rgb(13 13 16 / 0.72) 55%, rgb(30 30 34 / 0.66) 100%);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   .dark .pilot-glass-card::before {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
-  }
-
-  .dark .pilot-glass-card::after {
-    background: linear-gradient(0deg, rgba(96, 165, 250, 0.15) 0%, rgba(99, 102, 241, 0.10) 24%, transparent 62%);
   }
 
   .dark .pilot-glass-card:hover {
@@ -322,34 +301,13 @@
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), transparent 35%);
   }
 
-  .shadcn-card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background: linear-gradient(0deg, rgba(148, 163, 184, 0.14) 0%, rgba(148, 163, 184, 0.06) 22%, transparent 58%);
-  }
-
   .dark .shadcn-card {
-    background: linear-gradient(
-      145deg,
-      hsl(240 15% 17% / 1) 0%,
-      hsl(240 12% 14% / 1) 55%,
-      hsl(248 14% 16% / 1) 100%
-    );
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.07),
-      0 8px 28px rgba(0, 0, 0, 0.50),
-      0 2px 8px rgba(0, 0, 0, 0.30);
+    background: linear-gradient(135deg, rgb(13 13 16 / 0.78) 0%, rgb(13 13 16 / 0.72) 55%, rgb(30 30 34 / 0.66) 100%);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   .dark .shadcn-card::before {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
-  }
-
-  .dark .shadcn-card::after {
-    background: linear-gradient(0deg, rgba(96, 165, 250, 0.15) 0%, rgba(99, 102, 241, 0.10) 24%, transparent 62%);
   }
 
   .dark body {
