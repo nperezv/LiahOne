@@ -859,7 +859,7 @@ export default function BudgetPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#04060d] p-6 text-slate-100 md:p-8">
+    <div className="bg-[#04060d] p-6 text-slate-100 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
           <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl">Presupuestos</h1>
@@ -1657,7 +1657,7 @@ export default function BudgetPage() {
 
       {activeSection === "solicitudes" && (
       <>
-      <div className="mb-4 grid w-full grid-cols-5 gap-1.5">
+      <div className="mb-4 flex w-full items-center justify-between gap-1">
         {[
           ["todas", "Todas"],
           ["pendientes", "Pendientes"],
@@ -1669,7 +1669,7 @@ export default function BudgetPage() {
             key={value}
             type="button"
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
-            className={requestStatusFilter === value ? "rounded-full border border-violet-400/70 bg-[#171b26] px-2 py-1.5 text-[11px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "rounded-full border border-slate-700/60 bg-[#171b26] px-2 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
+            className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-violet-400/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
             <span className="truncate">{label}</span>
           </button>
