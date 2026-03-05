@@ -3,9 +3,10 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, AlertCircle, FileText, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
+import { Plus, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconBadge } from "@/components/ui/icon-badge";
 import {
   Dialog,
   DialogContent,
@@ -18,17 +19,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useBudgetRequests,
   useCreateBudgetRequest,
@@ -275,6 +268,7 @@ export default function BudgetPage() {
 
   useEffect(() => {
     if (!highlightedRequestId) return;
+    setActiveSection("solicitudes");
     const row = document.querySelector(`[data-testid="row-request-${highlightedRequestId}"]`);
     if (!row) return;
     row.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -304,8 +298,14 @@ export default function BudgetPage() {
   }, [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
   const currentQuarterBudget = quarterBudgets[currentQuarter as 1 | 2 | 3 | 4] || 0;
 
-  const totalAssignedToOrgs = Object.values(orgBudgetsByOrg)
-    .flat()
+  const validOrganizationIds = new Set(
+    (organizations as Organization[])
+      .filter((org) => org.type !== "barrio")
+      .map((org) => org.id)
+  );
+  const totalAssignedToOrgs = Object.entries(orgBudgetsByOrg)
+    .filter(([orgId]) => validOrganizationIds.has(orgId))
+    .flatMap(([, budgets]) => budgets)
     .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
     .reduce((sum: number, budget: any) => sum + toBudgetNumber(budget?.amount), 0);
   const globalBudget = currentQuarterBudget;
@@ -717,51 +717,21 @@ export default function BudgetPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "outline" | "destructive", label: string, icon: JSX.Element }> = {
-      solicitado: {
-        variant: "outline",
-        label: "Solicitado",
-        icon: <Clock className="h-3 w-3 mr-1" />,
-      },
-      aprobado_financiero: {
-        variant: "secondary",
-        label: "Aprobación financiera",
-        icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
-      },
-      pendiente_firma_obispo: {
-        variant: "outline",
-        label: "Pendiente firma obispo",
-        icon: <Clock className="h-3 w-3 mr-1" />,
-      },
-      aprobado: {
-        variant: "default",
-        label: "Aprobado",
-        icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
-      },
-      en_proceso: {
-        variant: "secondary",
-        label: "En Proceso",
-        icon: <AlertCircle className="h-3 w-3 mr-1" />,
-      },
-      completado: {
-        variant: "default",
-        label: "Completado",
-        icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
-      },
-      rechazada: {
-        variant: "destructive",
-        label: "Rechazada",
-        icon: <AlertCircle className="h-3 w-3 mr-1" />,
-      },
+    const variants: Record<string, { label: string; className: string }> = {
+      solicitado: { label: "Solicitado", className: "border-amber-500/30 bg-amber-500/15 text-amber-300" },
+      aprobado_financiero: { label: "Aprobación financiera", className: "border-blue-500/30 bg-blue-500/15 text-blue-300" },
+      pendiente_firma_obispo: { label: "Pendiente firma", className: "border-violet-500/30 bg-violet-500/15 text-violet-300" },
+      aprobado: { label: "Aprobado", className: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" },
+      en_proceso: { label: "En proceso", className: "border-indigo-500/30 bg-indigo-500/15 text-indigo-300" },
+      completado: { label: "Completado", className: "border-teal-500/30 bg-teal-500/15 text-teal-300" },
+      rechazada: { label: "Rechazada", className: "border-rose-500/30 bg-rose-500/15 text-rose-300" },
     };
-
     const config = variants[status] || variants.solicitado;
-
     return (
-      <Badge variant={config.variant} className="flex items-center w-fit">
-        {config.icon}
+      <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${config.className}`}>
+        <span className="h-2 w-2 rounded-full bg-current" />
         {config.label}
-      </Badge>
+      </span>
     );
   };
 
@@ -852,6 +822,23 @@ export default function BudgetPage() {
 
   const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + r.amount, 0);
   const totalApproved = filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + r.amount, 0);
+  const [activeSection, setActiveSection] = useState<"resumen" | "solicitudes" | "organizaciones">("resumen");
+  const [requestStatusFilter, setRequestStatusFilter] = useState<"todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas">("todas");
+
+  const visibleRequests = filteredRequests.filter((request: any) => {
+    switch (requestStatusFilter) {
+      case "pendientes":
+        return ["solicitado", "pendiente_firma_obispo"].includes(request.status);
+      case "aprobadas":
+        return ["aprobado", "aprobado_financiero"].includes(request.status);
+      case "completadas":
+        return request.status === "completado";
+      case "rechazadas":
+        return request.status === "rechazada";
+      default:
+        return true;
+    }
+  });
 
   if (requestsLoading || wardBudgetLoading || orgsLoading) {
     return (
@@ -868,11 +855,11 @@ export default function BudgetPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-[#04060d] p-6 text-slate-100 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
-          <h1 className="text-2xl font-bold mb-2">Presupuestos</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="mb-2 text-2xl font-extrabold tracking-tight md:text-3xl">Presupuestos</h1>
+          <p className="text-xs text-slate-400 md:text-sm">
             {isOrgMember ? "Control de presupuesto de tu organización" : "Gestiona presupuestos globales y asignaciones"}
           </p>
         </div>
@@ -881,6 +868,7 @@ export default function BudgetPage() {
             variant="outline"
             onClick={() => exportBudgetRequests(filteredRequests)}
             data-testid="button-export-budget"
+            className="rounded-2xl border-0 bg-[#171b26] text-slate-300 hover:bg-[#202637]"
           >
             <Download className="h-4 w-4 lg:mr-2" />
             <span className="sr-only lg:not-sr-only">Exportar</span>
@@ -888,7 +876,7 @@ export default function BudgetPage() {
           {isObispado && (
             <Dialog open={isBudgetDialogOpen} onOpenChange={setIsBudgetDialogOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="button-edit-ward-budget">
+                <Button data-testid="button-edit-ward-budget" className="rounded-2xl bg-[#171b26] text-slate-300 hover:bg-[#202637]">
                   <Edit2 className="h-4 w-4 mr-2" />
                   Presupuesto Global
                 </Button>
@@ -1024,7 +1012,7 @@ export default function BudgetPage() {
           )}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-request">
+              <Button data-testid="button-create-request" className="rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-500 text-white shadow-[0_0_24px_rgba(124,58,237,0.55)] hover:from-violet-500 hover:to-indigo-400">
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Solicitud
               </Button>
@@ -1366,8 +1354,18 @@ export default function BudgetPage() {
         </div>
       </div>
 
+      <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
+        <TabsList className="mb-6 h-auto w-full justify-start gap-2 rounded-2xl bg-transparent p-0">
+          <TabsTrigger value="resumen" className="rounded-full px-5 py-2.5 text-sm font-semibold data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="rounded-full px-5 py-2.5 text-sm font-semibold data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">
+            Solicitudes
+            <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{filteredRequests.length}</span>
+          </TabsTrigger>
+          {isObispado && <TabsTrigger value="organizaciones" className="rounded-full px-5 py-2.5 text-sm font-semibold data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Organizaciones</TabsTrigger>}
+        </TabsList>
+
       {/* Organization Member Budget Card */}
-      {isOrgMember && user?.organizationId && (
+      {activeSection === "resumen" && isOrgMember && user?.organizationId && (
         (() => {
           const myOrg = (organizations as Organization[]).find((o) => o.id === user.organizationId);
           const now = new Date();
@@ -1392,7 +1390,9 @@ export default function BudgetPage() {
                   <CardTitle className="text-lg">Mi Presupuesto</CardTitle>
                   <CardDescription>{myOrg?.name}</CardDescription>
                 </div>
-                <Euro className="h-6 w-6 text-muted-foreground" />
+                <IconBadge tone="violet">
+                  <Euro className="h-4 w-4 text-white" />
+                </IconBadge>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
@@ -1425,62 +1425,96 @@ export default function BudgetPage() {
       )}
 
       {/* Global Budget Card - Only for Obispado */}
-      {isObispado && (
-        <Card className="mb-6">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-            <div>
-              <CardTitle className="text-lg">Presupuesto Global del Barrio</CardTitle>
-              <CardDescription>Presupuesto anual y trimestre actual</CardDescription>
-            </div>
-            <Euro className="h-6 w-6 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="text-4xl font-bold" data-testid="text-ward-budget-annual">
-                  €{annualBudget.toFixed(2)}
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Presupuesto anual {wardBudget?.year ?? currentYear}
-                </p>
-                <div className="mt-4 rounded-lg border p-3">
-                  <div className="text-sm font-medium">Trimestre {currentQuarter}</div>
-                  <div className="text-2xl font-semibold" data-testid="text-ward-budget-quarter">
-                    €{globalBudget.toFixed(2)}
+      {activeSection === "resumen" && isObispado && (
+        <>
+          <Card className="mb-5">
+            <CardContent className="p-6 pb-5">
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Presupuesto anual {wardBudget?.year ?? currentYear}</p>
+              <div className="text-[42px] font-extrabold leading-none tracking-[-0.03em] text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
+              <div className="mt-7 grid grid-cols-4 gap-3">
+                {[1, 2, 3, 4].map((quarter) => (
+                  <div key={quarter} className="rounded-xl bg-white/5 px-3 py-2">
+                    <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
+                    <p className={`whitespace-nowrap text-[12px] font-extrabold leading-tight md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Presupuesto disponible para el trimestre actual
-                  </p>
-                </div>
-                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                  <div>Trimestre 1: €{quarterBudgets[1].toFixed(2)}</div>
-                  <div>Trimestre 2: €{quarterBudgets[2].toFixed(2)}</div>
-                  <div>Trimestre 3: €{quarterBudgets[3].toFixed(2)}</div>
-                  <div>Trimestre 4: €{quarterBudgets[4].toFixed(2)}</div>
-                </div>
+                ))}
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Asignado a organizaciones</span>
-                  <span className="font-semibold">€{totalAssignedToOrgs.toFixed(2)} ({globalUtilizationPercent}%)</span>
-                </div>
-                <Progress value={globalUtilizationPercent} className="h-2" />
-              </div>
+          <div className="mb-5 grid grid-cols-3 gap-3">
+            <Card>
+              <CardContent className="px-[14px] py-3">
+                <p className="mb-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Trimestre actual</p>
+                <p className="whitespace-nowrap text-[18px] font-extrabold leading-none text-slate-100 md:text-[20px]" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
+                <p className="mt-1 text-[11px] text-slate-500">T{currentQuarter}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="px-[14px] py-3">
+                <p className="mb-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Solicitado</p>
+                <p className="whitespace-nowrap text-[18px] font-extrabold leading-none text-amber-400 md:text-[20px]" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="px-[14px] py-3">
+                <p className="mb-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Aprobado</p>
+                <p className="whitespace-nowrap text-[18px] font-extrabold leading-none text-emerald-400 md:text-[20px]" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas</p>
+              </CardContent>
+            </Card>
+          </div>
 
-              <div className="flex justify-between text-sm">
-                <span>Disponible para asignar</span>
-                <span className={`font-semibold ${remainingGlobalBudget < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  €{remainingGlobalBudget.toFixed(2)}
-                </span>
+          <Card className="mb-6">
+            <CardContent className="p-6">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Uso del trimestre actual</p>
+                <p className="text-2xl font-extrabold text-violet-400">{globalUtilizationPercent}%</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Progress value={globalUtilizationPercent} className="h-1.5" />
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <p className="text-slate-400">Asignado a orgs: <span className="font-bold text-slate-100">€{totalAssignedToOrgs.toFixed(2)}</span></p>
+                <p className={`font-bold ${remainingGlobalBudget < 0 ? "text-rose-400" : "text-emerald-400"}`}>Disponible: €{remainingGlobalBudget.toFixed(2)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="mb-2 text-[13px] font-semibold text-white/70">Requieren acción ⚡</div>
+          <div className="mb-6 space-y-3">
+            {(filteredRequests as any[])
+              .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
+              .slice(0, 3)
+              .map((request: any) => {
+                const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
+                return (
+                  <Card key={`summary-action-${request.id}`} data-testid={`summary-action-${request.id}`}>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-[220px] flex-1">
+                        <p className="mb-1 text-[13px] font-semibold leading-tight text-slate-100">{request.description}</p>
+                        <div className="flex items-center gap-3">
+                          {getStatusBadge(request.status)}
+                          <span className="text-[11px] text-slate-500">{org?.name || "Sin organización"}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-[18px] font-extrabold leading-none text-slate-100">€{request.amount.toFixed(2)}</p>
+                        {request.status === "solicitado" ? (
+                          <Button size="sm" className="h-7 rounded-lg bg-emerald-700 px-3 text-[11px] text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} disabled={approveMutation.isPending}>Aprobar</Button>
+                        ) : (
+                          <Button size="sm" className="h-7 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-500 px-3 text-[11px]" onClick={() => handleSignAsBishop(request.id)} disabled={signMutation.isPending}>Firmar</Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
+        </>
       )}
 
       {/* Organization Budget Cards - Only for Obispado */}
-      {isObispado && (
+      {activeSection === "organizaciones" && isObispado && (
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-4">Presupuestos por Organización</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1615,234 +1649,109 @@ export default function BudgetPage() {
         </div>
       )}
 
-      {/* Stats Cards for Obispado */}
-      {isObispado && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Solicitado</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-solicited">
-                €{totalSolicited.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes
-              </p>
-            </CardContent>
-          </Card>
+      {/* Stats cards moved into Resumen hero layout */}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Aprobado</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-approved">
-                €{totalApproved.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas
-              </p>
-            </CardContent>
-          </Card>
+      {activeSection === "solicitudes" && (
+      <>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          ["todas", "Todas"],
+          ["pendientes", "Pendientes"],
+          ["aprobadas", "Aprobadas"],
+          ["completadas", "Completadas"],
+          ["rechazadas", "Rechazadas"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
+            className={requestStatusFilter === value ? "rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.45)]" : "rounded-full bg-[#171b26] px-5 py-2 text-sm font-semibold text-slate-400"}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Solicitudes</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-requests">
-                {(requests as any[]).length}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                solicitudes totales
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <div className="space-y-4">
+        {visibleRequests.length > 0 ? (
+          (visibleRequests as any[]).map((request: any) => {
+            const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
+            const accent = request.status === "aprobado" || request.status === "completado"
+              ? "from-emerald-500/45"
+              : request.status === "pendiente_firma_obispo"
+                ? "from-violet-500/45"
+                : request.status === "rechazada"
+                  ? "from-rose-500/45"
+                  : "from-amber-500/45";
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Solicitudes de Presupuesto</CardTitle>
-          <CardDescription>
-            Todas las solicitudes de presupuesto del barrio (en euros)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Descripción</TableHead>
-                <TableHead>Monto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Adjuntos</TableHead>
-                <TableHead>Fecha</TableHead>
-                {showActionsColumn && <TableHead>Acciones</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRequests.length > 0 ? (
-                (filteredRequests as any[]).map((request: any) => {
-                  const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
-                  return (
-                  <TableRow
-                    key={request.id}
-                    data-testid={`row-request-${request.id}`}
-                    className={highlightedRequestId === request.id ? "bg-amber-50/60 transition-colors duration-700" : undefined}
-                  >
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <span>{request.description}</span>
-                        {org && (
-                          <Badge variant="outline" className="text-xs" data-testid={`badge-org-${request.id}`}>
-                            {org.name}
-                          </Badge>
-                        )}
+            return (
+              <Card key={request.id} className={highlightedRequestId === request.id ? "ring-2 ring-white/70" : ""} data-testid={`row-request-${request.id}`}>
+                <div className="p-6">
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {getStatusBadge(request.status)}
+                        {org && <span className="text-sm text-slate-500">{org.name}</span>}
                       </div>
-                    </TableCell>
-                    <TableCell>€{request.amount.toFixed(2)}</TableCell>
-                    <TableCell>{getStatusBadge(request.status)}</TableCell>
-                    <TableCell>
-                      {request.receipts && request.receipts.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                          {request.receipts.map((receipt: any, index: number) =>
-                            receipt.url ? (
-                              <button
-                                key={`${request.id}-receipt-${index}`}
-                                type="button"
-                                onClick={() => void downloadReceipt(receipt)}
-                                className="text-left text-xs text-blue-600 hover:underline"
-                              >
-                                {getReceiptLabel(receipt)}: {receipt.filename}
-                              </button>
-                            ) : (
-                              <span
-                                key={`${request.id}-receipt-${index}`}
-                                className="text-xs text-muted-foreground"
-                              >
-                                {getReceiptLabel(receipt)}: {receipt.filename}
-                              </span>
-                            )
-                          )}
-                          {request.bishopSignedPlanUrl && (
-                            <button
-                              type="button"
-                              onClick={() => void downloadReceipt({ filename: request.bishopSignedPlanFilename || "solicitud-firmada.pdf", url: request.bishopSignedPlanUrl })}
-                              className="text-left text-xs text-emerald-700 hover:underline"
-                            >
-                              Solicitud de gasto firmada: {request.bishopSignedPlanFilename || "Descargar"}
-                            </button>
-                          )}
-                        </div>
-                      ) : request.bishopSignedPlanUrl ? (
+                      <p className="text-lg font-semibold leading-tight text-foreground md:text-xl">{request.description}</p>
+                      <p className="text-xs text-muted-foreground md:text-sm">
+                        {new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}
+                        {request.receipts && request.receipts.length > 0 && (
+                          <span className="ml-3 text-violet-400">{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
+                        )}
+                      </p>
+                    </div>
+                    <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{request.amount.toFixed(2)}</p>
+                  </div>
+
+                  {request.receipts && request.receipts.length > 0 && (
+                    <div className="mb-4 flex flex-col gap-1">
+                      {request.receipts.map((receipt: any, index: number) => (
                         <button
+                          key={`${request.id}-receipt-${index}`}
                           type="button"
-                          onClick={() => void downloadReceipt({ filename: request.bishopSignedPlanFilename || "solicitud-firmada.pdf", url: request.bishopSignedPlanUrl })}
-                          className="text-left text-xs text-emerald-700 hover:underline"
+                          onClick={() => void downloadReceipt(receipt)}
+                          className="text-left text-xs text-violet-300 hover:underline"
                         >
-                          Solicitud de gasto firmada: {request.bishopSignedPlanFilename || "Descargar"}
+                          {getReceiptLabel(receipt)}: {receipt.filename}
                         </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Sin adjuntos</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(request.createdAt).toLocaleDateString("es-ES", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </TableCell>
-                    {showActionsColumn && (
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {canApprove && request.status === "solicitado" && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleApprove(request.id)}
-                              data-testid={`button-approve-${request.id}`}
-                              disabled={approveMutation.isPending}
-                            >
-                              <CheckCircle2 className="h-4 w-4 mr-1" />
-                              Aprobar
-                            </Button>
-                          )}
-                          {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => handleSignAsBishop(request.id)}
-                                data-testid={`button-sign-budget-${request.id}`}
-                                disabled={signMutation.isPending || reviewMutation.isPending}
-                              >
-                                Firmar solicitud
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleReviewByBishop(request.id, "enmendar")}
-                                data-testid={`button-amend-budget-${request.id}`}
-                                disabled={signMutation.isPending || reviewMutation.isPending}
-                              >
-                                Enmendar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleReviewByBishop(request.id, "rechazar")}
-                                data-testid={`button-reject-budget-${request.id}`}
-                                disabled={signMutation.isPending || reviewMutation.isPending}
-                              >
-                                Rechazar
-                              </Button>
-                            </>
-                          )}
-                          {request.status === "aprobado" &&
-                            request.requestedBy === user?.id &&
-                            shouldShowAddExpenseReceipts(request) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openReceiptsDialog(request)}
-                              data-testid={`button-add-expense-receipts-${request.id}`}
-                            >
-                              Adjuntar comprobantes
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDelete(request.id)}
-                              data-testid={`button-delete-budget-${request.id}`}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className="h-4 w-4 lg:mr-1" />
-                              <span className="sr-only lg:not-sr-only">Eliminar</span>
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {canApprove && request.status === "solicitado" && (
+                      <Button size="sm" className="bg-emerald-700 text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} data-testid={`button-approve-${request.id}`} disabled={approveMutation.isPending}>Aprobar</Button>
                     )}
-                  </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow key="empty">
-                  <TableCell colSpan={showActionsColumn ? 6 : 5} className="text-center py-8 text-muted-foreground">
-                    No hay solicitudes de presupuesto
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
+                      <>
+                        <Button size="sm" className="bg-violet-600 hover:bg-violet-500" onClick={() => handleSignAsBishop(request.id)} data-testid={`button-sign-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Firmar</Button>
+                        <Button size="sm" variant="secondary" onClick={() => handleReviewByBishop(request.id, "enmendar")} data-testid={`button-amend-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Enmendar</Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleReviewByBishop(request.id, "rechazar")} data-testid={`button-reject-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Rechazar</Button>
+                      </>
+                    )}
+                    {request.status === "aprobado" && request.requestedBy === user?.id && shouldShowAddExpenseReceipts(request) && (
+                      <Button size="sm" variant="secondary" onClick={() => openReceiptsDialog(request)} data-testid={`button-add-expense-receipts-${request.id}`}>Adjuntar comprobante</Button>
+                    )}
+                    {canDelete && (
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(request.id)} data-testid={`button-delete-budget-${request.id}`} disabled={deleteMutation.isPending}>Eliminar</Button>
+                    )}
+                  </div>
+
+                  <div className={`mt-5 h-px bg-gradient-to-r ${accent} to-transparent`} />
+                </div>
+              </Card>
+            );
+          })
+        ) : (
+          <Card>
+            <div className="p-10 text-center text-sm text-muted-foreground">No hay solicitudes de presupuesto</div>
+          </Card>
+        )}
+      </div>
+      </>
+      )}
+      </Tabs>
 
       <Dialog
         open={isSignDialogOpen}
