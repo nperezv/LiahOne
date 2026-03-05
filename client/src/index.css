@@ -240,8 +240,8 @@
   }
 
   .dark .pilot-glass-card {
-    background: linear-gradient(135deg, rgb(13 13 16 / 0.88) 0%, rgb(13 13 16 / 0.80) 56%, rgb(34 34 38 / 0.62) 100%);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, rgb(30 30 38 / 0.95) 0%, rgb(22 22 30 / 0.90) 56%, rgb(38 38 48 / 0.85) 100%);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   .dark .pilot-glass-card::before {
@@ -249,7 +249,7 @@
   }
 
   .dark .pilot-glass-card:hover {
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
   }
 
   .pilot-icon-badge {
@@ -302,8 +302,8 @@
   }
 
   .dark .shadcn-card {
-    background: linear-gradient(135deg, rgb(13 13 16 / 0.88) 0%, rgb(13 13 16 / 0.80) 56%, rgb(34 34 38 / 0.62) 100%);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, rgb(30 30 38 / 0.95) 0%, rgb(22 22 30 / 0.90) 56%, rgb(38 38 48 / 0.85) 100%);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
   .dark .shadcn-card::before {
@@ -323,7 +323,7 @@
     }
 
     .dark .shadcn-card:hover {
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
     }
   }
 
