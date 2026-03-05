@@ -12,9 +12,9 @@ import {
 import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Settings } from "lucide-react";
 import {
   useAgendaAvailability,
@@ -204,8 +204,8 @@ export default function AgendaPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6" data-testid="agenda-page">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 lg:p-8" data-testid="agenda-page">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda inteligente</h1>
           <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario y tareas personales.</p>
@@ -245,21 +245,34 @@ export default function AgendaPage() {
               </div>
             </DialogContent>
           </Dialog>
-          <Button onClick={() => runPlanner.mutate()} data-testid="button-plan-week">Planificar semana</Button>
+          <Button
+            onClick={() => runPlanner.mutate()}
+            data-testid="button-plan-week"
+            className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 shadow-[0_6px_24px_rgba(99,102,241,0.35)]"
+          >
+            Planificar
+          </Button>
         </div>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">Eventos hoy</p><p className="text-2xl font-semibold">{todayEvents.length}</p></CardContent></Card>
-        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">Tareas abiertas</p><p className="text-2xl font-semibold">{openTasks.length}</p></CardContent></Card>
-        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">En riesgo</p><p className="text-2xl font-semibold text-amber-600">{atRiskTasks.length}</p></CardContent></Card>
+      <section className="grid grid-cols-3 gap-2 sm:gap-3">
+        {[{ label: "Eventos hoy", value: todayEvents.length, tone: "text-foreground" }, { label: "Abiertas", value: openTasks.length, tone: "text-foreground" }, { label: "En riesgo", value: atRiskTasks.length, tone: "text-amber-500" }].map((item) => (
+          <GlassCard key={item.label}>
+            <div className="space-y-1 p-3 sm:p-4">
+              <p className="text-2xl font-extrabold leading-none sm:text-3xl">
+                <span className={item.tone}>{item.value}</span>
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
+            </div>
+          </GlassCard>
+        ))}
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div className="xl:col-span-3 space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Captura por voz</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="order-1 space-y-4 xl:col-span-3">
+          <GlassCard>
+            <div className="space-y-3 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Captura por voz</p>
               <Button className="w-full" variant="outline" onClick={startDictation} disabled={isListening || createAgendaTask.isPending}>
                 {isListening ? "Escuchando..." : "🎤 Empezar a dictar"}
               </Button>
@@ -276,58 +289,80 @@ export default function AgendaPage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
 
-          <Card>
-            <CardHeader><CardTitle>Foco ahora</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {atRiskTasks.slice(0, 3).map((task: any) => (
-                <div key={task.id} className="rounded-lg border p-2">
-                  <p className="font-medium text-sm">{task.title}</p>
-                  <p className="text-xs text-muted-foreground">Prioridad {task.priority}</p>
-                </div>
-              ))}
-              {atRiskTasks.length === 0 && <p className="text-sm text-muted-foreground">Sin tareas críticas.</p>}
-            </CardContent>
-          </Card>
+          <GlassCard>
+            <div className="space-y-3 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Foco ahora ⚡</p>
+              <div className="space-y-2">
+                {atRiskTasks.slice(0, 3).map((task: any) => (
+                  <div key={task.id} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
+                    <p className="text-sm font-medium">{task.title}</p>
+                    <p className="text-xs text-muted-foreground">Prioridad {task.priority}</p>
+                  </div>
+                ))}
+                {atRiskTasks.length === 0 && <p className="text-sm text-muted-foreground">Sin tareas críticas.</p>}
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="order-4 xl:order-none">
+            <div className="space-y-3 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Asignaciones pendientes</p>
+              <div className="space-y-2">
+                {pendingAssignments.slice(0, 6).map((assignment: any) => (
+                  <div key={assignment.id} className="rounded-lg border border-border/70 bg-background/20 p-2 text-xs">
+                    <p className="font-medium">{assignment.title}</p>
+                    <p className="text-muted-foreground">Estado: {assignment.status}</p>
+                    <p className="text-muted-foreground">Ref: {formatAssignmentReference(assignment.relatedTo)}</p>
+                    {assignment.dueDate && <p className="text-muted-foreground">Vence: {new Date(assignment.dueDate).toLocaleDateString("es-ES")}</p>}
+                  </div>
+                ))}
+                {pendingAssignments.length === 0 && <p className="text-sm text-muted-foreground">Sin asignaciones pendientes.</p>}
+              </div>
+            </div>
+          </GlassCard>
         </div>
 
-        <div className="xl:col-span-6 space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Semana</CardTitle></CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 mb-3">
-                <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, -7))}>←</Button>
-                <Button size="sm" variant="outline" onClick={() => setSelectedDate(new Date())}>Hoy</Button>
-                <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, 7))}>→</Button>
+        <div className="order-2 space-y-4 xl:col-span-6">
+          <GlassCard>
+            <div className="space-y-3 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Semana</p>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, -7))}>←</Button>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedDate(new Date())}>Hoy</Button>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, 7))}>→</Button>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-2">
                 {weekDays.map((day) => {
                   const count = events.filter((e) => isSameDay(parseISO(`${e.date}T00:00:00`), day)).length;
                   return (
                     <button
                       key={day.toISOString()}
-                      className={`rounded-lg border p-2 text-left ${isSameDay(day, selectedDate) ? "border-primary" : ""}`}
+                      className={`rounded-xl border p-2 text-center transition-colors ${isSameDay(day, selectedDate) ? "border-violet-400 bg-violet-500/15" : "border-border/70"}`}
                       onClick={() => setSelectedDate(day)}
                     >
-                      <p className="text-xs font-medium">{format(day, "EEE d", { locale: es })}</p>
-                      <p className="text-xs text-muted-foreground">{count} items</p>
+                      <p className="text-[11px] font-semibold leading-tight capitalize">{format(day, "EEE", { locale: es })}</p>
+                      <p className="text-base font-bold leading-tight">{format(day, "d", { locale: es })}</p>
+                      <p className="text-[10px] text-muted-foreground">{count}</p>
                     </button>
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
 
-          <Card>
-            <CardHeader><CardTitle>Timeline del día</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
+          <GlassCard>
+            <div className="space-y-3 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Timeline · {format(selectedDate, "EEE d 'de' MMMM", { locale: es }).toUpperCase()}</p>
               {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
               {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && <p className="text-sm text-muted-foreground">No hay elementos para este día.</p>}
 
               {dayPlans.map((plan: any) => (
-                <div key={plan.id} className="rounded-lg border p-3 border-blue-500/40">
+                <div key={plan.id} className="rounded-lg border border-blue-500/40 bg-blue-500/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">{plan.title}</p>
                     <Badge variant="default">Plan</Badge>
@@ -337,7 +372,7 @@ export default function AgendaPage() {
               ))}
 
               {dayTasksDue.map((task: any) => (
-                <div key={`due-${task.id}`} className="rounded-lg border p-3 border-emerald-500/40">
+                <div key={`due-${task.id}`} className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">{task.title}</p>
                     <Badge variant={task.status === "done" ? "outline" : "default"}>{task.status === "done" ? "Completada" : "Tarea"}</Badge>
@@ -349,65 +384,52 @@ export default function AgendaPage() {
               {filteredDayEvents.map((event) => {
                 const isPast = parseISO(`${event.date}T${event.endTime ?? event.startTime ?? "23:59"}:00`).getTime() < Date.now();
                 return (
-                <div key={event.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{event.title}</p>
-                    <div className="flex items-center gap-2">
-                      {event.sourceType === "interview" ? <Badge variant={isPast ? "outline" : "secondary"}>{isPast ? "Entrevista completada" : "Entrevista programada"}</Badge> : isPast ? <Badge variant="outline">Pasada</Badge> : null}
-                      <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
+                  <div key={event.id} className="rounded-lg border border-border/70 bg-background/20 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{event.title}</p>
+                      <div className="flex items-center gap-2">
+                        {event.sourceType === "interview" ? <Badge variant={isPast ? "outline" : "secondary"}>{isPast ? "Entrevista completada" : "Entrevista programada"}</Badge> : isPast ? <Badge variant="outline">Pasada</Badge> : null}
+                        <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
+                      </div>
                     </div>
+                    <p className="text-xs text-muted-foreground">{event.startTime ? `${event.startTime} - ${event.endTime ?? ""}` : "Sin hora"}</p>
+                    {event.sourceType !== "manual" && (
+                      <Button size="sm" variant="link" className="px-0" onClick={() => setLocation(event.sourceType === "activity" ? "/activities" : "/interviews")}>Abrir módulo original</Button>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{event.startTime ? `${event.startTime} - ${event.endTime ?? ""}` : "Sin hora"}</p>
-                  {event.sourceType !== "manual" && (
-                    <Button size="sm" variant="link" className="px-0" onClick={() => setLocation(event.sourceType === "activity" ? "/activities" : "/interviews")}>Abrir módulo original</Button>
-                  )}
-                </div>
-              )})}
-            </CardContent>
-          </Card>
+                );
+              })}
+            </div>
+          </GlassCard>
         </div>
 
-        <div className="xl:col-span-3 space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Tareas</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
+        <div className="order-3 xl:col-span-3">
+          <GlassCard>
+            <div className="space-y-3 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Tareas</p>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={taskFilter === "open" ? "default" : "outline"} onClick={() => setTaskFilter("open")}>Open</Button>
-                <Button size="sm" variant={taskFilter === "planned" ? "default" : "outline"} onClick={() => setTaskFilter("planned")}>Planned</Button>
-                <Button size="sm" variant={taskFilter === "atRisk" ? "default" : "outline"} onClick={() => setTaskFilter("atRisk")}>At Risk</Button>
-                <Button size="sm" variant={taskFilter === "done" ? "default" : "outline"} onClick={() => setTaskFilter("done")}>Done</Button>
+                <Button size="sm" variant={taskFilter === "open" ? "default" : "outline"} onClick={() => setTaskFilter("open")}>Abiertas</Button>
+                <Button size="sm" variant={taskFilter === "planned" ? "default" : "outline"} onClick={() => setTaskFilter("planned")}>Planif.</Button>
+                <Button size="sm" variant={taskFilter === "atRisk" ? "default" : "outline"} onClick={() => setTaskFilter("atRisk")}>Riesgo</Button>
+                <Button size="sm" variant={taskFilter === "done" ? "default" : "outline"} onClick={() => setTaskFilter("done")}>Hechas</Button>
               </div>
-              {filteredTasks.slice(0, 8).map((task: any) => (
-                <div key={task.id} className="rounded-lg border p-2" data-testid={`task-${task.id}`}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">{task.title}</p>
-                    <Badge>{task.priority}</Badge>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                {filteredTasks.slice(0, 8).map((task: any) => (
+                  <div key={task.id} className="rounded-lg border border-border/70 bg-background/20 p-2" data-testid={`task-${task.id}`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">{task.title}</p>
+                      <Badge>{task.priority}</Badge>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      {task.status !== "done" && <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ id: task.id, status: "done" })}>Completar</Button>}
+                      {task.status !== "canceled" && <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ id: task.id, status: "canceled" })}>Cancelar</Button>}
+                    </div>
                   </div>
-                  <div className="mt-2 flex gap-2">
-                    {task.status !== "done" && <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ id: task.id, status: "done" })}>Completar</Button>}
-                    {task.status !== "canceled" && <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ id: task.id, status: "canceled" })}>Cancelar</Button>}
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-
-          <Card>
-            <CardHeader><CardTitle>Asignaciones pendientes</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {pendingAssignments.slice(0, 6).map((assignment: any) => (
-                <div key={assignment.id} className="rounded border p-2 text-xs">
-                  <p className="font-medium">{assignment.title}</p>
-                  <p className="text-muted-foreground">Estado: {assignment.status}</p>
-                  <p className="text-muted-foreground">Ref: {formatAssignmentReference(assignment.relatedTo)}</p>
-                  {assignment.dueDate && <p className="text-muted-foreground">Vence: {new Date(assignment.dueDate).toLocaleDateString("es-ES")}</p>}
-                </div>
-              ))}
-              {pendingAssignments.length === 0 && <p className="text-sm text-muted-foreground">Sin asignaciones pendientes.</p>}
-            </CardContent>
-          </Card>
-
+                ))}
+                {filteredTasks.length === 0 && <p className="text-sm text-muted-foreground">Sin tareas en esta vista.</p>}
+              </div>
+            </div>
+          </GlassCard>
         </div>
       </section>
     </div>
