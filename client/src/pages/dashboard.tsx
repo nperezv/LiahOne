@@ -53,7 +53,7 @@ function ProgressRing({ value }: { value: number }) {
             <stop offset="100%" stopColor="#6366f1" />
           </linearGradient>
         </defs>
-        <circle cx={size / 2} cy={size / 2} r={radius} className="text-white/10" stroke="currentColor" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} className="text-slate-300 dark:text-white/10" stroke="currentColor" strokeWidth={stroke} fill="none" />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -67,8 +67,8 @@ function ProgressRing({ value }: { value: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-sm font-semibold text-white">{progress}%</span>
-        <span className="text-[10px] tracking-[0.06em] text-white/40">META</span>
+        <span className="text-sm font-semibold text-slate-900 dark:text-white">{progress}%</span>
+        <span className="text-[10px] tracking-[0.06em] text-slate-500 dark:text-white/40">META</span>
       </div>
     </div>
   );
@@ -92,8 +92,8 @@ function QuickCard({
           <Icon className="h-4 w-4 text-white" />
         </IconBadge>
         <div>
-          <p className="text-sm font-semibold text-white">{title}</p>
-          <p className="text-xs text-white/40">{subtitle}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p>
+          <p className="text-xs text-slate-500 dark:text-white/40">{subtitle}</p>
         </div>
       </div>
     </GlassCard>
@@ -108,17 +108,17 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#060608] p-8">
+      <div className="min-h-screen bg-slate-50 p-8 dark:bg-[#060608]">
         <div className="mb-6">
-          <Skeleton className="mb-2 h-8 w-64 bg-white/10" />
-          <Skeleton className="h-4 w-96 bg-white/10" />
+          <Skeleton className="mb-2 h-8 w-64 bg-slate-200 dark:bg-white/10" />
+          <Skeleton className="h-4 w-96 bg-slate-200 dark:bg-white/10" />
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <GlassCard key={i}>
               <div className="space-y-3 p-6">
-                <Skeleton className="h-6 w-32 bg-white/10" />
-                <Skeleton className="h-20 w-full bg-white/10" />
+                <Skeleton className="h-6 w-32 bg-slate-200 dark:bg-white/10" />
+                <Skeleton className="h-20 w-full bg-slate-200 dark:bg-white/10" />
               </div>
             </GlassCard>
           ))}
@@ -180,13 +180,18 @@ export default function DashboardPage() {
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
-    <div className="min-h-screen bg-[#060608] space-y-6 px-4 py-6 text-[#f0f0f8] sm:px-8">
+    <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-extrabold tracking-tight">{isBishopric ? "Dashboard" : roleDashboardTitle[userRole] ?? "Dashboard"}</h1>
-        <p className="text-sm text-white/45">
+        <p className="text-sm text-slate-500 dark:text-white/45">
           {getGreeting(new Date())}
           {user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
         </p>
+        <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${weeklyLoadStatus.tone}`}>
+          <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
+          <span>{weeklyLoadStatus.label}</span>
+          <span className="font-normal text-slate-500 dark:text-white/45">· {weeklyLoadStatus.detail}</span>
+        </div>
       </div>
 
       <GlassCard className="overflow-hidden">
@@ -201,15 +206,15 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
               <p className="text-lg font-extrabold text-violet-400">{data.upcomingInterviews}</p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/35">Entrevistas</p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-white/35">Entrevistas</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
               <p className="text-lg font-extrabold text-indigo-400">{data.pendingAssignments}</p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/35">Pendientes</p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-white/35">Pendientes</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
               <p className="text-lg font-extrabold text-sky-400">{data.upcomingActivities.length}</p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/35">Actividades</p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-white/35">Actividades</p>
             </div>
           </div>
 
@@ -225,9 +230,9 @@ export default function DashboardPage() {
             <GlassCard className="cursor-pointer" onClick={() => setLocation("/goals")}>
               <div className="flex items-center justify-between gap-4 p-5">
                 <div className="space-y-1">
-                  <p className="text-[11px] uppercase tracking-[0.07em] text-white/40">Metas</p>
-                  <p className="text-2xl font-extrabold">{data.goals.completed}<span className="text-sm font-medium text-white/30">/{data.goals.total}</span></p>
-                  <p className="text-xs text-white/45">{data.goals.percentage}% de avance</p>
+                  <p className="text-[11px] uppercase tracking-[0.07em] text-slate-500 dark:text-white/40">Metas</p>
+                  <p className="text-2xl font-extrabold">{data.goals.completed}<span className="text-sm font-medium text-slate-500 dark:text-white/30">/{data.goals.total}</span></p>
+                  <p className="text-xs text-slate-500 dark:text-white/45">{data.goals.percentage}% de avance</p>
                 </div>
                 <ProgressRing value={data.goals.percentage} />
               </div>
@@ -247,7 +252,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold">Cumpleaños próximos 🎂</h2>
-              <Button variant="ghost" size="sm" className="text-violet-400 hover:text-violet-300" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
+              <Button variant="ghost" size="sm" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
             </div>
             <GlassCard>
               <div className="space-y-1 p-3">
@@ -258,13 +263,13 @@ export default function DashboardPage() {
                         <IconBadge tone="violet" className="h-8 w-8 rounded-lg">
                           <span className="text-xs font-bold text-white">{birthday.name.charAt(0)}</span>
                         </IconBadge>
-                        <p className="font-medium text-white">{birthday.name}</p>
+                        <p className="font-medium text-slate-900 dark:text-white">{birthday.name}</p>
                       </div>
-                      <Badge className="border-violet-500/30 bg-violet-500/10 text-violet-300">{birthday.date}</Badge>
+                      <Badge className="border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300">{birthday.date}</Badge>
                     </div>
                   ))
                 ) : (
-                  <p className="p-3 text-sm text-white/45">No hay cumpleaños registrados</p>
+                  <p className="p-3 text-sm text-slate-500 dark:text-white/45">No hay cumpleaños registrados</p>
                 )}
               </div>
             </GlassCard>
@@ -278,22 +283,22 @@ export default function DashboardPage() {
             <GlassCard className="no-hover-interaction-elevate">
               <div className="space-y-2 p-5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-white/45">Semáforo semanal</p>
+                  <p className="text-xs font-semibold text-slate-500 dark:text-white/45">Semáforo semanal</p>
                   <div className={`inline-flex items-center gap-1 rounded-full border border-current/30 bg-current/10 px-2 py-0.5 text-[11px] ${organizationSemaphore.textClass}`}>
                     <span className={`h-2 w-2 rounded-full ${organizationSemaphore.dotClass}`} />
                     {organizationSemaphore.label}
                   </div>
                 </div>
-                <p className="text-lg font-semibold text-white">Carga controlada</p>
-                <p className="text-xs text-white/45">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">Carga controlada</p>
+                <p className="text-xs text-slate-500 dark:text-white/45">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
               </div>
             </GlassCard>
 
             <GlassCard className="cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
               <div className="space-y-2 p-5">
-                <p className="text-xs font-semibold text-white/45">Siguiente mejor acción</p>
-                <p className="text-base font-semibold leading-tight text-white">Solicitar entrevista con el Obispado</p>
-                <p className="text-xs text-white/45">{data.upcomingInterviews} entrevistas por coordinar</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-white/45">Siguiente mejor acción</p>
+                <p className="text-base font-semibold leading-tight text-slate-900 dark:text-white">Solicitar entrevista con el Obispado</p>
+                <p className="text-xs text-slate-500 dark:text-white/45">{data.upcomingInterviews} entrevistas por coordinar</p>
                 <Button className="h-8 w-full rounded-full bg-gradient-to-r from-violet-600/90 to-indigo-600/90 hover:from-violet-600 hover:to-indigo-600" size="sm">
                   Ir ahora <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
@@ -304,8 +309,8 @@ export default function DashboardPage() {
           <GlassCard className="cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
             <div className="flex items-center justify-between gap-3 p-5">
               <div>
-                <p className="text-sm font-semibold text-white">Liderazgo</p>
-                <p className="text-xs text-white/45">Ver líderes y organizaciones del barrio</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Liderazgo</p>
+                <p className="text-xs text-slate-500 dark:text-white/45">Ver líderes y organizaciones del barrio</p>
               </div>
               <IconBadge tone="blue">
                 <Users className="h-5 w-5 text-white" />
