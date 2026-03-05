@@ -796,7 +796,7 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <Card className="border-border/70 bg-card/90 dark:bg-gradient-to-b dark:from-[#111827] dark:via-[#0f1728] dark:to-[#0b1220]">
+      <Card className="border-border/70">
         <CardHeader className="px-0">
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Users className="h-5 w-5 text-primary" />
