@@ -280,6 +280,8 @@
   .pilot-icon-badge--amber { background: linear-gradient(135deg, #d97706, #b45309); }
   .pilot-icon-badge--rose { background: linear-gradient(135deg, #e11d48, #be123c); }
   .pilot-icon-badge--blue { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+  .pilot-icon-badge--teal { background: linear-gradient(135deg, #10b981, #0d9488); }
+  .pilot-icon-badge--orange { background: linear-gradient(135deg, #d97706, #b45309); }
 }
 
 @layer base {
