@@ -298,8 +298,14 @@ export default function BudgetPage() {
   }, [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
   const currentQuarterBudget = quarterBudgets[currentQuarter as 1 | 2 | 3 | 4] || 0;
 
-  const totalAssignedToOrgs = Object.values(orgBudgetsByOrg)
-    .flat()
+  const validOrganizationIds = new Set(
+    (organizations as Organization[])
+      .filter((org) => org.type !== "barrio")
+      .map((org) => org.id)
+  );
+  const totalAssignedToOrgs = Object.entries(orgBudgetsByOrg)
+    .filter(([orgId]) => validOrganizationIds.has(orgId))
+    .flatMap(([, budgets]) => budgets)
     .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
     .reduce((sum: number, budget: any) => sum + toBudgetNumber(budget?.amount), 0);
   const globalBudget = currentQuarterBudget;
@@ -1425,7 +1431,7 @@ export default function BudgetPage() {
             <CardContent className="p-6 pb-5">
               <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Presupuesto anual {wardBudget?.year ?? currentYear}</p>
               <div className="text-[42px] font-extrabold leading-none tracking-[-0.03em] text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
-              <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="mt-7 grid grid-cols-4 gap-3">
                 {[1, 2, 3, 4].map((quarter) => (
                   <div key={quarter} className="rounded-xl bg-white/5 px-3 py-2.5">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
@@ -1436,7 +1442,7 @@ export default function BudgetPage() {
             </CardContent>
           </Card>
 
-          <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="mb-5 grid grid-cols-3 gap-3">
             <Card>
               <CardContent className="px-[18px] py-4">
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">Trimestre actual</p>
