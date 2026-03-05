@@ -840,6 +840,10 @@ export default function BudgetPage() {
     }
   });
 
+  const actionRequests = (filteredRequests as any[])
+    .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
+    .slice(0, 3);
+
   if (requestsLoading || wardBudgetLoading || orgsLoading) {
     return (
       <div className="p-8">
@@ -1010,7 +1014,7 @@ export default function BudgetPage() {
             <DialogTrigger asChild>
               <Button
                 data-testid="button-create-request"
-                className="rounded-lg border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)] transition-all duration-200 hover:-translate-y-0.5 hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.55)]"
+                className="h-9 rounded-lg border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)] transition-all duration-200 hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.55)]"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Nueva Solicitud
@@ -1483,12 +1487,9 @@ export default function BudgetPage() {
             </CardContent>
           </Card>
 
-          <div className="mb-2 text-[13px] font-semibold text-white/70">Requieren acción ⚡</div>
-          <div className="mb-6 space-y-3">
-            {(filteredRequests as any[])
-              .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
-              .slice(0, 3)
-              .map((request: any) => {
+          {actionRequests.length > 0 && (
+            <div className="mb-6 space-y-3">
+              {actionRequests.map((request: any) => {
                 const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
                 return (
                   <Card key={`summary-action-${request.id}`} data-testid={`summary-action-${request.id}`}>
@@ -1512,14 +1513,14 @@ export default function BudgetPage() {
                   </Card>
                 );
               })}
-          </div>
+            </div>
+          )}
         </>
       )}
 
       {/* Organization Budget Cards - Only for Obispado */}
       {activeSection === "organizaciones" && isObispado && (
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-4">Presupuestos por Organización</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {(organizations as Organization[]).map((org: Organization) => {
               const now = new Date();
