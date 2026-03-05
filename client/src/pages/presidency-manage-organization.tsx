@@ -613,7 +613,7 @@ export default function PresidencyManageOrganizationPage() {
         </Button>
       </div>
 
-      <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_12px_40px_rgba(0,0,0,0.2)]">
+      <Card className="rounded-3xl border-border/70">
         <CardHeader className="pb-1.5">
           <CardTitle className="text-lg">Métricas de avance</CardTitle>
           <CardDescription>
@@ -713,7 +713,7 @@ export default function PresidencyManageOrganizationPage() {
 
           <div className="border-t border-border/60 pt-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card className="rounded-3xl border-border/70">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("meetings")}>
               <div>
@@ -756,7 +756,7 @@ export default function PresidencyManageOrganizationPage() {
         </Card>
 
         {canUseOrganizationInterviews ? (
-        <Card className="rounded-3xl border-border/70 bg-card/95">
+        <Card className="rounded-3xl border-border/70">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("interviews")}>
               <div>
@@ -804,7 +804,7 @@ export default function PresidencyManageOrganizationPage() {
 
         ) : null}
 
-        <Card className="rounded-3xl border-border/70 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur">
+        <Card className="rounded-3xl border-border/70">
           <CardHeader className="pb-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => toggleCard("attendance")}>
               <div>
