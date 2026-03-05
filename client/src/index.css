@@ -245,11 +245,11 @@
   }
 
   .dark .pilot-glass-card::before {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
   }
 
   .dark .pilot-glass-card:hover {
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
   }
 
   .pilot-icon-badge {
@@ -307,7 +307,7 @@
   }
 
   .dark .shadcn-card::before {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
   }
 
   .dark body {
@@ -323,7 +323,7 @@
     }
 
     .dark .shadcn-card:hover {
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.5);
     }
   }
 
