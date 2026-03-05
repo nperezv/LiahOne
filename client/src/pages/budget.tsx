@@ -1355,13 +1355,19 @@ export default function BudgetPage() {
       </div>
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
-        <TabsList className="mb-6 h-auto w-full justify-start gap-2 rounded-2xl bg-transparent p-0">
-          <TabsTrigger value="resumen" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">
-            Solicitudes
-            <span className={`ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
+        <TabsList className="mb-6 grid h-auto w-full grid-cols-3 gap-2 rounded-xl bg-transparent p-0">
+          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2.5 text-center text-sm font-semibold text-slate-300 shadow-none transition data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)]">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2.5 text-center text-sm font-semibold text-slate-300 shadow-none transition data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)]">
+            <span className="truncate">Solicitudes</span>
+            <span className={`ml-2 inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-md px-1.5 text-xs font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
-          {isObispado && <TabsTrigger value="organizaciones" className="rounded-full border-0 bg-[#171922] px-5 py-2.5 text-sm font-semibold text-slate-300 shadow-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_28px_rgba(124,58,237,0.55)]">Organizaciones</TabsTrigger>}
+          {isObispado ? (
+            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2.5 text-center text-sm font-semibold text-slate-300 shadow-none transition data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)]">
+              <span className="truncate">Organizaciones</span>
+            </TabsTrigger>
+          ) : (
+            <div className="hidden" />
+          )}
         </TabsList>
 
       {/* Organization Member Budget Card */}
