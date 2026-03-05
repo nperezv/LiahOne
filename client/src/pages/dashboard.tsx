@@ -1,3 +1,4 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Cake, CalendarDays, Check, ClipboardList, FileText, HandCoins, Target, UserCheck, Users, Wallet } from "lucide-react";
@@ -5,8 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardStats, useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { GlassCard } from "@/components/ui/glass-card";
-import { IconBadge } from "@/components/ui/icon-badge";
 
 const clampProgress = (value: number) => Math.min(100, Math.max(0, value));
 
@@ -82,17 +81,15 @@ function QuickCard({
   onClick: () => void;
 }) {
   return (
-    <GlassCard className="cursor-pointer" onClick={onClick}>
-      <div className="space-y-2 p-6">
+    <Card className="hover-elevate cursor-pointer" onClick={onClick}>
+      <CardContent className="space-y-2 pt-6">
         <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-          <IconBadge className="h-8 w-8">
-            <Icon className="h-4 w-4 text-zinc-200" />
-          </IconBadge>
+          <Icon className="h-4 w-4 text-primary" />
           {title}
         </div>
         <p className="text-sm">{subtitle}</p>
-      </div>
-    </GlassCard>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -111,14 +108,14 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <GlassCard key={i}>
-              <div className="p-6 pb-0">
+            <Card key={i}>
+              <CardHeader>
                 <Skeleton className="h-6 w-32" />
-              </div>
-              <div className="p-6">
+              </CardHeader>
+              <CardContent>
                 <Skeleton className="h-20 w-full" />
-              </div>
-            </GlassCard>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -188,17 +185,17 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <GlassCard className="overflow-hidden">
-        <div className="space-y-3 p-6 pb-0">
+      <Card className="overflow-hidden bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200 dark:from-amber-900/60 dark:via-amber-800/50 dark:to-amber-700/40">
+        <CardHeader className="space-y-3">
           <div className="flex items-center gap-2">
-            <IconBadge className="rounded-xl">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/70 text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-200">
               <CalendarDays className="h-4 w-4" />
-            </IconBadge>
-            <h2 className="text-lg font-semibold">{isBishopric ? "Hoy en el barrio" : "Resumen de tu rol"}</h2>
+            </span>
+            <CardTitle className="text-lg font-semibold">{isBishopric ? "Hoy en el barrio" : "Resumen de tu rol"}</CardTitle>
           </div>
-        </div>
-        <div className="space-y-4 p-6">
-          <ul className="space-y-2 text-sm text-zinc-200/90">
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ul className="space-y-2 text-sm text-amber-900/80 dark:text-amber-100/80">
             <li className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               {data.upcomingInterviews} entrevistas esta semana
@@ -212,22 +209,20 @@ export default function DashboardPage() {
               {data.pendingAssignments > 0 ? `${data.pendingAssignments} tareas pendientes` : "Todo lo demás al día"}
             </li>
           </ul>
-          <Button className="w-full rounded-full bg-[#007AFF] text-white hover:bg-[#007AFF]/90" onClick={() => setLocation("/calendar")}>
+          <Button className="w-full rounded-full bg-primary/90 text-primary-foreground hover:bg-primary" onClick={() => setLocation("/calendar")}>
             Ver agenda
           </Button>
-        </div>
-      </GlassCard>
+        </CardContent>
+      </Card>
 
       {isBishopric ? (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <GlassCard className="cursor-pointer" onClick={() => setLocation("/goals")}>
-              <div className="flex items-center justify-between gap-4 p-6">
+            <Card className="hover-elevate cursor-pointer" onClick={() => setLocation("/goals")}>
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <IconBadge>
-                      <Target className="h-5 w-5 text-zinc-200" />
-                    </IconBadge>
+                    <Target className="h-5 w-5 text-primary" />
                     Progreso de metas de barrio
                   </div>
                   <div className="space-y-1 text-sm">
@@ -236,8 +231,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <ProgressRing value={data.goals.percentage} />
-              </div>
-            </GlassCard>
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-2 gap-4">
               <QuickCard title="Presupuesto" subtitle={`${data.budgetRequests.pending} pendientes`} icon={Wallet} onClick={() => setLocation("/budget")} />
@@ -255,15 +250,13 @@ export default function DashboardPage() {
               <h2 className="text-base font-semibold">Cumpleaños</h2>
               <Button variant="ghost" size="sm" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
             </div>
-            <GlassCard>
-              <div className="space-y-3 p-6">
+            <Card>
+              <CardContent className="space-y-3 pt-6">
                 {birthdaysPreview.length > 0 ? (
                   birthdaysPreview.map((birthday, idx) => (
-                    <div key={`${birthday.name}-${idx}`} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-sm" data-testid={`birthday-item-${idx}`}>
+                    <div key={`${birthday.name}-${idx}`} className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2 text-sm" data-testid={`birthday-item-${idx}`}>
                       <div className="flex items-center gap-2">
-                        <IconBadge className="h-8 w-8">
-                          <Cake className="h-4 w-4 text-zinc-200" />
-                        </IconBadge>
+                        <Cake className="h-4 w-4 text-primary" />
                         <p className="font-medium">{birthday.name}</p>
                       </div>
                       <Badge variant="outline">{birthday.date}</Badge>
@@ -272,8 +265,8 @@ export default function DashboardPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">No hay cumpleaños registrados</p>
                 )}
-              </div>
-            </GlassCard>
+              </CardContent>
+            </Card>
           </div>
         </>
       ) : isOrgRole ? (
@@ -281,8 +274,8 @@ export default function DashboardPage() {
           <QuickCard title="Mi organización" subtitle={organization?.name ?? "Panel de presidencia"} icon={Users} onClick={() => navigateWithTransition(setLocation, organizationHref)} />
 
           <div className="grid grid-cols-2 gap-3">
-            <GlassCard className="no-hover-interaction-elevate">
-              <div className="space-y-2 p-5">
+            <Card className="bg-muted/10 no-hover-interaction-elevate">
+              <CardContent className="space-y-2 pt-5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-muted-foreground">Semáforo semanal</p>
                   <div className={`inline-flex items-center gap-1 rounded-full border border-current/30 bg-current/10 px-2 py-0.5 text-[11px] ${organizationSemaphore.textClass}`}>
@@ -292,32 +285,30 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-lg font-semibold">Carga controlada</p>
                 <p className="text-xs text-muted-foreground">{data.pendingAssignments} pendientes · {data.upcomingInterviews} entrevistas</p>
-              </div>
-            </GlassCard>
+              </CardContent>
+            </Card>
 
-            <GlassCard className="cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
-              <div className="space-y-2 p-5">
+            <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/interviews?from=org-dashboard")}>
+              <CardContent className="space-y-2 pt-5">
                 <p className="text-xs font-semibold text-muted-foreground">Siguiente mejor acción</p>
                 <p className="text-base font-semibold leading-tight">Solicitar entrevista con el Obispado</p>
                 <p className="text-xs text-muted-foreground">{data.upcomingInterviews} entrevistas por coordinar</p>
-                <Button className="h-8 w-full rounded-full bg-gradient-to-r from-violet-600/90 to-indigo-600/90 hover:from-violet-600 hover:to-indigo-600" size="sm">
+                <Button className="h-8 w-full rounded-full" size="sm">
                   Ir ahora <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
-              </div>
-            </GlassCard>
+              </CardContent>
+            </Card>
           </div>
 
-          <GlassCard className="cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
-            <div className="flex items-center justify-between gap-3 p-5">
+          <Card className="hover-elevate cursor-pointer" onClick={() => navigateWithTransition(setLocation, "/leadership?from=org-dashboard")}>
+            <CardContent className="flex items-center justify-between gap-3 pt-5">
               <div>
                 <p className="text-sm font-semibold">Liderazgo</p>
                 <p className="text-xs text-muted-foreground">Ver líderes y organizaciones del barrio</p>
               </div>
-              <IconBadge>
-                <Users className="h-5 w-5 text-zinc-200" />
-              </IconBadge>
-            </div>
-          </GlassCard>
+              <Users className="h-5 w-5 text-primary" />
+            </CardContent>
+          </Card>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
