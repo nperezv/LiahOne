@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { GlassCard } from "@/components/ui/glass-card";
-import { CalendarRange, ClipboardList, Flame, Mic, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import {
   useAgendaAvailability,
   useCreateAgendaTask,
@@ -250,7 +250,7 @@ export default function AgendaPage() {
             data-testid="button-plan-week"
             className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 shadow-[0_6px_24px_rgba(99,102,241,0.35)]"
           >
-            Planificar semana
+            Planificar
           </Button>
         </div>
       </header>
@@ -272,10 +272,7 @@ export default function AgendaPage() {
         <div className="order-1 space-y-4 xl:col-span-3">
           <GlassCard>
             <div className="space-y-3 p-4">
-              <div className="flex items-center gap-2 text-base font-semibold">
-                <Mic className="h-4 w-4 text-violet-400" />
-                <h2>Captura por voz</h2>
-              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Captura por voz</p>
               <Button className="w-full" variant="outline" onClick={startDictation} disabled={isListening || createAgendaTask.isPending}>
                 {isListening ? "Escuchando..." : "🎤 Empezar a dictar"}
               </Button>
@@ -297,10 +294,7 @@ export default function AgendaPage() {
 
           <GlassCard>
             <div className="space-y-3 p-4">
-              <div className="flex items-center gap-2 text-base font-semibold">
-                <Flame className="h-4 w-4 text-amber-400" />
-                <h2>Foco ahora</h2>
-              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Foco ahora ⚡</p>
               <div className="space-y-2">
                 {atRiskTasks.slice(0, 3).map((task: any) => (
                   <div key={task.id} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
@@ -315,10 +309,7 @@ export default function AgendaPage() {
 
           <GlassCard className="order-4 xl:order-none">
             <div className="space-y-3 p-4">
-              <div className="flex items-center gap-2 text-base font-semibold">
-                <ClipboardList className="h-4 w-4 text-sky-400" />
-                <h2>Asignaciones pendientes</h2>
-              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Asignaciones pendientes</p>
               <div className="space-y-2">
                 {pendingAssignments.slice(0, 6).map((assignment: any) => (
                   <div key={assignment.id} className="rounded-lg border border-border/70 bg-background/20 p-2 text-xs">
@@ -338,10 +329,7 @@ export default function AgendaPage() {
           <GlassCard>
             <div className="space-y-3 p-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-base font-semibold">
-                  <CalendarRange className="h-4 w-4 text-indigo-400" />
-                  <h2>Semana</h2>
-                </div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Semana</p>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, -7))}>←</Button>
                   <Button size="sm" variant="outline" onClick={() => setSelectedDate(new Date())}>Hoy</Button>
@@ -369,7 +357,7 @@ export default function AgendaPage() {
 
           <GlassCard>
             <div className="space-y-3 p-4">
-              <h2 className="text-xl font-semibold">Timeline del día</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Timeline · {format(selectedDate, "EEE d 'de' MMMM", { locale: es }).toUpperCase()}</p>
               {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
               {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && <p className="text-sm text-muted-foreground">No hay elementos para este día.</p>}
 
@@ -418,10 +406,7 @@ export default function AgendaPage() {
         <div className="order-3 xl:col-span-3">
           <GlassCard>
             <div className="space-y-3 p-4">
-              <div className="flex items-center gap-2 text-base font-semibold">
-                <ClipboardList className="h-4 w-4 text-violet-400" />
-                <h2>Tareas</h2>
-              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Tareas</p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant={taskFilter === "open" ? "default" : "outline"} onClick={() => setTaskFilter("open")}>Abiertas</Button>
                 <Button size="sm" variant={taskFilter === "planned" ? "default" : "outline"} onClick={() => setTaskFilter("planned")}>Planif.</Button>
