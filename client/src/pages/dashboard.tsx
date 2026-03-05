@@ -166,7 +166,7 @@ export default function DashboardPage() {
   };
 
   const weeklyLoad = data.pendingAssignments + data.upcomingInterviews;
-  const weeklyLoadStatus = weeklyLoad <= 2 ? { label: "Verde", tone: "text-emerald-500", dot: "bg-emerald-500", detail: "Carga controlada" } : weeklyLoad <= 5
+  const weeklyLoadStatus = weeklyLoad <= 1 ? { label: "Verde", tone: "text-emerald-500", dot: "bg-emerald-500", detail: "Carga controlada" } : weeklyLoad <= 3
     ? { label: "Ámbar", tone: "text-amber-500", dot: "bg-amber-500", detail: "Atención media" }
     : { label: "Rojo", tone: "text-rose-500", dot: "bg-rose-500", detail: "Semana exigente" };
 
@@ -180,17 +180,21 @@ export default function DashboardPage() {
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
-    <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-extrabold tracking-tight">{isBishopric ? "Dashboard" : roleDashboardTitle[userRole] ?? "Dashboard"}</h1>
-        <p className="text-sm text-slate-500 dark:text-white/45">
-          {getGreeting(new Date())}
-          {user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
-        </p>
-        <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${weeklyLoadStatus.tone}`}>
-          <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
-          <span>{weeklyLoadStatus.label}</span>
-          <span className="font-normal text-slate-500 dark:text-white/45">· {weeklyLoadStatus.detail}</span>
+    <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8" style={{ fontFamily: "'Outfit', 'DM Sans', sans-serif" }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-sm text-slate-500 dark:text-white/45">
+            {getGreeting(new Date())} 👋
+          </p>
+          <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.03em] sm:text-[44px]">Hola,{user?.name ? user.name.split(" ")[0] : ""}</h1>
+          <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${weeklyLoadStatus.tone}`}>
+            <span className={`h-2 w-2 rounded-full ${weeklyLoadStatus.dot}`} />
+            <span>{weeklyLoadStatus.label}</span>
+            <span className="font-normal text-slate-500 dark:text-white/45">· {weeklyLoadStatus.detail}</span>
+          </div>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-base font-bold text-white shadow-[0_8px_24px_rgba(79,70,229,0.35)]">
+          {(user?.name?.trim()?.charAt(0) || "U").toUpperCase()}
         </div>
       </div>
 
@@ -249,6 +253,24 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <GlassCard className="cursor-pointer" onClick={() => setLocation(nextBestAction.href)}>
+            <div className="flex items-center justify-between gap-3 p-5">
+              <div className="flex items-center gap-3">
+                <IconBadge tone="violet">
+                  <ArrowRight className="h-4 w-4 text-white" />
+                </IconBadge>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.07em] text-slate-500 dark:text-white/40">Siguiente acción</p>
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">{nextBestAction.title}</p>
+                  <p className="text-xs text-slate-500 dark:text-white/45">{nextBestAction.description}</p>
+                </div>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            </div>
+          </GlassCard>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold">Cumpleaños próximos 🎂</h2>
@@ -273,6 +295,13 @@ export default function DashboardPage() {
                 )}
               </div>
             </GlassCard>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <QuickCard title="Tareas" subtitle={data.pendingAssignments > 0 ? `${data.pendingAssignments} pend.` : "Sin pendientes"} icon={Target} onClick={() => setLocation("/assignments")} />
+            <QuickCard title="Liderazgo" subtitle="Organizaciones" icon={Users} onClick={() => setLocation("/leadership")} />
+            <QuickCard title="Entrevistas" subtitle={`${data.upcomingInterviews} próximas`} icon={UserCheck} onClick={() => setLocation("/interviews")} />
+            <QuickCard title="Presupuesto" subtitle={`${data.budgetRequests.pending} solicitudes`} icon={Wallet} onClick={() => setLocation("/budget")} />
           </div>
         </>
       ) : isOrgRole ? (
