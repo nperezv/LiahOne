@@ -852,8 +852,8 @@ export default function BudgetPage() {
     <div className="min-h-screen bg-[#04060d] p-6 text-slate-100 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
-          <h1 className="mb-2 text-5xl font-bold">Presupuestos</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="mb-2 text-2xl font-extrabold tracking-tight md:text-3xl">Presupuestos</h1>
+          <p className="text-xs text-slate-400 md:text-sm">
             {isOrgMember ? "Control de presupuesto de tu organización" : "Gestiona presupuestos globales y asignaciones"}
           </p>
         </div>
@@ -1703,15 +1703,15 @@ export default function BudgetPage() {
                         {getStatusBadge(request.status)}
                         {org && <span className="text-sm text-slate-500">{org.name}</span>}
                       </div>
-                      <p className="text-3xl font-semibold leading-tight text-foreground">{request.description}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-lg font-semibold leading-tight text-foreground md:text-xl">{request.description}</p>
+                      <p className="text-xs text-muted-foreground md:text-sm">
                         {new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}
                         {request.receipts && request.receipts.length > 0 && (
                           <span className="ml-3 text-violet-400">{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
                         )}
                       </p>
                     </div>
-                    <p className="text-5xl font-extrabold tracking-tight text-slate-100">€{request.amount.toFixed(2)}</p>
+                    <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{request.amount.toFixed(2)}</p>
                   </div>
 
                   {request.receipts && request.receipts.length > 0 && (
