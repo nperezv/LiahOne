@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, FileText, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
+import { Plus, Download, Euro, Edit2, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -1420,59 +1420,91 @@ export default function BudgetPage() {
 
       {/* Global Budget Card - Only for Obispado */}
       {activeSection === "resumen" && isObispado && (
-        <Card className="mb-6">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-            <div>
-              <CardTitle className="text-lg">Presupuesto Global del Barrio</CardTitle>
-              <CardDescription>Presupuesto anual y trimestre actual</CardDescription>
-            </div>
-            <IconBadge tone="violet">
-              <Euro className="h-4 w-4 text-white" />
-            </IconBadge>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="text-4xl font-bold" data-testid="text-ward-budget-annual">
-                  €{annualBudget.toFixed(2)}
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Presupuesto anual {wardBudget?.year ?? currentYear}
-                </p>
-                <div className="mt-4 rounded-lg border p-3">
-                  <div className="text-sm font-medium">Trimestre {currentQuarter}</div>
-                  <div className="text-2xl font-semibold" data-testid="text-ward-budget-quarter">
-                    €{globalBudget.toFixed(2)}
+        <>
+          <Card className="mb-5">
+            <CardContent className="p-7">
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Presupuesto anual {wardBudget?.year ?? currentYear}</p>
+              <div className="text-6xl font-extrabold tracking-tight text-slate-100" data-testid="text-ward-budget-annual">€{annualBudget.toFixed(2)}</div>
+              <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[1, 2, 3, 4].map((quarter) => (
+                  <div key={quarter} className="rounded-2xl bg-white/5 p-4">
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">T{quarter}</p>
+                    <p className={`text-4 font-extrabold ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Presupuesto disponible para el trimestre actual
-                  </p>
-                </div>
-                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                  <div>Trimestre 1: €{quarterBudgets[1].toFixed(2)}</div>
-                  <div>Trimestre 2: €{quarterBudgets[2].toFixed(2)}</div>
-                  <div>Trimestre 3: €{quarterBudgets[3].toFixed(2)}</div>
-                  <div>Trimestre 4: €{quarterBudgets[4].toFixed(2)}</div>
-                </div>
+                ))}
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Asignado a organizaciones</span>
-                  <span className="font-semibold">€{totalAssignedToOrgs.toFixed(2)} ({globalUtilizationPercent}%)</span>
-                </div>
-                <Progress value={globalUtilizationPercent} className="h-2" />
-              </div>
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Trimestre actual</p>
+                <p className="text-5 font-extrabold text-slate-100" data-testid="text-ward-budget-quarter">€{globalBudget.toFixed(2)}</p>
+                <p className="mt-1 text-sm text-slate-500">T{currentQuarter}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Solicitado</p>
+                <p className="text-5 font-extrabold text-amber-400" data-testid="text-total-solicited">€{totalSolicited.toFixed(2)}</p>
+                <p className="mt-1 text-sm text-slate-500">{(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Aprobado</p>
+                <p className="text-5 font-extrabold text-emerald-400" data-testid="text-total-approved">€{totalApproved.toFixed(2)}</p>
+                <p className="mt-1 text-sm text-slate-500">{(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas</p>
+              </CardContent>
+            </Card>
+          </div>
 
-              <div className="flex justify-between text-sm">
-                <span>Disponible para asignar</span>
-                <span className={`font-semibold ${remainingGlobalBudget < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  €{remainingGlobalBudget.toFixed(2)}
-                </span>
+          <Card className="mb-6">
+            <CardContent className="p-6">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Uso del trimestre actual</p>
+                <p className="text-2xl font-extrabold text-violet-400">{globalUtilizationPercent}%</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Progress value={globalUtilizationPercent} className="h-1.5" />
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <p className="text-slate-400">Asignado a orgs: <span className="font-bold text-slate-100">€{totalAssignedToOrgs.toFixed(2)}</span></p>
+                <p className={`font-bold ${remainingGlobalBudget < 0 ? "text-rose-400" : "text-emerald-400"}`}>Disponible: €{remainingGlobalBudget.toFixed(2)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="mb-2 text-3 font-bold text-slate-200">Requieren acción ⚡</div>
+          <div className="mb-6 space-y-3">
+            {(filteredRequests as any[])
+              .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
+              .slice(0, 3)
+              .map((request: any) => {
+                const org = (organizations as Organization[]).find((o) => o.id === request.organizationId);
+                return (
+                  <Card key={`summary-action-${request.id}`} data-testid={`summary-action-${request.id}`}>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+                      <div className="min-w-[220px] flex-1">
+                        <p className="mb-2 text-2xl font-semibold leading-tight text-slate-100">{request.description}</p>
+                        <div className="flex items-center gap-3">
+                          {getStatusBadge(request.status)}
+                          <span className="text-sm text-slate-500">{org?.name || "Sin organización"}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-4xl font-extrabold text-slate-100">€{request.amount.toFixed(2)}</p>
+                        {request.status === "solicitado" ? (
+                          <Button size="sm" className="rounded-xl bg-emerald-700 text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} disabled={approveMutation.isPending}>Aprobar</Button>
+                        ) : (
+                          <Button size="sm" className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-500" onClick={() => handleSignAsBishop(request.id)} disabled={signMutation.isPending}>Firmar</Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
+        </>
       )}
 
       {/* Organization Budget Cards - Only for Obispado */}
@@ -1611,55 +1643,7 @@ export default function BudgetPage() {
         </div>
       )}
 
-      {/* Stats Cards for Obispado */}
-      {activeSection === "resumen" && isObispado && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Solicitado</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-solicited">
-                €{totalSolicited.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {(requests as any[]).filter((r: any) => r.status === "solicitado").length} solicitudes
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Aprobado</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-approved">
-                €{totalApproved.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {(requests as any[]).filter((r: any) => r.status === "aprobado" || r.status === "completado").length} aprobadas
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Solicitudes</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-requests">
-                {(requests as any[]).length}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                solicitudes totales
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Stats cards moved into Resumen hero layout */}
 
       {activeSection === "solicitudes" && (
       <>
