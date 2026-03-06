@@ -54,6 +54,9 @@ export default function RequestAccessPage() {
       });
 
       if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error("Ya existe una cuenta con ese correo. Ve a iniciar sesión o recupera tu acceso.");
+        }
         throw new Error("No se pudo enviar la solicitud.");
       }
 
@@ -64,9 +67,12 @@ export default function RequestAccessPage() {
         description: "El obispo recibirá tu solicitud y se pondrá en contacto.",
       });
     } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "No se pudo enviar la solicitud. Intenta nuevamente.";
       toast({
         title: "Error",
-        description: "No se pudo enviar la solicitud. Intenta nuevamente.",
+        description: message,
         variant: "destructive",
       });
     } finally {

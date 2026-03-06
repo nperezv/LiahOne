@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 import logoImage from "@assets/liahonapplogo2.svg";
 
 const loginSchema = z.object({
@@ -32,6 +33,8 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [otpState, setOtpState] = useState<{ otpId: string; email: string; rememberDevice: boolean } | null>(null);
   const [otpCode, setOtpCode] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [isRecovering, setIsRecovering] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const { toast } = useToast();
 
@@ -86,6 +89,36 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const onRecoverAccess = async () => {
+    const trimmedEmail = recoveryEmail.trim();
+    if (!trimmedEmail) {
+      toast({
+        title: "Email requerido",
+        description: "Introduce el correo con el que te registraste.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRecovering(true);
+    try {
+      await apiRequest("POST", "/api/login/recover", { email: trimmedEmail });
+      toast({
+        title: "Revisión enviada",
+        description: "Si el correo existe, te enviaremos tu usuario y una contraseña temporal.",
+      });
+      setRecoveryEmail("");
+    } catch (error) {
+      toast({
+        title: "No se pudo procesar",
+        description: "Intenta nuevamente en unos minutos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecovering(false);
     }
   };
 
@@ -229,22 +262,49 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                 </div>
               )}
 
-              <Button
-                type="button"
-                className="w-full"
-                disabled={isLoading}
-                data-testid="button-login"
-                onClick={form.handleSubmit(onSubmit)}
-              >
-                {isLoading ? (
-                  "Iniciando sesión..."
-                ) : (
-                  <>
-                    <LogIn className="mr-2 h-4 w-4" />
-                    Iniciar Sesión
-                  </>
-                )}
-              </Button>
+              {!otpState && (
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={isLoading}
+                  data-testid="button-login"
+                  onClick={form.handleSubmit(onSubmit)}
+                >
+                  {isLoading ? (
+                    "Iniciando sesión..."
+                  ) : (
+                    <>
+                      <LogIn className="mr-2 h-4 w-4" />
+                      Iniciar Sesión
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {!otpState && (
+                <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    ¿Has olvidado tu usuario o contraseña?
+                  </p>
+                  <Input
+                    type="email"
+                    value={recoveryEmail}
+                    onChange={(event) => setRecoveryEmail(event.target.value)}
+                    placeholder="Correo con el que te diste de alta"
+                    data-testid="input-recovery-email"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={onRecoverAccess}
+                    disabled={isRecovering}
+                    data-testid="button-recover-access"
+                  >
+                    {isRecovering ? "Enviando..." : "Recuperar acceso"}
+                  </Button>
+                </div>
+              )}
 
               {deferredPrompt && (
                 <Button
