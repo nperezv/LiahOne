@@ -316,6 +316,36 @@
   }
 
 
+
+  .app-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .app-page-content {
+    contain: layout paint;
+  }
+
+  .app-scroll-container.is-scrolling .backdrop-blur,
+  .app-scroll-container.is-scrolling [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .app-scroll-container.is-scrolling .pilot-glass-card,
+  .app-scroll-container.is-scrolling .shadcn-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+    transition: box-shadow 100ms linear;
+  }
+
+  .dark .app-scroll-container.is-scrolling .pilot-glass-card,
+  .dark .app-scroll-container.is-scrolling .shadcn-card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+
+
   .shadcn-card {
     position: relative;
     overflow: hidden;
