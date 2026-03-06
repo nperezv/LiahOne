@@ -26,6 +26,7 @@ export function Layout({ children }: LayoutProps) {
       if (!mainEl.classList.contains("is-scrolling")) {
         mainEl.classList.add("is-scrolling");
       }
+      document.documentElement.classList.add("app-is-scrolling");
 
       if (scrollingTimeoutRef.current) {
         window.clearTimeout(scrollingTimeoutRef.current);
@@ -33,6 +34,7 @@ export function Layout({ children }: LayoutProps) {
 
       scrollingTimeoutRef.current = window.setTimeout(() => {
         mainEl.classList.remove("is-scrolling");
+        document.documentElement.classList.remove("app-is-scrolling");
       }, 90);
     };
 
@@ -43,6 +45,8 @@ export function Layout({ children }: LayoutProps) {
       if (scrollingTimeoutRef.current) {
         window.clearTimeout(scrollingTimeoutRef.current);
       }
+      mainEl.classList.remove("is-scrolling");
+      document.documentElement.classList.remove("app-is-scrolling");
     };
   }, []);
 
