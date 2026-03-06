@@ -27,7 +27,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 
 const meetingSchema = z.object({
@@ -597,7 +596,7 @@ export default function PresidencyManageOrganizationPage() {
   }
 
   return (
-    <motion.div className="space-y-6 p-4 md:p-6 xl:p-8" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 18 }}>
+    <div className="presidency-perf-page space-y-6 p-4 md:p-6 xl:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
@@ -1092,6 +1091,6 @@ export default function PresidencyManageOrganizationPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   );
 }
