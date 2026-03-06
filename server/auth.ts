@@ -36,12 +36,12 @@ const getSmtpFromHeader = (wardName?: string | null) => {
 };
 
 
-const createSmtpTransport = () => {
+const createSmtpTransport = (wardName?: string | null) => {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = getSmtpFromHeader();
+  const from = getSmtpFromHeader(wardName);
 
   if (!host || !port || !user || !pass) {
     return null;
@@ -133,8 +133,8 @@ export function getCountryFromIp(ip?: string | null) {
 }
 
 
-export async function sendAgendaReminderEmail(payload: { toEmail: string; subject?: string; body: string }) {
-  const smtp = createSmtpTransport();
+export async function sendAgendaReminderEmail(payload: { toEmail: string; subject?: string; body: string; wardName?: string | null }) {
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Agenda reminder email:", payload);
     return;
@@ -227,12 +227,13 @@ export async function sendAccessRequestEmail(payload: {
   calling?: string | null;
   phone?: string | null;
   reviewUrl: string;
+  wardName?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = getSmtpFromHeader();
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Access request:", payload);
@@ -272,12 +273,13 @@ export async function sendNewUserCredentialsEmail(payload: {
   temporaryPassword: string;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  wardName?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = getSmtpFromHeader();
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. New user credentials:", payload);
@@ -442,7 +444,7 @@ export async function sendInterviewScheduledEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = getSmtpFromHeader();
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Interview scheduled:", payload);
@@ -514,8 +516,9 @@ export async function sendOrganizationInterviewScheduledEmail(payload: {
   requesterName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  wardName?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Organization interview scheduled:", payload);
     return;
@@ -558,8 +561,9 @@ export async function sendOrganizationInterviewCancelledEmail(payload: {
   organizationName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  wardName?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Organization interview cancelled:", payload);
     return;
@@ -597,13 +601,13 @@ export async function sendInterviewUpdatedEmail(payload: {
   interviewDate: string;
   interviewTime: string;
   interviewerName?: string | null;
-  wardName?: string | null;
   changeLines: string[];
   secretaryName?: string | null;
+  wardName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Interview updated:", payload);
     return;
@@ -654,7 +658,7 @@ export async function sendInterviewCancelledEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Interview cancelled:", payload);
     return;
@@ -694,7 +698,7 @@ export async function sendInterviewReminder24hEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Interview reminder 24h:", payload);
     return;
@@ -734,7 +738,7 @@ export async function sendAssignmentDueReminderEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Assignment reminder 24h:", payload);
     return;
@@ -774,7 +778,7 @@ export async function sendSacramentalAssignmentEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Sacramental assignment:", payload);
     return;
@@ -825,7 +829,7 @@ export async function sendBirthdayGreetingEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = getSmtpFromHeader();
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Birthday greeting:", payload);

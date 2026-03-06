@@ -821,10 +821,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const unusualCountry = lastLogin?.country && country && lastLogin.country !== country;
 
       const requiresOtp =
-        user.requireEmailOtp ||
-        !deviceHash ||
-        !existingDevice?.trusted ||
-        unusualCountry;
+        !user.requirePasswordChange && (
+          user.requireEmailOtp ||
+          !deviceHash ||
+          !existingDevice?.trusted ||
+          unusualCountry
+        );
 
       const canSendOtp = Boolean(user.email);
       if (requiresOtp && canSendOtp) {
@@ -911,7 +913,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const temporaryPassword = generateTemporaryPassword();
       const hashedTemporaryPassword = await bcrypt.hash(temporaryPassword, 10);
-      await storage.updateUser(user.id, { password: hashedTemporaryPassword });
+      await storage.updateUser(user.id, {
+        password: hashedTemporaryPassword,
+        requirePasswordChange: true,
+      });
       await storage.revokeRefreshTokensByUser(user.id);
 
       await sendAccountRecoveryEmail({
@@ -1159,6 +1164,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : [];
 
       if (recipients.length > 0) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
         const reviewUrl = `${baseUrl}/admin/users?requestId=${accessRequest.id}`;
         await Promise.all(
@@ -1170,6 +1177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               calling: accessRequest.calling,
               phone: accessRequest.phone,
               reviewUrl,
+              wardName,
             })
           )
         );
@@ -1328,12 +1336,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
       }
 
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+
       await sendNewUserCredentialsEmail({
         toEmail: email,
         name: normalizedName,
         username: derivedUsername,
         temporaryPassword,
         recipientSex: memberForCalling?.sex,
+        wardName,
       });
 
       const { password: _, ...userWithoutPassword } = user;
@@ -3698,6 +3710,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (interviewer?.email) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         await sendOrganizationInterviewScheduledEmail({
           toEmail: interviewer.email,
           recipientName: normalizeMemberName(interviewer.name),
@@ -3707,6 +3721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes: interview.notes,
           organizationName: organization?.name,
           requesterName: normalizeMemberName(user.name),
+          wardName,
         });
       }
 
@@ -3971,6 +3986,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (updateData.resolution === "cancelada") {
           const interviewerUser = await storage.getUser(updated.interviewerId);
           if (interviewerUser?.email) {
+            const template = await storage.getPdfTemplate();
+            const wardName = template?.wardName;
             const canceledDateValue = new Date(updated.date);
             const canceledDate = canceledDateValue.toLocaleDateString("es-ES", {
               year: "numeric",
@@ -3989,6 +4006,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               interviewDate: canceledDate,
               interviewTime: canceledTime,
               organizationName: organization?.name,
+              wardName,
             });
           }
         }
@@ -7245,6 +7263,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function runAgendaReminderWorker() {
     try {
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
       const due = await storage.getAgendaRemindersDue(new Date());
       for (const reminder of due) {
         try {
@@ -7257,7 +7277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               getEventById: (eventId) => storage.getAgendaEvent(eventId),
               getTaskById: (taskId) => storage.getAgendaTask(taskId),
               sendPush: (userId, payload) => sendPushNotification(userId, payload),
-              sendEmail: (payload) => sendAgendaReminderEmail(payload),
+              sendEmail: (payload) => sendAgendaReminderEmail({ ...payload, wardName }),
               isPushConfigured,
             },
           });
