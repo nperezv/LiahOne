@@ -316,6 +316,60 @@
   }
 
 
+
+  .app-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .app-page-content {
+    contain: layout paint;
+  }
+
+
+  .presidency-perf-page .pilot-glass-card,
+  .presidency-perf-page .shadcn-card,
+  .presidency-perf-page [class*="shadow-"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  html.dark .presidency-perf-page .pilot-glass-card,
+  html.dark .presidency-perf-page .shadcn-card,
+  html.dark .presidency-perf-page [class*="shadow-"] {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  html.app-is-scrolling .backdrop-blur,
+  html.app-is-scrolling [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html.app-is-scrolling .pilot-glass-card,
+  html.app-is-scrolling .shadcn-card,
+  html.app-is-scrolling [class*="shadow-"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+    transition: box-shadow 100ms linear;
+  }
+
+  html.dark.app-is-scrolling .pilot-glass-card,
+  html.dark.app-is-scrolling .shadcn-card,
+  html.dark.app-is-scrolling [class*="shadow-"] {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+
+
+  html.app-is-scrolling * {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+
   .shadcn-card {
     position: relative;
     overflow: hidden;
@@ -430,6 +484,32 @@
  * Even without handling focused or not, this is six possible combinations that
  * need to be distinguished from eachother visually.
  */
+
+
+@media (max-width: 1024px), (hover: none), (pointer: coarse) {
+  .backdrop-blur,
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .shadcn-card,
+  .pilot-glass-card,
+  [class*="shadow-"] {
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  .dark .shadcn-card,
+  .dark .pilot-glass-card,
+  .dark [class*="shadow-"] {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
+  }
+
+  .app-route-fade {
+    animation: none;
+  }
+}
+
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
     @keyframes logo-float {
