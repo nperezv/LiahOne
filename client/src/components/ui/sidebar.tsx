@@ -79,7 +79,9 @@ function SidebarProvider({
       if (setOpenProp) {
         setOpenProp(openState)
       } else {
-        _setOpen(openState)
+        React.startTransition(() => {
+          _setOpen(openState)
+        })
       }
 
       // This sets the cookie to keep the sidebar state.
@@ -90,7 +92,14 @@ function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
+    if (isMobile) {
+      React.startTransition(() => {
+        setOpenMobile((open) => !open)
+      })
+      return
+    }
+
+    setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
   // Adds a keyboard shortcut to toggle the sidebar.
@@ -229,7 +238,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-[var(--sidebar-width)] transform-gpu transition-transform duration-180 ease-out will-change-transform md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-[var(--sidebar-width)] transform-gpu transition-transform duration-180 ease-out will-change-transform [contain:layout_paint] md:flex",
           side === "left"
             ? "left-0 translate-x-0 group-data-[collapsible=offcanvas]:-translate-x-full"
             : "right-0 translate-x-0 group-data-[collapsible=offcanvas]:translate-x-full",
@@ -244,7 +253,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col [contain:layout_paint] group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
         >
           {children}
         </div>
