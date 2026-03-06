@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion } from "framer-motion";
 import { useRoute, useLocation } from "wouter";
 import {
   Plus,
@@ -372,7 +371,7 @@ function CircularGauge({
               );
             })
         ) : (
-          <motion.circle
+          <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
@@ -381,10 +380,9 @@ function CircularGauge({
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={`${arcLength} ${circumference}`}
-            initial={{ strokeDashoffset: arcLength }}
-            animate={{ strokeDashoffset: offset }}
-            transition={{ type: "spring", stiffness: 90, damping: 18 }}
+            strokeDashoffset={offset}
             transform={`rotate(120 ${size / 2} ${size / 2})`}
+            style={{ transition: "stroke-dashoffset 320ms cubic-bezier(0.22, 1, 0.36, 1)", willChange: "stroke-dashoffset" }}
           />
         )}
       </svg>
@@ -1130,8 +1128,8 @@ export default function PresidencyMeetingsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:space-y-8 md:p-6 xl:p-8">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 18 }}>
+    <div className="presidency-perf-page space-y-6 p-4 md:space-y-8 md:p-6 xl:p-8">
+      <div>
         <p className="text-sm text-muted-foreground">Panel de Presidencia</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">{pageTitle}</h1>
         <div className="mt-3">
@@ -1143,7 +1141,7 @@ export default function PresidencyMeetingsPage() {
             Gestionar Organización
           </Button>
         </div>
-      </motion.div>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -2125,12 +2123,9 @@ export default function PresidencyMeetingsPage() {
           <CardContent className="space-y-3">
             {meetings.length > 0 ? (
               meetings.map((meeting: any) => (
-                <motion.div
+                <div
                   key={meeting.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 120, damping: 18 }}
-                  className={`rounded-2xl border bg-background/80 p-4 transition-all ${latestCreatedMeetingId === meeting.id ? "border-primary ring-2 ring-primary/30" : "border-border/70"}`}
+                  className={`rounded-2xl border bg-background/80 p-4 ${latestCreatedMeetingId === meeting.id ? "border-primary ring-2 ring-primary/30" : "border-border/70"}`}
                   data-testid={`card-meeting-${meeting.id}`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2192,7 +2187,7 @@ export default function PresidencyMeetingsPage() {
                   {!meeting.notes && (!Array.isArray(meeting.agreements) || meeting.agreements.length === 0) && (
                     <p className="py-3 text-center text-sm text-muted-foreground">No hay detalles de esta reunión</p>
                   )}
-                </motion.div>
+                </div>
               ))
             ) : (
               <div className="rounded-2xl border border-dashed border-border/70 p-8 text-center text-muted-foreground">No hay reuniones programadas para esta presidencia</div>
