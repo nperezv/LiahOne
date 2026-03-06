@@ -108,7 +108,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     try {
       await apiRequest("POST", "/api/login/recover", { email: trimmedEmail });
       toast({
-        title: "Credenciales de recuperación enviadas",
+        title: "Recuperación enviada",
         description: "Si el correo existe, se han enviado a ese correo tus credenciales temporales.",
       });
       setRecoveryEmail("");
