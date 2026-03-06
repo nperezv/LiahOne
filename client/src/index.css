@@ -467,6 +467,32 @@
  * Even without handling focused or not, this is six possible combinations that
  * need to be distinguished from eachother visually.
  */
+
+
+@media (max-width: 1024px), (hover: none), (pointer: coarse) {
+  .backdrop-blur,
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .shadcn-card,
+  .pilot-glass-card,
+  [class*="shadow-"] {
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  .dark .shadcn-card,
+  .dark .pilot-glass-card,
+  .dark [class*="shadow-"] {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
+  }
+
+  .app-route-fade {
+    animation: none;
+  }
+}
+
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
     @keyframes logo-float {
