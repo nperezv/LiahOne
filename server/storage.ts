@@ -410,6 +410,7 @@ export interface IStorage {
     expiresAt: Date;
   }): Promise<EmailOtp>;
   getEmailOtpById(id: string): Promise<EmailOtp | undefined>;
+  getActiveEmailOtpByUserAndCodeHash(userId: string, codeHash: string): Promise<EmailOtp | undefined>;
   consumeEmailOtp(id: string): Promise<void>;
 
   // Access Requests
@@ -2134,6 +2135,23 @@ export class DatabaseStorage implements IStorage {
 
   async getEmailOtpById(id: string): Promise<EmailOtp | undefined> {
     const [otp] = await db.select().from(emailOtps).where(eq(emailOtps.id, id));
+    return otp || undefined;
+  }
+
+  async getActiveEmailOtpByUserAndCodeHash(userId: string, codeHash: string): Promise<EmailOtp | undefined> {
+    const [otp] = await db
+      .select()
+      .from(emailOtps)
+      .where(
+        and(
+          eq(emailOtps.userId, userId),
+          eq(emailOtps.codeHash, codeHash),
+          isNull(emailOtps.consumedAt),
+          gte(emailOtps.expiresAt, new Date()),
+        ),
+      )
+      .orderBy(desc(emailOtps.createdAt))
+      .limit(1);
     return otp || undefined;
   }
 

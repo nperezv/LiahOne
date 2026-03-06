@@ -934,6 +934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!otpId || !code) {
         return res.status(400).json({ error: "Code is required" });
       }
+      const normalizedCode = String(code).trim();
       const deviceHash = getDeviceHash(deviceId);
       const ipAddress = getClientIp(req);
       const country = getCountryFromIp(ipAddress);
@@ -943,13 +944,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or expired code" });
       }
 
-      const codeHash = hashToken(code);
+      const codeHash = hashToken(normalizedCode);
+      let otpToConsume = otp;
       if (codeHash !== otp.codeHash) {
-        return res.status(400).json({ error: "Invalid or expired code" });
+        const matchingOtp = await storage.getActiveEmailOtpByUserAndCodeHash(otp.userId, codeHash);
+        if (!matchingOtp) {
+          return res.status(400).json({ error: "Invalid or expired code" });
+        }
+        otpToConsume = matchingOtp;
       }
 
-      await storage.consumeEmailOtp(otp.id);
-      const user = await storage.getUser(otp.userId);
+      await storage.consumeEmailOtp(otpToConsume.id);
+      const user = await storage.getUser(otpToConsume.userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
