@@ -147,7 +147,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
         {notificationsOpen && (
           <div
             aria-hidden="true"
-            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px]"
+            className="fixed inset-0 z-30 bg-black/60"
             onClick={() => setNotificationsOpen(false)}
           />
         )}
