@@ -182,6 +182,7 @@ export async function sendAccountRecoveryEmail(payload: {
   username: string;
   temporaryPassword: string;
   wardName?: string | null;
+  loginUrl?: string;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -212,11 +213,12 @@ export async function sendAccountRecoveryEmail(payload: {
       "Hemos procesado tu solicitud de recuperación de acceso.",
       `Usuario: ${payload.username}`,
       `Contraseña temporal: ${payload.temporaryPassword}`,
+      payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
       "",
       "Por seguridad, cambia esta contraseña después de iniciar sesión.",
       "",
       wardSignature,
-    ].join("\n"),
+    ].filter((line): line is string => Boolean(line)).join("\n"),
   });
 }
 
@@ -274,6 +276,7 @@ export async function sendNewUserCredentialsEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
   wardName?: string | null;
+  loginUrl?: string;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -307,9 +310,10 @@ export async function sendNewUserCredentialsEmail(payload: {
       "Tu cuenta ha sido creada. Usa estas credenciales para iniciar sesión:",
       `Usuario: ${payload.username}`,
       `Contraseña temporal: ${payload.temporaryPassword}`,
+      payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
       "",
       "Por seguridad, deberás cambiar esta contraseña en tu primer inicio de sesión.",
-    ].join("\n"),
+    ].filter((line): line is string => Boolean(line)).join("\n"),
   });
 }
 

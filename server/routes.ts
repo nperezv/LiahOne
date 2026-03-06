@@ -910,6 +910,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName;
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const loginUrl = `${baseUrl}/login`;
 
       const temporaryPassword = generateTemporaryPassword();
       const hashedTemporaryPassword = await bcrypt.hash(temporaryPassword, 10);
@@ -925,6 +927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: user.username,
         temporaryPassword,
         wardName,
+        loginUrl,
       });
 
       return res.json({ message: "If that email exists, recovery instructions were sent" });
@@ -1338,6 +1341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName;
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const loginUrl = `${baseUrl}/login`;
 
       await sendNewUserCredentialsEmail({
         toEmail: email,
@@ -1346,6 +1351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         temporaryPassword,
         recipientSex: memberForCalling?.sex,
         wardName,
+        loginUrl,
       });
 
       const { password: _, ...userWithoutPassword } = user;
