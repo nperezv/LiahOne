@@ -380,7 +380,9 @@ function CircularGauge({
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={`${arcLength} ${circumference}`}
+            strokeDashoffset={offset}
             transform={`rotate(120 ${size / 2} ${size / 2})`}
+            style={{ transition: "stroke-dashoffset 320ms cubic-bezier(0.22, 1, 0.36, 1)", willChange: "stroke-dashoffset" }}
           />
         )}
       </svg>
