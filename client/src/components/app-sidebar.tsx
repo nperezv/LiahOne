@@ -281,27 +281,38 @@ export function AppSidebar() {
   const { data: organizations = [] } = useOrganizations();
 
   // Get organization type from user's organization (for presidents/counselors/secretaries)
-  const organizationType = user?.organizationId && organizations.length > 0
-    ? organizations.find(org => org.id === user.organizationId)?.type
-    : undefined;
+  const organizationType = React.useMemo(() => {
+    if (!user?.organizationId || organizations.length === 0) return undefined;
+    return organizations.find(org => org.id === user.organizationId)?.type;
+  }, [organizations, user?.organizationId]);
 
-  const menuItems = getVisibleMenuItems(user?.role, organizationType);
-  const pinnedUrls = getPinnedUrls(user?.role);
-  const pinnedMenuItems = menuItems.filter((item) => item.url && pinnedUrls.includes(item.url));
-  const secondaryMenuItems = menuItems.filter((item) => {
-    if (item.url) {
-      return !pinnedUrls.includes(item.url);
-    }
+  const menuItems = React.useMemo(
+    () => getVisibleMenuItems(user?.role, organizationType),
+    [organizationType, user?.role],
+  );
 
-    return true;
-  });
+  const pinnedUrls = React.useMemo(() => getPinnedUrls(user?.role), [user?.role]);
 
-  const pendingByUrl: Record<string, number> = {
+  const pinnedMenuItems = React.useMemo(
+    () => menuItems.filter((item) => item.url && pinnedUrls.includes(item.url)),
+    [menuItems, pinnedUrls],
+  );
+
+  const secondaryMenuItems = React.useMemo(
+    () => menuItems.filter((item) => (item.url ? !pinnedUrls.includes(item.url) : true)),
+    [menuItems, pinnedUrls],
+  );
+
+  const pendingByUrl: Record<string, number> = React.useMemo(() => ({
     "/assignments": dashboardStats?.pendingAssignments ?? 0,
     "/interviews": dashboardStats?.upcomingInterviews ?? 0,
     "/organization-interviews": dashboardStats?.upcomingInterviews ?? 0,
     "/budget": dashboardStats?.budgetRequests?.pending ?? 0,
-  };
+  }), [
+    dashboardStats?.budgetRequests?.pending,
+    dashboardStats?.pendingAssignments,
+    dashboardStats?.upcomingInterviews,
+  ]);
   return (
     <Sidebar>
       <SidebarContent>
