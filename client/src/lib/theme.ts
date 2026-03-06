@@ -7,12 +7,12 @@ const getSystemTheme = () =>
   window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
 export const getStoredTheme = (): ThemePreference => {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "dark";
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemePreference | null;
   if (stored === "light" || stored === "dark" || stored === "system") {
     return stored;
   }
-  return "system";
+  return "dark";
 };
 
 export const applyTheme = (preference: ThemePreference) => {

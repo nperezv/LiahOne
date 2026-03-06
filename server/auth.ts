@@ -7,6 +7,33 @@ import type { Request } from "express";
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
+const DEFAULT_WARD_NAME = "Barrio";
+const SMTP_FROM_DEFAULT_ADDRESS = "no-reply@liahone.app";
+
+const resolveWardName = (wardName?: string | null) => {
+  const trimmedWardName = wardName?.trim();
+  return trimmedWardName || DEFAULT_WARD_NAME;
+};
+
+const getSmtpFromHeader = (wardName?: string | null) => {
+  const fromDisplayName = resolveWardName(wardName);
+  const configuredFrom = process.env.SMTP_FROM?.trim();
+  if (!configuredFrom) {
+    return `"${fromDisplayName}" <${SMTP_FROM_DEFAULT_ADDRESS}>`;
+  }
+
+  if (configuredFrom.includes("<") && configuredFrom.includes(">")) {
+    const extractedAddress = configuredFrom.match(/<([^>]+)>/)?.[1]?.trim();
+    const address = extractedAddress || SMTP_FROM_DEFAULT_ADDRESS;
+    return `"${fromDisplayName}" <${address}>`;
+  }
+
+  if (configuredFrom.includes("@")) {
+    return `"${fromDisplayName}" <${configuredFrom}>`;
+  }
+
+  return `"${fromDisplayName}" <${SMTP_FROM_DEFAULT_ADDRESS}>`;
+};
 
 
 const createSmtpTransport = () => {
@@ -14,7 +41,7 @@ const createSmtpTransport = () => {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader();
 
   if (!host || !port || !user || !pass) {
     return null;
@@ -122,12 +149,12 @@ export async function sendAgendaReminderEmail(payload: { toEmail: string; subjec
   });
 }
 
-export async function sendLoginOtpEmail(toEmail: string, code: string) {
+export async function sendLoginOtpEmail(toEmail: string, code: string, wardName?: string | null) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. OTP code:", code);
@@ -149,6 +176,50 @@ export async function sendLoginOtpEmail(toEmail: string, code: string) {
   });
 }
 
+export async function sendAccountRecoveryEmail(payload: {
+  toEmail: string;
+  name: string;
+  username: string;
+  temporaryPassword: string;
+  wardName?: string | null;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = getSmtpFromHeader(payload.wardName);
+  const wardSignature = resolveWardName(payload.wardName);
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. Recovery payload:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "Recuperación de acceso",
+    text: [
+      `Hola ${payload.name},`,
+      "",
+      "Hemos procesado tu solicitud de recuperación de acceso.",
+      `Usuario: ${payload.username}`,
+      `Contraseña temporal: ${payload.temporaryPassword}`,
+      "",
+      "Por seguridad, cambia esta contraseña después de iniciar sesión.",
+      "",
+      wardSignature,
+    ].join("\n"),
+  });
+}
+
 export async function sendAccessRequestEmail(payload: {
   toEmail: string;
   requesterName: string;
@@ -161,7 +232,7 @@ export async function sendAccessRequestEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader();
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Access request:", payload);
@@ -206,7 +277,7 @@ export async function sendNewUserCredentialsEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader();
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. New user credentials:", payload);
@@ -371,7 +442,7 @@ export async function sendInterviewScheduledEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader();
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Interview scheduled:", payload);
@@ -754,7 +825,7 @@ export async function sendBirthdayGreetingEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader();
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Birthday greeting:", payload);
