@@ -63,6 +63,7 @@ import {
   sendAccessRequestEmail,
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
+  sendAccountRecoveryEmail,
   sendInterviewScheduledEmail,
   sendInterviewUpdatedEmail,
   sendInterviewCancelledEmail,
@@ -820,13 +821,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const unusualCountry = lastLogin?.country && country && lastLogin.country !== country;
 
       const requiresOtp =
-        user.requireEmailOtp ||
-        !deviceHash ||
-        !existingDevice?.trusted ||
-        unusualCountry;
+        !user.requirePasswordChange && (
+          user.requireEmailOtp ||
+          !deviceHash ||
+          !existingDevice?.trusted ||
+          unusualCountry
+        );
 
       const canSendOtp = Boolean(user.email);
       if (requiresOtp && canSendOtp) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         const otpCode = generateOtpCode();
         const otpHash = hashToken(otpCode);
         const otp = await storage.createEmailOtp({
@@ -838,7 +843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiresAt: getOtpExpiry(),
         });
 
-        await sendLoginOtpEmail(user.email, otpCode);
+        await sendLoginOtpEmail(user.email, otpCode, wardName);
 
         await storage.createLoginEvent({
           userId: user.id,
@@ -890,12 +895,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/login/recover", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      const trimmedEmail = typeof email === "string" ? email.trim() : "";
+      if (!trimmedEmail) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(trimmedEmail);
+      if (!user || !user.isActive || !user.email) {
+        return res.json({ message: "If that email exists, recovery instructions were sent" });
+      }
+
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const loginUrl = `${baseUrl}/login`;
+
+      const temporaryPassword = generateTemporaryPassword();
+      const hashedTemporaryPassword = await bcrypt.hash(temporaryPassword, 10);
+      await storage.updateUser(user.id, {
+        password: hashedTemporaryPassword,
+        requirePasswordChange: true,
+      });
+      await storage.revokeRefreshTokensByUser(user.id);
+
+      await sendAccountRecoveryEmail({
+        toEmail: user.email,
+        name: user.name,
+        username: user.username,
+        temporaryPassword,
+        wardName,
+        loginUrl,
+      });
+
+      return res.json({ message: "If that email exists, recovery instructions were sent" });
+    } catch (error) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/login/verify", async (req: Request, res: Response) => {
     try {
       const { otpId, code, rememberDevice, deviceId } = req.body;
       if (!otpId || !code) {
         return res.status(400).json({ error: "Code is required" });
       }
+      const normalizedCode = String(code).trim();
       const deviceHash = getDeviceHash(deviceId);
       const ipAddress = getClientIp(req);
       const country = getCountryFromIp(ipAddress);
@@ -905,13 +952,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or expired code" });
       }
 
-      const codeHash = hashToken(code);
+      const codeHash = hashToken(normalizedCode);
+      let otpToConsume = otp;
       if (codeHash !== otp.codeHash) {
-        return res.status(400).json({ error: "Invalid or expired code" });
+        const matchingOtp = await storage.getActiveEmailOtpByUserAndCodeHash(otp.userId, codeHash);
+        if (!matchingOtp) {
+          return res.status(400).json({ error: "Invalid or expired code" });
+        }
+        otpToConsume = matchingOtp;
       }
 
-      await storage.consumeEmailOtp(otp.id);
-      const user = await storage.getUser(otp.userId);
+      await storage.consumeEmailOtp(otpToConsume.id);
+      const user = await storage.getUser(otpToConsume.userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -1086,7 +1138,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid access request data" });
       }
 
-      const accessRequest = await storage.createAccessRequest(parsed.data);
+      const normalizedEmail = parsed.data.email.trim().toLowerCase();
+      const existingUser = await storage.getUserByEmail(normalizedEmail);
+      if (existingUser) {
+        return res.status(409).json({
+          error: "Ya existe una cuenta con ese correo.",
+          code: "ACCOUNT_ALREADY_EXISTS",
+          recoveryPath: "/login",
+        });
+      }
+
+      const accessRequest = await storage.createAccessRequest({
+        ...parsed.data,
+        email: normalizedEmail,
+      });
 
       const users = await storage.getAllUsers();
       const notificationRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
@@ -1102,6 +1167,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : [];
 
       if (recipients.length > 0) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
         const reviewUrl = `${baseUrl}/admin/users?requestId=${accessRequest.id}`;
         await Promise.all(
@@ -1113,6 +1180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               calling: accessRequest.calling,
               phone: accessRequest.phone,
               reviewUrl,
+              wardName,
             })
           )
         );
@@ -1271,12 +1339,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
       }
 
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const loginUrl = `${baseUrl}/login`;
+
       await sendNewUserCredentialsEmail({
         toEmail: email,
         name: normalizedName,
         username: derivedUsername,
         temporaryPassword,
         recipientSex: memberForCalling?.sex,
+        wardName,
+        loginUrl,
       });
 
       const { password: _, ...userWithoutPassword } = user;
@@ -3641,6 +3716,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (interviewer?.email) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         await sendOrganizationInterviewScheduledEmail({
           toEmail: interviewer.email,
           recipientName: normalizeMemberName(interviewer.name),
@@ -3650,6 +3727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes: interview.notes,
           organizationName: organization?.name,
           requesterName: normalizeMemberName(user.name),
+          wardName,
         });
       }
 
@@ -3914,6 +3992,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (updateData.resolution === "cancelada") {
           const interviewerUser = await storage.getUser(updated.interviewerId);
           if (interviewerUser?.email) {
+            const template = await storage.getPdfTemplate();
+            const wardName = template?.wardName;
             const canceledDateValue = new Date(updated.date);
             const canceledDate = canceledDateValue.toLocaleDateString("es-ES", {
               year: "numeric",
@@ -3932,6 +4012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               interviewDate: canceledDate,
               interviewTime: canceledTime,
               organizationName: organization?.name,
+              wardName,
             });
           }
         }
@@ -7188,6 +7269,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function runAgendaReminderWorker() {
     try {
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
       const due = await storage.getAgendaRemindersDue(new Date());
       for (const reminder of due) {
         try {
@@ -7200,7 +7283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               getEventById: (eventId) => storage.getAgendaEvent(eventId),
               getTaskById: (taskId) => storage.getAgendaTask(taskId),
               sendPush: (userId, payload) => sendPushNotification(userId, payload),
-              sendEmail: (payload) => sendAgendaReminderEmail(payload),
+              sendEmail: (payload) => sendAgendaReminderEmail({ ...payload, wardName }),
               isPushConfigured,
             },
           });
