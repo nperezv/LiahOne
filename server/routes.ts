@@ -63,6 +63,7 @@ import {
   sendAccessRequestEmail,
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
+  sendAccountRecoveryEmail,
   sendInterviewScheduledEmail,
   sendInterviewUpdatedEmail,
   sendInterviewCancelledEmail,
@@ -890,6 +891,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/login/recover", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      const trimmedEmail = typeof email === "string" ? email.trim() : "";
+      if (!trimmedEmail) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(trimmedEmail);
+      if (!user || !user.isActive || !user.email) {
+        return res.json({ message: "If that email exists, recovery instructions were sent" });
+      }
+
+      const temporaryPassword = generateTemporaryPassword();
+      const hashedTemporaryPassword = await bcrypt.hash(temporaryPassword, 10);
+      await storage.updateUser(user.id, { password: hashedTemporaryPassword });
+      await storage.revokeRefreshTokensByUser(user.id);
+
+      await sendAccountRecoveryEmail({
+        toEmail: user.email,
+        name: user.name,
+        username: user.username,
+        temporaryPassword,
+      });
+
+      return res.json({ message: "If that email exists, recovery instructions were sent" });
+    } catch (error) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/login/verify", async (req: Request, res: Response) => {
     try {
       const { otpId, code, rememberDevice, deviceId } = req.body;
@@ -1086,7 +1118,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid access request data" });
       }
 
-      const accessRequest = await storage.createAccessRequest(parsed.data);
+      const normalizedEmail = parsed.data.email.trim().toLowerCase();
+      const existingUser = await storage.getUserByEmail(normalizedEmail);
+      if (existingUser) {
+        return res.status(409).json({
+          error: "Ya existe una cuenta con ese correo.",
+          code: "ACCOUNT_ALREADY_EXISTS",
+          recoveryPath: "/login",
+        });
+      }
+
+      const accessRequest = await storage.createAccessRequest({
+        ...parsed.data,
+        email: normalizedEmail,
+      });
 
       const users = await storage.getAllUsers();
       const notificationRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];

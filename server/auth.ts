@@ -14,7 +14,7 @@ const createSmtpTransport = () => {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
 
   if (!host || !port || !user || !pass) {
     return null;
@@ -127,7 +127,7 @@ export async function sendLoginOtpEmail(toEmail: string, code: string) {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. OTP code:", code);
@@ -149,6 +149,46 @@ export async function sendLoginOtpEmail(toEmail: string, code: string) {
   });
 }
 
+export async function sendAccountRecoveryEmail(payload: {
+  toEmail: string;
+  name: string;
+  username: string;
+  temporaryPassword: string;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. Recovery payload:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "Recuperación de acceso",
+    text: [
+      `Hola ${payload.name},`,
+      "",
+      "Hemos procesado tu solicitud de recuperación de acceso.",
+      `Usuario: ${payload.username}`,
+      `Contraseña temporal: ${payload.temporaryPassword}`,
+      "",
+      "Por seguridad, cambia esta contraseña después de iniciar sesión.",
+    ].join("\n"),
+  });
+}
+
 export async function sendAccessRequestEmail(payload: {
   toEmail: string;
   requesterName: string;
@@ -161,7 +201,7 @@ export async function sendAccessRequestEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Access request:", payload);
@@ -206,7 +246,7 @@ export async function sendNewUserCredentialsEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. New user credentials:", payload);
@@ -371,7 +411,7 @@ export async function sendInterviewScheduledEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Interview scheduled:", payload);
@@ -754,7 +794,7 @@ export async function sendBirthdayGreetingEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = process.env.SMTP_FROM || "\"Barrio Madrid 8 - no-reply\" <no-reply@liahone.app>";
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Birthday greeting:", payload);
