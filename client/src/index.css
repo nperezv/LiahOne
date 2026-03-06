@@ -316,6 +316,26 @@
   }
 
 
+
+  .app-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior-y: contain;
+  }
+
+  .app-page-content {
+    contain: layout paint;
+    will-change: transform;
+  }
+
+  .app-scroll-container.is-scrolling .pilot-glass-card,
+  .app-scroll-container.is-scrolling .shadcn-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: box-shadow 140ms ease;
+  }
+
+
   .shadcn-card {
     position: relative;
     overflow: hidden;

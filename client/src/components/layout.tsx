@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Redirect, useLocation } from "wouter";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -15,6 +15,34 @@ export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const isMobile = useIsMobile();
   const [location] = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
+  const scrollingTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+
+    const handleScroll = () => {
+      mainEl.classList.add("is-scrolling");
+
+      if (scrollingTimeoutRef.current) {
+        window.clearTimeout(scrollingTimeoutRef.current);
+      }
+
+      scrollingTimeoutRef.current = window.setTimeout(() => {
+        mainEl.classList.remove("is-scrolling");
+      }, 140);
+    };
+
+    mainEl.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      mainEl.removeEventListener("scroll", handleScroll);
+      if (scrollingTimeoutRef.current) {
+        window.clearTimeout(scrollingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -48,8 +76,8 @@ export function Layout({ children }: LayoutProps) {
             user={user ? { name: user.name, role: user.role, avatarUrl: user.avatarUrl } : undefined}
             onLogout={logout}
           />
-          <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-            <div key={location} className="app-route-fade">
+          <main ref={mainRef} className="app-scroll-container flex-1 overflow-y-auto pb-20 md:pb-0">
+            <div key={location} className="app-page-content app-route-fade">
               {children}
             </div>
           </main>
