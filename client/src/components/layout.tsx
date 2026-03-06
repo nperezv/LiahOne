@@ -23,7 +23,9 @@ export function Layout({ children }: LayoutProps) {
     if (!mainEl) return;
 
     const handleScroll = () => {
-      mainEl.classList.add("is-scrolling");
+      if (!mainEl.classList.contains("is-scrolling")) {
+        mainEl.classList.add("is-scrolling");
+      }
 
       if (scrollingTimeoutRef.current) {
         window.clearTimeout(scrollingTimeoutRef.current);
@@ -31,7 +33,7 @@ export function Layout({ children }: LayoutProps) {
 
       scrollingTimeoutRef.current = window.setTimeout(() => {
         mainEl.classList.remove("is-scrolling");
-      }, 140);
+      }, 90);
     };
 
     mainEl.addEventListener("scroll", handleScroll, { passive: true });
