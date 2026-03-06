@@ -22,6 +22,13 @@ export function Layout({ children }: LayoutProps) {
     const mainEl = mainRef.current;
     if (!mainEl) return;
 
+    mainEl.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location]);
+
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+
     const handleScroll = () => {
       if (!mainEl.classList.contains("is-scrolling")) {
         mainEl.classList.add("is-scrolling");

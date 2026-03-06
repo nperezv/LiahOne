@@ -132,7 +132,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
+    <header className="flex items-center justify-between gap-4 bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
       <div className="flex items-center gap-3">
         <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12" />
