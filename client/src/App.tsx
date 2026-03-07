@@ -59,7 +59,7 @@ function RouteLoadingFallback() {
     <div className="app-loader-shell flex h-screen items-center justify-center">
       <img
         src="/icons/compass.svg"
-        alt="Cargando módulo"
+        alt=""
         className="app-splash-logo app-compass-spin"
         decoding="async"
         loading="eager"
