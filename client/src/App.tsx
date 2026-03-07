@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import logoImage from "@assets/liahonapplogo2.svg";
+import compassIcon from "@assets/generated_images/liahone_app_icon_blue.png";
 import {
   applyTheme,
   getStoredTheme,
@@ -57,8 +58,14 @@ const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
 
 function RouteLoadingFallback() {
   return (
-    <div className="flex h-screen items-center justify-center text-muted-foreground">
-      Cargando módulo...
+    <div className="flex h-screen items-center justify-center">
+      <img
+        src={compassIcon}
+        alt="Cargando módulo"
+        className="h-10 w-10 animate-spin [animation-duration:1.8s]"
+        decoding="async"
+        loading="eager"
+      />
     </div>
   );
 }
