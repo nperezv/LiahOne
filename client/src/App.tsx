@@ -60,7 +60,7 @@ function RouteLoadingFallback() {
       <img
         src="/icons/compass.svg"
         alt="Cargando módulo"
-        className="h-14 w-14 animate-spin [animation-duration:1.8s]"
+        className="app-splash-logo animate-spin [animation-duration:1.8s]"
         decoding="async"
         loading="eager"
       />
