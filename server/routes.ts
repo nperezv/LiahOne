@@ -531,14 +531,13 @@ const formatMeetingLabels = (
 };
 
 const extractParticipantName = (value?: string | null) => {
-  const normalized = normalizeMemberName(value);
-  if (!normalized) return "";
+  const raw = value?.trim() || "";
+  if (!raw) return "";
 
-  if (normalized.includes("|")) {
-    return normalized.split("|")[0]?.trim() || "";
-  }
+  const nameOnly = raw.includes("|") ? raw.split("|")[0]?.trim() || "" : raw;
+  if (!nameOnly) return "";
 
-  return normalized;
+  return normalizeMemberName(nameOnly);
 };
 
 const normalizeComparableName = (value?: string | null) =>
@@ -547,6 +546,14 @@ const normalizeComparableName = (value?: string | null) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+
+const getDiscourseMinutesPerSpeaker = (discourseCount: number) => {
+  if (discourseCount <= 0) return null;
+  if (discourseCount === 1) return 20;
+  if (discourseCount === 2) return 10;
+  if (discourseCount === 3) return 7;
+  return 5;
+};
 
 const buildSacramentalRoleLines = (meeting: any) => {
   const map = new Map<string, string[]>();
@@ -557,21 +564,54 @@ const buildSacramentalRoleLines = (meeting: any) => {
     map.get(normalized)!.push(line);
   };
 
-  pushLine(extractParticipantName(meeting.openingPrayer), "Oración de apertura");
-  pushLine(extractParticipantName(meeting.closingPrayer), "Oración de clausura");
+  pushLine(
+    extractParticipantName(meeting.openingPrayer || meeting.firstPrayer),
+    "Oración de apertura"
+  );
+  pushLine(
+    extractParticipantName(meeting.closingPrayer || meeting.lastPrayer),
+    "Oración de clausura"
+  );
 
-  const discourses = Array.isArray(meeting.discourses) ? meeting.discourses : [];
-  discourses.forEach((item: any) => {
-    const speaker = extractParticipantName(item?.speaker);
-    const topic = typeof item?.topic === "string" ? item.topic.trim() : "";
-    const line = topic ? `Discurso: ${topic}` : "Discurso";
-    pushLine(speaker, line);
+  const rawDiscourses = [
+    ...(Array.isArray(meeting.discourses) ? meeting.discourses : []),
+    ...(Array.isArray(meeting.messages) ? meeting.messages : []),
+  ];
+  const discourses = rawDiscourses
+    .map((item: any) => {
+      const speaker = extractParticipantName(item?.speaker);
+      const topic = typeof item?.topic === "string"
+        ? item.topic.trim()
+        : typeof item?.message === "string"
+          ? item.message.trim()
+          : "";
+      return { speaker, topic };
+    })
+    .filter((item) => Boolean(item.speaker));
+  const discourseMinutes = getDiscourseMinutesPerSpeaker(discourses.length);
+  const discourseTimeLine = discourseMinutes
+    ? `Dispondrá de ${discourseMinutes} minutos para compartir su mensaje.`
+    : null;
+
+  discourses.forEach((item) => {
+    const lineBase = item.topic ? `Discurso: ${item.topic}` : "Discurso";
+    const line = discourseTimeLine ? `${lineBase}. ${discourseTimeLine}` : lineBase;
+    pushLine(item.speaker, line);
   });
 
-  const assignments = Array.isArray(meeting.assignments) ? meeting.assignments : [];
+  const assignments = [
+    ...(Array.isArray(meeting.assignments) ? meeting.assignments : []),
+    ...(Array.isArray(meeting.additionalAssignments) ? meeting.additionalAssignments : []),
+  ];
   assignments.forEach((item: any) => {
-    const name = extractParticipantName(item?.name);
-    const assignment = typeof item?.assignment === "string" ? item.assignment.trim() : "";
+    const name = extractParticipantName(item?.name || item?.assignedTo || item?.responsible);
+    const assignment = typeof item?.assignment === "string"
+      ? item.assignment.trim()
+      : typeof item?.title === "string"
+        ? item.title.trim()
+        : typeof item?.responsibility === "string"
+          ? item.responsibility.trim()
+          : "";
     if (!assignment) return;
     pushLine(name, `Asignación: ${assignment}`);
   });
