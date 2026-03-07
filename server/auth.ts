@@ -776,11 +776,14 @@ export async function sendSacramentalAssignmentEmail(payload: {
   recipientName: string;
   meetingDate: string;
   meetingTime: string;
-  assignmentLines: string[];
+  assignmentKind: "discourse" | "opening_prayer" | "closing_prayer" | "other_assignment";
+  topic?: string;
+  assignmentLabel?: string;
+  suggestedMinutes?: number | null;
   wardName?: string | null;
-  isUpdate?: boolean;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  reminderType?: "midweek" | "day_before";
 }) {
   const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
@@ -788,35 +791,89 @@ export async function sendSacramentalAssignmentEmail(payload: {
     return;
   }
 
-  const subject = payload.isUpdate
-    ? "Actualización de tu participación en la reunión sacramental"
-    : "Tu participación en la próxima reunión sacramental";
+  const greeting = getTimeGreeting(payload.meetingTime);
+  const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
+  const normalizedName = normalizeRecipientName(payload.recipientName);
+  const headerLine = normalizedName
+    ? `${greeting}, ${salutation} ${normalizedName}:`
+    : `${greeting}, ${salutation}:`;
+
+  const reminderLine = payload.reminderType === "day_before"
+    ? "Te escribimos como recordatorio de tu asignación para mañana."
+    : payload.reminderType === "midweek"
+      ? "Te escribimos como recordatorio de tu asignación para esta semana."
+      : null;
+
+  const wardLabel = payload.wardName?.trim();
+  const signature = wardLabel ? `Obispado ${wardLabel}` : "Obispado";
+
+  const commonClosing = [
+    "Le agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+    "",
+    "Con aprecio,",
+    signature,
+  ];
+
+  let subject = "Asignación para reunión sacramental";
+  let bodyLines: string[] = [];
+
+  if (payload.assignmentKind === "discourse") {
+    subject = payload.reminderType
+      ? "Recordatorio: participación como discursante en reunión sacramental"
+      : "Asignación como discursante en reunión sacramental";
+    bodyLines = [
+      headerLine,
+      "",
+      reminderLine,
+      reminderLine ? "" : null,
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, como discursante, para compartir un mensaje sobre ${payload.topic || "el Salvador Jesucristo"}.`,
+      "",
+      "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
+      "",
+      "Confiamos en que el Padre Celestial lo inspirará, lo ayudará y lo sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${payload.suggestedMinutes || 10} minutos.`,
+      "",
+      ...commonClosing,
+    ].filter((line): line is string => line !== null);
+  } else if (payload.assignmentKind === "opening_prayer" || payload.assignmentKind === "closing_prayer") {
+    const prayerLabel = payload.assignmentKind === "opening_prayer" ? "oración inicial" : "oración final";
+    subject = payload.reminderType
+      ? `Recordatorio: ${prayerLabel} en reunión sacramental`
+      : `Asignación de ${prayerLabel} en reunión sacramental`;
+    bodyLines = [
+      headerLine,
+      "",
+      reminderLine,
+      reminderLine ? "" : null,
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para ofrecer la ${prayerLabel}.`,
+      "",
+      "Confiamos en que el Padre Celestial lo inspirará, lo ayudará y lo sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      ...commonClosing,
+    ].filter((line): line is string => line !== null);
+  } else {
+    subject = payload.reminderType
+      ? "Recordatorio: asignación en reunión sacramental"
+      : "Asignación en reunión sacramental";
+    bodyLines = [
+      headerLine,
+      "",
+      reminderLine,
+      reminderLine ? "" : null,
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la asignación: ${payload.assignmentLabel || "asignación especial"}.`,
+      "",
+      "Confiamos en que el Padre Celestial lo inspirará, lo ayudará y lo sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      ...commonClosing,
+    ].filter((line): line is string => line !== null);
+  }
 
   await smtp.transporter.sendMail({
     from: smtp.from,
     to: payload.toEmail,
     subject,
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.meetingTime,
-      }),
-      "",
-      payload.isUpdate
-        ? "Con cariño te compartimos una actualización de tu participación:"
-        : "Con mucho aprecio te compartimos tu participación en la próxima reunión sacramental:",
-      ...payload.assignmentLines.map((line) => `• ${line}`),
-      "",
-      `Fecha: ${payload.meetingDate}`,
-      `Hora: ${payload.meetingTime} hrs.`,
-      "",
-      "Gracias por tu disposición para servir.",
-      "",
-      "Con cariño fraternal,",
-      payload.wardName?.trim() || "Obispado",
-    ].join("\n"),
+    text: bodyLines.join("\n"),
   });
 }
 
