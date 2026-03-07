@@ -329,9 +329,6 @@ const normalizeRecipientName = (value?: string | null) => {
     return namePart || "";
   }
 
-  // Importante: no reordenamos apellidos/nombres aquí.
-  // El orden ya debe venir normalizado desde el flujo que envía el correo.
-  // Esto evita "doble normalización" y casos de desnormalización.
   return cleaned;
 };
 
@@ -779,20 +776,7 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const toSacramentalHtmlLine = (line: string) => {
-  const trimmed = line.trim();
-  if (!trimmed) return "";
-
-  const highlightedPrefixes = ["Fecha:", "Tema del mensaje:", "Tiempo aproximado:", "Asignación:"];
-  for (const prefix of highlightedPrefixes) {
-    if (trimmed.startsWith(prefix)) {
-      const value = trimmed.slice(prefix.length).trim();
-      return `<strong>${escapeHtml(prefix)} ${escapeHtml(value)}</strong>`;
-    }
-  }
-
-  return escapeHtml(trimmed);
-};
+const b = (value: string) => `<strong>${escapeHtml(value)}</strong>`;
 
 export async function sendSacramentalAssignmentEmail(payload: {
   toEmail: string;
@@ -821,93 +805,138 @@ export async function sendSacramentalAssignmentEmail(payload: {
     ? `${greeting}, ${salutation} ${normalizedName}:`
     : `${greeting}, ${salutation}:`;
 
-  const reminderLine = payload.reminderType === "day_before"
-    ? "Te escribimos como recordatorio de tu asignación para mañana."
-    : payload.reminderType === "midweek"
-      ? "Te escribimos como recordatorio de tu asignación para esta semana."
-      : null;
-
   const wardLabel = payload.wardName?.trim();
   const signature = wardLabel ? `Obispado ${wardLabel}` : "Obispado";
 
-  const participationThanks = "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.";
-  const signatureClosing = [
-    "",
-    "Con aprecio,",
-    signature,
-  ];
+  const reminderIntro =
+    payload.reminderType === "day_before"
+      ? "Te escribimos como recordatorio de tu asignación para mañana."
+      : payload.reminderType === "midweek"
+        ? "Te escribimos como recordatorio de tu asignación para esta semana."
+        : null;
 
-  let subject = "Asignación para reunión sacramental";
-  let bodyLines: string[] = [];
+  let subject: string;
+  let textLines: string[];
+  let htmlLines: string[];
 
   if (payload.assignmentKind === "discourse") {
+    const topic = payload.topic || "el Salvador Jesucristo";
+    const minutes = payload.suggestedMinutes || 10;
+
     subject = payload.reminderType
       ? "Recordatorio: participación como discursante en reunión sacramental"
       : "Asignación como discursante en reunión sacramental";
-    bodyLines = [
+
+    textLines = [
       headerLine,
       "",
-      reminderLine,
-      reminderLine ? "" : null,
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, como discursante, para compartir un mensaje sobre ${payload.topic || "el Salvador Jesucristo"}.`,
+      ...(reminderIntro ? [reminderIntro, ""] : []),
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, como discursante, para compartir un mensaje sobre ${topic}.`,
       "",
       "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
-      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${payload.suggestedMinutes || 10} minutos, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
-      ...signatureClosing,
-    ].filter((line): line is string => line !== null);
+      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${minutes} minutos, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+      "",
+      "Con aprecio,",
+      signature,
+    ];
+
+    htmlLines = [
+      escapeHtml(headerLine),
+      "",
+      ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, como discursante, para ${b(`compartir un mensaje sobre ${topic}`)}.`,
+      "",
+      "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${b(`${minutes} minutos`)}, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+      "",
+      "Con aprecio,",
+      escapeHtml(signature),
+    ];
   } else if (payload.assignmentKind === "opening_prayer" || payload.assignmentKind === "closing_prayer") {
     const prayerLabel = payload.assignmentKind === "opening_prayer" ? "oración inicial" : "oración final";
+
     subject = payload.reminderType
       ? `Recordatorio: ${prayerLabel} en reunión sacramental`
       : `Asignación de ${prayerLabel} en reunión sacramental`;
-    bodyLines = [
+
+    textLines = [
       headerLine,
       "",
-      reminderLine,
-      reminderLine ? "" : null,
+      ...(reminderIntro ? [reminderIntro, ""] : []),
       `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para ofrecer la ${prayerLabel}.`,
-      "",
-      `Fecha: ${payload.meetingDate}`,
-      `Asignación: ${prayerLabel}`,
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
-      participationThanks,
-      ...signatureClosing,
-    ].filter((line): line is string => line !== null);
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      signature,
+    ];
+
+    htmlLines = [
+      escapeHtml(headerLine),
+      "",
+      ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para ofrecer la ${b(prayerLabel)}.`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      escapeHtml(signature),
+    ];
   } else {
+    const assignmentLabel = payload.assignmentLabel || "asignación especial";
+
     subject = payload.reminderType
       ? "Recordatorio: asignación en reunión sacramental"
       : "Asignación en reunión sacramental";
-    bodyLines = [
+
+    textLines = [
       headerLine,
       "",
-      reminderLine,
-      reminderLine ? "" : null,
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la asignación: ${payload.assignmentLabel || "asignación especial"}.`,
-      "",
-      `Fecha: ${payload.meetingDate}`,
-      `Asignación: ${payload.assignmentLabel || "asignación especial"}`,
+      ...(reminderIntro ? [reminderIntro, ""] : []),
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la siguiente asignación: ${assignmentLabel}.`,
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
-      participationThanks,
-      ...signatureClosing,
-    ].filter((line): line is string => line !== null);
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      signature,
+    ];
+
+    htmlLines = [
+      escapeHtml(headerLine),
+      "",
+      ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
+      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para cumplir con la siguiente asignación: ${b(assignmentLabel)}.`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      escapeHtml(signature),
+    ];
   }
 
-  const htmlBody = bodyLines
-    .map((line) => toSacramentalHtmlLine(line))
-    .join("<br/>");
+  const htmlBody = htmlLines
+    .map((line) => (line === "" ? "<br/>" : `<span>${line}</span><br/>`))
+    .join("\n");
 
   await smtp.transporter.sendMail({
     from: smtp.from,
     to: payload.toEmail,
     subject,
-    text: bodyLines.join("\n"),
+    text: textLines.join("\n"),
     html: htmlBody,
   });
 }
