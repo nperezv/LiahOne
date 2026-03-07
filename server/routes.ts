@@ -1914,7 +1914,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const meetingData = insertSacramentalMeetingSchema.parse(dataToValidate);
 
       const meeting = await storage.createSacramentalMeeting(meetingData);
-      await notifySacramentalParticipants(meeting);
       res.status(201).json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
