@@ -192,8 +192,14 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
             {/* Contenido */}
             {isLoading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                Cargando...
+              <div className="p-4 flex items-center justify-center" aria-busy="true" aria-live="polite">
+                <img
+                  src="/icons/compass.svg"
+                  alt=""
+                  className="h-6 w-6 app-compass-spin"
+                  decoding="async"
+                  loading="eager"
+                />
               </div>
             ) : unreadNotifications.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
