@@ -603,6 +603,14 @@
     animation: compass-spin 1.8s linear infinite;
   }
 
+  .app-compass-idle {
+    animation: compass-idle 1.25s ease-in-out infinite;
+  }
+
+  .app-loader-shell {
+    animation: loader-fade-in 180ms ease-out both;
+  }
+
   @keyframes compass-spin {
     from {
       transform: rotate(0deg) translateZ(0);
@@ -612,8 +620,32 @@
     }
   }
 
+  @keyframes compass-idle {
+    0% {
+      transform: scale(0.985) translateZ(0);
+      opacity: 0.94;
+    }
+    100% {
+      transform: scale(1) translateZ(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes loader-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .app-compass-spin {
+    .app-compass-spin,
+    .app-compass-idle,
+    .app-loader-shell {
       animation: none;
     }
   }
