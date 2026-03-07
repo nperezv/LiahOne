@@ -1949,6 +1949,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const meetingData = insertSacramentalMeetingSchema.parse(dataToValidate);
 
       const meeting = await storage.createSacramentalMeeting(meetingData);
+
+      try {
+        await notifySacramentalParticipants(meeting);
+      } catch (notificationError) {
+        console.error("[Sacramental Emails] Failed to notify participants after meeting creation", {
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+          error: notificationError,
+        });
+      }
+
       res.status(201).json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
