@@ -722,35 +722,43 @@ export default function SacramentalMeetingPage() {
 
   const canEdit = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
 
+  const resetMeetingFormState = () => {
+    form.reset();
+    setDiscourses([{ speaker: "", topic: "" }]);
+    setAssignments([{ name: "", assignment: "" }]);
+    setReleases([{ name: "", oldCalling: "" }]);
+    setSustainments([{ name: "", calling: "" }]);
+    setNewMembers([""]);
+    setAaronicOrderings([""]);
+    setChildBlessings([""]);
+    setConfirmations([""]);
+    setIntermediateHymnType("");
+    setIsTestimonyMeeting(false);
+    setHasReleasesAndSustainments(false);
+    setHasNewMembers(false);
+    setHasOrderings(false);
+    setHasChildBlessings(false);
+    setHasConfirmations(false);
+    setHasStakeBusiness(false);
+    setDirectorSelection("");
+    setDirectorCustom("");
+    setDirectorCustomCalling("");
+    setPresiderSelection("");
+    setPresiderCustomName("");
+    setPresiderAuthorityType("");
+  };
+
   // Reset form when dialog opens
   const handleOpenChange = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
       setEditingId(null);
-    } else if (!editingId) {
+      return;
+    }
+
+    if (!editingId) {
       // Reset all states for new meeting
-      form.reset();
-      setDiscourses([{ speaker: "", topic: "" }]);
-      setReleases([{ name: "", oldCalling: "" }]);
-      setSustainments([{ name: "", calling: "" }]);
-      setNewMembers([""]);
-      setAaronicOrderings([""]);
-      setChildBlessings([""]);
-      setConfirmations([""]);
-      setIntermediateHymnType("");
-      setIsTestimonyMeeting(false);
-      setHasReleasesAndSustainments(false);
-      setHasNewMembers(false);
-      setHasOrderings(false);
-      setHasChildBlessings(false);
-      setHasConfirmations(false);
-      setHasStakeBusiness(false);
-      setDirectorSelection("");
-      setDirectorCustom("");
-      setDirectorCustomCalling("");
-      setPresiderSelection("");
-      setPresiderCustomName("");
-      setPresiderAuthorityType("");
+      resetMeetingFormState();
     }
   };
 
@@ -2203,7 +2211,7 @@ export default function SacramentalMeetingPage() {
                     <Button type="submit" className="flex-1" data-testid="button-save-meeting">
                       Guardar Reunión
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                       Cancelar
                     </Button>
                   </div>
