@@ -6,8 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
-import logoImage from "@assets/liahonapplogo2.svg";
-import compassIcon from "@assets/generated_images/liahone_app_icon_blue.png";
 import {
   applyTheme,
   getStoredTheme,
@@ -62,7 +60,7 @@ function RouteLoadingFallback() {
       <img
         src="/icons/compass.svg"
         alt="Cargando módulo"
-        className="h-10 w-10 animate-spin [animation-duration:1.8s]"
+        className="h-14 w-14 animate-spin [animation-duration:1.8s]"
         decoding="async"
         loading="eager"
       />
@@ -320,7 +318,7 @@ function App() {
           {showSplash && (
             <div className="app-splash" aria-hidden="true">
               <div className="app-splash-content">
-                <img src={logoImage} alt="" className="app-splash-logo" />
+                <img src="/icons/compass.svg" alt="" className="app-splash-logo animate-spin [animation-duration:2s]" />
               </div>
             </div>
           )}
