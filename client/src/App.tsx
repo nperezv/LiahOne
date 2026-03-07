@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import logoImage from "@assets/liahonapplogo2.svg";
+import compassIcon from "@assets/generated_images/liahone_app_icon_blue.png";
 import {
   applyTheme,
   getStoredTheme,
