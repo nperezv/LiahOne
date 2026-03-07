@@ -558,13 +558,13 @@
 
 
   .app-route-fade {
-    animation: route-fade-in 210ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: route-fade-in 150ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   @keyframes route-fade-in {
     from {
-      opacity: 0.88;
-      transform: translateY(3px);
+      opacity: 0.9;
+      transform: translateY(2px);
     }
     to {
       opacity: 1;
@@ -623,10 +623,6 @@
     animation: loader-fade-in 180ms ease-out both;
   }
 
-  .app-handoff-shell {
-    background: hsl(var(--background));
-  }
-
   @keyframes compass-spin {
     from {
       transform: rotate(0deg) translateZ(0);
@@ -639,7 +635,7 @@
   @keyframes loader-fade-in {
     from {
       opacity: 0;
-      transform: translateY(5px);
+      transform: translateY(4px);
     }
     to {
       opacity: 1;
