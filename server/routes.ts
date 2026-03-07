@@ -7337,7 +7337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const meetingDateUtc = Date.UTC(meetingParts.year, meetingParts.month - 1, meetingParts.day);
         const diffDays = Math.round((meetingDateUtc - todayDateUtc) / (24 * 60 * 60 * 1000));
 
-        const reminderType = diffDays === 4 ? "midweek" : diffDays === 1 ? "day_before" : null;
+        const reminderType = diffDays === 4 ? "midweek" : null;
         if (!reminderType) continue;
 
         const dedupeKey = `${todayKey}:${reminderType}:${meeting.id}`;
