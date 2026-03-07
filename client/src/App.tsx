@@ -56,11 +56,11 @@ const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
 
 function RouteLoadingFallback() {
   return (
-    <div className="flex h-screen items-center justify-center">
+    <div className="app-loader-shell flex h-screen items-center justify-center">
       <img
         src="/icons/compass.svg"
         alt="Cargando módulo"
-        className="app-splash-logo animate-spin [animation-duration:1.8s]"
+        className="app-splash-logo app-compass-spin"
         decoding="async"
         loading="eager"
       />
@@ -318,7 +318,7 @@ function App() {
           {showSplash && (
             <div className="app-splash" aria-hidden="true">
               <div className="app-splash-content">
-                <img src="/icons/compass.svg" alt="" className="app-splash-logo animate-spin [animation-duration:2s]" />
+                <img src="/icons/compass.svg" alt="" className="app-splash-logo app-compass-idle" />
               </div>
             </div>
           )}
