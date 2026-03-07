@@ -593,6 +593,7 @@
     width: 164px;
     height: 164px;
     display: block;
+    transform-box: fill-box;
     transform-origin: center;
     backface-visibility: hidden;
     will-change: transform;
