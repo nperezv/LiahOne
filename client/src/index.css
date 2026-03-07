@@ -579,19 +579,31 @@
     display: grid;
     place-items: center;
     background: hsl(var(--background));
-    animation: splash-fade 0.9s ease forwards;
+    opacity: 1;
+    transition: opacity 220ms ease;
     pointer-events: none;
+  }
+
+  .app-splash.is-closing {
+    opacity: 0;
   }
 
   .app-splash-content {
     display: grid;
     place-items: center;
     gap: 0.75rem;
+    transform: translateY(0);
+    transition: transform 220ms ease, opacity 220ms ease;
+  }
+
+  .app-splash.is-closing .app-splash-content {
+    transform: translateY(3px);
+    opacity: 0.98;
   }
 
   .app-splash-logo {
-    width: 164px;
-    height: 164px;
+    width: clamp(170px, 44vw, 236px);
+    height: clamp(170px, 44vw, 236px);
     display: block;
     transform-box: fill-box;
     transform-origin: center;
@@ -603,8 +615,30 @@
     animation: compass-spin 1.8s linear infinite;
   }
 
-  .app-compass-idle {
-    animation: compass-idle 1.25s ease-in-out infinite;
+  .app-compass-static {
+    transform: translateZ(0);
+  }
+
+  .app-compass-stack {
+    position: relative;
+  }
+
+  .app-compass-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .app-compass-ring {
+    transform: translateZ(0);
+  }
+
+  .app-compass-needle {
+    transform-origin: center;
+    transform-box: fill-box;
+    animation: compass-needle-sweep 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
   }
 
   .app-loader-shell {
@@ -620,17 +654,6 @@
     }
   }
 
-  @keyframes compass-idle {
-    0% {
-      transform: scale(0.985) translateZ(0);
-      opacity: 0.94;
-    }
-    100% {
-      transform: scale(1) translateZ(0);
-      opacity: 1;
-    }
-  }
-
   @keyframes loader-fade-in {
     from {
       opacity: 0;
@@ -642,10 +665,20 @@
     }
   }
 
+  @keyframes compass-needle-sweep {
+    from {
+      transform: rotate(-14deg) translateZ(0);
+    }
+    to {
+      transform: rotate(18deg) translateZ(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .app-compass-spin,
-    .app-compass-idle,
-    .app-loader-shell {
+    .app-compass-static,
+    .app-loader-shell,
+    .app-compass-needle {
       animation: none;
     }
   }

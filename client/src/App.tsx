@@ -220,6 +220,7 @@ function Router() {
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [isSplashClosing, setIsSplashClosing] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(() =>
     getStoredTheme()
   );
@@ -240,13 +241,15 @@ function App() {
   useEffect(() => {
     let timeout: number | null = null;
     let dismissed = false;
+    let closeTimeout: number | null = null;
 
     const dismissSplash = () => {
       if (dismissed) return;
       dismissed = true;
-      timeout = window.setTimeout(() => {
+      setIsSplashClosing(true);
+      closeTimeout = window.setTimeout(() => {
         setShowSplash(false);
-      }, 280);
+      }, 220);
     };
 
     if (document.readyState === "complete") {
@@ -259,6 +262,9 @@ function App() {
     return () => {
       if (timeout) {
         window.clearTimeout(timeout);
+      }
+      if (closeTimeout) {
+        window.clearTimeout(closeTimeout);
       }
       window.removeEventListener("load", dismissSplash);
     };
@@ -316,9 +322,12 @@ function App() {
         <TooltipProvider>
           <Toaster />
           {showSplash && (
-            <div className="app-splash" aria-hidden="true">
+            <div className={`app-splash ${isSplashClosing ? "is-closing" : ""}`} aria-hidden="true">
               <div className="app-splash-content">
-                <img src="/icons/compass.svg" alt="" className="app-splash-logo app-compass-idle" />
+                <div className="app-compass-stack app-splash-logo" aria-hidden="true">
+                  <img src="/icons/compass-ring.svg" alt="" className="app-compass-layer app-compass-ring" />
+                  <img src="/icons/compass-needle.svg" alt="" className="app-compass-layer app-compass-needle" />
+                </div>
               </div>
             </div>
           )}
