@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
-import logoImage from "@assets/liahonapplogo2.svg";
 import {
   applyTheme,
   getStoredTheme,
@@ -15,46 +14,59 @@ import {
   type ThemePreference,
 } from "@/lib/theme";
 
-import NotFound from "@/pages/not-found";
-import LoginPage from "@/pages/login";
-import WelcomePage from "@/pages/welcome";
-import RequestAccessPage from "@/pages/request-access";
-import DashboardPage from "@/pages/dashboard";
-import SacramentalMeetingPage from "@/pages/sacramental-meeting";
-import WardCouncilPage from "@/pages/ward-council";
-import LeadershipPage from "@/pages/leadership";
-import PresidencyMeetingsPage from "@/pages/presidency-meetings";
-import PresidencyManageOrganizationPage from "@/pages/presidency-manage-organization";
-import PresidencyMeetingReportPage from "@/pages/presidency-meeting-report";
-import BudgetPage from "@/pages/budget";
-import InterviewsPage from "@/pages/interviews";
-import OrganizationInterviewsPage from "@/pages/organization-interviews";
-import GoalsPage from "@/pages/goals";
-import BirthdaysPage from "@/pages/birthdays";
-import ActivitiesPage from "@/pages/activities";
-import CalendarPage from "@/pages/calendar";
-import AgendaPage from "@/pages/agenda";
-import ReportsPage from "@/pages/reports";
-import SettingsPage from "@/pages/settings";
-import AssignmentsPage from "@/pages/assignments";
-import ProfilePage from "@/pages/profile";
-import AdminUsersPage from "@/pages/admin-users";
-import NotificationsPage from "@/pages/notifications";
-import DirectoryPage from "@/pages/directory";
-import SecretaryDashboardPage from "@/pages/secretary-dashboard";
-import ResourcesLibraryPage from "@/pages/resources-library";
-import DonationsPage from "@/pages/donations";
-import InventoryPage from "@/pages/inventory";
-import InventoryNewPage from "@/pages/inventory-new";
-import InventoryDetailPage from "@/pages/inventory-detail";
-import InventoryAuditPage from "@/pages/inventory-audit";
-import InventoryScanPage from "@/pages/inventory-scan";
-import InventoryRegisterHubPage from "@/pages/inventory-register";
-import InventoryListPage from "@/pages/inventory-list";
-import InventoryPublicPage from "@/pages/inventory-public";
-import InventoryLocationsPage from "@/pages/inventory-locations";
-import InventoryLocationDetailPage from "@/pages/inventory-location-detail";
-import InventoryHistoryPage from "@/pages/inventory-history";
+const LoginPage = lazy(() => import("@/pages/login"));
+const WelcomePage = lazy(() => import("@/pages/welcome"));
+const RequestAccessPage = lazy(() => import("@/pages/request-access"));
+const DashboardPage = lazy(() => import("@/pages/dashboard"));
+const SacramentalMeetingPage = lazy(() => import("@/pages/sacramental-meeting"));
+const WardCouncilPage = lazy(() => import("@/pages/ward-council"));
+const LeadershipPage = lazy(() => import("@/pages/leadership"));
+const PresidencyMeetingsPage = lazy(() => import("@/pages/presidency-meetings"));
+const PresidencyManageOrganizationPage = lazy(() => import("@/pages/presidency-manage-organization"));
+const PresidencyMeetingReportPage = lazy(() => import("@/pages/presidency-meeting-report"));
+const BudgetPage = lazy(() => import("@/pages/budget"));
+const InterviewsPage = lazy(() => import("@/pages/interviews"));
+const OrganizationInterviewsPage = lazy(() => import("@/pages/organization-interviews"));
+const GoalsPage = lazy(() => import("@/pages/goals"));
+const BirthdaysPage = lazy(() => import("@/pages/birthdays"));
+const ActivitiesPage = lazy(() => import("@/pages/activities"));
+const CalendarPage = lazy(() => import("@/pages/calendar"));
+const AgendaPage = lazy(() => import("@/pages/agenda"));
+const ReportsPage = lazy(() => import("@/pages/reports"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const AssignmentsPage = lazy(() => import("@/pages/assignments"));
+const ProfilePage = lazy(() => import("@/pages/profile"));
+const AdminUsersPage = lazy(() => import("@/pages/admin-users"));
+const NotificationsPage = lazy(() => import("@/pages/notifications"));
+const DirectoryPage = lazy(() => import("@/pages/directory"));
+const SecretaryDashboardPage = lazy(() => import("@/pages/secretary-dashboard"));
+const ResourcesLibraryPage = lazy(() => import("@/pages/resources-library"));
+const DonationsPage = lazy(() => import("@/pages/donations"));
+const InventoryPage = lazy(() => import("@/pages/inventory"));
+const InventoryNewPage = lazy(() => import("@/pages/inventory-new"));
+const InventoryDetailPage = lazy(() => import("@/pages/inventory-detail"));
+const InventoryAuditPage = lazy(() => import("@/pages/inventory-audit"));
+const InventoryScanPage = lazy(() => import("@/pages/inventory-scan"));
+const InventoryRegisterHubPage = lazy(() => import("@/pages/inventory-register"));
+const InventoryListPage = lazy(() => import("@/pages/inventory-list"));
+const InventoryPublicPage = lazy(() => import("@/pages/inventory-public"));
+const InventoryLocationsPage = lazy(() => import("@/pages/inventory-locations"));
+const InventoryLocationDetailPage = lazy(() => import("@/pages/inventory-location-detail"));
+const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <img
+        src="/icons/compass.svg"
+        alt="Cargando módulo"
+        className="app-splash-logo app-compass-spin"
+        decoding="async"
+        loading="eager"
+      />
+    </div>
+  );
+}
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
@@ -191,16 +203,18 @@ function ProtectedRoutes() {
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/welcome" component={WelcomePage} />
-      <Route path="/login" component={LoginRoute} />
-      <Route path="/request-access" component={RequestAccessPage} />
-      <Route path="/donar" component={DonationsPage} />
-      <Route path="/">
-        <Redirect to="/welcome" />
-      </Route>
-      <Route component={ProtectedRoutes} />
-    </Switch>
+    <Suspense fallback={<RouteLoadingFallback />}>
+      <Switch>
+        <Route path="/welcome" component={WelcomePage} />
+        <Route path="/login" component={LoginRoute} />
+        <Route path="/request-access" component={RequestAccessPage} />
+        <Route path="/donar" component={DonationsPage} />
+        <Route path="/">
+          <Redirect to="/welcome" />
+        </Route>
+        <Route component={ProtectedRoutes} />
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -224,11 +238,30 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setShowSplash(false);
-    }, 900);
+    let timeout: number | null = null;
+    let dismissed = false;
 
-    return () => window.clearTimeout(timeout);
+    const dismissSplash = () => {
+      if (dismissed) return;
+      dismissed = true;
+      timeout = window.setTimeout(() => {
+        setShowSplash(false);
+      }, 280);
+    };
+
+    if (document.readyState === "complete") {
+      dismissSplash();
+    } else {
+      window.addEventListener("load", dismissSplash, { once: true });
+      timeout = window.setTimeout(dismissSplash, 1200);
+    }
+
+    return () => {
+      if (timeout) {
+        window.clearTimeout(timeout);
+      }
+      window.removeEventListener("load", dismissSplash);
+    };
   }, []);
 
   useEffect(() => {
@@ -285,7 +318,7 @@ function App() {
           {showSplash && (
             <div className="app-splash" aria-hidden="true">
               <div className="app-splash-content">
-                <img src={logoImage} alt="" className="app-splash-logo" />
+                <img src="/icons/compass.svg" alt="" className="app-splash-logo app-compass-spin" />
               </div>
             </div>
           )}
