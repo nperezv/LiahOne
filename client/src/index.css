@@ -587,12 +587,67 @@
     display: grid;
     place-items: center;
     gap: 0.75rem;
-    animation: splash-pop 0.6s ease-out forwards;
   }
 
   .app-splash-logo {
-    width: 140px;
-    height: 140px;
+    width: 164px;
+    height: 164px;
+    display: block;
+    transform-box: fill-box;
+    transform-origin: center;
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+
+  .app-compass-spin {
+    animation: compass-spin 1.8s linear infinite;
+  }
+
+  .app-compass-idle {
+    animation: compass-idle 1.25s ease-in-out infinite;
+  }
+
+  .app-loader-shell {
+    animation: loader-fade-in 180ms ease-out both;
+  }
+
+  @keyframes compass-spin {
+    from {
+      transform: rotate(0deg) translateZ(0);
+    }
+    to {
+      transform: rotate(360deg) translateZ(0);
+    }
+  }
+
+  @keyframes compass-idle {
+    0% {
+      transform: scale(0.985) translateZ(0);
+      opacity: 0.94;
+    }
+    100% {
+      transform: scale(1) translateZ(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes loader-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-compass-spin,
+    .app-compass-idle,
+    .app-loader-shell {
+      animation: none;
+    }
   }
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */
