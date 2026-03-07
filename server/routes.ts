@@ -547,6 +547,66 @@ const normalizeComparableName = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
+const tokenizeComparableName = (value?: string | null) =>
+  normalizeComparableName(value)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const buildTokenSignature = (value?: string | null) =>
+  tokenizeComparableName(value)
+    .sort()
+    .join(" ");
+
+const scoreNameSimilarity = (targetTokens: string[], candidateTokens: string[]) => {
+  if (targetTokens.length === 0 || candidateTokens.length === 0) return Number.NEGATIVE_INFINITY;
+
+  const targetSet = new Set(targetTokens);
+  const candidateSet = new Set(candidateTokens);
+  const overlap = targetTokens.filter((token) => candidateSet.has(token)).length;
+
+  if (overlap === 0) return Number.NEGATIVE_INFINITY;
+
+  const targetInCandidate = targetTokens.every((token) => candidateSet.has(token));
+  const candidateInTarget = candidateTokens.every((token) => targetSet.has(token));
+
+  if (targetInCandidate && candidateInTarget) return 1000;
+  if ((targetInCandidate || candidateInTarget) && overlap >= 2) {
+    return 200 + overlap * 10 - Math.abs(targetTokens.length - candidateTokens.length);
+  }
+
+  if (overlap >= 3) {
+    return 100 + overlap * 5 - Math.abs(targetTokens.length - candidateTokens.length) * 2;
+  }
+
+  return Number.NEGATIVE_INFINITY;
+};
+
+function findBestNameMatch<T>(
+  targetName: string,
+  candidates: T[],
+  getName: (candidate: T) => string | null | undefined
+): T | undefined {
+  const targetTokens = tokenizeComparableName(targetName);
+  if (targetTokens.length === 0) return undefined;
+
+  let bestMatch: T | undefined = undefined;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const candidateName = getName(candidate);
+    const candidateTokens = tokenizeComparableName(candidateName);
+    const score = scoreNameSimilarity(targetTokens, candidateTokens);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = candidate;
+    }
+  }
+
+  return bestScore > Number.NEGATIVE_INFINITY ? bestMatch : undefined;
+}
+
 const getDiscourseMinutesPerSpeaker = (discourseCount: number) => {
   if (discourseCount <= 0) return null;
   if (discourseCount === 1) return 20;
@@ -1871,8 +1931,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let failedCount = 0;
 
     for (const [normalizedName, entries] of roleEntries) {
-      const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName);
-      const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
+      const normalizedNameSignature = buildTokenSignature(normalizedName);
+
+      const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName)
+        || users.find((u) => buildTokenSignature(u.name) === normalizedNameSignature)
+        || findBestNameMatch(normalizedName, users, (u) => u.name);
+
+      const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName)
+        || members.find((m) => buildTokenSignature(m.nameSurename) === normalizedNameSignature)
+        || findBestNameMatch(normalizedName, members, (m) => m.nameSurename);
+
       const matchedUserEmail = matchedUser?.email?.toLowerCase();
       const memberByUserEmail = matchedUserEmail
         ? members.find((m) => (m.email || "").toLowerCase() === matchedUserEmail)
@@ -1949,6 +2017,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const meetingData = insertSacramentalMeetingSchema.parse(dataToValidate);
 
       const meeting = await storage.createSacramentalMeeting(meetingData);
+
+      try {
+        await notifySacramentalParticipants(meeting);
+      } catch (notificationError) {
+        console.error("[Sacramental Emails] Failed to notify participants after meeting creation", {
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+          error: notificationError,
+        });
+      }
+
       res.status(201).json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
