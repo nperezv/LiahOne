@@ -1866,6 +1866,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const rolesByName = buildSacramentalRoleEntries(meeting);
 
     const roleEntries = Array.from(rolesByName.entries());
+    let sentCount = 0;
+    let skippedWithoutEmail = 0;
+    let failedCount = 0;
+
     for (const [normalizedName, entries] of roleEntries) {
       const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName);
       const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
@@ -1878,7 +1882,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const toEmail = member?.email || matchedUser?.email;
       const recipientName = normalizeMemberName(member?.nameSurename || matchedUser?.name || normalizedName);
 
-      if (!toEmail) continue;
+      if (!toEmail) {
+        skippedWithoutEmail += entries.length;
+        console.warn("[Sacramental Emails] Skipping participant without email", {
+          participant: recipientName || normalizedName,
+          entries: entries.map((entry) => entry.kind),
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+        });
+        continue;
+      }
 
       const organizationType = member?.organizationId
         ? (await storage.getOrganization(member.organizationId))?.type
@@ -1886,22 +1899,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { dateLabel, timeLabel } = formatMeetingLabels(meeting.date, sacramentMeetingTime);
 
       for (const entry of entries) {
-        await sendSacramentalAssignmentEmail({
-          toEmail,
-          recipientName,
-          meetingDate: dateLabel,
-          meetingTime: timeLabel,
-          wardName,
-          recipientSex: member?.sex,
-          recipientOrganizationType: organizationType,
-          assignmentKind: entry.kind,
-          topic: entry.topic,
-          assignmentLabel: entry.assignmentLabel,
-          suggestedMinutes: entry.suggestedMinutes,
-          reminderType: options?.reminderType,
-        });
+        try {
+          await sendSacramentalAssignmentEmail({
+            toEmail,
+            recipientName,
+            meetingDate: dateLabel,
+            meetingTime: timeLabel,
+            wardName,
+            recipientSex: member?.sex,
+            recipientOrganizationType: organizationType,
+            assignmentKind: entry.kind,
+            topic: entry.topic,
+            assignmentLabel: entry.assignmentLabel,
+            suggestedMinutes: entry.suggestedMinutes,
+            reminderType: options?.reminderType,
+          });
+          sentCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error("[Sacramental Emails] Failed to send email", {
+            participant: recipientName || normalizedName,
+            toEmail,
+            kind: entry.kind,
+            meetingId: meeting?.id,
+            meetingDate: String(meeting?.date || ""),
+            error,
+          });
+        }
       }
     }
+
+    console.log("[Sacramental Emails] Dispatch result", {
+      sentCount,
+      skippedWithoutEmail,
+      failedCount,
+      reminderType: options?.reminderType || "initial",
+      meetingId: meeting?.id,
+      meetingDate: String(meeting?.date || ""),
+    });
   };
 
   app.post("/api/sacramental-meetings", requireAuth, async (req: Request, res: Response) => {
