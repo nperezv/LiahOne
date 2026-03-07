@@ -447,7 +447,7 @@ const formatDateTimeLabels = (value: string | Date) => {
   const dateLabel = date.toLocaleDateString("es-ES", {
     year: "numeric",
     month: "long",
-    day: "2-digit",
+    day: "numeric",
   });
   const timeLabel = date.toLocaleTimeString("es-ES", {
     hour: "2-digit",
@@ -506,7 +506,7 @@ const formatMeetingLabels = (
   const dateLabel = calendarDate.toLocaleDateString("es-ES", {
     year: "numeric",
     month: "long",
-    day: "2-digit",
+    day: "numeric",
     timeZone: "UTC",
   });
 
@@ -531,14 +531,13 @@ const formatMeetingLabels = (
 };
 
 const extractParticipantName = (value?: string | null) => {
-  const normalized = normalizeMemberName(value);
-  if (!normalized) return "";
+  const raw = value?.trim() || "";
+  if (!raw) return "";
 
-  if (normalized.includes("|")) {
-    return normalized.split("|")[0]?.trim() || "";
-  }
+  const nameOnly = raw.includes("|") ? raw.split("|")[0]?.trim() || "" : raw;
+  if (!nameOnly) return "";
 
-  return normalized;
+  return normalizeMemberName(nameOnly);
 };
 
 const normalizeComparableName = (value?: string | null) =>
@@ -548,42 +547,94 @@ const normalizeComparableName = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
-const buildSacramentalRoleLines = (meeting: any) => {
-  const map = new Map<string, string[]>();
-  const pushLine = (name: string | undefined | null, line: string) => {
+const getDiscourseMinutesPerSpeaker = (discourseCount: number) => {
+  if (discourseCount <= 0) return null;
+  if (discourseCount === 1) return 20;
+  if (discourseCount === 2) return 10;
+  if (discourseCount === 3) return 7;
+  return 5;
+};
+
+type SacramentalRoleEntry = {
+  kind: "discourse" | "opening_prayer" | "closing_prayer" | "other_assignment";
+  line: string;
+  topic?: string;
+  assignmentLabel?: string;
+  suggestedMinutes?: number | null;
+};
+
+const buildSacramentalRoleEntries = (meeting: any) => {
+  const map = new Map<string, SacramentalRoleEntry[]>();
+  const pushEntry = (name: string | undefined | null, entry: SacramentalRoleEntry) => {
     const normalized = normalizeComparableName(name);
     if (!normalized) return;
     if (!map.has(normalized)) map.set(normalized, []);
-    map.get(normalized)!.push(line);
+    map.get(normalized)!.push(entry);
   };
 
-  pushLine(extractParticipantName(meeting.openingPrayer), "Oración de apertura");
-  pushLine(extractParticipantName(meeting.closingPrayer), "Oración de clausura");
-
-  const discourses = Array.isArray(meeting.discourses) ? meeting.discourses : [];
-  discourses.forEach((item: any) => {
-    const speaker = extractParticipantName(item?.speaker);
-    const topic = typeof item?.topic === "string" ? item.topic.trim() : "";
-    const line = topic ? `Discurso: ${topic}` : "Discurso";
-    pushLine(speaker, line);
+  pushEntry(extractParticipantName(meeting.openingPrayer || meeting.firstPrayer), {
+    kind: "opening_prayer",
+    line: "Oración de apertura",
   });
 
-  const assignments = Array.isArray(meeting.assignments) ? meeting.assignments : [];
+  pushEntry(extractParticipantName(meeting.closingPrayer || meeting.lastPrayer), {
+    kind: "closing_prayer",
+    line: "Oración de clausura",
+  });
+
+  const rawDiscourses = [
+    ...(Array.isArray(meeting.discourses) ? meeting.discourses : []),
+    ...(Array.isArray(meeting.messages) ? meeting.messages : []),
+  ];
+  const discourses = rawDiscourses
+    .map((item: any) => {
+      const speaker = extractParticipantName(item?.speaker);
+      const topic = typeof item?.topic === "string"
+        ? item.topic.trim()
+        : typeof item?.message === "string"
+          ? item.message.trim()
+          : "";
+      return { speaker, topic };
+    })
+    .filter((item) => Boolean(item.speaker));
+
+  const discourseMinutes = getDiscourseMinutesPerSpeaker(discourses.length);
+
+  discourses.forEach((item) => {
+    const lineBase = item.topic ? `Discurso: ${item.topic}` : "Discurso";
+    const line = discourseMinutes
+      ? `${lineBase}. Dispondrá de ${discourseMinutes} minutos para compartir su mensaje.`
+      : lineBase;
+    pushEntry(item.speaker, {
+      kind: "discourse",
+      line,
+      topic: item.topic,
+      suggestedMinutes: discourseMinutes,
+    });
+  });
+
+  const assignments = [
+    ...(Array.isArray(meeting.assignments) ? meeting.assignments : []),
+    ...(Array.isArray(meeting.additionalAssignments) ? meeting.additionalAssignments : []),
+  ];
   assignments.forEach((item: any) => {
-    const name = extractParticipantName(item?.name);
-    const assignment = typeof item?.assignment === "string" ? item.assignment.trim() : "";
+    const name = extractParticipantName(item?.name || item?.assignedTo || item?.responsible);
+    const assignment = typeof item?.assignment === "string"
+      ? item.assignment.trim()
+      : typeof item?.title === "string"
+        ? item.title.trim()
+        : typeof item?.responsibility === "string"
+          ? item.responsibility.trim()
+          : "";
     if (!assignment) return;
-    pushLine(name, `Asignación: ${assignment}`);
+    pushEntry(name, {
+      kind: "other_assignment",
+      line: `Asignación: ${assignment}`,
+      assignmentLabel: assignment,
+    });
   });
 
   return map;
-};
-
-const areStringArraysEqual = (a: string[], b: string[]) => {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((value, index) => value === sortedB[index]);
 };
 
 async function hasInterviewCollision({
@@ -1804,7 +1855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const notifySacramentalParticipants = async (
     meeting: any,
     options?: {
-      previousMeeting?: any;
+      reminderType?: "midweek" | "day_before";
     }
   ) => {
     const users = await storage.getAllUsers();
@@ -1812,13 +1863,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const template = await storage.getPdfTemplate();
     const wardName = template?.wardName;
     const sacramentMeetingTime = template?.sacramentMeetingTime;
-    const rolesByName = buildSacramentalRoleLines(meeting);
-    const previousRolesByName = options?.previousMeeting
-      ? buildSacramentalRoleLines(options.previousMeeting)
-      : null;
+    const rolesByName = buildSacramentalRoleEntries(meeting);
 
     const roleEntries = Array.from(rolesByName.entries());
-    for (const [normalizedName, lines] of roleEntries) {
+    for (const [normalizedName, entries] of roleEntries) {
       const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName);
       const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
       const matchedUserEmail = matchedUser?.email?.toLowerCase();
@@ -1832,33 +1880,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!toEmail) continue;
 
-      if (previousRolesByName) {
-        const previousLines = previousRolesByName.get(normalizedName) || [];
-        const rolesChanged = !areStringArraysEqual(lines, previousLines);
-        const previousDate = options?.previousMeeting?.date;
-        const dateChanged = String(previousDate || "") !== String(meeting.date || "");
-        if (!rolesChanged && !dateChanged) {
-          continue;
-        }
-      }
+      const organizationType = member?.organizationId
+        ? (await storage.getOrganization(member.organizationId))?.type
+        : undefined;
+      const { dateLabel, timeLabel } = formatMeetingLabels(meeting.date, sacramentMeetingTime);
 
-      const { dateLabel, timeLabel } = formatMeetingLabels(
-        meeting.date,
-        sacramentMeetingTime
-      );
-      await sendSacramentalAssignmentEmail({
-        toEmail,
-        recipientName,
-        meetingDate: dateLabel,
-        meetingTime: timeLabel,
-        assignmentLines: lines,
-        wardName,
-        isUpdate: Boolean(previousRolesByName),
-        recipientSex: member?.sex,
-        recipientOrganizationType: member?.organizationId
-          ? (await storage.getOrganization(member.organizationId))?.type
-          : undefined,
-      });
+      for (const entry of entries) {
+        await sendSacramentalAssignmentEmail({
+          toEmail,
+          recipientName,
+          meetingDate: dateLabel,
+          meetingTime: timeLabel,
+          wardName,
+          recipientSex: member?.sex,
+          recipientOrganizationType: organizationType,
+          assignmentKind: entry.kind,
+          topic: entry.topic,
+          assignmentLabel: entry.assignmentLabel,
+          suggestedMinutes: entry.suggestedMinutes,
+          reminderType: options?.reminderType,
+        });
+      }
     }
   };
 
@@ -1895,8 +1937,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!meeting) {
         return res.status(404).json({ error: "Meeting not found" });
       }
-
-      await notifySacramentalParticipants(meeting, { previousMeeting: currentMeeting });
 
       res.json(meeting);
     } catch (error) {
@@ -2559,7 +2599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const signatureDate = new Date().toLocaleDateString("es-ES", {
         year: "numeric",
         month: "2-digit",
-        day: "2-digit",
+        day: "numeric",
       });
 
       // Coordenadas calibradas para la plantilla "Solicitud de gastos" (A4, 1 página)
@@ -2977,7 +3017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
         year: "numeric",
         month: "long",
-        day: "2-digit",
+        day: "numeric",
       });
       const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
         hour: "2-digit",
@@ -3079,10 +3119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
           year: "numeric",
           month: "2-digit",
-          day: "2-digit",
+          day: "numeric",
         });
         const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-          day: "2-digit",
+          day: "numeric",
           month: "short",
           year: "numeric",
         });
@@ -3449,10 +3489,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
                 year: "numeric",
                 month: "2-digit",
-                day: "2-digit",
+                day: "numeric",
               });
               const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-                day: "2-digit",
+                day: "numeric",
                 month: "short",
                 year: "numeric",
               });
@@ -3492,10 +3532,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
             year: "numeric",
             month: "2-digit",
-            day: "2-digit",
+            day: "numeric",
           });
           const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-            day: "2-digit",
+            day: "numeric",
             month: "short",
             year: "numeric",
           });
@@ -3671,7 +3711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
         year: "numeric",
         month: "long",
-        day: "2-digit",
+        day: "numeric",
       });
       const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
         hour: "2-digit",
@@ -3679,7 +3719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hour12: false,
       });
       const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-        day: "2-digit",
+        day: "numeric",
         month: "short",
         year: "numeric",
       });
@@ -3952,7 +3992,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (updateData.date) {
                 const updatedDateValue = new Date(updated.date);
                 const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
-                  day: "2-digit",
+                  day: "numeric",
                   month: "short",
                   year: "numeric",
                 });
@@ -3998,7 +4038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const canceledDate = canceledDateValue.toLocaleDateString("es-ES", {
               year: "numeric",
               month: "long",
-              day: "2-digit",
+              day: "numeric",
             });
             const canceledTime = canceledDateValue.toLocaleTimeString("es-ES", {
               hour: "2-digit",
@@ -5502,7 +5542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const interviewDateLabel = interviewDate.toLocaleDateString("es-ES", {
           year: "numeric",
           month: "long",
-          day: "2-digit",
+          day: "numeric",
         });
         const interviewTimeLabel = interviewDate.toLocaleTimeString("es-ES", {
           hour: "2-digit",
@@ -5639,7 +5679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const dueLabel = dueDate.toLocaleDateString("es-ES", {
               year: "numeric",
               month: "long",
-              day: "2-digit",
+              day: "numeric",
             });
             const reminder = await storage.createNotification({
               userId: assignee.id,
@@ -7267,6 +7307,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  let lastSacramentalReminderDate: string | null = null;
+  const sentSacramentalReminderKeys = new Set<string>();
+
+  async function sendAutomaticSacramentalAssignmentReminders() {
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const todayKey = getServerDayKey(now);
+
+      if (currentHour !== birthdaySendHour) {
+        return;
+      }
+
+      if (lastSacramentalReminderDate !== todayKey) {
+        sentSacramentalReminderKeys.clear();
+        lastSacramentalReminderDate = todayKey;
+      }
+
+      const meetings = await storage.getAllSacramentalMeetings();
+      const todayParts = parseMeetingDateParts(todayKey);
+      if (!todayParts) return;
+      const todayDateUtc = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
+
+      let remindersSent = 0;
+      for (const meeting of meetings) {
+        const meetingParts = parseMeetingDateParts(meeting.date);
+        if (!meetingParts) continue;
+
+        const meetingDateUtc = Date.UTC(meetingParts.year, meetingParts.month - 1, meetingParts.day);
+        const diffDays = Math.round((meetingDateUtc - todayDateUtc) / (24 * 60 * 60 * 1000));
+
+        const reminderType = diffDays === 4 ? "midweek" : null;
+        if (!reminderType) continue;
+
+        const dedupeKey = `${todayKey}:${reminderType}:${meeting.id}`;
+        if (sentSacramentalReminderKeys.has(dedupeKey)) continue;
+
+        await notifySacramentalParticipants(meeting, { reminderType });
+        sentSacramentalReminderKeys.add(dedupeKey);
+        remindersSent += 1;
+      }
+
+      if (remindersSent > 0) {
+        console.log(`[Sacramental Reminders] Sent ${remindersSent} meeting reminder batch(es)`);
+      }
+    } catch (error) {
+      console.error("[Sacramental Reminders] Error:", error);
+    }
+  }
+
   async function runAgendaReminderWorker() {
     try {
       const template = await storage.getPdfTemplate();
@@ -7342,6 +7432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
+  startHourlyAlignedTask(sendAutomaticSacramentalAssignmentReminders);
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
   startHourlyAlignedTask(sendAgendaDailyBriefing);
   setInterval(() => {
