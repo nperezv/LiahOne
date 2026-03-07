@@ -59,8 +59,14 @@ export function Layout({ children }: LayoutProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center text-muted-foreground">
-        Cargando...
+      <div className="app-loader-shell flex h-screen items-center justify-center" aria-busy="true" aria-live="polite">
+        <img
+          src="/icons/compass.svg"
+          alt=""
+          className="app-splash-logo app-compass-spin"
+          decoding="async"
+          loading="eager"
+        />
       </div>
     );
   }
