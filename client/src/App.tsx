@@ -60,7 +60,7 @@ function RouteLoadingFallback() {
   return (
     <div className="flex h-screen items-center justify-center">
       <img
-        src={compassIcon}
+        src="/icons/compass.svg"
         alt="Cargando módulo"
         className="h-10 w-10 animate-spin [animation-duration:1.8s]"
         decoding="async"
