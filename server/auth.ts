@@ -771,6 +771,29 @@ export async function sendAssignmentDueReminderEmail(payload: {
   });
 }
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const toSacramentalHtmlLine = (line: string) => {
+  const trimmed = line.trim();
+  if (!trimmed) return "";
+
+  const highlightedPrefixes = ["Fecha:", "Tema del mensaje:", "Tiempo aproximado:", "Asignación:"];
+  for (const prefix of highlightedPrefixes) {
+    if (trimmed.startsWith(prefix)) {
+      const value = trimmed.slice(prefix.length).trim();
+      return `<strong>${escapeHtml(prefix)} ${escapeHtml(value)}</strong>`;
+    }
+  }
+
+  return escapeHtml(trimmed);
+};
+
 export async function sendSacramentalAssignmentEmail(payload: {
   toEmail: string;
   recipientName: string;
@@ -830,7 +853,7 @@ export async function sendSacramentalAssignmentEmail(payload: {
       "",
       "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
       "",
-      "Confiamos en que el Padre Celestial lo inspirará, lo ayudará y lo sostendrá al prepararse para cumplir con esta asignación.",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
       `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${payload.suggestedMinutes || 10} minutos.`,
       "",
@@ -848,7 +871,10 @@ export async function sendSacramentalAssignmentEmail(payload: {
       reminderLine ? "" : null,
       `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para ofrecer la ${prayerLabel}.`,
       "",
-      "Confiamos en que el Padre Celestial lo inspirará, lo ayudará y lo sostendrá al prepararse para cumplir con esta asignación.",
+      `Fecha: ${payload.meetingDate}`,
+      `Asignación: ${prayerLabel}`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
       ...commonClosing,
     ].filter((line): line is string => line !== null);
@@ -863,17 +889,25 @@ export async function sendSacramentalAssignmentEmail(payload: {
       reminderLine ? "" : null,
       `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la asignación: ${payload.assignmentLabel || "asignación especial"}.`,
       "",
-      "Confiamos en que el Padre Celestial lo inspirará, lo ayudará y lo sostendrá al prepararse para cumplir con esta asignación.",
+      `Fecha: ${payload.meetingDate}`,
+      `Asignación: ${payload.assignmentLabel || "asignación especial"}`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
       ...commonClosing,
     ].filter((line): line is string => line !== null);
   }
+
+  const htmlBody = bodyLines
+    .map((line) => toSacramentalHtmlLine(line))
+    .join("<br/>");
 
   await smtp.transporter.sendMail({
     from: smtp.from,
     to: payload.toEmail,
     subject,
     text: bodyLines.join("\n"),
+    html: htmlBody,
   });
 }
 
