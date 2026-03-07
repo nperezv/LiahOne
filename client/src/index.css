@@ -619,28 +619,6 @@
     transform: translateZ(0);
   }
 
-  .app-compass-stack {
-    position: relative;
-  }
-
-  .app-compass-layer {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-
-  .app-compass-ring {
-    transform: translateZ(0);
-  }
-
-  .app-compass-needle {
-    transform-origin: center;
-    transform-box: fill-box;
-    animation: compass-needle-sweep 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-  }
-
   .app-loader-shell {
     animation: loader-fade-in 180ms ease-out both;
   }
@@ -665,20 +643,10 @@
     }
   }
 
-  @keyframes compass-needle-sweep {
-    from {
-      transform: rotate(-14deg) translateZ(0);
-    }
-    to {
-      transform: rotate(18deg) translateZ(0);
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .app-compass-spin,
     .app-compass-static,
-    .app-loader-shell,
-    .app-compass-needle {
+    .app-loader-shell {
       animation: none;
     }
   }

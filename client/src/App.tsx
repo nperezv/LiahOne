@@ -324,10 +324,7 @@ function App() {
           {showSplash && (
             <div className={`app-splash ${isSplashClosing ? "is-closing" : ""}`} aria-hidden="true">
               <div className="app-splash-content">
-                <div className="app-compass-stack app-splash-logo" aria-hidden="true">
-                  <img src="/icons/compass-ring.svg" alt="" className="app-compass-layer app-compass-ring" />
-                  <img src="/icons/compass-needle.svg" alt="" className="app-compass-layer app-compass-needle" />
-                </div>
+                <img src="/icons/compass.svg" alt="" className="app-splash-logo app-compass-spin" />
               </div>
             </div>
           )}
