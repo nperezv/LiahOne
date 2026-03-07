@@ -830,8 +830,8 @@ export async function sendSacramentalAssignmentEmail(payload: {
   const wardLabel = payload.wardName?.trim();
   const signature = wardLabel ? `Obispado ${wardLabel}` : "Obispado";
 
-  const commonClosing = [
-    "Le agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+  const participationThanks = "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.";
+  const signatureClosing = [
     "",
     "Con aprecio,",
     signature,
@@ -855,9 +855,8 @@ export async function sendSacramentalAssignmentEmail(payload: {
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
-      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${payload.suggestedMinutes || 10} minutos.`,
-      "",
-      ...commonClosing,
+      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${payload.suggestedMinutes || 10} minutos, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+      ...signatureClosing,
     ].filter((line): line is string => line !== null);
   } else if (payload.assignmentKind === "opening_prayer" || payload.assignmentKind === "closing_prayer") {
     const prayerLabel = payload.assignmentKind === "opening_prayer" ? "oración inicial" : "oración final";
@@ -876,7 +875,8 @@ export async function sendSacramentalAssignmentEmail(payload: {
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
-      ...commonClosing,
+      participationThanks,
+      ...signatureClosing,
     ].filter((line): line is string => line !== null);
   } else {
     subject = payload.reminderType
@@ -894,7 +894,8 @@ export async function sendSacramentalAssignmentEmail(payload: {
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
-      ...commonClosing,
+      participationThanks,
+      ...signatureClosing,
     ].filter((line): line is string => line !== null);
   }
 
