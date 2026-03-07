@@ -827,37 +827,67 @@ export async function sendSacramentalAssignmentEmail(payload: {
       ? "Recordatorio: participación como discursante en reunión sacramental"
       : "Asignación como discursante en reunión sacramental";
 
-    textLines = [
-      headerLine,
-      "",
-      ...(reminderIntro ? [reminderIntro, ""] : []),
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, como discursante, para compartir un mensaje sobre ${topic}.`,
-      "",
-      "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
-      "",
-      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
-      "",
-      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${minutes} minutos, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
-      "",
-      "Con aprecio,",
-      signature,
-    ];
+    if (reminderIntro) {
+      textLines = [
+        headerLine,
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Le recordamos con cariño su participación como discursante el domingo ${payload.meetingDate}, compartiendo un mensaje sobre ${topic}, con un tiempo aproximado de ${minutes} minutos.`,
+        "",
+        "Confiamos en que el Padre Celestial le inspirará y sostendrá. Gracias por su disposición.",
+        "",
+        "Con aprecio,",
+        signature,
+      ];
 
-    htmlLines = [
-      escapeHtml(headerLine),
-      "",
-      ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, como discursante, para ${b(`compartir un mensaje sobre ${topic}`)}.`,
-      "",
-      "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
-      "",
-      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
-      "",
-      `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${b(`${minutes} minutos`)}, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
-      "",
-      "Con aprecio,",
-      escapeHtml(signature),
-    ];
+      htmlLines = [
+        escapeHtml(headerLine),
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Le recordamos con cariño su participación como discursante el ${b(`domingo ${payload.meetingDate}`)}, ${b(`compartiendo un mensaje sobre ${topic}`)}, con un tiempo aproximado de ${b(`${minutes} minutos`)}.`,
+        "",
+        "Confiamos en que el Padre Celestial le inspirará y sostendrá. Gracias por su disposición.",
+        "",
+        "Con aprecio,",
+        escapeHtml(signature),
+      ];
+    } else {
+      textLines = [
+        headerLine,
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, como discursante, para compartir un mensaje sobre ${topic}.`,
+        "",
+        "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
+        "",
+        "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+        "",
+        `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${minutes} minutos, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+        "",
+        "Con aprecio,",
+        signature,
+      ];
+
+      htmlLines = [
+        escapeHtml(headerLine),
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, como discursante, para ${b(`compartir un mensaje sobre ${topic}`)}.`,
+        "",
+        "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
+        "",
+        "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+        "",
+        `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${b(`${minutes} minutos`)}, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+        "",
+        "Con aprecio,",
+        escapeHtml(signature),
+      ];
+    }
   } else if (payload.assignmentKind === "opening_prayer" || payload.assignmentKind === "closing_prayer") {
     const prayerLabel = payload.assignmentKind === "opening_prayer" ? "oración inicial" : "oración final";
 
@@ -868,8 +898,10 @@ export async function sendSacramentalAssignmentEmail(payload: {
     textLines = [
       headerLine,
       "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
       ...(reminderIntro ? [reminderIntro, ""] : []),
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para ofrecer la ${prayerLabel}.`,
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para ofrecer la ${prayerLabel}.`,
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
@@ -882,8 +914,10 @@ export async function sendSacramentalAssignmentEmail(payload: {
     htmlLines = [
       escapeHtml(headerLine),
       "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
       ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para ofrecer la ${b(prayerLabel)}.`,
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para ofrecer la ${b(prayerLabel)}.`,
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
@@ -902,8 +936,10 @@ export async function sendSacramentalAssignmentEmail(payload: {
     textLines = [
       headerLine,
       "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
       ...(reminderIntro ? [reminderIntro, ""] : []),
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la siguiente asignación: ${assignmentLabel}.`,
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la siguiente asignación: ${assignmentLabel}.`,
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
@@ -916,8 +952,10 @@ export async function sendSacramentalAssignmentEmail(payload: {
     htmlLines = [
       escapeHtml(headerLine),
       "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
       ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
-      `Bajo un espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para cumplir con la siguiente asignación: ${b(assignmentLabel)}.`,
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para cumplir con la siguiente asignación: ${b(assignmentLabel)}.`,
       "",
       "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
       "",
