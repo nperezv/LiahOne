@@ -282,7 +282,7 @@ const MeetingCard = ({
     <div
       className={cn(
         "group flex items-stretch rounded-xl border bg-card transition-all cursor-pointer overflow-hidden",
-        status === "live" && "border-emerald-500/60 shadow-[0_0_18px_2px_rgba(16,185,129,0.18)] hover:shadow-[0_0_24px_4px_rgba(16,185,129,0.26)]",
+        status === "live" && "border-primary/60 shadow-[0_0_18px_2px_hsl(var(--primary)/0.22)] hover:shadow-[0_0_26px_4px_hsl(var(--primary)/0.32)]",
         status === "upcoming" && "border-border opacity-50 hover:opacity-75",
         status === "past" && "border-border hover:border-primary/30 hover:shadow-sm",
       )}
@@ -291,12 +291,12 @@ const MeetingCard = ({
       {/* Date block */}
       <div className={cn(
         "flex flex-col items-center justify-center px-4 py-3 border-r min-w-[56px] shrink-0",
-        status === "live" ? "border-emerald-500/30 bg-emerald-500/10" : "border-border bg-muted/30",
+        status === "live" ? "border-primary/30 bg-primary/10" : "border-border bg-muted/30",
       )}>
         <span className="text-lg font-black leading-none tabular-nums">{day}</span>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{month}</span>
         {status === "live" && (
-          <span className="mt-1.5 text-[8px] font-bold uppercase tracking-widest text-emerald-400 leading-none">live</span>
+          <span className="mt-1.5 text-[8px] font-bold uppercase tracking-widest text-primary leading-none">live</span>
         )}
       </div>
 
@@ -305,7 +305,7 @@ const MeetingCard = ({
         <div className="flex items-center gap-2 mb-1">
           {/* Status badge for live/upcoming */}
           {status === "live" && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0 h-4 rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0 h-4 rounded-sm bg-primary/20 text-primary border border-primary/40 uppercase tracking-wider">
               En curso
             </span>
           )}
@@ -857,14 +857,14 @@ export default function SacramentalMeetingPage() {
           {liveMeetings.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                   </span>
                   En curso
                 </span>
-                <div className="flex-1 h-px bg-emerald-500/20" />
+                <div className="flex-1 h-px bg-primary/20" />
               </div>
               <div className="space-y-2">
                 {liveMeetings.map((m: any) => (
