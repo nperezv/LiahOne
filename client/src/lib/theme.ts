@@ -4,7 +4,8 @@ export type ThemePreference =
   | "system"
   | "white-black"
   | "blue-black"
-  | "terracotta";
+  | "terracotta"
+  | "graphite-mint";
 
 export type ResolvedTheme = "light" | "dark";
 
@@ -18,9 +19,10 @@ const THEMES: ThemePreference[] = [
   "white-black",
   "blue-black",
   "terracotta",
+  "graphite-mint",
 ];
 
-const CUSTOM_THEME_CLASSES = ["theme-white-black", "theme-blue-black", "theme-terracotta"];
+const CUSTOM_THEME_CLASSES = ["theme-white-black", "theme-blue-black", "theme-terracotta", "theme-graphite-mint"];
 
 const isThemePreference = (value: string | null): value is ThemePreference =>
   !!value && THEMES.includes(value as ThemePreference);
@@ -59,6 +61,8 @@ export const applyTheme = (preference: ThemePreference) => {
     root.classList.add("theme-blue-black");
   } else if (preference === "terracotta") {
     root.classList.add("theme-terracotta");
+  } else if (preference === "graphite-mint") {
+    root.classList.add("theme-graphite-mint");
   }
 
   root.setAttribute("data-theme-preference", preference);

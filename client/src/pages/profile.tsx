@@ -299,8 +299,11 @@ export default function ProfilePage() {
                 <ToggleGroupItem value="blue-black" aria-label="Tema black and blue">
                   Black & Blue
                 </ToggleGroupItem>
-                <ToggleGroupItem value="terracotta" aria-label="Tema terracota">
-                  Terracota
+                <ToggleGroupItem value="terracotta" aria-label="Tema terracota soft">
+                  Terracota Soft
+                </ToggleGroupItem>
+                <ToggleGroupItem value="graphite-mint" aria-label="Tema graphite and mint">
+                  Graphite & Mint
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>

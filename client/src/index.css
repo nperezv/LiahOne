@@ -234,9 +234,9 @@
   --card-foreground: 0 0% 98%;
   --border: 220 10% 24%;
   --input: 220 10% 30%;
-  --muted: 220 10% 19%;
+  --muted: 220 11% 17%;
   --muted-foreground: 220 8% 72%;
-  --accent: 220 8% 20%;
+  --accent: 220 10% 22%;
   --accent-foreground: 0 0% 98%;
   --primary: 0 0% 92%;
   --primary-foreground: 220 16% 8%;
@@ -251,7 +251,7 @@
   --glass-bg-hover: linear-gradient(135deg, #1a1d24 0%, #212631 46%, #2b3340 72%, #374151 100%);
   --glass-shadow: 0 8px 26px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.30);
   --dashboard-accent-1: hsl(0 0% 92%);
-  --dashboard-accent-2: hsl(0 0% 76%);
+  --dashboard-accent-2: hsl(220 7% 64%);
 }
 
 .dark.theme-blue-black {
@@ -281,6 +281,34 @@
   --dashboard-accent-2: hsl(201 91% 48%);
 }
 
+
+.dark.theme-graphite-mint {
+  --background: 214 14% 9%;
+  --foreground: 186 28% 95%;
+  --card: 212 13% 13%;
+  --card-foreground: 186 30% 96%;
+  --border: 210 12% 23%;
+  --input: 210 10% 27%;
+  --muted: 206 10% 18%;
+  --muted-foreground: 195 13% 70%;
+  --accent: 168 16% 22%;
+  --accent-foreground: 170 28% 93%;
+  --primary: 163 52% 58%;
+  --primary-foreground: 180 24% 12%;
+  --ring: 163 52% 58%;
+  --sidebar: 210 12% 12%;
+  --sidebar-border: 210 11% 21%;
+  --sidebar-accent: 172 14% 20%;
+  --sidebar-primary: 163 52% 58%;
+  --sidebar-primary-foreground: 180 24% 12%;
+  --sidebar-ring: 163 52% 58%;
+  --glass-bg: linear-gradient(135deg, #151a1d 0%, #1b2226 46%, #243036 72%, #2e3b43 100%);
+  --glass-bg-hover: linear-gradient(135deg, #1b2125 0%, #232b31 46%, #2c3940 72%, #36464f 100%);
+  --glass-shadow: 0 8px 26px rgba(8, 12, 14, 0.52), 0 2px 8px rgba(8, 12, 14, 0.36);
+  --dashboard-accent-1: hsl(163 52% 58%);
+  --dashboard-accent-2: hsl(175 42% 49%);
+}
+
 .dark.theme-terracotta {
   --background: 28 26% 12%;
   --foreground: 46 35% 94%;
@@ -288,24 +316,24 @@
   --card-foreground: 46 34% 95%;
   --border: 34 20% 26%;
   --input: 32 18% 28%;
-  --muted: 28 18% 20%;
-  --muted-foreground: 48 20% 71%;
-  --accent: 34 19% 24%;
-  --accent-foreground: 46 35% 95%;
-  --primary: 26 65% 62%;
+  --muted: 74 12% 21%;
+  --muted-foreground: 62 12% 73%;
+  --accent: 72 14% 25%;
+  --accent-foreground: 56 18% 92%;
+  --primary: 30 48% 61%;
   --primary-foreground: 26 35% 16%;
-  --ring: 26 65% 62%;
+  --ring: 30 48% 61%;
   --sidebar: 30 20% 15%;
   --sidebar-border: 33 18% 24%;
-  --sidebar-accent: 36 20% 22%;
-  --sidebar-primary: 26 65% 62%;
+  --sidebar-accent: 70 14% 24%;
+  --sidebar-primary: 30 48% 61%;
   --sidebar-primary-foreground: 26 35% 16%;
-  --sidebar-ring: 26 65% 62%;
+  --sidebar-ring: 30 48% 61%;
   --glass-bg: linear-gradient(135deg, #241a15 0%, #2a201a 44%, #35291f 72%, #3f3528 100%);
   --glass-bg-hover: linear-gradient(135deg, #2a1f19 0%, #34271f 46%, #413124 72%, #4c3d2d 100%);
   --glass-shadow: 0 8px 26px rgba(18, 12, 8, 0.47), 0 2px 8px rgba(18, 12, 8, 0.33);
-  --dashboard-accent-1: hsl(26 65% 62%);
-  --dashboard-accent-2: hsl(36 58% 56%);
+  --dashboard-accent-1: hsl(30 48% 61%);
+  --dashboard-accent-2: hsl(74 22% 56%);
 }
 
 
@@ -401,7 +429,11 @@
   }
 
   .dark.theme-terracotta .pilot-icon-badge--violet {
-    background: linear-gradient(135deg, #d19a66, #b97745);
+    background: linear-gradient(135deg, #c2ad82, #8f8c5a);
+  }
+
+  .dark.theme-graphite-mint .pilot-icon-badge--violet {
+    background: linear-gradient(135deg, #34d399, #2dd4bf);
   }
 }
 
@@ -553,6 +585,13 @@
       radial-gradient(980px 620px at 108% 8%, hsl(92 28% 34% / 0.20), transparent 60%),
       hsl(var(--background));
   }
+
+  .dark.theme-graphite-mint body {
+    background-image: radial-gradient(1120px 680px at 10% -10%, hsl(170 34% 28% / 0.20), transparent 62%),
+      radial-gradient(980px 620px at 108% 8%, hsl(195 28% 30% / 0.18), transparent 60%),
+      hsl(var(--background));
+  }
+
 
   @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
     .shadcn-card:hover {
