@@ -7191,7 +7191,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/push/status", requireAuth, async (req: Request, res: Response) => {
     try {
-      const subscriptions = await storage.getPushSubscriptionsByUser(req.session.userId!);
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const subscriptions = await storage.getPushSubscriptionsByUser(userId);
       res.json({
         configured: isPushConfigured(),
         subscribed: subscriptions.length > 0,
@@ -7204,6 +7209,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/push/subscribe", requireAuth, async (req: Request, res: Response) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const { endpoint, p256dh, auth } = req.body;
       
       if (!endpoint || !p256dh || !auth) {
@@ -7212,20 +7222,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existing = await storage.getPushSubscriptionByEndpoint(endpoint);
       if (existing) {
-        return res.json({ message: "Already subscribed", subscription: existing });
+        if (existing.userId !== userId || existing.p256dh !== p256dh || existing.auth !== auth) {
+          await storage.deletePushSubscriptionByEndpoint(endpoint);
+        } else {
+          return res.json({ message: "Already subscribed", subscription: existing });
+        }
       }
 
       const subscriptionData = insertPushSubscriptionSchema.parse({
-        userId: req.session.userId,
+        userId,
         endpoint,
         p256dh,
         auth,
       });
 
       const subscription = await storage.createPushSubscription(subscriptionData);
-      
+
       if (isPushConfigured()) {
-        await sendPushNotification(req.session.userId!, {
+        await sendPushNotification(userId, {
           title: "Notificaciones Activadas",
           body: "Recibirás alertas incluso cuando la app esté cerrada.",
           tag: "welcome-push",
@@ -7244,10 +7258,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/push/unsubscribe", requireAuth, async (req: Request, res: Response) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const { endpoint } = req.body;
-      
+
       if (!endpoint) {
         return res.status(400).json({ error: "Endpoint is required" });
+      }
+
+      const subscription = await storage.getPushSubscriptionByEndpoint(endpoint);
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(404).json({ error: "Subscription not found" });
       }
 
       await storage.deletePushSubscriptionByEndpoint(endpoint);
