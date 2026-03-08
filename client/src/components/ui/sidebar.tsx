@@ -265,6 +265,7 @@ function Sidebar({
 function SidebarTrigger({
   className,
   onClick,
+  children,
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar, open, openMobile, isMobile } = useSidebar()
@@ -283,13 +284,14 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeft
-        aria-hidden="true"
+      <span
         className={cn(
-          "h-6 w-6 transition-transform duration-180 ease-out",
+          "inline-flex items-center justify-center transition-transform duration-180 ease-out",
           isExpanded ? "rotate-90" : "rotate-0"
         )}
-      />
+      >
+        {children ?? <PanelLeft aria-hidden="true" className="h-6 w-6" />}
+      </span>
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
