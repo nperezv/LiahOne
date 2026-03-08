@@ -135,9 +135,16 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
     <header className="flex items-center justify-between gap-4 bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
       <div className="flex items-center gap-3">
-        <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12" />
+        <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12 rounded-md">
+          <img
+            src="/icons/compass.svg"
+            alt="Abrir menú lateral"
+            className="h-8 w-8 app-compass-static"
+            decoding="async"
+            loading="eager"
+          />
+        </SidebarTrigger>
         <div className="flex items-center gap-2">
-          <img src="/icons/icon.svg" alt="Liahonapp" className="h-7 w-7 rounded-md object-contain" />
           <h1 className="text-lg font-semibold tracking-tight">{wardName}</h1>
         </div>
       </div>
