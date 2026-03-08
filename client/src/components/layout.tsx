@@ -17,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const mainRef = useRef<HTMLElement | null>(null);
   const scrollingTimeoutRef = useRef<number | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const mainEl = mainRef.current;
@@ -30,10 +31,15 @@ export function Layout({ children }: LayoutProps) {
     if (!mainEl) return;
 
     const handleScroll = () => {
-      if (!mainEl.classList.contains("is-scrolling")) {
-        mainEl.classList.add("is-scrolling");
+      if (!scrollRafRef.current) {
+        scrollRafRef.current = window.requestAnimationFrame(() => {
+          if (!mainEl.classList.contains("is-scrolling")) {
+            mainEl.classList.add("is-scrolling");
+          }
+          document.documentElement.classList.add("app-is-scrolling");
+          scrollRafRef.current = null;
+        });
       }
-      document.documentElement.classList.add("app-is-scrolling");
 
       if (scrollingTimeoutRef.current) {
         window.clearTimeout(scrollingTimeoutRef.current);
@@ -42,7 +48,7 @@ export function Layout({ children }: LayoutProps) {
       scrollingTimeoutRef.current = window.setTimeout(() => {
         mainEl.classList.remove("is-scrolling");
         document.documentElement.classList.remove("app-is-scrolling");
-      }, 90);
+      }, 160);
     };
 
     mainEl.addEventListener("scroll", handleScroll, { passive: true });
@@ -51,6 +57,9 @@ export function Layout({ children }: LayoutProps) {
       mainEl.removeEventListener("scroll", handleScroll);
       if (scrollingTimeoutRef.current) {
         window.clearTimeout(scrollingTimeoutRef.current);
+      }
+      if (scrollRafRef.current) {
+        window.cancelAnimationFrame(scrollRafRef.current);
       }
       mainEl.classList.remove("is-scrolling");
       document.documentElement.classList.remove("app-is-scrolling");
