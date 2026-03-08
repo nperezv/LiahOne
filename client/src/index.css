@@ -210,6 +210,73 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* DARK VARIANTS */
+.dark.theme-white-black {
+  --background: 220 16% 8.5%;
+  --foreground: 0 0% 97%;
+  --card: 220 14% 12%;
+  --card-foreground: 0 0% 98%;
+  --border: 220 10% 24%;
+  --input: 220 10% 30%;
+  --muted: 220 10% 19%;
+  --muted-foreground: 220 8% 72%;
+  --accent: 220 8% 20%;
+  --accent-foreground: 0 0% 98%;
+  --primary: 0 0% 92%;
+  --primary-foreground: 220 16% 8%;
+  --ring: 0 0% 95%;
+  --sidebar: 220 12% 12%;
+  --sidebar-border: 220 10% 22%;
+  --sidebar-accent: 220 10% 18%;
+  --sidebar-primary: 0 0% 92%;
+  --sidebar-primary-foreground: 220 16% 8%;
+  --sidebar-ring: 0 0% 95%;
+}
+
+.dark.theme-blue-black {
+  --background: 223 32% 5%;
+  --foreground: 210 40% 97%;
+  --card: 222 28% 10%;
+  --card-foreground: 210 40% 98%;
+  --border: 218 30% 20%;
+  --input: 218 28% 26%;
+  --muted: 220 24% 16%;
+  --muted-foreground: 215 26% 68%;
+  --accent: 215 30% 18%;
+  --accent-foreground: 210 40% 97%;
+  --primary: 212 92% 58%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 212 92% 58%;
+  --sidebar: 221 28% 11%;
+  --sidebar-border: 219 26% 18%;
+  --sidebar-accent: 217 30% 16%;
+  --sidebar-primary: 212 92% 58%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: 212 92% 58%;
+}
+
+.dark.theme-terracotta {
+  --background: 28 26% 12%;
+  --foreground: 46 35% 94%;
+  --card: 30 22% 16%;
+  --card-foreground: 46 34% 95%;
+  --border: 34 20% 26%;
+  --input: 32 18% 28%;
+  --muted: 28 18% 20%;
+  --muted-foreground: 48 20% 71%;
+  --accent: 34 19% 24%;
+  --accent-foreground: 46 35% 95%;
+  --primary: 26 65% 62%;
+  --primary-foreground: 26 35% 16%;
+  --ring: 26 65% 62%;
+  --sidebar: 30 20% 15%;
+  --sidebar-border: 33 18% 24%;
+  --sidebar-accent: 36 20% 22%;
+  --sidebar-primary: 26 65% 62%;
+  --sidebar-primary-foreground: 26 35% 16%;
+  --sidebar-ring: 26 65% 62%;
+}
+
 
 @layer components {
   .pilot-glass-card {
@@ -245,8 +312,8 @@
 
   .dark .pilot-glass-card {
     background: linear-gradient(135deg, #0b0b0e 0%, #0d0d10 46%, #17171d 72%, #262632 100%);
-    backdrop-filter: blur(12px) saturate(125%);
-    -webkit-backdrop-filter: blur(12px) saturate(125%);
+    backdrop-filter: blur(10px) saturate(120%);
+    -webkit-backdrop-filter: blur(10px) saturate(120%);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
@@ -364,6 +431,10 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
   }
 
+  html.dark.app-is-scrolling body {
+    background-image: hsl(var(--background));
+  }
+
 
   html.app-is-scrolling .app-scroll-container * {
     animation: none !important;
@@ -403,8 +474,8 @@
 
   .dark .shadcn-card {
     background: linear-gradient(135deg, #0b0b0e 0%, #0d0d10 46%, #17171d 72%, #262632 100%);
-    backdrop-filter: blur(12px) saturate(125%);
-    -webkit-backdrop-filter: blur(12px) saturate(125%);
+    backdrop-filter: blur(10px) saturate(120%);
+    -webkit-backdrop-filter: blur(10px) saturate(120%);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 
@@ -437,6 +508,24 @@
   .dark body {
     background-image: radial-gradient(1200px 700px at 10% -10%, hsl(230 55% 13% / 0.22), transparent 60%),
       radial-gradient(1000px 640px at 110% 10%, hsl(245 65% 14% / 0.20), transparent 58%),
+      hsl(var(--background));
+  }
+
+  .dark.theme-white-black body {
+    background-image: radial-gradient(1200px 700px at 10% -10%, hsl(0 0% 100% / 0.06), transparent 62%),
+      radial-gradient(900px 600px at 108% 0%, hsl(0 0% 100% / 0.04), transparent 60%),
+      hsl(var(--background));
+  }
+
+  .dark.theme-blue-black body {
+    background-image: radial-gradient(1150px 680px at 10% -10%, hsl(211 100% 56% / 0.24), transparent 62%),
+      radial-gradient(980px 620px at 108% 8%, hsl(224 78% 44% / 0.22), transparent 60%),
+      hsl(var(--background));
+  }
+
+  .dark.theme-terracotta body {
+    background-image: radial-gradient(1100px 680px at 10% -10%, hsl(24 56% 38% / 0.22), transparent 62%),
+      radial-gradient(980px 620px at 108% 8%, hsl(92 28% 34% / 0.20), transparent 60%),
       hsl(var(--background));
   }
 
