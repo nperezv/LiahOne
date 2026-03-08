@@ -282,7 +282,7 @@ export default function ProfilePage() {
                 type="single"
                 value={themePreference}
                 onValueChange={handleThemeChange}
-                className="w-full justify-start rounded-full bg-muted/40 p-1 sm:w-auto"
+                className="w-full flex-wrap justify-start rounded-2xl bg-muted/40 p-1 sm:w-auto"
               >
                 <ToggleGroupItem value="light" aria-label="Tema claro">
                   Claro
@@ -292,6 +292,18 @@ export default function ProfilePage() {
                 </ToggleGroupItem>
                 <ToggleGroupItem value="system" aria-label="Tema del sistema">
                   Sistema
+                </ToggleGroupItem>
+                <ToggleGroupItem value="white-black" aria-label="Tema white and black">
+                  White & Black
+                </ToggleGroupItem>
+                <ToggleGroupItem value="blue-black" aria-label="Tema black and blue">
+                  Black & Blue
+                </ToggleGroupItem>
+                <ToggleGroupItem value="terracotta" aria-label="Tema terracota soft">
+                  Terracota Soft
+                </ToggleGroupItem>
+                <ToggleGroupItem value="graphite-mint" aria-label="Tema graphite and mint">
+                  Graphite & Mint
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>

@@ -1,15 +1,46 @@
-export type ThemePreference = "light" | "dark" | "system";
+export type ThemePreference =
+  | "light"
+  | "dark"
+  | "system"
+  | "white-black"
+  | "blue-black"
+  | "terracotta"
+  | "graphite-mint";
+
+export type ResolvedTheme = "light" | "dark";
 
 const THEME_STORAGE_KEY = "liahonapp-theme";
 const THEME_CHANGE_EVENT = "liahonapp-theme-change";
 
-const getSystemTheme = () =>
+const THEMES: ThemePreference[] = [
+  "light",
+  "dark",
+  "system",
+  "white-black",
+  "blue-black",
+  "terracotta",
+  "graphite-mint",
+];
+
+const CUSTOM_THEME_CLASSES = ["theme-white-black", "theme-blue-black", "theme-terracotta", "theme-graphite-mint"];
+
+const isThemePreference = (value: string | null): value is ThemePreference =>
+  !!value && THEMES.includes(value as ThemePreference);
+
+const getSystemTheme = (): ResolvedTheme =>
   window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+const getResolvedTheme = (preference: ThemePreference): ResolvedTheme =>
+  preference === "system"
+    ? getSystemTheme()
+    : preference === "light"
+      ? "light"
+      : "dark";
 
 export const getStoredTheme = (): ThemePreference => {
   if (typeof window === "undefined") return "dark";
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemePreference | null;
-  if (stored === "light" || stored === "dark" || stored === "system") {
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (isThemePreference(stored)) {
     return stored;
   }
   return "dark";
@@ -17,17 +48,31 @@ export const getStoredTheme = (): ThemePreference => {
 
 export const applyTheme = (preference: ThemePreference) => {
   if (typeof window === "undefined") return;
-  const resolved = preference === "system" ? getSystemTheme() : preference;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
+
+  const resolved = getResolvedTheme(preference);
+  const root = document.documentElement;
+
+  root.classList.toggle("dark", resolved === "dark");
+  root.classList.remove(...CUSTOM_THEME_CLASSES);
+
+  if (preference === "white-black") {
+    root.classList.add("theme-white-black");
+  } else if (preference === "blue-black") {
+    root.classList.add("theme-blue-black");
+  } else if (preference === "terracotta") {
+    root.classList.add("theme-terracotta");
+  } else if (preference === "graphite-mint") {
+    root.classList.add("theme-graphite-mint");
+  }
+
+  root.setAttribute("data-theme-preference", preference);
 };
 
 export const setStoredTheme = (preference: ThemePreference) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(THEME_STORAGE_KEY, preference);
   applyTheme(preference);
-  window.dispatchEvent(
-    new CustomEvent(THEME_CHANGE_EVENT, { detail: preference })
-  );
+  window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: preference }));
 };
 
 export const listenThemeChange = (handler: (preference: ThemePreference) => void) => {

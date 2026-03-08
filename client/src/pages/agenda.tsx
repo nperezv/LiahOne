@@ -248,7 +248,7 @@ export default function AgendaPage() {
           <Button
             onClick={() => runPlanner.mutate()}
             data-testid="button-plan-week"
-            className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 shadow-[0_6px_24px_rgba(99,102,241,0.35)]"
+            className="rounded-xl bg-primary text-primary-foreground shadow-[0_6px_24px_hsl(var(--primary)/0.35)] hover:bg-primary/90"
           >
             Planificar
           </Button>
@@ -342,7 +342,7 @@ export default function AgendaPage() {
                   return (
                     <button
                       key={day.toISOString()}
-                      className={`rounded-xl border p-2 text-center transition-colors ${isSameDay(day, selectedDate) ? "border-violet-400 bg-violet-500/15" : "border-border/70"}`}
+                      className={`rounded-xl border p-2 text-center transition-colors ${isSameDay(day, selectedDate) ? "border-primary/50 bg-primary/15" : "border-border/70"}`}
                       onClick={() => setSelectedDate(day)}
                     >
                       <p className="text-[11px] font-semibold leading-tight capitalize">{format(day, "EEE", { locale: es })}</p>
