@@ -242,6 +242,24 @@ const HymnConnector = () => (
 );
 
 /** Meeting list card */
+// ─── Meeting status helper ────────────────────────────────────────────────────
+const getMeetingStatus = (meetingDate: Date): "live" | "upcoming" | "past" => {
+  const now = new Date();
+  const meetingDay = new Date(meetingDate);
+  // Same calendar day?
+  const sameDay =
+    meetingDay.getFullYear() === now.getFullYear() &&
+    meetingDay.getMonth() === now.getMonth() &&
+    meetingDay.getDate() === now.getDate();
+  if (sameDay) {
+    // "En curso" until 16:00 local time
+    const cutoff = new Date(meetingDay);
+    cutoff.setHours(16, 0, 0, 0);
+    return now < cutoff ? "live" : "past";
+  }
+  return meetingDay > now ? "upcoming" : "past";
+};
+
 const MeetingCard = ({
   meeting, onDetails, onEdit, onDelete, onPDF, canEdit, parsePersonValue, isTestimonyValue,
 }: any) => {
@@ -250,36 +268,62 @@ const MeetingCard = ({
   const date = new Date(meeting.date);
   const day = date.getDate();
   const month = date.toLocaleDateString("es-ES", { month: "short" });
+  const status = getMeetingStatus(date);
+
   const hymns = [
-    meeting.openingHymn && { label: "Aper.", val: meeting.openingHymn },
-    meeting.sacramentHymn && { label: "Sacr.", val: meeting.sacramentHymn },
-    meeting.intermediateHymn && { label: "Int.", val: meeting.intermediateHymn },
+    meeting.openingHymn && { label: "Apertura", val: meeting.openingHymn },
+    meeting.sacramentHymn && { label: "Sacram.", val: meeting.sacramentHymn },
+    meeting.intermediateHymn && { label: "Interm.", val: meeting.intermediateHymn },
     meeting.closingHymn && { label: "Final", val: meeting.closingHymn },
   ].filter(Boolean) as { label: string; val: string }[];
   const speakers = (meeting.discourses || []).filter((d: any) => d.speaker);
 
   return (
     <div
-      className="group flex items-stretch rounded-xl border border-border bg-card hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer overflow-hidden"
+      className={cn(
+        "group flex items-stretch rounded-xl border bg-card transition-all cursor-pointer overflow-hidden",
+        status === "live" && "border-emerald-500/60 shadow-[0_0_18px_2px_rgba(16,185,129,0.18)] hover:shadow-[0_0_24px_4px_rgba(16,185,129,0.26)]",
+        status === "upcoming" && "border-border opacity-50 hover:opacity-75",
+        status === "past" && "border-border hover:border-primary/30 hover:shadow-sm",
+      )}
       onClick={() => onDetails(meeting)}
     >
       {/* Date block */}
-      <div className="flex flex-col items-center justify-center px-4 py-3 border-r border-border bg-muted/30 min-w-[56px] shrink-0">
+      <div className={cn(
+        "flex flex-col items-center justify-center px-4 py-3 border-r min-w-[56px] shrink-0",
+        status === "live" ? "border-emerald-500/30 bg-emerald-500/10" : "border-border bg-muted/30",
+      )}>
         <span className="text-lg font-black leading-none tabular-nums">{day}</span>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{month}</span>
+        {status === "live" && (
+          <span className="mt-1.5 text-[8px] font-bold uppercase tracking-widest text-emerald-400 leading-none">live</span>
+        )}
       </div>
 
       {/* Body */}
       <div className="flex-1 px-3.5 py-2.5 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <Badge variant={isTestimony ? "secondary" : "outline"} className="text-[10px] px-1.5 py-0 h-4">
+          {/* Status badge for live/upcoming */}
+          {status === "live" && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0 h-4 rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase tracking-wider">
+              En curso
+            </span>
+          )}
+          {/* Testimony / Regular badge — teal color matching screenshot */}
+          <span className={cn(
+            "inline-flex items-center text-[10px] font-bold px-1.5 py-0 h-4 rounded-sm uppercase tracking-wider border",
+            isTestimony
+              ? "bg-teal-500/20 text-teal-300 border-teal-500/40"
+              : "bg-muted text-muted-foreground border-border",
+          )}>
             {isTestimony ? "Testimonio" : "Regular"}
-          </Badge>
+          </span>
         </div>
+
         <div className="text-sm font-semibold truncate">{presider || "Sin definir"}</div>
         <div className="text-xs text-muted-foreground truncate mt-0.5">
           {meeting.musicDirector && `Dir. música: ${meeting.musicDirector}`}
-          {meeting.pianist && ` · ${meeting.pianist}`}
+          {meeting.pianist && ` · Pianista: ${meeting.pianist}`}
         </div>
 
         {/* Speakers */}
@@ -774,10 +818,11 @@ export default function SacramentalMeetingPage() {
     );
   }
 
-  // ── Sort meetings by date desc ───────────────────────────────────────────────
+  // ── Sort & classify meetings ─────────────────────────────────────────────────
   const sortedMeetings = [...meetings].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const upcoming = sortedMeetings.filter((m: any) => new Date(m.date) >= new Date());
-  const past = sortedMeetings.filter((m: any) => new Date(m.date) < new Date());
+  const liveMeetings  = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "live");
+  const upcoming      = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "upcoming");
+  const past          = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "past");
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -808,6 +853,28 @@ export default function SacramentalMeetingPage() {
 
         {/* Meeting cards */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {/* ── En curso ── */}
+          {liveMeetings.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  En curso
+                </span>
+                <div className="flex-1 h-px bg-emerald-500/20" />
+              </div>
+              <div className="space-y-2">
+                {liveMeetings.map((m: any) => (
+                  <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Próximas ── */}
           {upcoming.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -822,6 +889,7 @@ export default function SacramentalMeetingPage() {
             </div>
           )}
 
+          {/* ── Anteriores ── */}
           {past.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
