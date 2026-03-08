@@ -139,7 +139,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           <img
             src="/icons/compass.svg"
             alt="Abrir menú lateral"
-            className="h-7 w-7 app-compass-static"
+            className="h-8 w-8 app-compass-static"
             decoding="async"
             loading="eager"
           />
