@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { LogIn } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import logoImage from "@assets/liahonapplogo2.svg";
@@ -19,10 +20,6 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-};
 
 interface LoginPageProps {
   onLogin: (credentials: LoginFormValues) => Promise<{ requiresEmailCode?: boolean; otpId?: string; email?: string }>;
@@ -36,8 +33,8 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [showRecoveryForm, setShowRecoveryForm] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [isRecovering, setIsRecovering] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const { toast } = useToast();
+  const { canPromptInstall, showIosInstallHint, promptInstall } = usePwaInstall();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -123,32 +120,16 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     }
   };
 
-  useEffect(() => {
-    const storedPrompt = (window as Window & { deferredPwaPrompt?: BeforeInstallPromptEvent })
-      .deferredPwaPrompt;
-    if (storedPrompt) {
-      setDeferredPrompt(storedPrompt);
-    }
-
-    const handleBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setDeferredPrompt(event as BeforeInstallPromptEvent);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    };
-  }, []);
-
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    if (!canPromptInstall) return;
     try {
-      await deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-    } finally {
-      (window as Window & { deferredPwaPrompt?: BeforeInstallPromptEvent }).deferredPwaPrompt = undefined;
-      setDeferredPrompt(null);
+      await promptInstall();
+    } catch (error) {
+      toast({
+        title: "No se pudo mostrar el instalador",
+        description: "Intenta nuevamente en unos segundos.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -314,7 +295,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                 </div>
               )}
 
-              {deferredPrompt && !showRecoveryForm && !otpState && (
+              {canPromptInstall && !showRecoveryForm && !otpState && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -324,6 +305,12 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                 >
                   Instalar aplicación
                 </Button>
+              )}
+
+              {showIosInstallHint && !showRecoveryForm && !otpState && (
+                <p className="text-xs text-muted-foreground text-center">
+                  En iPhone/iPad: toca <strong>Compartir</strong> y luego <strong>Agregar a pantalla de inicio</strong>.
+                </p>
               )}
             </form>
           </Form>
