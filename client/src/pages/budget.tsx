@@ -720,9 +720,9 @@ export default function BudgetPage() {
     const variants: Record<string, { label: string; className: string }> = {
       solicitado: { label: "Solicitado", className: "border-amber-500/30 bg-amber-500/15 text-amber-300" },
       aprobado_financiero: { label: "Aprobación financiera", className: "border-blue-500/30 bg-blue-500/15 text-blue-300" },
-      pendiente_firma_obispo: { label: "Pendiente firma", className: "border-violet-500/30 bg-violet-500/15 text-violet-300" },
+      pendiente_firma_obispo: { label: "Pendiente firma", className: "border-primary/30 bg-primary/15 text-primary" },
       aprobado: { label: "Aprobado", className: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" },
-      en_proceso: { label: "En proceso", className: "border-indigo-500/30 bg-indigo-500/15 text-indigo-300" },
+      en_proceso: { label: "En proceso", className: "border-primary/30 bg-primary/15 text-primary" },
       completado: { label: "Completado", className: "border-teal-500/30 bg-teal-500/15 text-teal-300" },
       rechazada: { label: "Rechazada", className: "border-rose-500/30 bg-rose-500/15 text-rose-300" },
     };
@@ -1014,7 +1014,7 @@ export default function BudgetPage() {
             <DialogTrigger asChild>
               <Button
                 data-testid="button-create-request"
-                className="h-9 rounded-lg border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)] transition-all duration-200 hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.55)]"
+                className="h-9 rounded-lg border border-primary/40 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_0_20px_hsl(var(--primary)/0.45)] transition-all duration-200 hover:brightness-110"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Nueva Solicitud
@@ -1359,13 +1359,13 @@ export default function BudgetPage() {
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
         <TabsList className={`mb-6 grid h-auto w-full gap-2 overflow-visible bg-transparent p-0 ${isObispado ? "grid-cols-[0.95fr_1.05fr_1.2fr]" : "grid-cols-[1fr_1.1fr]"}`}>
-          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-4">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-primary/40 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_20px_hsl(var(--primary)/0.45)] md:px-4">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-primary/40 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_20px_hsl(var(--primary)/0.45)] md:px-3.5">
             <span className="truncate">Solicitudes</span>
             <span className={`ml-1.5 inline-flex h-5 min-w-[1.3rem] items-center justify-center rounded-md px-1 text-[11px] font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
           {isObispado ? (
-            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-primary/40 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_20px_hsl(var(--primary)/0.45)] md:px-3.5">
               <span className="truncate">Organizaciones</span>
             </TabsTrigger>
           ) : null}
@@ -1442,7 +1442,7 @@ export default function BudgetPage() {
                 {[1, 2, 3, 4].map((quarter) => (
                   <div key={quarter} className="rounded-xl bg-white/5 px-3 py-3">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
-                    <p className={`mx-auto w-fit whitespace-nowrap text-[12px] font-extrabold leading-none md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
+                    <p className={`mx-auto w-fit whitespace-nowrap text-[12px] font-extrabold leading-none md:text-[14px] ${quarter === currentQuarter ? "text-primary" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
                 ))}
               </div>
@@ -1477,7 +1477,7 @@ export default function BudgetPage() {
             <CardContent className="p-6">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Uso del trimestre actual</p>
-                <p className="text-2xl font-extrabold text-violet-400">{globalUtilizationPercent}%</p>
+                <p className="text-2xl font-extrabold text-primary">{globalUtilizationPercent}%</p>
               </div>
               <Progress value={globalUtilizationPercent} className="h-1.5" />
               <div className="mt-4 flex items-center justify-between text-sm">
@@ -1506,7 +1506,7 @@ export default function BudgetPage() {
                         {request.status === "solicitado" ? (
                           <Button size="sm" className="h-7 rounded-lg bg-emerald-700 px-3 text-[11px] text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} disabled={approveMutation.isPending}>Aprobar</Button>
                         ) : (
-                          <Button size="sm" className="h-7 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-500 px-3 text-[11px]" onClick={() => handleSignAsBishop(request.id)} disabled={signMutation.isPending}>Firmar</Button>
+                          <Button size="sm" className="h-7 rounded-lg bg-primary px-3 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={() => handleSignAsBishop(request.id)} disabled={signMutation.isPending}>Firmar</Button>
                         )}
                       </div>
                     </CardContent>
@@ -1669,7 +1669,7 @@ export default function BudgetPage() {
             key={value}
             type="button"
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
-            className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-violet-400/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
+            className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-primary/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-primary-foreground shadow-[0_0_14px_hsl(var(--primary)/0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
             <span className="truncate">{label}</span>
           </button>
@@ -1683,7 +1683,7 @@ export default function BudgetPage() {
             const accent = request.status === "aprobado" || request.status === "completado"
               ? "from-emerald-500/45"
               : request.status === "pendiente_firma_obispo"
-                ? "from-violet-500/45"
+                ? "from-primary/45"
                 : request.status === "rechazada"
                   ? "from-rose-500/45"
                   : "from-amber-500/45";
@@ -1704,7 +1704,7 @@ export default function BudgetPage() {
                           <button
                             type="button"
                             onClick={() => setAttachmentsDialogRequest(request)}
-                            className="inline-flex items-center gap-1.5 text-violet-400 transition-colors hover:text-violet-300"
+                            className="inline-flex items-center gap-1.5 text-primary transition-colors hover:opacity-90"
                           >
                             <Paperclip className="h-3.5 w-3.5" />
                             <span>{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
@@ -1721,7 +1721,7 @@ export default function BudgetPage() {
                     )}
                     {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
                       <>
-                        <Button size="sm" className="bg-violet-600 hover:bg-violet-500" onClick={() => handleSignAsBishop(request.id)} data-testid={`button-sign-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Firmar</Button>
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => handleSignAsBishop(request.id)} data-testid={`button-sign-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Firmar</Button>
                         <Button size="sm" variant="secondary" onClick={() => handleReviewByBishop(request.id, "enmendar")} data-testid={`button-amend-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Enmendar</Button>
                         <Button size="sm" variant="destructive" onClick={() => handleReviewByBishop(request.id, "rechazar")} data-testid={`button-reject-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Rechazar</Button>
                       </>
@@ -1773,7 +1773,7 @@ export default function BudgetPage() {
                   onClick={() => void downloadReceipt(receipt)}
                   className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
                 >
-                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span className="min-w-0 truncate">{getReceiptLabel(receipt)}: {receipt.filename}</span>
                 </button>
               ))
