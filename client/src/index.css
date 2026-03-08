@@ -103,6 +103,8 @@
   --glass-shadow-hover: 0 16px 48px rgba(15, 23, 42, 0.14), 0 4px 16px rgba(15, 23, 42, 0.10);
   --glass-blur: 10px;
   --glass-saturate: 120%;
+  --dashboard-accent-1: hsl(258 90% 58%);
+  --dashboard-accent-2: hsl(239 84% 67%);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -192,6 +194,8 @@
   --glass-shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.62), 0 3px 12px rgba(0, 0, 0, 0.44);
   --glass-blur: 9px;
   --glass-saturate: 115%;
+  --dashboard-accent-1: hsl(258 90% 58%);
+  --dashboard-accent-2: hsl(239 84% 67%);
 
 /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
@@ -246,6 +250,8 @@
   --glass-bg: linear-gradient(135deg, #15171c 0%, #1b1f26 46%, #252b34 72%, #2f3744 100%);
   --glass-bg-hover: linear-gradient(135deg, #1a1d24 0%, #212631 46%, #2b3340 72%, #374151 100%);
   --glass-shadow: 0 8px 26px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.30);
+  --dashboard-accent-1: hsl(0 0% 92%);
+  --dashboard-accent-2: hsl(0 0% 76%);
 }
 
 .dark.theme-blue-black {
@@ -271,6 +277,8 @@
   --glass-bg: linear-gradient(135deg, #0b1220 0%, #0f1a2d 46%, #14233b 72%, #1a2d4a 100%);
   --glass-bg-hover: linear-gradient(135deg, #0d1628 0%, #12203a 46%, #183055 72%, #22416b 100%);
   --glass-shadow: 0 8px 26px rgba(2, 8, 20, 0.52), 0 2px 8px rgba(2, 8, 20, 0.36);
+  --dashboard-accent-1: hsl(212 92% 58%);
+  --dashboard-accent-2: hsl(201 91% 48%);
 }
 
 .dark.theme-terracotta {
@@ -296,6 +304,8 @@
   --glass-bg: linear-gradient(135deg, #241a15 0%, #2a201a 44%, #35291f 72%, #3f3528 100%);
   --glass-bg-hover: linear-gradient(135deg, #2a1f19 0%, #34271f 46%, #413124 72%, #4c3d2d 100%);
   --glass-shadow: 0 8px 26px rgba(18, 12, 8, 0.47), 0 2px 8px rgba(18, 12, 8, 0.33);
+  --dashboard-accent-1: hsl(26 65% 62%);
+  --dashboard-accent-2: hsl(36 58% 56%);
 }
 
 
@@ -382,6 +392,17 @@
   .pilot-icon-badge--blue { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
   .pilot-icon-badge--teal { background: linear-gradient(135deg, #10b981, #0d9488); }
   .pilot-icon-badge--orange { background: linear-gradient(135deg, #d97706, #b45309); }
+  .dark.theme-white-black .pilot-icon-badge--violet {
+    background: linear-gradient(135deg, #d1d5db, #9ca3af);
+  }
+
+  .dark.theme-blue-black .pilot-icon-badge--violet {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  }
+
+  .dark.theme-terracotta .pilot-icon-badge--violet {
+    background: linear-gradient(135deg, #d19a66, #b97745);
+  }
 }
 
 @layer base {
@@ -538,25 +559,6 @@
       transform: translateY(-1px) scale(1.01);
       background: var(--glass-bg-hover);
       box-shadow: var(--glass-shadow-hover);
-    }
-
-
-    .dark.theme-white-black .pilot-glass-card:hover,
-    .dark.theme-white-black .shadcn-card:hover {
-      background: linear-gradient(135deg, #1a1d24 0%, #212631 46%, #2b3340 72%, #374151 100%);
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.52), 0 4px 16px rgba(0, 0, 0, 0.34);
-    }
-
-    .dark.theme-blue-black .pilot-glass-card:hover,
-    .dark.theme-blue-black .shadcn-card:hover {
-      background: linear-gradient(135deg, #0d1628 0%, #12203a 46%, #183055 72%, #22416b 100%);
-      box-shadow: 0 16px 48px rgba(2, 8, 20, 0.62), 0 4px 16px rgba(2, 8, 20, 0.42);
-    }
-
-    .dark.theme-terracotta .pilot-glass-card:hover,
-    .dark.theme-terracotta .shadcn-card:hover {
-      background: linear-gradient(135deg, #2a1f19 0%, #34271f 46%, #413124 72%, #4c3d2d 100%);
-      box-shadow: 0 16px 48px rgba(20, 13, 9, 0.56), 0 4px 16px rgba(20, 13, 9, 0.38);
     }
   }
 
