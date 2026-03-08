@@ -539,6 +539,25 @@
       background: var(--glass-bg-hover);
       box-shadow: var(--glass-shadow-hover);
     }
+
+
+    .dark.theme-white-black .pilot-glass-card:hover,
+    .dark.theme-white-black .shadcn-card:hover {
+      background: linear-gradient(135deg, #1a1d24 0%, #212631 46%, #2b3340 72%, #374151 100%);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.52), 0 4px 16px rgba(0, 0, 0, 0.34);
+    }
+
+    .dark.theme-blue-black .pilot-glass-card:hover,
+    .dark.theme-blue-black .shadcn-card:hover {
+      background: linear-gradient(135deg, #0d1628 0%, #12203a 46%, #183055 72%, #22416b 100%);
+      box-shadow: 0 16px 48px rgba(2, 8, 20, 0.62), 0 4px 16px rgba(2, 8, 20, 0.42);
+    }
+
+    .dark.theme-terracotta .pilot-glass-card:hover,
+    .dark.theme-terracotta .shadcn-card:hover {
+      background: linear-gradient(135deg, #2a1f19 0%, #34271f 46%, #413124 72%, #4c3d2d 100%);
+      box-shadow: 0 16px 48px rgba(20, 13, 9, 0.56), 0 4px 16px rgba(20, 13, 9, 0.38);
+    }
   }
 
   @media (prefers-reduced-motion: no-preference) {
