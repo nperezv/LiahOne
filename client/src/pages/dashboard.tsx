@@ -49,8 +49,8 @@ function ProgressRing({ value }: { value: number }) {
       <svg width={size} height={size} className="rotate-[-90deg]">
         <defs>
           <linearGradient id="dashboard-ring" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#a855f7" />
-            <stop offset="100%" stopColor="#6366f1" />
+            <stop offset="0%" stopColor="var(--dashboard-accent-1)" />
+            <stop offset="100%" stopColor="var(--dashboard-accent-2)" />
           </linearGradient>
         </defs>
         <circle cx={size / 2} cy={size / 2} r={radius} className="text-slate-300 dark:text-white/10" stroke="currentColor" strokeWidth={stroke} fill="none" />
@@ -110,7 +110,7 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8 dark:bg-[#060608]">
+      <div className="min-h-screen bg-background p-8">
         <div className="mb-6">
           <Skeleton className="mb-2 h-8 w-64 bg-slate-200 dark:bg-white/10" />
           <Skeleton className="h-4 w-96 bg-slate-200 dark:bg-white/10" />
@@ -182,7 +182,7 @@ export default function DashboardPage() {
     ? "Clima: revisa lluvia si hay actividades al aire libre"
     : "Clima: oculto por ahora (sin impacto en agenda de hoy)";
   return (
-    <div className="min-h-screen bg-slate-50 space-y-6 px-4 py-6 text-slate-900 dark:bg-[#060608] dark:text-[#f0f0f8] sm:px-8">
+    <div className="min-h-screen space-y-6 bg-background px-4 py-6 text-foreground sm:px-8">
       <div className="space-y-1">
         <h1 className="text-[34px] leading-[1.06] font-extrabold tracking-[-0.03em] sm:text-[38px]">Hola, {user?.name ? user.name.split(" ")[0] : ""}</h1>
         <p className="text-sm text-slate-500 dark:text-white/45">
@@ -206,20 +206,20 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <p className="text-lg font-extrabold text-violet-400">{data.upcomingInterviews}</p>
+              <p className="text-lg font-extrabold text-primary">{data.upcomingInterviews}</p>
               <p className="text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-white/35">Entrevistas</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <p className="text-lg font-extrabold text-indigo-400">{data.pendingAssignments}</p>
+              <p className="text-lg font-extrabold text-primary">{data.pendingAssignments}</p>
               <p className="text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-white/35">Pendientes</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <p className="text-lg font-extrabold text-sky-400">{data.upcomingActivities.length}</p>
+              <p className="text-lg font-extrabold text-primary">{data.upcomingActivities.length}</p>
               <p className="text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-white/35">Actividades</p>
             </div>
           </div>
 
-          <Button className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 font-semibold text-white shadow-[0_6px_24px_rgba(99,102,241,0.35)] hover:from-violet-500 hover:to-indigo-500" onClick={() => setLocation("/calendar")}>
+          <Button className="w-full rounded-xl font-semibold text-primary-foreground shadow-[0_6px_24px_hsl(var(--primary)/0.35)] hover:brightness-105" style={{ backgroundImage: "linear-gradient(90deg, var(--dashboard-accent-1), var(--dashboard-accent-2))" }} onClick={() => setLocation("/calendar")}>
             Ver agenda completa
           </Button>
         </div>
@@ -273,7 +273,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500 dark:text-white/45">{nextBestAction.description}</p>
                 </div>
               </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-500/20 text-violet-300">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/20 text-primary">
                 <ArrowRight className="h-4 w-4" />
               </div>
             </div>
@@ -282,7 +282,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold">Cumpleaños próximos 🎂</h2>
-              <Button variant="ghost" size="sm" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
+              <Button variant="ghost" size="sm" className="text-primary hover:opacity-90" onClick={() => setLocation("/birthdays")}>Ver todo</Button>
             </div>
             <GlassCard>
               <div className="space-y-1 p-3">
@@ -295,7 +295,7 @@ export default function DashboardPage() {
                         </IconBadge>
                         <p className="font-medium text-slate-900 dark:text-white">{birthday.name}</p>
                       </div>
-                      <Badge className="border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300">{birthday.date}</Badge>
+                      <Badge className="border-primary/30 bg-primary/10 text-primary">{birthday.date}</Badge>
                     </div>
                   ))
                 ) : (
@@ -336,7 +336,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-semibold text-slate-500 dark:text-white/45">Siguiente mejor acción</p>
                 <p className="text-base font-semibold leading-tight text-slate-900 dark:text-white">Solicitar entrevista con el Obispado</p>
                 <p className="text-xs text-slate-500 dark:text-white/45">{data.upcomingInterviews} entrevistas por coordinar</p>
-                <Button className="h-8 w-full rounded-full bg-gradient-to-r from-violet-600/90 to-indigo-600/90 hover:from-violet-600 hover:to-indigo-600" size="sm">
+                <Button className="h-8 w-full rounded-full text-primary-foreground hover:brightness-105" style={{ backgroundImage: "linear-gradient(90deg, var(--dashboard-accent-1), var(--dashboard-accent-2))" }} size="sm">
                   Ir ahora <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </div>
