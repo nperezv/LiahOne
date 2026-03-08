@@ -843,6 +843,7 @@ export default function SacramentalMeetingPage() {
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="flex h-full min-h-screen">
 
       {/* ── LEFT: Meeting list ── */}
@@ -1482,9 +1483,11 @@ export default function SacramentalMeetingPage() {
         )}
       </div>
 
-      {/* ── Details dialog (read-only, unchanged content) ── */}
-      {isDetailsOpen && detailsMeeting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setIsDetailsOpen(false)}>
+    </div>
+
+    {/* ── Details modal — rendered outside flex container so fixed positioning works correctly ── */}
+    {isDetailsOpen && detailsMeeting && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setIsDetailsOpen(false)}>
           <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-background z-10">
               <div>
@@ -1571,6 +1574,6 @@ export default function SacramentalMeetingPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
