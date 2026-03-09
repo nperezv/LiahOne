@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Component } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -398,7 +398,47 @@ const MeetingCard = ({
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function SacramentalMeetingPage() {
+// ─── Error Boundary ──────────────────────────────────────────────────────────
+// Catches render errors so the app never goes fully black.
+// The user sees a friendly message and a button to retry.
+class SacramentalErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error?.message || "Error desconocido" };
+  }
+  componentDidCatch(error: Error, info: any) {
+    // In production you'd send this to Sentry / your error tracker
+    console.error("[SacramentalMeetingPage]", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-4 p-8 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center text-destructive text-2xl">!</div>
+          <div>
+            <p className="font-semibold text-sm">Algo salió mal</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xs">{this.state.error}</p>
+          </div>
+          <button
+            className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-muted transition-all"
+            onClick={() => this.setState({ hasError: false, error: "" })}
+          >
+            Reintentar
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function SacramentalMeetingPageInner() {
   // ── All original state (unchanged) ──
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("general");
@@ -546,8 +586,8 @@ export default function SacramentalMeetingPage() {
 
   const bishopricMembers = useMemo(() => users.filter((m: any) => ["obispo", "consejero_obispo"].includes(m.role)), [users]);
   const getMemberLabel = (m?: any) => m?.fullName || m?.name || m?.email || "";
-  const parsePersonValue = (value?: string) => {
-    const trimmed = value?.trim() || "";
+  const parsePersonValue = (value?: string | null) => {
+    const trimmed = (value ?? "").toString().trim();
     if (!trimmed) return { name: "", calling: "" };
     if (trimmed.includes("|")) { const [n, c] = trimmed.split("|").map((p) => p.trim()); return { name: n || "", calling: c || "" }; }
     if (trimmed.includes(",")) { const [n, ...cp] = trimmed.split(",").map((p) => p.trim()); return { name: n || "", calling: cp.join(", ").trim() }; }
@@ -656,7 +696,25 @@ export default function SacramentalMeetingPage() {
 
   const handleEdit = (meeting: any) => {
     setEditingId(meeting.id);
-    form.reset({ ...meeting, date: formatDateForInput(meeting.date) });
+    // Sanitize: replace any null/undefined string fields with "" to prevent render crashes
+    const safe = (v: any) => (v == null ? "" : String(v));
+    form.reset({
+      ...meeting,
+      date: formatDateForInput(meeting.date),
+      presider: safe(meeting.presider),
+      director: safe(meeting.director),
+      musicDirector: safe(meeting.musicDirector),
+      pianist: safe(meeting.pianist),
+      visitingAuthority: safe(meeting.visitingAuthority),
+      announcements: safe(meeting.announcements),
+      openingHymn: safe(meeting.openingHymn),
+      openingPrayer: safe(meeting.openingPrayer),
+      intermediateHymn: safe(meeting.intermediateHymn),
+      sacramentHymn: safe(meeting.sacramentHymn),
+      closingHymn: safe(meeting.closingHymn),
+      closingPrayer: safe(meeting.closingPrayer),
+      stakeBusiness: safe(meeting.stakeBusiness),
+    });
     setIsTestimonyMeeting(meeting.isTestimonyMeeting);
     setDiscourses(meeting.discourses || [{ speaker: "", topic: "" }]);
     setAssignments(meeting.assignments?.length > 0 ? meeting.assignments : [{ name: "", assignment: "" }]);
@@ -844,7 +902,7 @@ export default function SacramentalMeetingPage() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="flex h-full min-h-screen">
+    <div className="flex h-full">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -934,19 +992,20 @@ export default function SacramentalMeetingPage() {
         </div>
       </div>
 
-      {/* ── RIGHT: Form panel — fixed overlay on mobile, sticky sidebar on desktop ── */}
+      {/* ── RIGHT: Form panel ──
+           Mobile: replaces the list entirely (no fixed/overlay, no z-index fights with app layout)
+           Desktop: flex column sidebar next to the list
+      ── */}
       {isPanelOpen && (
-        <>
-          {/* Mobile backdrop */}
-          <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={closePanel} />
-
           <div className={cn(
-            "fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l border-border shadow-2xl transition-all duration-300",
-            "w-full sm:w-[420px] lg:w-[460px]",
-            "md:sticky md:top-0 md:h-screen md:z-auto md:shadow-none",
+            "flex flex-col bg-background border-l border-border h-full",
+            // Mobile: take full available space, replacing the list (list is hidden via md:flex above)
+            "w-full",
+            // Desktop: fixed-width sidebar column
+            "md:w-[420px] lg:w-[460px] md:shrink-0",
           )}>
           <Form {...form}>
-            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col h-full">
+            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col h-full min-h-0">
 
               {/* Panel header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
@@ -1535,7 +1594,6 @@ export default function SacramentalMeetingPage() {
             </form>
           </Form>
           </div>
-        </>
       )}
 
     </div>
@@ -1630,5 +1688,13 @@ export default function SacramentalMeetingPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function SacramentalMeetingPage() {
+  return (
+    <SacramentalErrorBoundary>
+      <SacramentalMeetingPageInner />
+    </SacramentalErrorBoundary>
   );
 }
