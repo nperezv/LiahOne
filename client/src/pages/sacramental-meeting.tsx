@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, FileText, Edit, Trash2, Download, X, ChevronRight, Music, HandMetal, Users, BookOpen, Megaphone, Eye, Calendar, UserCheck } from "lucide-react";
+import { Plus, FileText, Edit, Trash2, Download, X, ChevronRight, Music, Handshake, Users, BookOpen, Megaphone, Eye, Calendar, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn, normalizeMemberName } from "@/lib/utils";
@@ -819,7 +819,7 @@ export default function SacramentalMeetingPage() {
     { id: "general", label: "General", icon: <Calendar className="w-3.5 h-3.5" /> },
     { id: "autoridades", label: "Autoridades", icon: <UserCheck className="w-3.5 h-3.5" /> },
     { id: "himnos", label: "Himnos", icon: <Music className="w-3.5 h-3.5" /> },
-    { id: "oraciones", label: "Oraciones", icon: <HandMetal className="w-3.5 h-3.5" /> },
+    { id: "oraciones", label: "Oraciones", icon: <Handshake className="w-3.5 h-3.5" /> },
     { id: "mensajes", label: "Mensajes", icon: <BookOpen className="w-3.5 h-3.5" /> },
     { id: "asuntos", label: "Anuncios y asuntos", icon: <Megaphone className="w-3.5 h-3.5" /> },
     { id: "preview", label: "Preview", icon: <Eye className="w-3.5 h-3.5" /> },
@@ -846,7 +846,7 @@ export default function SacramentalMeetingPage() {
     <>
     <div className="flex h-full min-h-screen">
 
-      {/* ── LEFT: Meeting list ── */}
+      {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
 
         {/* Page header */}
@@ -934,12 +934,17 @@ export default function SacramentalMeetingPage() {
         </div>
       </div>
 
-      {/* ── RIGHT: Form panel ── */}
-      <div className={cn(
-        "flex flex-col border-l border-border bg-background transition-all duration-300 shrink-0",
-        isPanelOpen ? "w-full md:w-[420px] lg:w-[460px]" : "w-0 overflow-hidden"
-      )}>
-        {isPanelOpen && (
+      {/* ── RIGHT: Form panel — fixed overlay on mobile, sticky sidebar on desktop ── */}
+      {isPanelOpen && (
+        <>
+          {/* Mobile backdrop */}
+          <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={closePanel} />
+
+          <div className={cn(
+            "fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l border-border shadow-2xl transition-all duration-300",
+            "w-full sm:w-[420px] lg:w-[460px]",
+            "md:sticky md:top-0 md:h-screen md:z-auto md:shadow-none",
+          )}>
           <Form {...form}>
             <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col h-full">
 
@@ -954,24 +959,53 @@ export default function SacramentalMeetingPage() {
                 </button>
               </div>
 
-              {/* Tab navigation */}
-              <div className="flex overflow-x-auto border-b border-border shrink-0 scrollbar-none">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors shrink-0",
-                      activeTab === tab.id
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                    )}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                  </button>
-                ))}
+              {/* Step progress bar */}
+              {(() => {
+                const idx = tabs.findIndex((t) => t.id === activeTab);
+                const pct = Math.round(((idx + 1) / tabs.length) * 100);
+                return (
+                  <div className="px-5 pt-3 pb-1 shrink-0">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Paso {idx + 1} de {tabs.length}
+                      </span>
+                      <span className="text-[10px] font-bold text-primary">{tabs[idx].label}</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-border overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Tab pills — scrollable, compact */}
+              <div className="flex overflow-x-auto border-b border-border shrink-0 scrollbar-none px-2 pt-2">
+                {tabs.map((tab, i) => {
+                  const idx = tabs.findIndex((t) => t.id === activeTab);
+                  const done = i < idx;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        "flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap border-b-2 transition-colors shrink-0 mb-[-1px]",
+                        activeTab === tab.id
+                          ? "border-primary text-primary"
+                          : done
+                          ? "border-transparent text-muted-foreground/60 hover:text-foreground hover:border-border"
+                          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                      )}
+                    >
+                      {done ? (
+                        <span className="w-3 h-3 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[8px] font-black">✓</span>
+                      ) : (
+                        tab.icon
+                      )}
+                      {tab.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Scrollable body */}
@@ -1160,7 +1194,7 @@ export default function SacramentalMeetingPage() {
                 {/* ── TAB: ORACIONES ── */}
                 {activeTab === "oraciones" && (
                   <div className="space-y-4">
-                    <SectionHead icon={<HandMetal className="w-4 h-4" />} title="Oraciones" desc="Asignaciones de oración de apertura y cierre" />
+                    <SectionHead icon={<Handshake className="w-4 h-4" />} title="Oraciones" desc="Asignaciones de oración de apertura y cierre" />
 
                     <FormField control={form.control} name="openingPrayer" render={({ field }) => (
                       <FormItem>
@@ -1449,39 +1483,60 @@ export default function SacramentalMeetingPage() {
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="flex items-center gap-2 px-5 py-4 border-t border-border shrink-0">
-                {/* Tab navigation arrows */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const idx = tabs.findIndex((t) => t.id === activeTab);
-                    if (idx > 0) setActiveTab(tabs[idx - 1].id);
-                  }}
-                  disabled={tabs.findIndex((t) => t.id === activeTab) === 0}
-                  className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-30 shrink-0"
-                >
-                  <ChevronRight className="w-4 h-4 rotate-180" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const idx = tabs.findIndex((t) => t.id === activeTab);
-                    if (idx < tabs.length - 1) setActiveTab(tabs[idx + 1].id);
-                  }}
-                  disabled={tabs.findIndex((t) => t.id === activeTab) === tabs.length - 1}
-                  className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-30 shrink-0"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <div className="flex-1" />
-                <Button type="button" variant="outline" size="sm" onClick={closePanel}>Cancelar</Button>
-                <Button type="submit" size="sm" data-testid="button-save-meeting">Guardar reunión</Button>
-              </div>
+              {/* Footer — wizard navigation */}
+              {(() => {
+                const idx = tabs.findIndex((t) => t.id === activeTab);
+                const isFirst = idx === 0;
+                const isLast = idx === tabs.length - 1;
+                const isPreview = activeTab === "preview";
+                return (
+                  <div className="flex items-center gap-2 px-5 py-4 border-t border-border shrink-0 bg-background">
+                    <button
+                      type="button"
+                      onClick={() => { if (idx > 0) setActiveTab(tabs[idx - 1].id); }}
+                      disabled={isFirst}
+                      className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-30 shrink-0"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+                      Anterior
+                    </button>
+
+                    <div className="flex-1 flex justify-center gap-1">
+                      {tabs.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActiveTab(tabs[i].id)}
+                          className={cn(
+                            "rounded-full transition-all",
+                            i === idx ? "w-4 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-border hover:bg-muted-foreground"
+                          )}
+                        />
+                      ))}
+                    </div>
+
+                    {isPreview ? (
+                      <Button type="submit" size="sm" data-testid="button-save-meeting" className="shrink-0">
+                        Guardar reunión
+                      </Button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { if (!isLast) setActiveTab(tabs[idx + 1].id); }}
+                        className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shrink-0"
+                      >
+                        Siguiente
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </form>
           </Form>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
     </div>
 
