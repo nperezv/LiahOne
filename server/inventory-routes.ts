@@ -19,7 +19,6 @@ import {
   insertInventoryAuditSchema,
   insertInventoryCategorySchema,
   insertInventoryItemSchema,
-  insertInventoryLocationSchema,
   pdfTemplates,
 } from "@shared/schema";
 
@@ -145,33 +144,41 @@ function buildDynamicAssetPrefix(rawPrefix: string, wardCode: string) {
 
 async function allocateAssetCode(categoryId: string) {
   return db.transaction(async (tx) => {
-    const [category] = await tx.select({ prefix: inventoryCategories.prefix }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
+    const [category] = await tx.select({ id: inventoryCategories.id }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
     if (!category) throw new Error("Categoría inválida");
     const wardCode = await getWardCode();
-    const dynamicPrefix = buildDynamicAssetPrefix(category.prefix, wardCode);
+    const dynamicPrefix = `AC${wardCode}`;
 
-    const updated = await tx.execute(sql`UPDATE inventory_category_counters SET next_seq = next_seq + 1 WHERE category_id = ${categoryId} RETURNING next_seq - 1 AS seq`);
-    const updatedRows = "rows" in updated ? (updated.rows as Array<{ seq: number }>) : [];
-    let seq = updatedRows[0]?.seq;
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`inventory_asset_code_${wardCode}`}))`);
+    const seqResult = await tx.execute(sql`
+      SELECT COALESCE(MAX(CAST(SUBSTRING(${inventoryItems.assetCode} FROM '-(\\d+)$') AS integer)), 0) + 1 AS seq
+      FROM ${inventoryItems}
+      WHERE ${inventoryItems.assetCode} LIKE ${`${dynamicPrefix}-%`}
+    `);
+    const seqRows = "rows" in seqResult ? (seqResult.rows as Array<{ seq: number }>) : [];
+    const seq = seqRows[0]?.seq ?? 1;
 
-    if (!seq) {
-      await tx.insert(inventoryCategoryCounters).values({ categoryId, nextSeq: 2 }).onConflictDoNothing();
-      const retried = await tx.execute(sql`UPDATE inventory_category_counters SET next_seq = next_seq + 1 WHERE category_id = ${categoryId} RETURNING next_seq - 1 AS seq`);
-      const retriedRows = "rows" in retried ? (retried.rows as Array<{ seq: number }>) : [];
-      seq = retriedRows[0]?.seq ?? 1;
-    }
-
-    return `${dynamicPrefix}-${String(seq).padStart(4, "0")}`;
+    return `${dynamicPrefix}-${String(seq).padStart(3, "0")}`;
   });
 }
 
 async function allocateLocationCode(name: string) {
-  const wardCode = await getWardCode();
-  const type = getLocationTypeCode(name);
-  const result = await db.execute(sql`SELECT COUNT(*)::int AS total FROM inventory_locations WHERE code LIKE ${`LOC-${wardCode}-${type}-%`}`);
-  const rows = "rows" in result ? (result.rows as Array<{ total: number }>) : [];
-  const seq = (rows[0]?.total ?? 0) + 1;
-  return `LOC-${wardCode}-${type}-${String(seq).padStart(2, "0")}`;
+  return db.transaction(async (tx) => {
+    const wardCode = await getWardCode();
+    const type = getLocationTypeCode(name);
+    const basePrefix = type === "ARM" ? `AM${wardCode}` : `${type}${wardCode}`;
+
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`inventory_location_code_${basePrefix}`}))`);
+    const seqResult = await tx.execute(sql`
+      SELECT COALESCE(MAX(CAST(SUBSTRING(${inventoryLocations.code} FROM '-(\\d+)$') AS integer)), 0) + 1 AS seq
+      FROM ${inventoryLocations}
+      WHERE ${inventoryLocations.code} LIKE ${`${basePrefix}-%`}
+    `);
+    const seqRows = "rows" in seqResult ? (seqResult.rows as Array<{ seq: number }>) : [];
+    const seq = seqRows[0]?.seq ?? 1;
+
+    return `${basePrefix}-${String(seq).padStart(3, "0")}`;
+  });
 }
 
 async function buildItemCircularLabelPdf(assetCode: string) {
@@ -355,7 +362,18 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
   });
 
   app.post("/api/inventory/locations", requireAuth, requireAdmin, async (req, res) => {
-    const payload = insertInventoryLocationSchema.parse(req.body);
+    const parsed = z.object({
+      name: z.string().min(1),
+      parentId: z.string().optional(),
+      description: z.string().optional(),
+      code: z.string().optional(),
+    }).safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Datos de ubicación inválidos" });
+    }
+
+    const payload = parsed.data;
     const code = payload.code || (await allocateLocationCode(payload.name));
     const [created] = await db.insert(inventoryLocations).values({ ...payload, code }).returning();
     res.status(201).json(created);
