@@ -911,7 +911,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="flex h-full overflow-hidden relative">
+    <div className="relative flex h-full min-h-0 overflow-hidden">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -1042,7 +1042,7 @@ function SacramentalMeetingPageInner() {
       ── */}
       {isPanelOpen && (
           <div className={cn(
-            "flex flex-col bg-background overflow-hidden",
+            "flex min-h-0 flex-col bg-background overflow-hidden",
             "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
             // On mobile take all remaining height (parent flex container defines the height)
             "flex-1 md:flex-none md:h-full",
@@ -1081,7 +1081,7 @@ function SacramentalMeetingPageInner() {
               })()}
 
               {/* Tab pills — scrollable, compact */}
-              <div className="flex overflow-x-auto shrink-0 scrollbar-none px-2 border-b border-border/40">
+              <div className="flex overflow-x-auto overflow-y-hidden shrink-0 px-2 border-b border-border/40 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {tabs.map((tab, i) => {
                   const idx = tabs.findIndex((t) => t.id === activeTab);
                   const done = i < idx;
@@ -1111,7 +1111,7 @@ function SacramentalMeetingPageInner() {
               </div>
 
               {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto px-4 md:px-5 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 md:px-5 py-4">
 
                 {/* ── TAB: GENERAL ── */}
                 {activeTab === "general" && (
@@ -1649,8 +1649,8 @@ function SacramentalMeetingPageInner() {
       >
         {/* Sheet / Dialog */}
         <div
-          className="bg-background w-full md:max-w-md md:rounded-2xl flex flex-col rounded-t-3xl overflow-hidden"
-          style={{ maxHeight: "calc(100dvh - 80px)" }}
+          className="bg-background w-full max-w-full md:max-w-md flex min-h-0 flex-col rounded-t-3xl md:rounded-2xl overflow-hidden"
+          style={{ maxHeight: "calc(100dvh - 64px)" }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Drag handle — mobile only */}
@@ -1677,7 +1677,7 @@ function SacramentalMeetingPageInner() {
           </div>
 
           {/* Scrollable content */}
-          <div className="overflow-y-auto flex-1 px-5 pb-6 space-y-5 text-sm">
+          <div className="min-h-0 overflow-y-auto flex-1 px-5 pb-6 space-y-5 text-sm">
 
             {/* Key-value grid */}
             <div className="space-y-0">
