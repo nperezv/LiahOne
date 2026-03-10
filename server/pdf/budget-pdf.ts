@@ -96,12 +96,15 @@ export async function generateBudgetRequestPdf(params: {
   doc.setFillColor(255, 255, 255);
   doc.rect(rightBoxX, y + frinjaH, rightBoxW, rightBoxH - frinjaH, "F");
 
-  // Checkboxes
-  const chkBoxSize = 3.5;
-  const chkTextX   = rightBoxX + 4;
-  const chkBoxXR   = rightBoxX + rightBoxW - 8;
-  const chkY1      = y + frinjaH + 3;
-  const chkY2      = chkY1 + 6;
+  // Checkboxes — centered vertically in the white area (rightBoxH - frinjaH = 22.5mm)
+  const chkBoxSize   = 3.5;
+  const chkTextX     = rightBoxX + 4;
+  const chkBoxXR     = rightBoxX + rightBoxW - 8;
+  const chkBlockH    = 11;  // total height of the two-checkbox block (2×3.5 + gap)
+  const chkAreaH     = rightBoxH - frinjaH; // 22.5mm
+  const chkStartY    = y + frinjaH + (chkAreaH - chkBlockH) / 2;
+  const chkY1        = chkStartY;
+  const chkY2        = chkY1 + 7;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
@@ -140,17 +143,12 @@ export async function generateBudgetRequestPdf(params: {
   doc.text(wardName || "Barrio", margin, y + 5);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  // Keep "GASTOS" 2mm above the bottom black line (y+18, not y+20)
-  doc.text("SOLICITUD DE", margin, y + 12);
-  doc.text("GASTOS", margin, y + 18);
+  doc.text("SOLICITUD DE", margin, y + 13);
+  doc.text("GASTOS", margin, y + 20);
 
-  y += headerH;
-
-  // ── STEP 4: bottom black 2pt line ON TOP of the box ──
-  doc.setDrawColor(...black);
-  doc.setLineWidth(0.7);
-  doc.line(margin, y, margin + contentWidth, y);
-  y += 3;
+  // No bottom header line — the Solicitante section-title underline
+  // (drawn by drawSectionTitle) provides the visual separation.
+  y += headerH + 3;
 
   // ── Helpers ──────────────────────────────────────
 
