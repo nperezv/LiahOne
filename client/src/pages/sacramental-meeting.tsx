@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, Component } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Component } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -60,18 +60,31 @@ const HymnAutocomplete = ({
   onChange: (v: string) => void; onBlur: () => void; onNormalize: (v: string) => void;
   testId?: string; className?: string;
 }) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
   const datalistId = `hymn-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const filteredValues = useMemo(() => new Set(filtered.map((o) => o.value)), [filtered]);
+
+  const handleChange = (nextValue: string) => {
+    onChange(nextValue);
+    if (filteredValues.has(nextValue)) {
+      window.requestAnimationFrame(() => {
+        inputRef.current?.blur();
+      });
+    }
+  };
+
   return (
     <>
       <Input
+        ref={inputRef}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
         list={datalistId}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value)}
         onBlur={() => { onBlur(); onNormalize(value); }}
       />
       <datalist id={datalistId}>
@@ -96,18 +109,31 @@ const MemberAutocomplete = ({
   value: string; options: MemberOption[]; placeholder?: string;
   onChange: (v: string) => void; onBlur?: () => void; testId?: string; className?: string;
 }) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
   const datalistId = `member-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const filteredValues = useMemo(() => new Set(filtered.map((o) => o.value)), [filtered]);
+
+  const handleChange = (nextValue: string) => {
+    onChange(nextValue);
+    if (filteredValues.has(nextValue)) {
+      window.requestAnimationFrame(() => {
+        inputRef.current?.blur();
+      });
+    }
+  };
+
   return (
     <>
       <Input
+        ref={inputRef}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
         list={datalistId}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value)}
         onBlur={() => { onBlur?.(); }}
       />
       <datalist id={datalistId}>
