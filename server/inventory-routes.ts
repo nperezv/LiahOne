@@ -331,7 +331,12 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
   });
 
   app.post("/api/inventory", requireAuth, requireAdmin, async (req, res) => {
-    const payload = insertInventoryItemSchema.parse(req.body);
+    const parsed = insertInventoryItemSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Datos de activo inválidos" });
+    }
+
+    const payload = parsed.data;
     const assetCode = await allocateAssetCode(payload.categoryId);
     const qrUrl = `${BASE_URL.replace(/\/$/, "")}/a/${assetCode}`;
     const [created] = await db.insert(inventoryItems).values({ ...payload, assetCode, qrUrl }).returning();
