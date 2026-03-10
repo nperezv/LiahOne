@@ -1759,6 +1759,12 @@ export default function BudgetPage() {
                   </div>
 
 
+                  <FormField
+                    control={budgetForm.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Propósito del gasto (Opcional)</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Detalla el propósito del gasto..."
