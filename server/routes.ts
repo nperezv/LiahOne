@@ -2715,10 +2715,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         day: "numeric",
       });
 
-      // Coordenadas calibradas para la plantilla "Solicitud de gastos" (A4, 1 página)
-      // Área: "Para uso exclusivo del secretario" -> columna "Firma del El obispo (Opcional)"
-      const signatureBox = { x: 38, y: 306, width: 310, height: 30 };
-      const dateBox = { x: 350, y: 306, width: 180, height: 30 };
+      // Coordenadas calibradas para PDF generado con jsPDF (A4, unidades: puntos)
+      // Sección de firmas anclada a pageHeight-72mm desde arriba.
+      // Firma obispo: mitad derecha (x = pageWidth/2 + 4 mm = ~309pt)
+      // y desde abajo: (297 - 225 - 7 - 2) mm = 63mm → 63*2.835 ≈ 179pt, caja altura ~57pt
+      const signatureBox = { x: 309, y: 155, width: 245, height: 57 };
+      const dateBox = { x: 309, y: 130, width: 245, height: 20 };
 
       if (signatureDataUrl.startsWith("data:image/")) {
         const base64Data = signatureDataUrl.split(",")[1] || "";
