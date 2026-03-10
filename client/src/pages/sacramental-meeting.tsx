@@ -911,7 +911,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="flex h-full">
+    <div className="flex h-full relative">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -1042,14 +1042,14 @@ function SacramentalMeetingPageInner() {
       ── */}
       {isPanelOpen && (
           <div className={cn(
-            "flex flex-col bg-background h-full",
-            // Mobile: take full available space, replacing the list (list is hidden via md:flex above)
-            "w-full",
+            "flex flex-col bg-background",
+            // Mobile: full viewport height via min-h, flex col
+            "w-full min-h-[calc(100dvh-56px)] md:min-h-0 md:h-full",
             // Desktop: fixed-width sidebar column
             "md:w-[420px] lg:w-[460px] md:shrink-0",
           )}>
           <Form {...form}>
-            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col h-full min-h-0">
+            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col flex-1 min-h-0">
 
               {/* Panel header */}
               <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 shrink-0">
@@ -1641,20 +1641,35 @@ function SacramentalMeetingPageInner() {
 
     </div>
 
-    {/* ── Details modal — rendered outside flex container so fixed positioning works correctly ── */}
+    {/* ── Details modal — absolute dentro del contenedor para evitar problemas con fixed en móvil ── */}
     {isDetailsOpen && detailsMeeting && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setIsDetailsOpen(false)}>
-          <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-background z-10">
-              <div>
-                <h3 className="font-bold text-sm">Detalles del programa</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Modo lectura</p>
-              </div>
-              <button onClick={() => setIsDetailsOpen(false)} className="w-7 h-7 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
-                <X className="w-3.5 h-3.5" />
-              </button>
+      <div
+        className="absolute inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center md:p-4 bg-black/60"
+        onClick={() => setIsDetailsOpen(false)}
+      >
+        <div
+          className={cn(
+            "bg-background w-full md:max-w-lg md:rounded-2xl shadow-2xl flex flex-col",
+            "rounded-t-2xl md:rounded-2xl",
+            "max-h-[88dvh] md:max-h-[85vh]",
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header — sticky */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border/40 shrink-0">
+            <div>
+              <h3 className="font-bold text-sm">Detalles del programa</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Modo lectura</p>
             </div>
-            <div className="px-5 py-4 space-y-4 text-sm">
+            <button
+              onClick={() => setIsDetailsOpen(false)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Scrollable content */}
+          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4 text-sm">
               <div className="grid gap-2">
                 {[
                   { label: "Fecha", val: detailsMeeting.date ? new Date(detailsMeeting.date).toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" }) : "Sin fecha" },
@@ -1724,8 +1739,8 @@ function SacramentalMeetingPageInner() {
                 </div>
               ))}
             </div>
-            <div className="px-5 py-3 border-t border-border flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setIsDetailsOpen(false)}>Cerrar</Button>
+            <div className="px-5 py-4 border-t border-border/40 flex justify-end shrink-0">
+              <Button variant="outline" size="sm" className="min-w-[80px]" onClick={() => setIsDetailsOpen(false)}>Cerrar</Button>
             </div>
           </div>
         </div>
