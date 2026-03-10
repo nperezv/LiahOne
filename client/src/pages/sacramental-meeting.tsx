@@ -1598,7 +1598,7 @@ function SacramentalMeetingPageInner() {
                 const isFirst = idx === 0;
                 const isPreview = activeTab === "preview";
                 return (
-                  <div className="mt-auto flex items-center gap-2 border-t border-border/30 bg-background px-4 py-3 md:px-5 shrink-0">
+                  <div className="mt-auto flex items-center gap-2 border-t border-border/30 bg-background px-4 py-3 md:px-5 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] shrink-0">
                     <button
                       type="button"
                       onClick={() => { if (idx > 0) setActiveTab(tabs[idx - 1].id); }}
