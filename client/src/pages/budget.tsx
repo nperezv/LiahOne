@@ -1042,7 +1042,7 @@ export default function BudgetPage() {
   }
 
   return (
-    <div className="bg-[#04060d] p-6 text-slate-100 md:p-8">
+    <div className="p-6 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
           <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl">Presupuestos</h1>
