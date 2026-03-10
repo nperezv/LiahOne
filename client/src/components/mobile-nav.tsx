@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { CalendarDays, Home, Menu, Target, Users } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -16,6 +17,7 @@ const organizationSlugMap: Record<string, string> = {
 };
 
 export function MobileNav() {
+  const navRef = useRef<HTMLElement | null>(null);
   const [location] = useLocation();
   const { toggleSidebar } = useSidebar();
   const { user } = useAuth();
@@ -52,8 +54,36 @@ export function MobileNav() {
     { label: "Metas", href: "/goals", icon: Target },
   ];
 
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+
+    const root = document.documentElement;
+    const setMobileNavHeight = () => {
+      root.style.setProperty("--mobile-nav-height", `${nav.getBoundingClientRect().height}px`);
+    };
+
+    setMobileNavHeight();
+    window.addEventListener("resize", setMobileNavHeight);
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(setMobileNavHeight);
+      observer.observe(nav);
+    }
+
+    return () => {
+      window.removeEventListener("resize", setMobileNavHeight);
+      observer?.disconnect();
+      root.style.removeProperty("--mobile-nav-height");
+    };
+  }, []);
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav
+      ref={navRef}
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] md:hidden"
+    >
       <div className="mx-auto flex max-w-md items-center justify-between px-4 py-2">
         {navItems.map((item) => {
           const isActive = location === item.href;

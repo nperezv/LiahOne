@@ -73,20 +73,20 @@ const HymnAutocomplete = ({
       />
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
-          <div className="max-h-52 overflow-y-auto py-1">
-            {filtered.length === 0
-              ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
-              : filtered.map((o) => (
-                <button key={o.number} type="button"
-                  className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { onChange(o.value); onNormalize(o.value); setIsOpen(false); }}
-                >
-                  <span className="text-xs font-bold text-muted-foreground mr-2 w-8 shrink-0">{o.number}</span>
-                  {o.title}
-                </button>
-              ))}
-          </div>
+        <div className="max-h-52 overflow-y-auto py-1">
+          {filtered.length === 0
+            ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
+            : filtered.map((o) => (
+              <button key={o.number} type="button"
+                className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(o.value); onNormalize(o.value); setIsOpen(false); }}
+              >
+                <span className="text-xs font-bold text-muted-foreground mr-2 w-8 shrink-0">{o.number}</span>
+                {o.title}
+              </button>
+            ))}
+        </div>
         </div>
       )}
     </div>
@@ -119,19 +119,19 @@ const MemberAutocomplete = ({
       />
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
-          <div className="max-h-52 overflow-y-auto py-1">
-            {filtered.length === 0
-              ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
-              : filtered.map((o) => (
-                <button key={o.value} type="button"
-                  className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { onChange(o.value); setIsOpen(false); }}
-                >
-                  {o.value}
-                </button>
-              ))}
-          </div>
+        <div className="max-h-52 overflow-y-auto py-1">
+          {filtered.length === 0
+            ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
+            : filtered.map((o) => (
+              <button key={o.value} type="button"
+                className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(o.value); setIsOpen(false); }}
+              >
+                {o.value}
+              </button>
+            ))}
+        </div>
         </div>
       )}
     </div>
@@ -911,7 +911,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="flex h-full overflow-hidden relative">
+    <div className="relative flex h-[calc(100dvh-var(--mobile-nav-height,0px))] min-h-0 overflow-hidden md:h-full">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -1042,13 +1042,13 @@ function SacramentalMeetingPageInner() {
       ── */}
       {isPanelOpen && (
           <div className={cn(
-            "flex flex-col bg-background overflow-hidden",
+            "flex h-full min-h-0 flex-col bg-background overflow-hidden",
             "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
             // On mobile take all remaining height (parent flex container defines the height)
             "flex-1 md:flex-none md:h-full",
           )}>
           <Form {...form}>
-            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex h-full min-h-0 flex-1 flex-col">
 
               {/* Panel header */}
               <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 shrink-0">
@@ -1081,7 +1081,7 @@ function SacramentalMeetingPageInner() {
               })()}
 
               {/* Tab pills — scrollable, compact */}
-              <div className="flex overflow-x-auto shrink-0 scrollbar-none px-2 border-b border-border/40">
+              <div className="flex overflow-x-auto overflow-y-hidden shrink-0 px-2 border-b border-border/40 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {tabs.map((tab, i) => {
                   const idx = tabs.findIndex((t) => t.id === activeTab);
                   const done = i < idx;
@@ -1111,7 +1111,7 @@ function SacramentalMeetingPageInner() {
               </div>
 
               {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto px-4 md:px-5 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 md:px-5 py-4">
 
                 {/* ── TAB: GENERAL ── */}
                 {activeTab === "general" && (
@@ -1127,7 +1127,7 @@ function SacramentalMeetingPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <FormField control={form.control} name="musicDirector" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Director de música</FormLabel>
+                          <FormLabel>Dirige los Himnos</FormLabel>
                           <FormControl>
                             <MemberAutocomplete value={field.value || ""} options={musicDirectorCandidates.map((v) => ({ value: v }))} placeholder="Nombre completo" onChange={field.onChange} onBlur={() => { field.onBlur(); applyMemberNormalization("musicDirector"); }} testId="input-music-director" />
                           </FormControl>
@@ -1591,7 +1591,7 @@ function SacramentalMeetingPageInner() {
                 const isFirst = idx === 0;
                 const isPreview = activeTab === "preview";
                 return (
-                  <div className="flex items-center gap-2 px-4 md:px-5 py-3 shrink-0 bg-background">
+                  <div className="mt-auto flex items-center gap-2 border-t border-border/30 bg-background px-4 py-3 md:px-5 shrink-0">
                     <button
                       type="button"
                       onClick={() => { if (idx > 0) setActiveTab(tabs[idx - 1].id); }}
@@ -1649,8 +1649,8 @@ function SacramentalMeetingPageInner() {
       >
         {/* Sheet / Dialog */}
         <div
-          className="bg-background w-full md:max-w-md md:rounded-2xl flex flex-col rounded-t-3xl overflow-hidden"
-          style={{ maxHeight: "calc(100dvh - 80px)" }}
+          className="bg-background w-full max-w-full md:max-w-md flex min-h-0 flex-col rounded-t-3xl md:rounded-2xl overflow-hidden"
+          style={{ maxHeight: "calc(100dvh - 64px)" }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Drag handle — mobile only */}
@@ -1677,7 +1677,7 @@ function SacramentalMeetingPageInner() {
           </div>
 
           {/* Scrollable content */}
-          <div className="overflow-y-auto flex-1 px-5 pb-6 space-y-5 text-sm">
+          <div className="min-h-0 overflow-y-auto flex-1 px-5 pb-6 space-y-5 text-sm">
 
             {/* Key-value grid */}
             <div className="space-y-0">
