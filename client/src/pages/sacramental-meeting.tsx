@@ -917,18 +917,19 @@ function SacramentalMeetingPageInner() {
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
 
         {/* Page header */}
-        <div className="flex items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-3">
+        <div className="px-4 md:px-6 pt-4 pb-3 md:py-5 shrink-0">
+          {/* Title row */}
+          <div className="flex items-center gap-3 mb-3">
             {showPastView && (
               <button
                 onClick={() => setShowPastView(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
               >
                 <ChevronRight className="w-4 h-4 rotate-180" />
               </button>
             )}
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight truncate">
                 {showPastView ? "Reuniones anteriores" : "Reunión Sacramental"}
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
@@ -936,33 +937,32 @@ function SacramentalMeetingPageInner() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!showPastView && past.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => setShowPastView(true)}>
-                <FileText className="h-4 w-4 mr-2" />
-                Anteriores
-                <span className="ml-1.5 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 font-bold">{past.length}</span>
-              </Button>
-            )}
-            {!showPastView && (
-              <>
-                <Button variant="ghost" size="sm" onClick={() => exportSacramentalMeetings(meetings)} data-testid="button-export-sacramental">
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar
+          {/* Actions row — wraps on mobile */}
+          {!showPastView && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {past.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setShowPastView(true)}>
+                  <FileText className="h-4 w-4 mr-1.5" />
+                  Anteriores
+                  <span className="ml-1.5 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 font-bold">{past.length}</span>
                 </Button>
-                {canEdit && (
-                  <Button size="sm" onClick={() => { resetMeetingFormState(); openPanel("general"); }} data-testid="button-create-meeting">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nueva reunión
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => exportSacramentalMeetings(meetings)} data-testid="button-export-sacramental">
+                <Download className="h-4 w-4 mr-1.5" />
+                Exportar
+              </Button>
+              {canEdit && (
+                <Button size="sm" onClick={() => { resetMeetingFormState(); openPanel("general"); }} data-testid="button-create-meeting">
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Nueva reunión
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Meeting cards */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6 space-y-5">
 
           {showPastView ? (
             /* ── VISTA ANTERIORES ── */
@@ -1052,7 +1052,7 @@ function SacramentalMeetingPageInner() {
             <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col h-full min-h-0">
 
               {/* Panel header */}
-              <div className="flex items-center justify-between px-5 py-4 shrink-0">
+              <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 shrink-0">
                 <div>
                   <h2 className="text-sm font-bold">{editingId ? "Editar reunión" : "Nueva reunión"}</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{formatPanelDate(form.watch("date"))}</p>
@@ -1067,7 +1067,7 @@ function SacramentalMeetingPageInner() {
                 const idx = tabs.findIndex((t) => t.id === activeTab);
                 const pct = Math.round(((idx + 1) / tabs.length) * 100);
                 return (
-                  <div className="px-5 pt-1 pb-2 shrink-0">
+                  <div className="px-4 md:px-5 pt-1 pb-2 shrink-0">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Paso {idx + 1} de {tabs.length}
@@ -1082,7 +1082,7 @@ function SacramentalMeetingPageInner() {
               })()}
 
               {/* Tab pills — scrollable, compact */}
-              <div className="flex overflow-x-auto border-b border-border shrink-0 scrollbar-none px-2 pt-2">
+              <div className="flex overflow-x-auto shrink-0 scrollbar-none px-2 border-b border-border/40">
                 {tabs.map((tab, i) => {
                   const idx = tabs.findIndex((t) => t.id === activeTab);
                   const done = i < idx;
@@ -1112,7 +1112,7 @@ function SacramentalMeetingPageInner() {
               </div>
 
               {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto px-5 py-5">
+              <div className="flex-1 overflow-y-auto px-4 md:px-5 py-4">
 
                 {/* ── TAB: GENERAL ── */}
                 {activeTab === "general" && (
@@ -1592,7 +1592,7 @@ function SacramentalMeetingPageInner() {
                 const isFirst = idx === 0;
                 const isPreview = activeTab === "preview";
                 return (
-                  <div className="flex items-center gap-2 px-5 py-4 shrink-0 bg-background">
+                  <div className="flex items-center gap-2 px-4 md:px-5 py-3 shrink-0 bg-background">
                     <button
                       type="button"
                       onClick={() => { if (idx > 0) setActiveTab(tabs[idx - 1].id); }}
