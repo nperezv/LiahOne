@@ -352,11 +352,11 @@ export async function generateBudgetRequestPdf(params: {
   drawSectionTitle("Para uso exclusivo del secretario");
 
   // 2 equal columns, no vertical border between them
-  const sigGap      = 6;  // mm gap between columns
+  const sigGap      = 7;  // mm gap between columns
   const sigColWidth = (contentWidth - sigGap) / 2;
   const col1X       = margin;
   const col2X       = margin + sigColWidth + sigGap;
-  const sigImgH     = 15; // mm signature image height
+  const sigImgH     = 18; // mm signature image height
   const sigImgW     = sigColWidth - 2;
 
   const drawSigCol = (colX: number, label: string, sigDataUrl: string, name: string, date: string) => {
@@ -381,20 +381,20 @@ export async function generateBudgetRequestPdf(params: {
 
     // Name
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(8);
     doc.setTextColor(...black);
-    doc.text(name, colX, imgY + sigImgH + 4);
+    doc.text(name, colX, imgY + sigImgH + 5);
 
     // Date
-    doc.text(date, colX, imgY + sigImgH + 8.5);
+    doc.text(date, colX, imgY + sigImgH + 10);
   };
 
   const todayStr = new Date().toLocaleDateString("es-ES");
   drawSigCol(col1X, "FIRMA DEL SOLICITANTE", applicantSignatureDataUrl, requesterName, todayStr);
   drawSigCol(col2X, "FIRMA DEL OBISPO", bishopSignatureDataUrl, `Obispo: ${signerName}`, todayStr);
 
-  // Advance y past signature block: label(5) + image(15) + line(1) + name(4) + date(4.5) + margin
-  y += 5 + sigImgH + 10;
+  // Advance y past signature block: label(6) + image(18) + line(1) + name(5) + date(5) + margin
+  y += 6 + sigImgH + 12;
 
   // ═══════════════════════════════════════════════
   // TEXTO DE SEGURIDAD + LÍNEA PUNTEADA (texto primero, línea debajo)
