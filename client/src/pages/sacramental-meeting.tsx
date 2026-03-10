@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, Component } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Component } from "react";
+import { createPortal } from "react-dom";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -45,7 +46,7 @@ type HymnOption = { value: string; number: number; title: string };
 type MemberOption = { value: string };
 type TabId = "general" | "autoridades" | "himnos" | "oraciones" | "mensajes" | "asuntos" | "preview";
 
-// ─── HymnAutocomplete (unchanged logic) ───────────────────────────────────────
+// ─── HymnAutocomplete ─────────────────────────────────────────────────────────
 const filterHymnOptions = (options: HymnOption[], query: string) => {
   const trimmed = query.trim();
   if (!trimmed) return options;
@@ -60,30 +61,46 @@ const HymnAutocomplete = ({
   onChange: (v: string) => void; onBlur: () => void; onNormalize: (v: string) => void;
   testId?: string; className?: string;
 }) => {
+  const [open, setOpen] = useState(false);
   const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
-  const datalistId = `hymn-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
+  const handleSelect = (o: HymnOption) => {
+    onChange(o.value);
+    onNormalize(o.value);
+    setOpen(false);
+  };
+
   return (
-    <>
+    <div className="relative">
       <Input
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
-        list={datalistId}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => { onBlur(); onNormalize(value); }}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setOpen(false); onBlur(); onNormalize(value); }}
       />
-      <datalist id={datalistId}>
-        {filtered.slice(0, 100).map((o) => (
-          <option key={o.number} value={o.value}>{`${o.number} — ${o.title}`}</option>
-        ))}
-      </datalist>
-    </>
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 20).map((o) => (
+            <li
+              key={o.number}
+              className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(o); }}
+            >
+              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.number}</span>
+              <span className="truncate">{o.title}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 };
 
-// ─── MemberAutocomplete (unchanged logic) ─────────────────────────────────────
+// ─── MemberAutocomplete ───────────────────────────────────────────────────────
 const filterMemberOptions = (options: MemberOption[], query: string) => {
   const trimmed = query.trim();
   if (!trimmed) return options;
@@ -96,26 +113,40 @@ const MemberAutocomplete = ({
   value: string; options: MemberOption[]; placeholder?: string;
   onChange: (v: string) => void; onBlur?: () => void; testId?: string; className?: string;
 }) => {
+  const [open, setOpen] = useState(false);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
-  const datalistId = `member-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
+  const handleSelect = (o: MemberOption) => {
+    onChange(o.value);
+    setOpen(false);
+  };
+
   return (
-    <>
+    <div className="relative">
       <Input
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
-        list={datalistId}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => { onBlur?.(); }}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setOpen(false); onBlur?.(); }}
       />
-      <datalist id={datalistId}>
-        {filtered.slice(0, 100).map((o) => (
-          <option key={o.value} value={o.value} />
-        ))}
-      </datalist>
-    </>
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 15).map((o) => (
+            <li
+              key={o.value}
+              className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(o); }}
+            >
+              {o.value}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 };
 
@@ -416,8 +447,9 @@ class SacramentalErrorBoundary extends Component<
 }
 
 function SacramentalMeetingPageInner() {
-  // ── All original state (unchanged) ──
+  // ── All original state ──
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const formPanelRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<TabId>("general");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -791,6 +823,22 @@ function SacramentalMeetingPageInner() {
     });
   }, [memberCallingsWithMembers, getMemberNameForCalling, isPanelOpen]);
 
+  // ── Form panel height: fill the main scroll container ──
+  useEffect(() => {
+    if (!isPanelOpen) return;
+    const mainEl = document.querySelector(".app-scroll-container") as HTMLElement | null;
+    if (!mainEl) return;
+    const update = () => {
+      if (formPanelRef.current) {
+        formPanelRef.current.style.height = `${mainEl.clientHeight}px`;
+      }
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(mainEl);
+    return () => ro.disconnect();
+  }, [isPanelOpen]);
+
   // ── onSubmit (unchanged) ──
   const onSubmit = (data: MeetingFormValues) => {
     if (!data.date) { form.setError("date", { message: "La fecha es requerida" }); return; }
@@ -1022,12 +1070,14 @@ function SacramentalMeetingPageInner() {
            Desktop: flex column sidebar next to the list
       ── */}
       {isPanelOpen && (
-          <div className={cn(
-            "flex h-full min-h-0 flex-col bg-background overflow-hidden",
-            "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
-            // On mobile take all remaining height (parent flex container defines the height)
-            "flex-1 md:flex-none md:h-full",
-          )}>
+          <div
+            ref={formPanelRef}
+            className={cn(
+              "flex min-h-0 flex-col bg-background overflow-hidden",
+              "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
+              "flex-1 md:flex-none",
+            )}
+          >
           <Form {...form}>
             <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex h-full min-h-0 flex-1 flex-col">
 
@@ -1622,7 +1672,7 @@ function SacramentalMeetingPageInner() {
     </div>
 
     {/* ── Details modal ── */}
-    {isDetailsOpen && detailsMeeting && (
+    {isDetailsOpen && detailsMeeting && createPortal(
       <div
         className="fixed inset-0 z-[200] flex flex-col justify-end md:justify-center md:items-center md:p-6"
         style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
@@ -1630,8 +1680,8 @@ function SacramentalMeetingPageInner() {
       >
         {/* Sheet / Dialog */}
         <div
-          className="bg-background w-full max-w-full md:max-w-md flex min-h-0 flex-col rounded-t-3xl md:rounded-2xl overflow-hidden"
-          style={{ maxHeight: "calc(100dvh - 64px)" }}
+          className="bg-background w-full max-w-full md:max-w-lg flex min-h-0 flex-col rounded-t-3xl md:rounded-2xl overflow-hidden"
+          style={{ maxHeight: "calc(100dvh - 80px)" }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Drag handle — mobile only */}
@@ -1735,7 +1785,8 @@ function SacramentalMeetingPageInner() {
             ))}
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
     </>
   );
