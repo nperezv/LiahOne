@@ -911,7 +911,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="flex h-full relative">
+    <div className="flex h-full overflow-hidden relative">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -1042,11 +1042,10 @@ function SacramentalMeetingPageInner() {
       ── */}
       {isPanelOpen && (
           <div className={cn(
-            "flex flex-col bg-background",
-            // Mobile: full viewport height via min-h, flex col
-            "w-full min-h-[calc(100dvh-56px)] md:min-h-0 md:h-full",
-            // Desktop: fixed-width sidebar column
-            "md:w-[420px] lg:w-[460px] md:shrink-0",
+            "flex flex-col bg-background overflow-hidden",
+            "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
+            // On mobile take all remaining height (parent flex container defines the height)
+            "flex-1 md:flex-none md:h-full",
           )}>
           <Form {...form}>
             <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col flex-1 min-h-0">
@@ -1641,110 +1640,122 @@ function SacramentalMeetingPageInner() {
 
     </div>
 
-    {/* ── Details modal — absolute dentro del contenedor para evitar problemas con fixed en móvil ── */}
+    {/* ── Details modal ── */}
     {isDetailsOpen && detailsMeeting && (
       <div
-        className="absolute inset-0 z-50 flex flex-col justify-end md:justify-center md:items-center md:p-4 bg-black/60"
+        className="fixed inset-0 z-[200] flex flex-col justify-end md:justify-center md:items-center md:p-6"
+        style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
         onClick={() => setIsDetailsOpen(false)}
       >
+        {/* Sheet / Dialog */}
         <div
-          className={cn(
-            "bg-background w-full md:max-w-lg md:rounded-2xl shadow-2xl flex flex-col",
-            "rounded-t-2xl md:rounded-2xl",
-            "max-h-[88dvh] md:max-h-[85vh]",
-          )}
+          className="bg-background w-full md:max-w-md md:rounded-2xl flex flex-col rounded-t-3xl overflow-hidden"
+          style={{ maxHeight: "calc(100dvh - 80px)" }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header — sticky */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/40 shrink-0">
+          {/* Drag handle — mobile only */}
+          <div className="flex justify-center pt-3 pb-1 md:hidden shrink-0">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 shrink-0">
             <div>
-              <h3 className="font-bold text-sm">Detalles del programa</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Modo lectura</p>
+              <h3 className="font-bold">Detalles del programa</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {detailsMeeting.date
+                  ? new Date(detailsMeeting.date + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+                  : "Sin fecha"}
+              </p>
             </div>
             <button
               onClick={() => setIsDetailsOpen(false)}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
+
           {/* Scrollable content */}
-          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4 text-sm">
-              <div className="grid gap-2">
-                {[
-                  { label: "Fecha", val: detailsMeeting.date ? new Date(detailsMeeting.date).toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" }) : "Sin fecha" },
-                  { label: "Tipo", val: isTestimonyValue(detailsMeeting.isTestimonyMeeting) ? "Testimonio" : "Regular" },
-                  { label: "Preside", val: parsePersonValue(detailsMeeting.presider).name || "Sin definir" },
-                  { label: "Dirige", val: parsePersonValue(detailsMeeting.director).name || "Sin definir" },
-                  { label: "Dir. música", val: detailsMeeting.musicDirector || "Sin definir" },
-                  { label: "Pianista", val: detailsMeeting.pianist || "Sin definir" },
-                  { label: "Autoridad visitante", val: detailsMeeting.visitingAuthority || "Sin definir" },
-                  { label: "Him. apertura", val: detailsMeeting.openingHymn || "Sin definir" },
-                  { label: "Oración inicial", val: detailsMeeting.openingPrayer || "Sin definir" },
-                  { label: "Him. sacramental", val: detailsMeeting.sacramentHymn || "Sin definir" },
-                  { label: "Him. intermedio", val: detailsMeeting.intermediateHymn ? `${detailsMeeting.intermediateHymn}${detailsMeeting.intermediateHymnType ? ` (${detailsMeeting.intermediateHymnType === "choir" ? "Coro" : "Congregación"})` : ""}` : "Sin definir" },
-                  { label: "Him. final", val: detailsMeeting.closingHymn || "Sin definir" },
-                  { label: "Oración final", val: detailsMeeting.closingPrayer || "Sin definir" },
-                  { label: "Anuncios", val: detailsMeeting.announcements?.trim() || "Sin anuncios" },
-                  { label: "Asuntos estaca", val: detailsMeeting.stakeBusiness?.trim() || "Sin asuntos" },
-                ].map(({ label, val }) => (
-                  <div key={label} className="flex gap-3">
-                    <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">{label}</span>
-                    <span>{val}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="overflow-y-auto flex-1 px-5 pb-6 space-y-5 text-sm">
 
-              {detailsMeeting.discourses?.length > 0 && (
-                <div>
-                  <div className="font-semibold mb-1">Discursos</div>
-                  <ul className="space-y-1 pl-4">
-                    {detailsMeeting.discourses.map((d: any, i: number) => (
-                      <li key={i} className="list-disc text-muted-foreground"><span className="text-foreground">{d.speaker || "Sin nombre"}</span>{d.topic ? ` — ${d.topic}` : ""}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {detailsMeeting.assignments?.length > 0 && (
-                <div>
-                  <div className="font-semibold mb-1">Asignaciones</div>
-                  <ul className="space-y-1 pl-4">
-                    {detailsMeeting.assignments.map((a: any, i: number) => (
-                      <li key={i} className="list-disc text-muted-foreground"><span className="text-foreground">{a.name}</span>{a.assignment ? ` — ${a.assignment}` : ""}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {(detailsMeeting.releases?.length > 0 || detailsMeeting.sustainments?.length > 0) && (
-                <div>
-                  <div className="font-semibold mb-1">Relevos y sostenimientos</div>
-                  {detailsMeeting.releases?.length > 0 && <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Relevos</div>}
-                  {detailsMeeting.releases?.map((r: any, i: number) => <div key={i} className="text-muted-foreground pl-2">{r.name}{r.oldCalling ? ` — ${r.oldCalling}` : ""}</div>)}
-                  {detailsMeeting.sustainments?.length > 0 && <div className="text-xs uppercase font-bold text-muted-foreground mt-2 mb-1">Sostenimientos</div>}
-                  {detailsMeeting.sustainments?.map((s: any, i: number) => <div key={i} className="text-muted-foreground pl-2">{s.name}{s.calling ? ` — ${s.calling}` : ""}</div>)}
-                </div>
-              )}
-
+            {/* Key-value grid */}
+            <div className="space-y-0">
               {[
-                { label: "Confirmaciones", val: detailsMeeting.confirmations },
-                { label: "Nuevos miembros", val: detailsMeeting.newMembers },
-                { label: "Ordenaciones Aarónicas", val: detailsMeeting.aaronicOrderings },
-                { label: "Bendiciones de niños", val: detailsMeeting.childBlessings },
-              ].filter(({ val }) => val?.length > 0).map(({ label, val }) => (
-                <div key={label}>
-                  <span className="font-semibold">{label}: </span>
-                  <span className="text-muted-foreground">{val.join(", ")}</span>
+                { label: "Tipo", val: isTestimonyValue(detailsMeeting.isTestimonyMeeting) ? "Testimonio" : "Regular" },
+                { label: "Preside", val: parsePersonValue(detailsMeeting.presider).name || "Sin definir" },
+                { label: "Dirige", val: parsePersonValue(detailsMeeting.director).name || "Sin definir" },
+                { label: "Dir. música", val: detailsMeeting.musicDirector || "Sin definir" },
+                { label: "Pianista", val: detailsMeeting.pianist || "Sin definir" },
+                { label: "Autoridad visitante", val: detailsMeeting.visitingAuthority || "—" },
+                { label: "Him. apertura", val: detailsMeeting.openingHymn || "—" },
+                { label: "Oración inicial", val: detailsMeeting.openingPrayer || "—" },
+                { label: "Him. sacramental", val: detailsMeeting.sacramentHymn || "—" },
+                { label: "Him. intermedio", val: detailsMeeting.intermediateHymn ? `${detailsMeeting.intermediateHymn}${detailsMeeting.intermediateHymnType ? ` (${detailsMeeting.intermediateHymnType === "choir" ? "Coro" : "Congregación"})` : ""}` : "—" },
+                { label: "Him. final", val: detailsMeeting.closingHymn || "—" },
+                { label: "Oración final", val: detailsMeeting.closingPrayer || "—" },
+                { label: "Anuncios", val: detailsMeeting.announcements?.trim() || "—" },
+                { label: "Asuntos estaca", val: detailsMeeting.stakeBusiness?.trim() || "—" },
+              ].map(({ label, val }) => (
+                <div key={label} className="flex items-baseline gap-2 py-2 border-b border-border/20 last:border-0">
+                  <span className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wide min-w-[110px] shrink-0">{label}</span>
+                  <span className="text-sm leading-snug">{val}</span>
                 </div>
               ))}
             </div>
-            <div className="px-5 py-4 border-t border-border/40 flex justify-end shrink-0">
-              <Button variant="outline" size="sm" className="min-w-[80px]" onClick={() => setIsDetailsOpen(false)}>Cerrar</Button>
-            </div>
+
+            {detailsMeeting.discourses?.filter((d: any) => d.speaker).length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Discursos</p>
+                <div className="space-y-1.5">
+                  {detailsMeeting.discourses.filter((d: any) => d.speaker).map((d: any, i: number) => (
+                    <div key={i} className="flex items-baseline gap-2">
+                      <span className="text-[10px] font-mono text-muted-foreground/40 w-4 shrink-0">{i + 1}.</span>
+                      <span className="font-medium">{d.speaker}</span>
+                      {d.topic && <span className="text-muted-foreground text-xs">— {d.topic}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {detailsMeeting.assignments?.filter((a: any) => a.name).length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Asignaciones</p>
+                <div className="space-y-1.5">
+                  {detailsMeeting.assignments.filter((a: any) => a.name).map((a: any, i: number) => (
+                    <div key={i} className="flex items-baseline gap-2">
+                      <span className="font-medium">{a.name}</span>
+                      {a.assignment && <span className="text-muted-foreground text-xs">— {a.assignment}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(detailsMeeting.releases?.length > 0 || detailsMeeting.sustainments?.length > 0) && (
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Relevos y sostenimientos</p>
+                {detailsMeeting.releases?.length > 0 && <><p className="text-[10px] uppercase font-bold text-muted-foreground/40 mb-1">Relevos</p>{detailsMeeting.releases.map((r: any, i: number) => <div key={i} className="text-muted-foreground pl-2 text-xs">{r.name}{r.oldCalling ? ` — ${r.oldCalling}` : ""}</div>)}</>}
+                {detailsMeeting.sustainments?.length > 0 && <><p className="text-[10px] uppercase font-bold text-muted-foreground/40 mt-2 mb-1">Sostenimientos</p>{detailsMeeting.sustainments.map((s: any, i: number) => <div key={i} className="text-muted-foreground pl-2 text-xs">{s.name}{s.calling ? ` — ${s.calling}` : ""}</div>)}</>}
+              </div>
+            )}
+
+            {[
+              { label: "Confirmaciones", val: detailsMeeting.confirmations },
+              { label: "Nuevos miembros", val: detailsMeeting.newMembers },
+              { label: "Ordenaciones Aarónicas", val: detailsMeeting.aaronicOrderings },
+              { label: "Bendiciones de niños", val: detailsMeeting.childBlessings },
+            ].filter(({ val }) => val?.length > 0).map(({ label, val }) => (
+              <div key={label}>
+                <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">{label}</p>
+                <p className="text-muted-foreground">{val.join(", ")}</p>
+              </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
+    )}
     </>
   );
 }
