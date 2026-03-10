@@ -456,6 +456,7 @@ function SacramentalMeetingPageInner() {
   const [aaronicOrderings, setAaronicOrderings] = useState<string[]>([""]);
   const [childBlessings, setChildBlessings] = useState<string[]>([""]);
   const [confirmations, setConfirmations] = useState<string[]>([""]);
+  const [showPastView, setShowPastView] = useState(false);
   const [intermediateHymnType, setIntermediateHymnType] = useState<"congregation" | "choir" | "">("");
   const [directorSelection, setDirectorSelection] = useState("");
   const [directorCustom, setDirectorCustom] = useState("");
@@ -896,7 +897,6 @@ function SacramentalMeetingPageInner() {
   const past          = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "past");
   const hasCurrentOrUpcoming = liveMeetings.length > 0 || upcoming.length > 0;
   const fallbackMeeting = !hasCurrentOrUpcoming && past.length > 0 ? [past[0]] : [];
-  const [showPastView, setShowPastView] = useState(false);
 
   // Format date as "Domingo, 15 de marzo de 2026"
   const DIAS_ES  = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
