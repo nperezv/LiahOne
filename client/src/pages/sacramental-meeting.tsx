@@ -64,23 +64,16 @@ const HymnAutocomplete = ({
   const [isOpen, setIsOpen] = useState(false);
   const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Input
-          value={value} placeholder={placeholder} autoComplete="off"
-          data-testid={testId} className={className}
-          onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => { onBlur(); onNormalize(value); }}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        sideOffset={6}
-        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg border-border shadow-xl"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+    <div className="relative">
+      <Input
+        value={value} placeholder={placeholder} autoComplete="off"
+        data-testid={testId} className={className}
+        onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => { onBlur(); onNormalize(value); setTimeout(() => setIsOpen(false), 150); }}
+      />
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
         <div className="max-h-52 overflow-y-auto py-1">
           {filtered.length === 0
             ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
@@ -94,6 +87,7 @@ const HymnAutocomplete = ({
                 {o.title}
               </button>
             ))}
+        </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -116,23 +110,16 @@ const MemberAutocomplete = ({
   const [isOpen, setIsOpen] = useState(false);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Input
-          value={value} placeholder={placeholder} autoComplete="off"
-          data-testid={testId} className={className}
-          onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => { onBlur?.(); }}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        sideOffset={6}
-        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg border-border shadow-xl"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+    <div className="relative">
+      <Input
+        value={value} placeholder={placeholder} autoComplete="off"
+        data-testid={testId} className={className}
+        onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => { onBlur?.(); setTimeout(() => setIsOpen(false), 150); }}
+      />
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
         <div className="max-h-52 overflow-y-auto py-1">
           {filtered.length === 0
             ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
@@ -145,6 +132,7 @@ const MemberAutocomplete = ({
                 {o.value}
               </button>
             ))}
+        </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -924,7 +912,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="relative flex min-h-[calc(100dvh-4.5rem)] overflow-hidden md:h-full md:min-h-0">
+    <div className="relative flex h-[calc(100dvh-var(--mobile-nav-height,0px))] min-h-0 overflow-hidden md:h-full">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
