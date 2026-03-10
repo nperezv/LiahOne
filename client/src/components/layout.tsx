@@ -104,11 +104,7 @@ export function Layout({ children }: LayoutProps) {
             user={user ? { name: user.name, role: user.role, avatarUrl: user.avatarUrl } : undefined}
             onLogout={logout}
           />
-          <main
-            ref={mainRef}
-            className="app-scroll-container flex-1 overflow-y-auto"
-            style={isMobile ? { paddingBottom: "var(--mobile-nav-height, 0px)" } : undefined}
-          >
+          <main ref={mainRef} className="app-scroll-container flex-1 overflow-y-auto pb-20 md:pb-0">
             <div key={location} className="app-page-content app-route-fade">
               {children}
             </div>
