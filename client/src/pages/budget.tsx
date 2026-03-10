@@ -2397,6 +2397,19 @@ export default function BudgetPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {attachmentsDialogRequest?.bishopSignedPlanUrl && (
+              <a
+                href={attachmentsDialogRequest.bishopSignedPlanUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
+              >
+                <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span className="min-w-0 truncate">
+                  Plan firmado por obispo: {attachmentsDialogRequest.bishopSignedPlanFilename ?? "plan_firmado.pdf"}
+                </span>
+              </a>
+            )}
             {attachmentsDialogRequest?.receipts?.length ? (
               attachmentsDialogRequest.receipts.map((receipt, index) => (
                 <button
@@ -2409,9 +2422,9 @@ export default function BudgetPage() {
                   <span className="min-w-0 truncate">{getReceiptLabel(receipt)}: {receipt.filename}</span>
                 </button>
               ))
-            ) : (
+            ) : !attachmentsDialogRequest?.bishopSignedPlanUrl ? (
               <p className="text-sm text-muted-foreground">No hay adjuntos disponibles.</p>
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>

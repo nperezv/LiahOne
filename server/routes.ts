@@ -2719,8 +2719,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sección de firmas anclada a pageHeight-72mm desde arriba.
       // Firma obispo: mitad derecha (x = pageWidth/2 + 4 mm = ~309pt)
       // y desde abajo: (297 - 225 - 7 - 2) mm = 63mm → 63*2.835 ≈ 179pt, caja altura ~57pt
-      const signatureBox = { x: 309, y: 155, width: 245, height: 57 };
-      const dateBox = { x: 309, y: 130, width: 245, height: 20 };
+      const signatureBox = { x: 309, y: 147, width: 245, height: 57 };
+      const dateBox = { x: 309, y: 120, width: 245, height: 20 };
 
       if (signatureDataUrl.startsWith("data:image/")) {
         const base64Data = signatureDataUrl.split(",")[1] || "";
