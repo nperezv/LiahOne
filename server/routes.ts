@@ -1218,6 +1218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const absolutePath = path.join(uploadsPath, storedFilename);
+      console.log("[download] uploadsPath:", uploadsPath, "| storedFilename:", storedFilename, "| absolutePath:", absolutePath);
       await fs.promises.access(absolutePath, fs.constants.F_OK);
 
       const requestedName = typeof req.query.filename === "string" ? req.query.filename.trim() : "";
@@ -1233,7 +1234,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.download(absolutePath, safeDownloadName);
-    } catch {
+    } catch (err: any) {
+      console.error("[download] File not found or error:", err?.message);
       res.status(404).json({ error: "File not found" });
     }
   });
@@ -2715,7 +2717,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const signedStoredFilename = `${randomUUID()}-solicitud-firmada.pdf`;
       const signedAbsolutePath = path.join(uploadsPath, signedStoredFilename);
+      console.log("[sign] Writing PDF to:", signedAbsolutePath);
       await fs.promises.writeFile(signedAbsolutePath, pdfBuffer);
+      console.log("[sign] PDF written OK, size:", pdfBuffer.length);
 
       const signedPlanFilename = "solicitud-firmada.pdf";
       const signedPlanUrl = `/uploads/${signedStoredFilename}`;
