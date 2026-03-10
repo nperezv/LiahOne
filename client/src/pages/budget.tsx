@@ -1254,6 +1254,44 @@ export default function BudgetPage() {
                     )}
                   />
 
+                  <FormField
+                    control={budgetForm.control}
+                    name="requestingOrganizationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Solicitar a nombre de</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || ""}
+                          disabled={!isObispado}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-requesting-organization">
+                              <SelectValue placeholder="Selecciona una organización" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {requestableOrganizations.map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {isObispado ? (
+                          <p className="text-xs text-muted-foreground">
+                            Elige si la solicitud se presenta como Obispado o como Cuórum del Sacerdocio Aarónico (u otra organización).
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Las solicitudes se registran automáticamente a nombre de tu organización.
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {/* ── Categorías dinámicas ── */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -1369,44 +1407,6 @@ export default function BudgetPage() {
                       </div>
                     )}
                   </div>
-
-                  <FormField
-                    control={budgetForm.control}
-                    name="requestingOrganizationId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Solicitar a nombre de</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value || ""}
-                          disabled={!isObispado}
-                        >
-                          <FormControl>
-                            <SelectTrigger data-testid="select-requesting-organization">
-                              <SelectValue placeholder="Selecciona una organización" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {requestableOrganizations.map((org) => (
-                              <SelectItem key={org.id} value={org.id}>
-                                {org.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {isObispado ? (
-                          <p className="text-xs text-muted-foreground">
-                            Elige si la solicitud se presenta como Obispado o como Cuórum del Sacerdocio Aarónico (u otra organización).
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            Las solicitudes se registran automáticamente a nombre de tu organización.
-                          </p>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   <FormField
                     control={budgetForm.control}
