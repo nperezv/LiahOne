@@ -697,6 +697,52 @@ const buildSacramentalRoleEntries = (meeting: any) => {
   return map;
 };
 
+/**
+ * Returns a synthetic meeting containing only participants that are NEW
+ * compared to oldMeeting (different name or not present before).
+ * Used to avoid re-notifying people who were already assigned.
+ */
+const diffSacramentalParticipants = (oldMeeting: any, newMeeting: any): any => {
+  const normName = (v?: string | null) =>
+    normalizeComparableName(extractParticipantName(v));
+
+  const diffMeeting: any = { ...newMeeting };
+
+  // openingPrayer — only if the person changed
+  const oldOpener = normName(oldMeeting.openingPrayer);
+  const newOpener = normName(newMeeting.openingPrayer);
+  if (!newOpener || newOpener === oldOpener) diffMeeting.openingPrayer = null;
+
+  // closingPrayer — only if the person changed
+  const oldCloser = normName(oldMeeting.closingPrayer);
+  const newCloser = normName(newMeeting.closingPrayer);
+  if (!newCloser || newCloser === oldCloser) diffMeeting.closingPrayer = null;
+
+  // discourses — only new speakers (not present in old meeting)
+  const oldSpeakers = new Set(
+    (oldMeeting.discourses || [])
+      .map((d: any) => normName(d?.speaker))
+      .filter(Boolean)
+  );
+  diffMeeting.discourses = (newMeeting.discourses || []).filter((d: any) => {
+    const name = normName(d?.speaker);
+    return name && !oldSpeakers.has(name);
+  });
+
+  // assignments — only new names (not present in old meeting)
+  const oldAssignees = new Set(
+    (oldMeeting.assignments || [])
+      .map((a: any) => normName(a?.name))
+      .filter(Boolean)
+  );
+  diffMeeting.assignments = (newMeeting.assignments || []).filter((a: any) => {
+    const name = normName(a?.name);
+    return name && !oldAssignees.has(name);
+  });
+
+  return diffMeeting;
+};
+
 async function hasInterviewCollision({
   interviewerId,
   date,
@@ -2051,6 +2097,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const meeting = await storage.updateSacramentalMeeting(id, meetingData);
       if (!meeting) {
         return res.status(404).json({ error: "Meeting not found" });
+      }
+
+      // Notify only participants that are NEW compared to the previous version
+      try {
+        const diffMeeting = diffSacramentalParticipants(currentMeeting, meeting);
+        const hasNewParticipants =
+          diffMeeting.openingPrayer ||
+          diffMeeting.closingPrayer ||
+          (diffMeeting.discourses?.length ?? 0) > 0 ||
+          (diffMeeting.assignments?.length ?? 0) > 0;
+
+        if (hasNewParticipants) {
+          await notifySacramentalParticipants(diffMeeting);
+        }
+      } catch (notificationError) {
+        console.error("[Sacramental Emails] Failed to notify new participants after meeting update", {
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+          error: notificationError,
+        });
       }
 
       res.json(meeting);
