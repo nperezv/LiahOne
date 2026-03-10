@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -63,33 +64,39 @@ const HymnAutocomplete = ({
   const [isOpen, setIsOpen] = useState(false);
   const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
   return (
-    <div className="relative">
-      <Input
-        value={value} placeholder={placeholder} autoComplete="off"
-        data-testid={testId} className={className}
-        onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-        onFocus={() => setIsOpen(true)}
-        onBlur={() => { onBlur(); onNormalize(value); setTimeout(() => setIsOpen(false), 150); }}
-      />
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
-          <div className="max-h-52 overflow-y-auto py-1">
-            {filtered.length === 0
-              ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
-              : filtered.map((o) => (
-                <button key={o.number} type="button"
-                  className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { onChange(o.value); onNormalize(o.value); setIsOpen(false); }}
-                >
-                  <span className="text-xs font-bold text-muted-foreground mr-2 w-8 shrink-0">{o.number}</span>
-                  {o.title}
-                </button>
-              ))}
-          </div>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Input
+          value={value} placeholder={placeholder} autoComplete="off"
+          data-testid={testId} className={className}
+          onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => { onBlur(); onNormalize(value); }}
+        />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg border-border shadow-xl"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="max-h-52 overflow-y-auto py-1">
+          {filtered.length === 0
+            ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
+            : filtered.map((o) => (
+              <button key={o.number} type="button"
+                className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(o.value); onNormalize(o.value); setIsOpen(false); }}
+              >
+                <span className="text-xs font-bold text-muted-foreground mr-2 w-8 shrink-0">{o.number}</span>
+                {o.title}
+              </button>
+            ))}
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -109,32 +116,38 @@ const MemberAutocomplete = ({
   const [isOpen, setIsOpen] = useState(false);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
   return (
-    <div className="relative">
-      <Input
-        value={value} placeholder={placeholder} autoComplete="off"
-        data-testid={testId} className={className}
-        onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-        onFocus={() => setIsOpen(true)}
-        onBlur={() => { onBlur?.(); setTimeout(() => setIsOpen(false), 150); }}
-      />
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
-          <div className="max-h-52 overflow-y-auto py-1">
-            {filtered.length === 0
-              ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
-              : filtered.map((o) => (
-                <button key={o.value} type="button"
-                  className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { onChange(o.value); setIsOpen(false); }}
-                >
-                  {o.value}
-                </button>
-              ))}
-          </div>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Input
+          value={value} placeholder={placeholder} autoComplete="off"
+          data-testid={testId} className={className}
+          onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => { onBlur?.(); }}
+        />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg border-border shadow-xl"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="max-h-52 overflow-y-auto py-1">
+          {filtered.length === 0
+            ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
+            : filtered.map((o) => (
+              <button key={o.value} type="button"
+                className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(o.value); setIsOpen(false); }}
+              >
+                {o.value}
+              </button>
+            ))}
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -911,7 +924,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="relative flex h-full min-h-0 overflow-hidden">
+    <div className="relative flex min-h-[calc(100dvh-4.5rem)] overflow-hidden md:h-full md:min-h-0">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -1042,13 +1055,13 @@ function SacramentalMeetingPageInner() {
       ── */}
       {isPanelOpen && (
           <div className={cn(
-            "flex min-h-0 flex-col bg-background overflow-hidden",
+            "flex h-full min-h-0 flex-col bg-background overflow-hidden",
             "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
             // On mobile take all remaining height (parent flex container defines the height)
             "flex-1 md:flex-none md:h-full",
           )}>
           <Form {...form}>
-            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex h-full min-h-0 flex-1 flex-col">
 
               {/* Panel header */}
               <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 shrink-0">
@@ -1127,7 +1140,7 @@ function SacramentalMeetingPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <FormField control={form.control} name="musicDirector" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Director de música</FormLabel>
+                          <FormLabel>Dirige los Himnos</FormLabel>
                           <FormControl>
                             <MemberAutocomplete value={field.value || ""} options={musicDirectorCandidates.map((v) => ({ value: v }))} placeholder="Nombre completo" onChange={field.onChange} onBlur={() => { field.onBlur(); applyMemberNormalization("musicDirector"); }} testId="input-music-director" />
                           </FormControl>
@@ -1591,7 +1604,7 @@ function SacramentalMeetingPageInner() {
                 const isFirst = idx === 0;
                 const isPreview = activeTab === "preview";
                 return (
-                  <div className="flex items-center gap-2 px-4 md:px-5 py-3 shrink-0 bg-background">
+                  <div className="mt-auto flex items-center gap-2 border-t border-border/30 bg-background px-4 py-3 md:px-5 shrink-0">
                     <button
                       type="button"
                       onClick={() => { if (idx > 0) setActiveTab(tabs[idx - 1].id); }}
