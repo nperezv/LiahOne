@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, Component } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Component } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -61,42 +60,39 @@ const HymnAutocomplete = ({
   onChange: (v: string) => void; onBlur: () => void; onNormalize: (v: string) => void;
   testId?: string; className?: string;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
+  const datalistId = `hymn-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const filteredValues = useMemo(() => new Set(filtered.map((o) => o.value)), [filtered]);
+
+  const handleChange = (nextValue: string) => {
+    onChange(nextValue);
+    if (filteredValues.has(nextValue)) {
+      window.requestAnimationFrame(() => {
+        inputRef.current?.blur();
+      });
+    }
+  };
+
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Input
-          value={value} placeholder={placeholder} autoComplete="off"
-          data-testid={testId} className={className}
-          onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => { onBlur(); onNormalize(value); }}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        sideOffset={6}
-        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg border-border shadow-xl"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <div className="max-h-52 overflow-y-auto py-1">
-          {filtered.length === 0
-            ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron himnos.</div>
-            : filtered.map((o) => (
-              <button key={o.number} type="button"
-                className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { onChange(o.value); onNormalize(o.value); setIsOpen(false); }}
-              >
-                <span className="text-xs font-bold text-muted-foreground mr-2 w-8 shrink-0">{o.number}</span>
-                {o.title}
-              </button>
-            ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <>
+      <Input
+        ref={inputRef}
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        data-testid={testId}
+        className={className}
+        list={datalistId}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={() => { onBlur(); onNormalize(value); }}
+      />
+      <datalist id={datalistId}>
+        {filtered.slice(0, 100).map((o) => (
+          <option key={o.number} value={o.value}>{`${o.number} — ${o.title}`}</option>
+        ))}
+      </datalist>
+    </>
   );
 };
 
@@ -113,41 +109,39 @@ const MemberAutocomplete = ({
   value: string; options: MemberOption[]; placeholder?: string;
   onChange: (v: string) => void; onBlur?: () => void; testId?: string; className?: string;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
+  const datalistId = `member-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const filteredValues = useMemo(() => new Set(filtered.map((o) => o.value)), [filtered]);
+
+  const handleChange = (nextValue: string) => {
+    onChange(nextValue);
+    if (filteredValues.has(nextValue)) {
+      window.requestAnimationFrame(() => {
+        inputRef.current?.blur();
+      });
+    }
+  };
+
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Input
-          value={value} placeholder={placeholder} autoComplete="off"
-          data-testid={testId} className={className}
-          onChange={(e) => { onChange(e.target.value); setIsOpen(true); }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => { onBlur?.(); }}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        sideOffset={6}
-        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-lg border-border shadow-xl"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <div className="max-h-52 overflow-y-auto py-1">
-          {filtered.length === 0
-            ? <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron miembros.</div>
-            : filtered.map((o) => (
-              <button key={o.value} type="button"
-                className={cn("flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors", o.value === value && "bg-accent text-accent-foreground")}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { onChange(o.value); setIsOpen(false); }}
-              >
-                {o.value}
-              </button>
-            ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <>
+      <Input
+        ref={inputRef}
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        data-testid={testId}
+        className={className}
+        list={datalistId}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={() => { onBlur?.(); }}
+      />
+      <datalist id={datalistId}>
+        {filtered.slice(0, 100).map((o) => (
+          <option key={o.value} value={o.value} />
+        ))}
+      </datalist>
+    </>
   );
 };
 
@@ -924,7 +918,7 @@ function SacramentalMeetingPageInner() {
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="relative flex min-h-[calc(100dvh-4.5rem)] overflow-hidden md:h-full md:min-h-0">
+    <div className="relative flex min-h-full overflow-hidden">
 
       {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
@@ -1124,7 +1118,7 @@ function SacramentalMeetingPageInner() {
               </div>
 
               {/* Scrollable body */}
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 md:px-5 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 md:px-5 pt-4 pb-6">
 
                 {/* ── TAB: GENERAL ── */}
                 {activeTab === "general" && (

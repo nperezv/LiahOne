@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { CalendarDays, Home, Menu, Target, Users } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -41,6 +42,29 @@ export function MobileNav() {
 
   const isBibliotecario = user?.role === "bibliotecario";
 
+  const navRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const navEl = navRef.current;
+    if (!navEl) return;
+
+    const updateMobileNavHeight = () => {
+      document.documentElement.style.setProperty("--mobile-nav-height", `${navEl.offsetHeight}px`);
+    };
+
+    updateMobileNavHeight();
+
+    const resizeObserver = new ResizeObserver(updateMobileNavHeight);
+    resizeObserver.observe(navEl);
+    window.addEventListener("resize", updateMobileNavHeight);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateMobileNavHeight);
+      document.documentElement.style.removeProperty("--mobile-nav-height");
+    };
+  }, []);
+
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: Home },
     { label: isBibliotecario ? "Inventario" : "Agenda", href: isBibliotecario ? "/inventory" : "/agenda", icon: isBibliotecario ? Users : CalendarDays },
@@ -53,7 +77,7 @@ export function MobileNav() {
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav ref={navRef} className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-[env(safe-area-inset-bottom)] md:hidden">
       <div className="mx-auto flex max-w-md items-center justify-between px-4 py-2">
         {navItems.map((item) => {
           const isActive = location === item.href;
