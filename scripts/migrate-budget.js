@@ -1,4 +1,5 @@
-const { Client } = require("pg");
+import pg from "pg";
+const { Client } = pg;
 
 const DATABASE_URL = process.env.DATABASE_URL || "postgresql://liahone:ireyh%40re@localhost:5432/liahone_db";
 
