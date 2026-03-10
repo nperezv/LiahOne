@@ -484,7 +484,7 @@ export const budgetRequests = pgTable("budget_requests", {
   organizationId: varchar("organization_id").references(() => organizations.id),
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   description: text("description").notNull(),
-  amount: integer("amount").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
   category: budgetCategoryEnum("category").notNull().default("otros"),
   status: budgetStatusEnum("status").notNull().default("solicitado"),
   activityDate: timestamp("activity_date"),
@@ -1168,6 +1168,7 @@ export const selectPresidencyResourceSchema = createSelectSchema(presidencyResou
 // Budget Requests
 export const insertBudgetRequestSchema = createInsertSchema(budgetRequests, {
   activityDate: dateSchema.nullable().optional(),
+  amount: z.union([z.number(), z.string()]).transform((v) => String(v)),
 }).omit({
   id: true,
   createdAt: true,

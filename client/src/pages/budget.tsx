@@ -990,7 +990,7 @@ export default function BudgetPage() {
     );
 
     if (existingBudget) {
-      orgBudgetForm.setValue("amount", existingBudget.amount.toString());
+      orgBudgetForm.setValue("amount", String(existingBudget.amount ?? "0"));
     } else {
       orgBudgetForm.reset();
     }
@@ -1004,8 +1004,8 @@ export default function BudgetPage() {
     expenseReceiptsForm.reset({ expenseReceipts: [] });
   };
 
-  const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + r.amount, 0);
-  const totalApproved = filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + r.amount, 0);
+  const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + Number(r.amount), 0);
+  const totalApproved = filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + Number(r.amount), 0);
   const [activeSection, setActiveSection] = useState<"resumen" | "solicitudes" | "organizaciones">("resumen");
   const [requestStatusFilter, setRequestStatusFilter] = useState<"todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas">("todas");
 
@@ -1790,7 +1790,7 @@ export default function BudgetPage() {
 
           const mySpending = (requests as any[])
             .filter((r: any) => r.organizationId === user.organizationId && (r.status === "aprobado" || r.status === "completado"))
-            .reduce((sum: number, r: any) => sum + r.amount, 0);
+            .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
           const myAvailable = assignedAmount - mySpending;
           const mySpendingPercent = assignedAmount > 0 ? Math.round((mySpending / assignedAmount) * 100) : 0;
@@ -1907,7 +1907,7 @@ export default function BudgetPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <p className="text-[18px] font-extrabold leading-none text-slate-100">€{request.amount.toFixed(2)}</p>
+                        <p className="text-[18px] font-extrabold leading-none text-slate-100">€{Number(request.amount).toFixed(2)}</p>
                         {request.status === "solicitado" ? (
                           <Button size="sm" className="h-7 rounded-lg bg-emerald-700 px-3 text-[11px] text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} disabled={approveMutation.isPending}>Aprobar</Button>
                         ) : (
@@ -1939,7 +1939,7 @@ export default function BudgetPage() {
               // Calculate spending for this organization
               const orgSpending = (requests as any[])
                 .filter((r: any) => r.organizationId === org.id && (r.status === "aprobado" || r.status === "completado"))
-                .reduce((sum: number, r: any) => sum + r.amount, 0);
+                .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
               const available = assignedAmount - orgSpending;
               const spendingPercent = assignedAmount > 0 ? Math.round((orgSpending / assignedAmount) * 100) : 0;
@@ -2120,7 +2120,7 @@ export default function BudgetPage() {
                         )}
                       </div>
                     </div>
-                    <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{request.amount.toFixed(2)}</p>
+                    <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{Number(request.amount).toFixed(2)}</p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">

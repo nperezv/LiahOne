@@ -2693,7 +2693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fallback para solicitudes antiguas sin budgetCategoriesJson
       const effectiveCategories = budgetCategories.length > 0
         ? budgetCategories
-        : [{ category: existingRequest.category ?? "otros", amount: String((existingRequest.amount ?? 0) / 100) }];
+        : [{ category: existingRequest.category ?? "otros", amount: String(existingRequest.amount ?? 0) }];
 
       const hasReceiptAttached = (existingRequest.receipts || []).some(
         (r: any) => r?.category === "bank_justificante",
@@ -7031,17 +7031,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { type: "Consejo", count: filteredCouncils.length },
         ],
         budgetByStatus: [
-          { status: "Solicitado", count: filteredBudgets.filter(b => b.status === "solicitado").length, amount: filteredBudgets.filter(b => b.status === "solicitado").reduce((sum, b) => sum + b.amount, 0) },
-          { status: "Aprobado", count: filteredBudgets.filter(b => b.status === "aprobado").length, amount: filteredBudgets.filter(b => b.status === "aprobado").reduce((sum, b) => sum + b.amount, 0) },
-          { status: "En Proceso", count: filteredBudgets.filter(b => b.status === "en_proceso").length, amount: filteredBudgets.filter(b => b.status === "en_proceso").reduce((sum, b) => sum + b.amount, 0) },
-          { status: "Completado", count: filteredBudgets.filter(b => b.status === "completado").length, amount: filteredBudgets.filter(b => b.status === "completado").reduce((sum, b) => sum + b.amount, 0) },
+          { status: "Solicitado", count: filteredBudgets.filter(b => b.status === "solicitado").length, amount: filteredBudgets.filter(b => b.status === "solicitado").reduce((sum, b) => sum + Number(b.amount), 0) },
+          { status: "Aprobado", count: filteredBudgets.filter(b => b.status === "aprobado").length, amount: filteredBudgets.filter(b => b.status === "aprobado").reduce((sum, b) => sum + Number(b.amount), 0) },
+          { status: "En Proceso", count: filteredBudgets.filter(b => b.status === "en_proceso").length, amount: filteredBudgets.filter(b => b.status === "en_proceso").reduce((sum, b) => sum + Number(b.amount), 0) },
+          { status: "Completado", count: filteredBudgets.filter(b => b.status === "completado").length, amount: filteredBudgets.filter(b => b.status === "completado").reduce((sum, b) => sum + Number(b.amount), 0) },
         ],
         budgetByOrganization,
         interviewsByMonth,
         activitiesByOrganization,
         totalMetrics: {
           totalMeetings: filteredMeetings.length + filteredCouncils.length,
-          totalBudget: filteredBudgets.reduce((sum, b) => sum + b.amount, 0),
+          totalBudget: filteredBudgets.reduce((sum, b) => sum + Number(b.amount), 0),
           totalInterviews: filteredInterviews.length,
           totalActivities: filteredActivities.length,
         },
