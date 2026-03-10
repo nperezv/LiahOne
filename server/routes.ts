@@ -2696,7 +2696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [{ category: existingRequest.category ?? "otros", amount: String((existingRequest.amount ?? 0) / 100) }];
 
       const hasReceiptAttached = (existingRequest.receipts || []).some(
-        (r: any) => r?.category === "receipt",
+        (r: any) => r?.category === "bank_justificante",
       );
 
       const pdfBuffer = await generateBudgetRequestPdf({

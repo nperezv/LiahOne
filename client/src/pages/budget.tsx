@@ -210,7 +210,7 @@ type ExpenseReceiptsValues = z.infer<typeof expenseReceiptsSchema>;
 type WardBudgetValues = z.infer<typeof wardBudgetSchema>;
 type OrgBudgetAssignValues = z.infer<typeof orgBudgetAssignSchema>;
 
-type ReceiptCategory = "plan" | "receipt" | "expense" | "signed_plan";
+type ReceiptCategory = "plan" | "receipt" | "expense" | "signed_plan" | "bank_justificante";
 
 interface BudgetRequest {
   id: string;
@@ -603,7 +603,7 @@ export default function BudgetPage() {
     if (!data.bankInSystem && data.bankJustificanteFile) {
       try {
         const uploadedJustificante = await uploadReceiptFile(data.bankJustificanteFile);
-        uploadedReceipts.push({ filename: uploadedJustificante.filename, url: uploadedJustificante.url, category: "receipt" });
+        uploadedReceipts.push({ filename: uploadedJustificante.filename, url: uploadedJustificante.url, category: "bank_justificante" });
       } catch (error) {
         console.error(error);
         alert("No se pudo subir el justificante bancario. Intenta nuevamente.");
@@ -933,6 +933,9 @@ export default function BudgetPage() {
 
     if (receipt?.category === "receipt") {
       return "Comprobante de compra";
+    }
+    if (receipt?.category === "bank_justificante") {
+      return "Justificante de titularidad bancaria";
     }
     return "Adjunto";
   };
