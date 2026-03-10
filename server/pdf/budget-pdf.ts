@@ -328,21 +328,22 @@ export async function generateBudgetRequestPdf(params: {
   // NOTA LEGAL (abreviada a ~4 líneas)
   // ═══════════════════════════════════════════════
   const legalText =
-    "Un formulario de gastos similar debe utilizarse para cada gasto, incluyendo firma del líder, nombre del beneficiario, " +
-    "descripción, categoría, importe e impuestos aplicables. " +
-    "Si es posible, deben adjuntarse documentos —preferiblemente originales— que justifiquen el gasto, " +
-    "como recibos de compra o facturas.";
-  const legalLines = doc.splitTextToSize(legalText, contentWidth - 6);
-  const legalPad = 2; // mm — reducido para ganar espacio
-  const legalH = legalLines.length * 3.4 + legalPad * 2;
+    "Un formulario de gastos similar a este debe utilizarse para cada gasto, incluso un lugar para la firma del líder de la organización, " +
+    "el nombre de la persona a quien se pagará el dinero, una descripción del gasto, la categoría del presupuesto o la organización que ha incurrido en el gasto, " +
+    "el monto del gasto, el monto del impuesto sobre las ventas (si corresponde), y toda otra información necesaria. " +
+    "Si es posible, deben adjuntarse documentos —preferiblemente originales— que justifiquen el gasto como por ejemplo recibos de compra o facturas.";
+  // fontSize 6 + full width → fits in ~4 lines
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6);
+  const legalLines = doc.splitTextToSize(legalText, contentWidth - 4);
+  const legalPad = 2;
+  const legalH = legalLines.length * 3.2 + legalPad * 2;
   doc.setFillColor(...lightBg);
   doc.setDrawColor(...gray999);
   doc.setLineWidth(0.18);
   doc.rect(margin, y, contentWidth, legalH, "FD");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
   doc.setTextColor(60, 60, 60);
-  doc.text(legalLines, margin + 3, y + legalPad + 2.5);
+  doc.text(legalLines, margin + 2, y + legalPad + 2.5);
   y += legalH + 3;
 
   // ═══════════════════════════════════════════════
