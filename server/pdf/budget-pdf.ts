@@ -54,81 +54,106 @@ export async function generateBudgetRequestPdf(params: {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const pageWidth = 210;
-  const margin = 14;
-  const contentWidth = pageWidth - margin * 2;
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2; // 186mm
 
-  // Colors
-  const black: [number, number, number] = [0, 0, 0];
-  const darkGray: [number, number, number] = [80, 80, 80];
-  const midGray: [number, number, number] = [100, 100, 100];
-  const lightGray: [number, number, number] = [245, 245, 245];
-  const blue: [number, number, number] = [37, 99, 235];
-  const green: [number, number, number] = [22, 163, 74];
+  // ── Color palette ──
+  const black: [number, number, number]    = [0, 0, 0];
+  const gray555: [number, number, number]  = [85, 85, 85];
+  const gray999: [number, number, number]  = [153, 153, 153];
+  const grayCcc: [number, number, number]  = [204, 204, 204];
+  const grayLabel: [number, number, number]= [100, 100, 100];
+  const lightBg: [number, number, number]  = [250, 250, 250];
+  const blue: [number, number, number]     = [37, 99, 235];
+  const green: [number, number, number]    = [22, 163, 74];
 
   let y = margin;
 
-  // ── TOP BORDER ──
+  // ═══════════════════════════════════════════════
+  // HEADER
+  // ═══════════════════════════════════════════════
+
+  // Top border (2pt ≈ 0.7mm)
   doc.setDrawColor(...black);
-  doc.setLineWidth(0.8);
+  doc.setLineWidth(0.7);
   doc.line(margin, y, margin + contentWidth, y);
-  y += 3;
 
-  // ── HEADER: left = ward + title, right = checkbox box ──
-  const headerBoxX = margin + contentWidth - 52;
-  const headerBoxW = 52;
-  const headerBoxH = 28;
+  // Right box: 55mm wide, 20mm tall (flush with top/bottom header lines)
+  const rightBoxW = 55;
+  const rightBoxX = margin + contentWidth - rightBoxW;
+  const headerH   = 20; // mm — height of the full header block
+  const frinjaH   = 6;  // mm — height of the gray "Propósito del gasto" strip
 
-  // Right box: gray header
-  doc.setFillColor(120, 120, 120);
-  doc.rect(headerBoxX, y, headerBoxW, 6, "F");
-  doc.setTextColor(255, 255, 255);
+  // Gray franja
+  doc.setFillColor(...grayCcc);
+  doc.rect(rightBoxX, y, rightBoxW, frinjaH, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
-  doc.text("Propósito del gasto", headerBoxX + headerBoxW / 2, y + 4.2, { align: "center" });
-
-  // Right box: checkboxes
   doc.setTextColor(...black);
+  doc.text("Propósito del gasto", rightBoxX + rightBoxW / 2, y + 4.2, { align: "center" });
+
+  // White area below franja
+  doc.setFillColor(255, 255, 255);
+  doc.rect(rightBoxX, y + frinjaH, rightBoxW, headerH - frinjaH, "F");
+
+  // Checkboxes
+  const chkBoxSize = 3.5;
+  const chkTextX   = rightBoxX + 4;
+  const chkBoxXR   = rightBoxX + rightBoxW - 8;
+  const chkY1      = y + frinjaH + 3;
+  const chkY2      = chkY1 + 6;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  const chkY1 = y + 10;
-  const chkY2 = y + 17;
-  const chkX = headerBoxX + 4;
-  const boxSize = 3.5;
+  doc.setTextColor(...black);
 
-  doc.text("Reembolso", chkX + boxSize + 2, chkY1 + 2.8);
-  doc.setDrawColor(...darkGray);
+  doc.text("Reembolso", chkTextX, chkY1 + 2.8);
+  doc.setDrawColor(...gray555);
   doc.setLineWidth(0.3);
-  doc.rect(headerBoxX + headerBoxW - 8, chkY1, boxSize, boxSize);
+  doc.rect(chkBoxXR, chkY1, chkBoxSize, chkBoxSize);
   if (data.requestType === "reembolso") {
-    doc.setFillColor(...darkGray);
-    doc.rect(headerBoxX + headerBoxW - 8, chkY1, boxSize, boxSize, "F");
+    doc.setFillColor(...gray555);
+    doc.rect(chkBoxXR, chkY1, chkBoxSize, chkBoxSize, "F");
   }
 
-  doc.text("Por adelantado", chkX + boxSize + 2, chkY2 + 2.8);
-  doc.rect(headerBoxX + headerBoxW - 8, chkY2, boxSize, boxSize);
+  doc.text("Por adelantado", chkTextX, chkY2 + 2.8);
+  doc.rect(chkBoxXR, chkY2, chkBoxSize, chkBoxSize);
   if (data.requestType !== "reembolso") {
-    doc.setFillColor(...darkGray);
-    doc.rect(headerBoxX + headerBoxW - 8, chkY2, boxSize, boxSize, "F");
+    doc.setFillColor(...gray555);
+    doc.rect(chkBoxXR, chkY2, chkBoxSize, chkBoxSize, "F");
   }
 
-  // Right box: outer border
-  doc.setDrawColor(...darkGray);
-  doc.setLineWidth(0.3);
-  doc.rect(headerBoxX, y, headerBoxW, headerBoxH);
+  // Right box outer border
+  doc.setDrawColor(...gray999);
+  doc.setLineWidth(0.2);
+  doc.rect(rightBoxX, y, rightBoxW, headerH);
 
-  // Left: ward name + title
+  // Left text: ward name + title
   doc.setTextColor(...black);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.text(wardName || "Barrio", margin, y + 5);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(18);
   doc.text("SOLICITUD DE", margin, y + 13);
-  doc.text("GASTOS", margin, y + 21);
+  doc.text("GASTOS", margin, y + 20);
 
-  y += headerBoxH + 4;
+  y += headerH;
 
-  // ── SECTION HELPERS ──
+  // Bottom border (2pt)
+  doc.setDrawColor(...black);
+  doc.setLineWidth(0.7);
+  doc.line(margin, y, margin + contentWidth, y);
+  y += 3;
+
+  // ── Helpers ──────────────────────────────────────
+
+  const thinLine = (x1 = margin, x2 = margin + contentWidth) => {
+    doc.setDrawColor(...gray999);
+    doc.setLineWidth(0.18);
+    doc.line(x1, y, x2, y);
+  };
+
   const drawSectionTitle = (title: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
@@ -140,216 +165,243 @@ export async function generateBudgetRequestPdf(params: {
     y += 8;
   };
 
-  const drawFieldRow = (label: string, value: string, colX: number, colW: number) => {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...midGray);
-    doc.text(label, colX, y + 3);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...black);
-    const lines = doc.splitTextToSize(value || "", colW - 2);
-    doc.text(lines, colX, y + 8);
-    const rowH = Math.max(14, lines.length * 4.5 + 6);
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.2);
-    doc.line(colX, y + rowH, colX + colW, y + rowH);
-    return rowH;
-  };
-
-  // ── SOLICITANTE ──
+  // ═══════════════════════════════════════════════
+  // SOLICITANTE
+  // ═══════════════════════════════════════════════
   drawSectionTitle("Solicitante");
-  const solH = drawFieldRow("Nombre", requesterName, margin, contentWidth - 44);
-  drawFieldRow("Fecha", new Date().toLocaleDateString("es-ES"), margin + contentWidth - 42, 42);
-  y += solH + 3;
 
-  // ── PAGAR A ──
+  const dateColW = 42;
+  const dateColX = margin + contentWidth - dateColW;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...grayLabel);
+  doc.text("Nombre", margin, y + 3);
+  doc.text("Fecha", dateColX, y + 3);
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(...black);
+  doc.text(requesterName, margin, y + 8);
+  doc.text(new Date().toLocaleDateString("es-ES"), dateColX, y + 8);
+
+  y += 11;
+  thinLine();
+  y += 3;
+
+  // ═══════════════════════════════════════════════
+  // PAGAR A
+  // ═══════════════════════════════════════════════
   drawSectionTitle("PAGAR A");
-  const pagarH = drawFieldRow("Nombre", data.pagarA || "", margin, contentWidth);
-  y += pagarH + 2;
-  const dirH = drawFieldRow("Dirección", data.direccion || "", margin, contentWidth);
-  y += dirH + 5;
 
-  // ── PROPÓSITO DEL GASTO ──
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...grayLabel);
+  doc.text("Nombre", margin, y + 3);
+  doc.setFontSize(8.5);
+  doc.setTextColor(...black);
+  doc.text(data.pagarA || "", margin, y + 8);
+  y += 11;
+  thinLine();
+  y += 2;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...grayLabel);
+  doc.text("Dirección", margin, y + 3);
+  doc.setFontSize(8.5);
+  doc.setTextColor(...black);
+  doc.text(data.direccion || "", margin, y + 8);
+  y += 11;
+  thinLine();
+  y += 5; // ~14pt gap before PROPÓSITO
+
+  // ═══════════════════════════════════════════════
+  // PROPÓSITO DEL GASTO
+  // ═══════════════════════════════════════════════
   drawSectionTitle("PROPÓSITO DEL GASTO");
 
-  // "Razón" label + value
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
   doc.setTextColor(...black);
   doc.text("Razón", margin, y + 4);
-  y += 6;
+  y += 5;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
+  doc.setTextColor(...black);
   const reasonLines = doc.splitTextToSize(data.description || "", contentWidth - 2);
   doc.text(reasonLines, margin, y + 4);
-  y += Math.max(8, reasonLines.length * 4.5) + 2;
+  y += Math.max(7, reasonLines.length * 4.2) + 2;
+  thinLine();
+  y += 2; // ~6pt gap before categories
 
-  // Category rows
-  const catColW = contentWidth * 0.72;
-  const amtColW = contentWidth - catColW;
-  const amtColX = margin + catColW;
+  // ═══════════════════════════════════════════════
+  // CATEGORY TABLE — minimum 3 rows
+  // ═══════════════════════════════════════════════
+  const catColW  = contentWidth * 0.72;
+  const amtColX  = margin + catColW;
+  const catRowH  = 11; // mm per row
 
   let total = 0;
-  for (const cat of data.budgetCategories) {
-    const catLabel = BUDGET_CATEGORY_OPTIONS.find((o) => o.value === cat.category)?.label ?? cat.category;
-    const displayLabel = cat.category === "otros" && cat.detail?.trim()
-      ? `Otros - ${cat.detail.trim()}`
-      : catLabel;
-    const amt = parseBudgetNumber(cat.amount);
-    total += amt;
+  const realCats = data.budgetCategories;
+  const totalRows = Math.max(realCats.length, 3);
 
-    // row border
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.2);
+  for (let i = 0; i < totalRows; i++) {
+    const cat = realCats[i];
 
+    // Column labels
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(...midGray);
+    doc.setTextColor(...grayLabel);
     doc.text("Categoría", margin, y + 3);
     doc.text("Cantidad", amtColX, y + 3);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...black);
-    const catLines = doc.splitTextToSize(displayLabel, catColW - 4);
-    doc.text(catLines, margin, y + 8);
-    doc.text(`€ ${amt.toFixed(2)}`, amtColX, y + 8);
+    // Values (only for real rows)
+    if (cat) {
+      const catLabel = BUDGET_CATEGORY_OPTIONS.find((o) => o.value === cat.category)?.label ?? cat.category;
+      const displayLabel = cat.category === "otros" && cat.detail?.trim()
+        ? `Otros - ${cat.detail.trim()}`
+        : catLabel;
+      const amt = parseBudgetNumber(cat.amount);
+      total += amt;
 
-    const rowH = Math.max(14, catLines.length * 4.5 + 6);
-    // vertical separator between cat and amount
-    doc.line(amtColX - 1, y, amtColX - 1, y + rowH);
-    // bottom border
-    doc.line(margin, y + rowH, margin + contentWidth, y + rowH);
-    y += rowH;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...black);
+      const catLines = doc.splitTextToSize(displayLabel, catColW - 4);
+      doc.text(catLines, margin, y + 8);
+      doc.text(`€ ${amt.toFixed(2)}`, amtColX, y + 8);
+    }
+
+    // Vertical separator cat / amount
+    doc.setDrawColor(...gray999);
+    doc.setLineWidth(0.18);
+    doc.line(amtColX - 1, y, amtColX - 1, y + catRowH);
+    // Bottom border
+    doc.line(margin, y + catRowH, margin + contentWidth, y + catRowH);
+    y += catRowH;
   }
 
-  // Category options grid + Total
-  const optColX = margin;
-  const optColW = contentWidth * 0.72;
-  const totalColX = margin + optColW + 2;
+  // ── Options grid + Total ──
+  const gridRows = Math.ceil(BUDGET_CATEGORY_OPTIONS.length / 4);
+  const gridH    = gridRows * 3.4 + 8; // mm
+  const optLblW  = catColW / 4;
   const gridStartY = y;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
-  doc.setTextColor(...midGray);
-  doc.text("Opciones de la categoría", optColX, gridStartY + 4);
+  doc.setTextColor(...grayLabel);
+  doc.text("Opciones de la categoría", margin, gridStartY + 4);
 
-  // 4-column label grid
-  const cols = 4;
-  const colW = optColW / cols;
-  const labels = BUDGET_CATEGORY_OPTIONS.map((o) => o.label);
-  const rows = Math.ceil(labels.length / cols);
+  const allLabels = BUDGET_CATEGORY_OPTIONS.map((o) => o.label);
   doc.setFontSize(6);
   doc.setTextColor(60, 60, 60);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const idx = r * cols + c;
-      if (idx < labels.length) {
-        doc.text(labels[idx], optColX + c * colW, gridStartY + 8 + r * 4);
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < 4; c++) {
+      const idx = r * 4 + c;
+      if (idx < allLabels.length) {
+        doc.text(allLabels[idx], margin + c * optLblW, gridStartY + 8 + r * 3.4);
       }
     }
   }
 
-  // Total box on the right
-  const gridH = Math.max(rows * 4 + 10, 20);
+  // Total (right column)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...black);
-  doc.text("Total", totalColX, gridStartY + gridH / 2 - 2);
+  doc.text("Total", amtColX, gridStartY + gridH / 2 - 1);
   doc.setFontSize(9);
-  doc.text(`€ ${total.toFixed(2)}`, totalColX, gridStartY + gridH / 2 + 4);
+  doc.text(`€ ${total.toFixed(2)}`, amtColX, gridStartY + gridH / 2 + 4);
 
-  // borders for the options/total row
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.line(totalColX - 1, gridStartY, totalColX - 1, gridStartY + gridH);
+  // Bottom + vertical border of options/total row
+  doc.setDrawColor(...gray999);
+  doc.setLineWidth(0.18);
+  doc.line(amtColX - 1, gridStartY, amtColX - 1, gridStartY + gridH);
   doc.line(margin, gridStartY + gridH, margin + contentWidth, gridStartY + gridH);
-  y = gridStartY + gridH + 4;
+  y = gridStartY + gridH + 2;
 
-  // ── NOTA LEGAL ──
+  // ═══════════════════════════════════════════════
+  // NOTA LEGAL
+  // ═══════════════════════════════════════════════
   const legalText =
     "Un formulario de gastos similar a este debe utilizarse para cada gasto, incluso un lugar para la firma del líder de la organización, " +
     "el nombre de la persona a quien se pagará el dinero, una descripción del gasto, la categoría del presupuesto o la organización que ha incurrido en el gasto, " +
     "el monto del gasto, el monto del impuesto sobre las ventas (si corresponde), y toda otra información necesaria. " +
     "Si es posible, deben adjuntarse documentos —preferiblemente originales— que justifiquen el gasto como por ejemplo recibos de compra o facturas.";
   const legalLines = doc.splitTextToSize(legalText, contentWidth - 6);
-  const legalH = legalLines.length * 3.8 + 6;
-  doc.setFillColor(...lightGray);
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
+  const legalPad = 4; // mm
+  const legalH = legalLines.length * 3.4 + legalPad * 2;
+  doc.setFillColor(...lightBg);
+  doc.setDrawColor(...gray999);
+  doc.setLineWidth(0.18);
   doc.rect(margin, y, contentWidth, legalH, "FD");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(60, 60, 60);
-  doc.text(legalLines, margin + 3, y + 4.5);
-  y += legalH + 5;
+  doc.text(legalLines, margin + 3, y + legalPad + 2.5);
+  y += legalH + 3; // ~8pt gap
 
-  // ── PARA USO EXCLUSIVO DEL SECRETARIO ──
+  // ═══════════════════════════════════════════════
+  // PARA USO EXCLUSIVO DEL SECRETARIO
+  // ═══════════════════════════════════════════════
   drawSectionTitle("Para uso exclusivo del secretario");
 
-  const sigColW = contentWidth - 42;
-  const dateColW = 42;
-  const sigImgH = 18;
-  const sigRowH = sigImgH + 10;
+  // 2 equal columns, no vertical border between them
+  const sigGap      = 7;  // mm gap between columns
+  const sigColWidth = (contentWidth - sigGap) / 2;
+  const col1X       = margin;
+  const col2X       = margin + sigColWidth + sigGap;
+  const sigImgH     = 18; // mm signature image height
+  const sigImgW     = sigColWidth - 2;
 
-  // Row 1: Firma del solicitante
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(...midGray);
-  doc.text("Firma del Solicitante", margin, y + 3);
-  doc.text("Fecha", margin + sigColW + 2, y + 3);
-  y += 5;
+  const drawSigCol = (colX: number, label: string, sigDataUrl: string, name: string, date: string) => {
+    // CAPS bold label
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(...black);
+    doc.text(label, colX, y + 4);
 
-  if (applicantSignatureDataUrl && applicantSignatureDataUrl.length > 100) {
-    const fmt = applicantSignatureDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
-    doc.addImage(applicantSignatureDataUrl, fmt, margin, y, 60, sigImgH);
-  }
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...black);
-  doc.text(new Date().toLocaleDateString("es-ES"), margin + sigColW + 2, y + sigImgH - 2);
+    const imgY = y + 6;
 
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.line(margin + sigColW, y, margin + sigColW, y + sigRowH);
-  doc.line(margin, y + sigRowH, margin + contentWidth, y + sigRowH);
-  y += sigRowH + 2;
+    // Signature image
+    if (sigDataUrl && sigDataUrl.length > 100) {
+      const fmt = sigDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+      doc.addImage(sigDataUrl, fmt, colX, imgY, sigImgW, sigImgH);
+    }
 
-  // Row 2: Firma del obispo
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(...midGray);
-  doc.text("Firma del El obispo (Opcional)", margin, y + 3);
-  doc.text("Fecha", margin + sigColW + 2, y + 3);
-  y += 5;
+    // Line under image
+    doc.setDrawColor(...gray999);
+    doc.setLineWidth(0.18);
+    doc.line(colX, imgY + sigImgH + 1, colX + sigColWidth, imgY + sigImgH + 1);
 
-  if (bishopSignatureDataUrl && bishopSignatureDataUrl.length > 100) {
-    const fmt = bishopSignatureDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
-    doc.addImage(bishopSignatureDataUrl, fmt, margin, y, 60, sigImgH);
-  }
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(...black);
-  doc.text(new Date().toLocaleDateString("es-ES"), margin + sigColW + 2, y + sigImgH - 2);
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(7);
-  doc.setTextColor(...midGray);
-  doc.text(`Obispo: ${signerName}`, margin + sigColW + 2, y + sigImgH + 3);
+    // Name
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...black);
+    doc.text(name, colX, imgY + sigImgH + 5);
 
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.line(margin + sigColW, y, margin + sigColW, y + sigRowH + 4);
-  doc.line(margin, y + sigRowH + 4, margin + contentWidth, y + sigRowH + 4);
-  y += sigRowH + 10;
+    // Date
+    doc.text(date, colX, imgY + sigImgH + 10);
+  };
 
-  // ── LÍNEA PUNTEADA ──
-  doc.setDrawColor(140, 140, 140);
-  doc.setLineWidth(0.4);
+  const todayStr = new Date().toLocaleDateString("es-ES");
+  drawSigCol(col1X, "FIRMA DEL SOLICITANTE", applicantSignatureDataUrl, requesterName, todayStr);
+  drawSigCol(col2X, "FIRMA DEL OBISPO", bishopSignatureDataUrl, `Obispo: ${signerName}`, todayStr);
+
+  // Advance y past signature block: label(6) + image(18) + line(1) + name(5) + date(5) + margin
+  y += 6 + sigImgH + 12;
+
+  // ═══════════════════════════════════════════════
+  // LÍNEA PUNTEADA
+  // ═══════════════════════════════════════════════
+  y += 4;
+  doc.setDrawColor(...gray999);
+  doc.setLineWidth(0.5);
   doc.setLineDashPattern([1.5, 1.5], 0);
   doc.line(margin, y, margin + contentWidth, y);
   doc.setLineDashPattern([], 0);
   y += 3;
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(80, 80, 80);
@@ -359,9 +411,11 @@ export async function generateBudgetRequestPdf(params: {
     y + 3,
     { align: "center", maxWidth: contentWidth },
   );
-  y += 10;
+  y += 9;
 
-  // ── ESP CITIBANK DTA ──
+  // ═══════════════════════════════════════════════
+  // ESP CITIBANK DTA
+  // ═══════════════════════════════════════════════
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...black);
@@ -374,28 +428,34 @@ export async function generateBudgetRequestPdf(params: {
   const bankInSystem = data.bankData?.bankInSystem ?? false;
   const titularVal = data.pagarA || "—";
   const swiftVal = bankInSystem ? "Registrado en sistema LCR/CUFS" : (data.bankData?.swift || "—");
-  const ibanVal = bankInSystem ? "Registrado en sistema LCR/CUFS" : (data.bankData?.iban || "—");
+  const ibanVal  = bankInSystem ? "Registrado en sistema LCR/CUFS" : (data.bankData?.iban  || "—");
 
   const bankFields: [string, string][] = [
-    ["Titular de la cuenta", titularVal],
-    ["Codigo bancario (SWIF o BIC)", swiftVal],
-    ["No. cuenta (IBAN)", ibanVal],
+    ["Titular de la cuenta",          titularVal],
+    ["Codigo bancario (SWIF o BIC)",  swiftVal],
+    ["No. cuenta (IBAN)",             ibanVal],
   ];
 
   for (const [label, val] of bankFields) {
     const isSystem = bankInSystem && label !== "Titular de la cuenta";
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(...midGray);
+    doc.setTextColor(...grayLabel);
     doc.text(label, margin, y + 3);
+
     doc.setFont("helvetica", isSystem ? "italic" : "normal");
     doc.setFontSize(8.5);
-    doc.setTextColor(isSystem ? blue[0] : black[0], isSystem ? blue[1] : black[1], isSystem ? blue[2] : black[2]);
+    doc.setTextColor(
+      isSystem ? blue[0]  : black[0],
+      isSystem ? blue[1]  : black[1],
+      isSystem ? blue[2]  : black[2],
+    );
     doc.text(val, margin, y + 8);
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.2);
+
+    doc.setDrawColor(...gray999);
+    doc.setLineWidth(0.18);
     doc.line(margin, y + 10, margin + contentWidth * 0.55, y + 10);
-    y += 13;
+    y += 12;
   }
 
   if (bankInSystem) {
