@@ -957,18 +957,25 @@ export default function BudgetPage() {
       return;
     }
 
-    const storedFilename = receipt.url.split("/").pop();
-    const downloadUrl = storedFilename
-      ? `/api/uploads/${encodeURIComponent(storedFilename)}/download`
-      : receipt.url;
-
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = receipt.filename;
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    try {
+      const response = await fetch(receipt.url, {
+        headers: getAuthHeaders(),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = receipt.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("No se pudo descargar el archivo.");
+    }
   };
 
   const openAssignDialog = (orgId: string) => {
