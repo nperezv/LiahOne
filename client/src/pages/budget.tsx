@@ -101,17 +101,31 @@ const BUDGET_CATEGORY_OPTIONS = [
   { value: "quorum_elderes", label: "Quórum Élderes" },
   { value: "historia_familiar", label: "Centro de Historia Familiar" },
   { value: "pfj", label: "PFJ" },
-  { value: "grupo_sumos_sacerdotes", label: "Grupo Sumos Sacerdotes" },
   { value: "biblioteca", label: "Biblioteca" },
   { value: "miscelaneo", label: "Misceláneo" },
   { value: "primaria", label: "Primaria" },
   { value: "sociedad_socorro", label: "Sociedad de Socorro" },
   { value: "adultos_solteros", label: "Adultos Solteros" },
+  { value: "jovenes_adultos_solteros", label: "Jóvenes Adultos Solteros" },
   { value: "escuela_dominical", label: "Escuela Dominical" },
   { value: "hombres_jovenes", label: "Hombres Jóvenes" },
   { value: "mujeres_jovenes", label: "Mujeres Jóvenes" },
+  { value: "obra_misional", label: "Obra Misional" },
   { value: "otros", label: "Otros" },
 ] as const;
+
+// Categories available per organization type
+const ORG_CATEGORY_MAP: Record<string, string[]> = {
+  cuorum_elderes:    ["quorum_elderes", "obra_misional", "historia_familiar"],
+  sociedad_socorro:  ["sociedad_socorro", "obra_misional", "historia_familiar"],
+  jas:               ["jovenes_adultos_solteros"],
+  as:                ["adultos_solteros"],
+  hombres_jovenes:   ["hombres_jovenes"],
+  mujeres_jovenes:   ["mujeres_jovenes"],
+  primaria:          ["primaria"],
+  escuela_dominical: ["escuela_dominical"],
+};
+// obispado and barrio → all categories (no restriction)
 
 const budgetCategorySchema = z.object({
   category: z.string().min(1, "Selecciona una categoría"),
@@ -121,6 +135,7 @@ const budgetCategorySchema = z.object({
 
 const budgetSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
+  category: z.enum(["actividades", "materiales", "otros"]),
   requestType: z.enum(["reembolso", "pago_adelantado"]),
   activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
@@ -349,6 +364,7 @@ export default function BudgetPage() {
     resolver: zodResolver(budgetSchema),
     defaultValues: {
       description: "",
+      category: "actividades",
       requestType: "pago_adelantado",
       activityDate: "",
       notes: "",
@@ -414,6 +430,16 @@ export default function BudgetPage() {
   const budgetRequestType = budgetForm.watch("requestType");
   const watchedCategories = budgetForm.watch("budgetCategories");
   const watchedBankInSystem = budgetForm.watch("bankInSystem");
+  const watchedOrgId = budgetForm.watch("requestingOrganizationId");
+
+  // Derive available PDF categories based on selected organization type
+  const availablePdfCategories = useMemo(() => {
+    const orgId = watchedOrgId || (isObispado ? null : user?.organizationId);
+    const orgType = (organizations as Organization[]).find(o => o.id === orgId)?.type ?? "";
+    const restricted = ORG_CATEGORY_MAP[orgType];
+    if (!restricted) return BUDGET_CATEGORY_OPTIONS; // obispado/barrio → all
+    return BUDGET_CATEGORY_OPTIONS.filter(o => restricted.includes(o.value));
+  }, [watchedOrgId, organizations, user?.organizationId, isObispado]);
 
   const requestableOrganizations = useMemo(() =>
     (organizations as Organization[]).filter((org) => org.type !== "barrio"),
@@ -448,6 +474,19 @@ export default function BudgetPage() {
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDialogOpen]);
+
+  // Auto-set PDF category when org changes and only one option available
+  useEffect(() => {
+    if (availablePdfCategories.length === 1) {
+      const current = budgetForm.getValues("budgetCategories");
+      const updated = current.map(cat => ({ ...cat, category: availablePdfCategories[0].value }));
+      budgetForm.setValue("budgetCategories", updated);
+    } else {
+      // Reset categories so user picks from new available list
+      budgetForm.setValue("budgetCategories", [{ category: "", amount: "", detail: "" }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedOrgId]);
 
   const clearRequesterSignatureCanvas = () => {
     const canvas = requesterSignatureCanvasRef.current;
@@ -709,7 +748,7 @@ export default function BudgetPage() {
       doc.setFontSize(7);
       doc.setTextColor(100, 116, 139);
       doc.text(label, margin, fieldY);
-      doc.setFont("helvetica", data.bankInSystem && bi > 0 ? "oblique" : "normal");
+      doc.setFont("helvetica", data.bankInSystem && bi > 0 ? "italic" : "normal");
       doc.setFontSize(8.5);
       doc.setTextColor(data.bankInSystem && bi > 0 ? 37 : 15, data.bankInSystem && bi > 0 ? 99 : 23, data.bankInSystem && bi > 0 ? 235 : 42);
       doc.text(val, margin, fieldY + 4.5);
@@ -719,7 +758,7 @@ export default function BudgetPage() {
     });
 
     if (data.bankInSystem) {
-      doc.setFont("helvetica", "oblique");
+      doc.setFont("helvetica", "italic");
       doc.setFontSize(7);
       doc.setTextColor(37, 99, 235);
       doc.text("✓ Datos bancarios verificados en sistema LCR/CUFS de la Iglesia", margin, bY + 32);
@@ -779,9 +818,10 @@ export default function BudgetPage() {
       return;
     }
 
-    // First category value for the legacy `category` field
-    const firstCat = data.budgetCategories[0]?.category ?? "otros";
-    const legacyCategory = (["actividades", "materiales", "otros"].includes(firstCat) ? firstCat : "otros") as "actividades" | "materiales" | "otros";
+    // Map new dynamic categories to legacy 3-value category for metrics/gauges
+    const legacyCategory = data.category;
+
+    const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
     if (data.requestType === "reembolso" && data.receiptFile) {
       try {
@@ -837,6 +877,7 @@ export default function BudgetPage() {
           clearRequesterSignatureCanvas();
           budgetForm.reset({
             description: "",
+            category: "actividades",
             requestType: "pago_adelantado",
             activityDate: "",
             notes: "",
@@ -1419,21 +1460,22 @@ export default function BudgetPage() {
 
                   <FormField
                     control={budgetForm.control}
-                    name="amount"
+                    name="category"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Monto (€)</FormLabel>
-                        <FormControl>
-                          <BudgetCurrencyInput
-                            {...field}
-                            onBlur={(event) => {
-                              field.onChange(formatCurrencyInputValue(event.target.value));
-                              field.onBlur();
-                            }}
-                            data-testid="input-amount"
-                          />
-                                                </FormControl>
-                        <p className="text-xs text-muted-foreground">Ingresa el monto con decimales (ej: 125.50).</p>
+                        <FormLabel>Tipo de gasto</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-budget-category-type">
+                              <SelectValue placeholder="Selecciona tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="actividades">Actividades</SelectItem>
+                            <SelectItem value="materiales">Materiales</SelectItem>
+                            <SelectItem value="otros">Otros</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1474,7 +1516,7 @@ export default function BudgetPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent className="max-h-52 overflow-y-auto">
-                                      {BUDGET_CATEGORY_OPTIONS.map((opt) => (
+                                      {availablePdfCategories.map((opt) => (
                                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                                       ))}
                                     </SelectContent>
