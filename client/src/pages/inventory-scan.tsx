@@ -95,7 +95,8 @@ export default function InventoryScanPage() {
           <CardContent className="space-y-3">
             {detected.type === "location" ? (
               <>
-                <p className="text-sm text-muted-foreground">{detected.location_code || "Ubicación"}</p>
+                <p className="text-sm font-medium">{detected.location_name || "Ubicación"}</p>
+                <p className="text-sm text-muted-foreground">{detected.location_code || "Sin código"}</p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Link href={`/inventory/locations/${detected.location_code || ""}`}><Button className="w-full rounded-xl" variant="outline"><FolderTree className="mr-2 h-4 w-4" />Ver contenido</Button></Link>
                   <Link href="/inventory/audit"><Button className="w-full rounded-xl">Iniciar auditoría</Button></Link>
