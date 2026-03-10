@@ -284,38 +284,34 @@ const MeetingCard = ({
   return (
     <div
       className={cn(
-        "group flex items-stretch rounded-xl border bg-card transition-all cursor-pointer overflow-hidden",
-        status === "live" && "border-primary/60 shadow-[0_0_18px_2px_hsl(var(--primary)/0.22)] hover:shadow-[0_0_26px_4px_hsl(var(--primary)/0.32)]",
-        status === "upcoming" && "border-border opacity-50 hover:opacity-75",
-        status === "past" && "border-border hover:border-primary/30 hover:shadow-sm",
+        "group flex items-stretch rounded-xl transition-all cursor-pointer overflow-hidden",
+        "bg-card hover:bg-accent/30",
+        status === "live" && "shadow-[0_0_0_1px_hsl(var(--primary)/0.2),0_4px_20px_hsl(var(--primary)/0.08)] hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_6px_24px_hsl(var(--primary)/0.12)]",
+        status === "upcoming" && "opacity-50 hover:opacity-75",
+        status === "past" && "opacity-60 hover:opacity-100",
       )}
       onClick={() => onDetails(meeting)}
     >
-      {/* Date block */}
+      {/* Date block — no border, subtle bg shift */}
       <div className={cn(
-        "flex flex-col items-center justify-center px-4 py-3 border-r min-w-[56px] shrink-0",
-        status === "live" ? "border-primary/30 bg-primary/10" : "border-border bg-muted/30",
+        "flex flex-col items-center justify-center px-4 py-3 min-w-[52px] shrink-0",
+        status === "live" ? "bg-primary/10" : "bg-muted/20",
       )}>
         <span className="text-lg font-black leading-none tabular-nums">{day}</span>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{month}</span>
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{month}</span>
         {status === "live" && (
-          <span className="mt-1.5 text-[8px] font-bold uppercase tracking-widest text-primary leading-none">live</span>
+          <span className="mt-1.5 text-[7px] font-bold uppercase tracking-widest text-primary leading-none">live</span>
         )}
       </div>
 
       {/* Body */}
       <div className="flex-1 px-3.5 py-2.5 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
-          {status === "live" && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0 h-4 rounded-sm bg-primary/20 text-primary border border-primary/40 uppercase tracking-wider">
-              En curso
-            </span>
-          )}
           <span className={cn(
-            "inline-flex items-center text-[10px] font-bold px-1.5 py-0 h-4 rounded-sm uppercase tracking-wider border",
+            "inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider",
             isTestimony
-              ? "bg-teal-500/20 text-teal-300 border-teal-500/40"
-              : "bg-amber-500/15 text-amber-400 border-amber-500/35",
+              ? "bg-teal-500/10 text-teal-400"
+              : "bg-amber-500/10 text-amber-400",
           )}>
             {isTestimony ? "Testimonio" : "Regular"}
           </span>
@@ -330,14 +326,14 @@ const MeetingCard = ({
         {/* Director */}
         {director && (
           <div className="flex items-baseline gap-1.5 mt-0.5">
-            <span className="text-xs font-medium truncate">{director}</span>
-            <span className="text-[10px] text-muted-foreground shrink-0">{direLabel}</span>
+            <span className="text-xs font-medium text-muted-foreground truncate">{director}</span>
+            <span className="text-[10px] text-muted-foreground/60 shrink-0">{direLabel}</span>
           </div>
         )}
 
         {/* Music + pianist */}
         {(meeting.musicDirector || meeting.pianist) && (
-          <div className="text-xs text-muted-foreground truncate mt-0.5">
+          <div className="text-[11px] text-muted-foreground/70 truncate mt-0.5">
             {meeting.musicDirector && `Dir. música: ${meeting.musicDirector}`}
             {meeting.pianist && ` · Pianista: ${meeting.pianist}`}
           </div>
@@ -345,33 +341,33 @@ const MeetingCard = ({
 
         {/* Speakers */}
         {speakers.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
+          <div className="flex flex-col gap-0.5 mt-2">
             {speakers.slice(0, 3).map((d: any, i: number) => (
-              <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-muted rounded-md px-1.5 py-0.5">
-                <span className="font-bold text-muted-foreground">{i + 1}.</span>
-                <span className="font-medium truncate max-w-[120px]">{d.speaker}</span>
-                {d.topic && <span className="text-muted-foreground hidden sm:inline">— {d.topic}</span>}
-              </span>
+              <div key={i} className="flex items-baseline gap-1.5 text-[11px]">
+                <span className="text-[10px] text-muted-foreground/50 w-3 shrink-0 font-mono">{i + 1}.</span>
+                <span className="font-medium text-muted-foreground truncate">{d.speaker}</span>
+                {d.topic && <span className="text-muted-foreground/50 hidden sm:inline truncate">— {d.topic}</span>}
+              </div>
             ))}
           </div>
         )}
 
-        {/* Hymns — neutral */}
+        {/* Hymns */}
         {hymns.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
+          <div className="flex flex-wrap gap-1 mt-2">
             {hymns.map(({ label, val }, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted border border-border rounded-md px-1.5 py-0.5">
-                🎵 {label} · {val.split(" - ")[0]}
+              <span key={i} className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 bg-muted/40 rounded px-1.5 py-0.5">
+                ♪ {label}·{val.split(" - ")[0]}
               </span>
             ))}
           </div>
         )}
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-col items-center justify-center gap-0.5 px-2 border-l border-border shrink-0" onClick={(e) => e.stopPropagation()}>
+      {/* Actions — no left border */}
+      <div className="flex flex-col items-center justify-center gap-0.5 px-2 shrink-0" onClick={(e) => e.stopPropagation()}>
         <button
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
           onClick={() => onPDF(meeting)} title="PDF"
         >
           <FileText className="w-3.5 h-3.5" />
@@ -379,13 +375,13 @@ const MeetingCard = ({
         {canEdit && (
           <>
             <button
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
               onClick={() => onEdit(meeting)} title="Editar"
             >
               <Edit className="w-3.5 h-3.5" />
             </button>
             <button
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
               onClick={() => onDelete(meeting.id)} title="Eliminar"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -896,8 +892,21 @@ function SacramentalMeetingPageInner() {
   // ── Sort & classify meetings ─────────────────────────────────────────────────
   const sortedMeetings = [...meetings].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const liveMeetings  = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "live");
-  const upcoming      = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "upcoming");
+  const upcoming      = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "upcoming").reverse();
   const past          = sortedMeetings.filter((m: any) => getMeetingStatus(new Date(m.date)) === "past");
+  const hasCurrentOrUpcoming = liveMeetings.length > 0 || upcoming.length > 0;
+  const fallbackMeeting = !hasCurrentOrUpcoming && past.length > 0 ? [past[0]] : [];
+  const [showPastView, setShowPastView] = useState(false);
+
+  // Format date as "Domingo, 15 de marzo de 2026"
+  const DIAS_ES  = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const formatPanelDate = (iso: string) => {
+    if (!iso) return "Sin fecha";
+    const d = new Date(iso + "T12:00:00");
+    if (isNaN(d.getTime())) return iso;
+    return `${DIAS_ES[d.getDay()]}, ${d.getDate()} de ${MESES_ES[d.getMonth()]} de ${d.getFullYear()}`;
+  };
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -908,86 +917,121 @@ function SacramentalMeetingPageInner() {
       <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
 
         {/* Page header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Reunión Sacramental</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{meetings.length} reuniones registradas</p>
+        <div className="flex items-center justify-between px-6 py-5">
+          <div className="flex items-center gap-3">
+            {showPastView && (
+              <button
+                onClick={() => setShowPastView(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              >
+                <ChevronRight className="w-4 h-4 rotate-180" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">
+                {showPastView ? "Reuniones anteriores" : "Reunión Sacramental"}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {showPastView ? `${past.length} reuniones` : `${meetings.length} reuniones registradas`}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportSacramentalMeetings(meetings)} data-testid="button-export-sacramental">
-              <Download className="h-4 w-4 mr-2" />
-              Exportar
-            </Button>
-            {canEdit && (
-              <Button size="sm" onClick={() => { resetMeetingFormState(); openPanel("general"); }} data-testid="button-create-meeting">
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva reunión
+            {!showPastView && past.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setShowPastView(true)}>
+                <FileText className="h-4 w-4 mr-2" />
+                Anteriores
+                <span className="ml-1.5 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 font-bold">{past.length}</span>
               </Button>
+            )}
+            {!showPastView && (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => exportSacramentalMeetings(meetings)} data-testid="button-export-sacramental">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                </Button>
+                {canEdit && (
+                  <Button size="sm" onClick={() => { resetMeetingFormState(); openPanel("general"); }} data-testid="button-create-meeting">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nueva reunión
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
 
         {/* Meeting cards */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-          {/* ── En curso ── */}
-          {liveMeetings.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                  </span>
-                  En curso
-                </span>
-                <div className="flex-1 h-px bg-primary/20" />
-              </div>
-              <div className="space-y-2">
-                {liveMeetings.map((m: any) => (
-                  <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
 
-          {/* ── Próximas ── */}
-          {upcoming.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Próximas</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-              <div className="space-y-2">
-                {upcoming.map((m: any) => (
-                  <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
-                ))}
-              </div>
+          {showPastView ? (
+            /* ── VISTA ANTERIORES ── */
+            <div className="space-y-2">
+              {past.map((m: any) => (
+                <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+              ))}
             </div>
-          )}
+          ) : (
+            <>
+              {/* ── En curso ── */}
+              {liveMeetings.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
+                      </span>
+                      En curso
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {liveMeetings.map((m: any) => (
+                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* ── Anteriores ── */}
-          {past.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Anteriores</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-              <div className="space-y-2">
-                {past.map((m: any) => (
-                  <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
-                ))}
-              </div>
-            </div>
-          )}
+              {/* ── Próximas ── */}
+              {upcoming.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Próximas</span>
+                  </div>
+                  <div className="space-y-2">
+                    {upcoming.map((m: any) => (
+                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {meetings.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
-                <BookOpen className="w-5 h-5 text-primary" />
-              </div>
-              <p className="font-semibold">Sin reuniones registradas</p>
-              <p className="text-sm text-muted-foreground mt-1">Crea la primera reunión sacramental</p>
-            </div>
+              {/* ── Fallback: última anterior si no hay en curso ni próximas ── */}
+              {fallbackMeeting.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Última reunión</span>
+                  </div>
+                  <div className="space-y-2">
+                    {fallbackMeeting.map((m: any) => (
+                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Sin reuniones ── */}
+              {meetings.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                  </div>
+                  <p className="font-semibold">Sin reuniones registradas</p>
+                  <p className="text-sm text-muted-foreground mt-1">Crea la primera reunión sacramental</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -998,7 +1042,7 @@ function SacramentalMeetingPageInner() {
       ── */}
       {isPanelOpen && (
           <div className={cn(
-            "flex flex-col bg-background border-l border-border h-full",
+            "flex flex-col bg-background h-full",
             // Mobile: take full available space, replacing the list (list is hidden via md:flex above)
             "w-full",
             // Desktop: fixed-width sidebar column
@@ -1008,12 +1052,12 @@ function SacramentalMeetingPageInner() {
             <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex flex-col h-full min-h-0">
 
               {/* Panel header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+              <div className="flex items-center justify-between px-5 py-4 shrink-0">
                 <div>
                   <h2 className="text-sm font-bold">{editingId ? "Editar reunión" : "Nueva reunión"}</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">{form.watch("date") || "Sin fecha"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatPanelDate(form.watch("date"))}</p>
                 </div>
-                <button type="button" onClick={closePanel} className="w-7 h-7 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
+                <button type="button" onClick={closePanel} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -1023,14 +1067,14 @@ function SacramentalMeetingPageInner() {
                 const idx = tabs.findIndex((t) => t.id === activeTab);
                 const pct = Math.round(((idx + 1) / tabs.length) * 100);
                 return (
-                  <div className="px-5 pt-3 pb-1 shrink-0">
-                    <div className="flex items-center justify-between mb-1.5">
+                  <div className="px-5 pt-1 pb-2 shrink-0">
+                    <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Paso {idx + 1} de {tabs.length}
                       </span>
-                      <span className="text-[10px] font-bold text-primary">{tabs[idx].label}</span>
+                      <span className="text-[10px] font-semibold text-primary">{tabs[idx].label}</span>
                     </div>
-                    <div className="h-1 rounded-full bg-border overflow-hidden">
+                    <div className="h-0.5 rounded-full bg-muted overflow-hidden">
                       <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
@@ -1546,15 +1590,14 @@ function SacramentalMeetingPageInner() {
               {(() => {
                 const idx = tabs.findIndex((t) => t.id === activeTab);
                 const isFirst = idx === 0;
-                const isLast = idx === tabs.length - 1;
                 const isPreview = activeTab === "preview";
                 return (
-                  <div className="flex items-center gap-2 px-5 py-4 border-t border-border shrink-0 bg-background">
+                  <div className="flex items-center gap-2 px-5 py-4 shrink-0 bg-background">
                     <button
                       type="button"
                       onClick={() => { if (idx > 0) setActiveTab(tabs[idx - 1].id); }}
-                      disabled={isFirst}
-                      className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-30 shrink-0"
+                      style={{ visibility: isFirst ? "hidden" : "visible" }}
+                      className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
                     >
                       <ChevronRight className="w-3.5 h-3.5 rotate-180" />
                       Anterior
@@ -1568,7 +1611,7 @@ function SacramentalMeetingPageInner() {
                           onClick={() => setActiveTab(tabs[i].id)}
                           className={cn(
                             "rounded-full transition-all",
-                            i === idx ? "w-4 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-border hover:bg-muted-foreground"
+                            i === idx ? "w-4 h-1 bg-primary" : "w-1 h-1 bg-muted-foreground/30 hover:bg-muted-foreground"
                           )}
                         />
                       ))}
@@ -1581,7 +1624,7 @@ function SacramentalMeetingPageInner() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => { if (!isLast) setActiveTab(tabs[idx + 1].id); }}
+                        onClick={() => setActiveTab(tabs[idx + 1].id)}
                         className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shrink-0"
                       >
                         Siguiente
