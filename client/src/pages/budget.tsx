@@ -46,9 +46,7 @@ const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Inpu
   <div className="relative">
     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
     <Input
-      type="number"
-      step="0.01"
-      min="0"
+      type="text"
       inputMode="decimal"
       placeholder="0.00"
       className={["pl-8", className].filter(Boolean).join(" ")}
@@ -491,7 +489,7 @@ export default function BudgetPage() {
   const clearRequesterSignatureCanvas = () => {
     const canvas = requesterSignatureCanvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return;
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -500,7 +498,7 @@ export default function BudgetPage() {
   const initRequesterCanvas = () => {
     const canvas = requesterSignatureCanvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return;
     context.lineWidth = 2.8;
     context.lineJoin = "round";
@@ -522,7 +520,7 @@ export default function BudgetPage() {
   const startRequesterDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
     const canvas = requesterSignatureCanvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return;
     const { x, y } = getRequesterCanvasPoint(event);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -535,7 +533,7 @@ export default function BudgetPage() {
     if (!isRequesterDrawingRef.current) return;
     const canvas = requesterSignatureCanvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return;
     const { x, y } = getRequesterCanvasPoint(event);
     context.lineTo(x, y);
