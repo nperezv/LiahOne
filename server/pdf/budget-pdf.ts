@@ -1,25 +1,25 @@
 import { jsPDF } from "jspdf";
 
 const BUDGET_CATEGORY_OPTIONS: { value: string; label: string }[] = [
-  { value: "actividades", label: "Actividades" },
-  { value: "administracion", label: "Administración" },
-  { value: "asignacion_presupuesto", label: "Asignación de Presupuesto" },
-  { value: "curriculo", label: "Currículo" },
-  { value: "centro_distribucion", label: "Centro de Distribución" },
-  { value: "quorum_elderes", label: "Quórum Élderes" },
-  { value: "historia_familiar", label: "Centro de Historia Familiar" },
-  { value: "pfj", label: "PFJ" },
-  { value: "biblioteca", label: "Biblioteca" },
-  { value: "miscelaneo", label: "Misceláneo" },
-  { value: "primaria", label: "Primaria" },
-  { value: "sociedad_socorro", label: "Sociedad de Socorro" },
-  { value: "adultos_solteros", label: "Adultos Solteros" },
+  { value: "actividades",              label: "Actividades" },
+  { value: "administracion",           label: "Administración" },
+  { value: "asignacion_presupuesto",   label: "Asignación de Presupuesto" },
+  { value: "curriculo",                label: "Currículo" },
+  { value: "centro_distribucion",      label: "Centro de Distribución" },
+  { value: "quorum_elderes",           label: "Quórum Élderes" },
+  { value: "historia_familiar",        label: "Centro de Historia Familiar" },
+  { value: "pfj",                      label: "PFJ" },
+  { value: "biblioteca",               label: "Biblioteca" },
+  { value: "miscelaneo",               label: "Misceláneo" },
+  { value: "primaria",                 label: "Primaria" },
+  { value: "sociedad_socorro",         label: "Sociedad de Socorro" },
+  { value: "adultos_solteros",         label: "Adultos Solteros" },
   { value: "jovenes_adultos_solteros", label: "Jóvenes Adultos Solteros" },
-  { value: "escuela_dominical", label: "Escuela Dominical" },
-  { value: "hombres_jovenes", label: "Hombres Jóvenes" },
-  { value: "mujeres_jovenes", label: "Mujeres Jóvenes" },
-  { value: "obra_misional", label: "Obra Misional" },
-  { value: "otros", label: "Otros" },
+  { value: "escuela_dominical",        label: "Escuela Dominical" },
+  { value: "hombres_jovenes",          label: "Hombres Jóvenes" },
+  { value: "mujeres_jovenes",          label: "Mujeres Jóvenes" },
+  { value: "obra_misional",            label: "Obra Misional" },
+  { value: "otros",                    label: "Otros" },
 ];
 
 function parseBudgetNumber(value: string): number {
@@ -34,6 +34,7 @@ export interface BudgetPdfData {
   activityDate: Date | null;
   budgetCategories: { category: string; amount: string; detail?: string }[];
   pagarA?: string | null;
+  direccion?: string | null;
   bankData?: { bankInSystem: boolean; swift?: string; iban?: string } | null;
   notes?: string | null;
   hasReceiptAttached?: boolean;
@@ -46,212 +47,330 @@ export async function generateBudgetRequestPdf(params: {
   applicantSignatureDataUrl: string;
   bishopSignatureDataUrl: string;
   signerName: string;
+  wardName?: string | null;
 }): Promise<Buffer> {
-  const { data, requesterName, organizationName, applicantSignatureDataUrl, bishopSignatureDataUrl, signerName } = params;
+  const { data, requesterName, applicantSignatureDataUrl, bishopSignatureDataUrl, signerName, wardName } = params;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 18;
+  const margin = 14;
   const contentWidth = pageWidth - margin * 2;
 
-  // Header bar
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageWidth, 28, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("SOLICITUD DE GASTOS", margin, 14);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Barrio Madrid 8", margin, 21);
+  // Colors
+  const black: [number, number, number] = [0, 0, 0];
+  const darkGray: [number, number, number] = [80, 80, 80];
+  const midGray: [number, number, number] = [100, 100, 100];
+  const lightGray: [number, number, number] = [245, 245, 245];
+  const blue: [number, number, number] = [37, 99, 235];
+  const green: [number, number, number] = [22, 163, 74];
 
-  const requestTypeLabel = data.requestType === "reembolso" ? "Reembolso" : "Pago por adelantado";
-  doc.setFontSize(9);
-  doc.text(requestTypeLabel, pageWidth - margin, 14, { align: "right" });
-  doc.text(new Date().toLocaleDateString("es-ES"), pageWidth - margin, 21, { align: "right" });
+  let y = margin;
 
-  let y = 40;
-
-  const drawSection = (title: string) => {
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, "F");
-    doc.setTextColor(30, 41, 59);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(title.toUpperCase(), margin + 3, y + 4.8);
-    y += 10;
-  };
-
-  const drawField = (label: string, value: string, halfWidth = false, rightCol = false) => {
-    const colWidth = halfWidth ? contentWidth / 2 - 2 : contentWidth;
-    const colX = rightCol ? margin + contentWidth / 2 + 2 : margin;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(label, colX, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.setTextColor(15, 23, 42);
-    const lines = doc.splitTextToSize(value || "—", colWidth - 2);
-    doc.text(lines, colX, y + 5);
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.line(colX, y + 7.5, colX + colWidth, y + 7.5);
-    return lines.length * 5;
-  };
-
-  // Solicitante
-  drawSection("Solicitante");
-  drawField("Nombre", requesterName, true, false);
-  drawField("Organización", organizationName, true, true);
-  y += 15;
-  drawField("Fecha de solicitud", new Date().toLocaleDateString("es-ES"), true, false);
-  drawField(
-    "Fecha prevista del gasto",
-    data.activityDate ? data.activityDate.toLocaleDateString("es-ES") : "—",
-    true,
-    true,
-  );
-  y += 15;
-
-  // Propósito del gasto
-  drawSection("Propósito del gasto");
-  const descLines = drawField("Propósito del gasto", data.description);
-  y += Math.max(15, descLines * 5 + 8);
-
-  drawField("Tipo de solicitud", requestTypeLabel, true, false);
-  drawField(
-    "Fecha prevista",
-    data.activityDate ? data.activityDate.toLocaleDateString("es-ES") : "—",
-    true,
-    true,
-  );
-  y += 15;
-
-  // Categorías
-  drawSection("Categorías y montos");
-  const categoryColW = contentWidth * 0.6;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text("CATEGORÍA", margin, y);
-  doc.text("IMPORTE", margin + categoryColW + 2, y);
-  y += 4;
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.3);
+  // ── TOP BORDER ──
+  doc.setDrawColor(...black);
+  doc.setLineWidth(0.8);
   doc.line(margin, y, margin + contentWidth, y);
   y += 3;
+
+  // ── HEADER: left = ward + title, right = checkbox box ──
+  const headerBoxX = margin + contentWidth - 52;
+  const headerBoxW = 52;
+  const headerBoxH = 28;
+
+  // Right box: gray header
+  doc.setFillColor(120, 120, 120);
+  doc.rect(headerBoxX, y, headerBoxW, 6, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.text("Propósito del gasto", headerBoxX + headerBoxW / 2, y + 4.2, { align: "center" });
+
+  // Right box: checkboxes
+  doc.setTextColor(...black);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  const chkY1 = y + 10;
+  const chkY2 = y + 17;
+  const chkX = headerBoxX + 4;
+  const boxSize = 3.5;
+
+  doc.text("Reembolso", chkX + boxSize + 2, chkY1 + 2.8);
+  doc.setDrawColor(...darkGray);
+  doc.setLineWidth(0.3);
+  doc.rect(headerBoxX + headerBoxW - 8, chkY1, boxSize, boxSize);
+  if (data.requestType === "reembolso") {
+    doc.setFillColor(...darkGray);
+    doc.rect(headerBoxX + headerBoxW - 8, chkY1, boxSize, boxSize, "F");
+  }
+
+  doc.text("Por adelantado", chkX + boxSize + 2, chkY2 + 2.8);
+  doc.rect(headerBoxX + headerBoxW - 8, chkY2, boxSize, boxSize);
+  if (data.requestType !== "reembolso") {
+    doc.setFillColor(...darkGray);
+    doc.rect(headerBoxX + headerBoxW - 8, chkY2, boxSize, boxSize, "F");
+  }
+
+  // Right box: outer border
+  doc.setDrawColor(...darkGray);
+  doc.setLineWidth(0.3);
+  doc.rect(headerBoxX, y, headerBoxW, headerBoxH);
+
+  // Left: ward name + title
+  doc.setTextColor(...black);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(wardName || "Barrio", margin, y + 5);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("SOLICITUD DE", margin, y + 13);
+  doc.text("GASTOS", margin, y + 21);
+
+  y += headerBoxH + 4;
+
+  // ── SECTION HELPERS ──
+  const drawSectionTitle = (title: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...black);
+    doc.text(title, margin, y + 4);
+    doc.setDrawColor(...black);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5);
+    y += 8;
+  };
+
+  const drawFieldRow = (label: string, value: string, colX: number, colW: number) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...midGray);
+    doc.text(label, colX, y + 3);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...black);
+    const lines = doc.splitTextToSize(value || "", colW - 2);
+    doc.text(lines, colX, y + 8);
+    const rowH = Math.max(14, lines.length * 4.5 + 6);
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.2);
+    doc.line(colX, y + rowH, colX + colW, y + rowH);
+    return rowH;
+  };
+
+  // ── SOLICITANTE ──
+  drawSectionTitle("Solicitante");
+  const solH = drawFieldRow("Nombre", requesterName, margin, contentWidth - 44);
+  drawFieldRow("Fecha", new Date().toLocaleDateString("es-ES"), margin + contentWidth - 42, 42);
+  y += solH + 3;
+
+  // ── PAGAR A ──
+  drawSectionTitle("PAGAR A");
+  const pagarH = drawFieldRow("Nombre", data.pagarA || "", margin, contentWidth);
+  y += pagarH + 2;
+  const dirH = drawFieldRow("Dirección", data.direccion || "", margin, contentWidth);
+  y += dirH + 5;
+
+  // ── PROPÓSITO DEL GASTO ──
+  drawSectionTitle("PROPÓSITO DEL GASTO");
+
+  // "Razón" label + value
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...black);
+  doc.text("Razón", margin, y + 4);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  const reasonLines = doc.splitTextToSize(data.description || "", contentWidth - 2);
+  doc.text(reasonLines, margin, y + 4);
+  y += Math.max(8, reasonLines.length * 4.5) + 2;
+
+  // Category rows
+  const catColW = contentWidth * 0.72;
+  const amtColW = contentWidth - catColW;
+  const amtColX = margin + catColW;
 
   let total = 0;
   for (const cat of data.budgetCategories) {
     const catLabel = BUDGET_CATEGORY_OPTIONS.find((o) => o.value === cat.category)?.label ?? cat.category;
-    const displayLabel =
-      cat.category === "otros" && cat.detail?.trim() ? `Otros - ${cat.detail.trim()}` : catLabel;
+    const displayLabel = cat.category === "otros" && cat.detail?.trim()
+      ? `Otros - ${cat.detail.trim()}`
+      : catLabel;
     const amt = parseBudgetNumber(cat.amount);
     total += amt;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(15, 23, 42);
-    const catLines = doc.splitTextToSize(displayLabel, categoryColW - 2);
-    doc.text(catLines, margin, y + 4);
-    doc.text(`€ ${amt.toFixed(2)}`, margin + categoryColW + 2, y + 4);
-    y += Math.max(7, catLines.length * 5);
-    doc.setDrawColor(241, 245, 249);
+    // row border
+    doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.2);
-    doc.line(margin, y, margin + contentWidth, y);
-    y += 2;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...midGray);
+    doc.text("Categoría", margin, y + 3);
+    doc.text("Cantidad", amtColX, y + 3);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...black);
+    const catLines = doc.splitTextToSize(displayLabel, catColW - 4);
+    doc.text(catLines, margin, y + 8);
+    doc.text(`€ ${amt.toFixed(2)}`, amtColX, y + 8);
+
+    const rowH = Math.max(14, catLines.length * 4.5 + 6);
+    // vertical separator between cat and amount
+    doc.line(amtColX - 1, y, amtColX - 1, y + rowH);
+    // bottom border
+    doc.line(margin, y + rowH, margin + contentWidth, y + rowH);
+    y += rowH;
   }
 
-  // Total
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(margin, y, contentWidth, 12, 2, 2, "FD");
+  // Category options grid + Total
+  const optColX = margin;
+  const optColW = contentWidth * 0.72;
+  const totalColX = margin + optColW + 2;
+  const gridStartY = y;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...midGray);
+  doc.text("Opciones de la categoría", optColX, gridStartY + 4);
+
+  // 4-column label grid
+  const cols = 4;
+  const colW = optColW / cols;
+  const labels = BUDGET_CATEGORY_OPTIONS.map((o) => o.label);
+  const rows = Math.ceil(labels.length / cols);
+  doc.setFontSize(6);
+  doc.setTextColor(60, 60, 60);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      if (idx < labels.length) {
+        doc.text(labels[idx], optColX + c * colW, gridStartY + 8 + r * 4);
+      }
+    }
+  }
+
+  // Total box on the right
+  const gridH = Math.max(rows * 4 + 10, 20);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text("TOTAL", margin + 4, y + 4.5);
-  doc.setFontSize(13);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`€ ${total.toFixed(2)}`, margin + contentWidth - 4, y + 9, { align: "right" });
-  y += 17;
+  doc.setTextColor(...black);
+  doc.text("Total", totalColX, gridStartY + gridH / 2 - 2);
+  doc.setFontSize(9);
+  doc.text(`€ ${total.toFixed(2)}`, totalColX, gridStartY + gridH / 2 + 4);
 
-  if (data.notes) {
-    drawSection("Notas");
-    const notesLines = drawField("Observaciones", data.notes);
-    y += Math.max(15, notesLines * 5 + 8);
-  }
+  // borders for the options/total row
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.2);
+  doc.line(totalColX - 1, gridStartY, totalColX - 1, gridStartY + gridH);
+  doc.line(margin, gridStartY + gridH, margin + contentWidth, gridStartY + gridH);
+  y = gridStartY + gridH + 4;
 
-  // ── Signatures section ──
-  const sigSectionY = pageHeight - 72;
-  y = Math.max(y + 4, sigSectionY);
+  // ── NOTA LEGAL ──
+  const legalText =
+    "Un formulario de gastos similar a este debe utilizarse para cada gasto, incluso un lugar para la firma del líder de la organización, " +
+    "el nombre de la persona a quien se pagará el dinero, una descripción del gasto, la categoría del presupuesto o la organización que ha incurrido en el gasto, " +
+    "el monto del gasto, el monto del impuesto sobre las ventas (si corresponde), y toda otra información necesaria. " +
+    "Si es posible, deben adjuntarse documentos —preferiblemente originales— que justifiquen el gasto como por ejemplo recibos de compra o facturas.";
+  const legalLines = doc.splitTextToSize(legalText, contentWidth - 6);
+  const legalH = legalLines.length * 3.8 + 6;
+  doc.setFillColor(...lightGray);
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.2);
+  doc.rect(margin, y, contentWidth, legalH, "FD");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(60, 60, 60);
+  doc.text(legalLines, margin + 3, y + 4.5);
+  y += legalH + 5;
 
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y, pageWidth - margin, y);
+  // ── PARA USO EXCLUSIVO DEL SECRETARIO ──
+  drawSectionTitle("Para uso exclusivo del secretario");
+
+  const sigColW = contentWidth - 42;
+  const dateColW = 42;
+  const sigImgH = 18;
+  const sigRowH = sigImgH + 10;
+
+  // Row 1: Firma del solicitante
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...midGray);
+  doc.text("Firma del Solicitante", margin, y + 3);
+  doc.text("Fecha", margin + sigColW + 2, y + 3);
   y += 5;
 
-  // Labels
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text("FIRMA DEL SOLICITANTE", margin, y);
-  doc.text("FIRMA DEL OBISPO", pageWidth / 2 + 4, y);
-  y += 2;
-
-  const sigImgH = 20;
-
-  // Requester signature
   if (applicantSignatureDataUrl && applicantSignatureDataUrl.length > 100) {
-    const imgFormat = applicantSignatureDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
-    doc.addImage(applicantSignatureDataUrl, imgFormat, margin, y, 70, sigImgH);
+    const fmt = applicantSignatureDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+    doc.addImage(applicantSignatureDataUrl, fmt, margin, y, 60, sigImgH);
   }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...black);
+  doc.text(new Date().toLocaleDateString("es-ES"), margin + sigColW + 2, y + sigImgH - 2);
 
-  // Bishop signature
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.2);
+  doc.line(margin + sigColW, y, margin + sigColW, y + sigRowH);
+  doc.line(margin, y + sigRowH, margin + contentWidth, y + sigRowH);
+  y += sigRowH + 2;
+
+  // Row 2: Firma del obispo
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...midGray);
+  doc.text("Firma del El obispo (Opcional)", margin, y + 3);
+  doc.text("Fecha", margin + sigColW + 2, y + 3);
+  y += 5;
+
   if (bishopSignatureDataUrl && bishopSignatureDataUrl.length > 100) {
-    const imgFormat = bishopSignatureDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
-    doc.addImage(bishopSignatureDataUrl, imgFormat, pageWidth / 2 + 4, y, 70, sigImgH);
+    const fmt = bishopSignatureDataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
+    doc.addImage(bishopSignatureDataUrl, fmt, margin, y, 60, sigImgH);
   }
-
-  // Signature underlines
-  const sigLineY = y + sigImgH + 2;
-  doc.setDrawColor(15, 23, 42);
-  doc.setLineWidth(0.5);
-  doc.line(margin, sigLineY, margin + 80, sigLineY);
-  doc.line(pageWidth / 2 + 4, sigLineY, pageWidth - margin, sigLineY);
-
-  // Names below lines
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text(requesterName, margin, sigLineY + 4);
-  doc.text(`Obispo: ${signerName}`, pageWidth / 2 + 4, sigLineY + 4);
-
-  const signatureDate = new Date().toLocaleDateString("es-ES", {
-    year: "numeric",
-    month: "2-digit",
-    day: "numeric",
-  });
+  doc.setTextColor(...black);
+  doc.text(new Date().toLocaleDateString("es-ES"), margin + sigColW + 2, y + sigImgH - 2);
+  doc.setFont("helvetica", "italic");
   doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
-  doc.text(signatureDate, pageWidth / 2 + 4, sigLineY + 9);
+  doc.setTextColor(...midGray);
+  doc.text(`Obispo: ${signerName}`, margin + sigColW + 2, y + sigImgH + 3);
+
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.2);
+  doc.line(margin + sigColW, y, margin + sigColW, y + sigRowH + 4);
+  doc.line(margin, y + sigRowH + 4, margin + contentWidth, y + sigRowH + 4);
+  y += sigRowH + 10;
+
+  // ── LÍNEA PUNTEADA ──
+  doc.setDrawColor(140, 140, 140);
+  doc.setLineWidth(0.4);
+  doc.setLineDashPattern([1.5, 1.5], 0);
+  doc.line(margin, y, margin + contentWidth, y);
+  doc.setLineDashPattern([], 0);
+  y += 3;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(80, 80, 80);
+  doc.text(
+    "Por motivos de seguridad no lo envíe de manera electrónica cuando se concluya la información EFT. Corte sobre la línea punteada y destrúyalo después de utilizarlo.",
+    pageWidth / 2,
+    y + 3,
+    { align: "center", maxWidth: contentWidth },
+  );
+  y += 10;
 
   // ── ESP CITIBANK DTA ──
-  const bankSectionY = sigLineY + 14;
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.3);
-  doc.line(margin, bankSectionY, pageWidth - margin, bankSectionY);
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.setTextColor(15, 23, 42);
-  doc.text("ESP CITIBANK DTA", margin, bankSectionY + 6);
+  doc.setTextColor(...black);
+  doc.text("ESP CITIBANK DTA", margin, y + 5);
+  doc.setDrawColor(...black);
+  doc.setLineWidth(0.4);
+  doc.line(margin, y + 6.5, margin + contentWidth * 0.55, y + 6.5);
+  y += 10;
 
-  const bY = bankSectionY + 11;
   const bankInSystem = data.bankData?.bankInSystem ?? false;
   const titularVal = data.pagarA || "—";
   const swiftVal = bankInSystem ? "Registrado en sistema LCR/CUFS" : (data.bankData?.swift || "—");
@@ -263,49 +382,33 @@ export async function generateBudgetRequestPdf(params: {
     ["No. cuenta (IBAN)", ibanVal],
   ];
 
-  bankFields.forEach(([label, val], bi) => {
-    const fieldY = bY + bi * 10;
-    doc.setFont("helvetica", "bold");
+  for (const [label, val] of bankFields) {
+    const isSystem = bankInSystem && label !== "Titular de la cuenta";
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.text(label, margin, fieldY);
-    doc.setFont("helvetica", bankInSystem && bi > 0 ? "italic" : "normal");
+    doc.setTextColor(...midGray);
+    doc.text(label, margin, y + 3);
+    doc.setFont("helvetica", isSystem ? "italic" : "normal");
     doc.setFontSize(8.5);
-    doc.setTextColor(
-      bankInSystem && bi > 0 ? 37 : 15,
-      bankInSystem && bi > 0 ? 99 : 23,
-      bankInSystem && bi > 0 ? 235 : 42,
-    );
-    doc.text(val, margin, fieldY + 4.5);
-    doc.setDrawColor(226, 232, 240);
+    doc.setTextColor(isSystem ? blue[0] : black[0], isSystem ? blue[1] : black[1], isSystem ? blue[2] : black[2]);
+    doc.text(val, margin, y + 8);
+    doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.2);
-    doc.line(margin, fieldY + 6, margin + contentWidth, fieldY + 6);
-  });
+    doc.line(margin, y + 10, margin + contentWidth * 0.55, y + 10);
+    y += 13;
+  }
 
   if (bankInSystem) {
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7);
-    doc.setTextColor(37, 99, 235);
-    doc.text("✓ Datos bancarios verificados en sistema LCR/CUFS de la Iglesia", margin, bY + 32);
+    doc.setTextColor(...blue);
+    doc.text("✓ Datos bancarios verificados en sistema LCR/CUFS de la Iglesia", margin, y);
   } else if (data.hasReceiptAttached) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(22, 163, 74);
-    doc.text("✓ Justificante de titularidad adjunto a la solicitud", margin, bY + 32);
+    doc.setTextColor(...green);
+    doc.text("✓ Justificante de titularidad adjunto a la solicitud", margin, y);
   }
-
-  // Footer
-  doc.setFillColor(248, 250, 252);
-  doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    "Documento generado automáticamente · Barrio Madrid 8 · ESP CITIBANK DTA",
-    pageWidth / 2,
-    pageHeight - 5,
-    { align: "center" },
-  );
 
   const arrayBuffer = doc.output("arraybuffer");
   return Buffer.from(arrayBuffer);

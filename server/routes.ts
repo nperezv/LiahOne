@@ -2686,6 +2686,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requesterUser = await storage.getUser(existingRequest.requestedBy);
       const allOrganizations = await storage.getAllOrganizations();
       const orgName = allOrganizations.find((o: any) => o.id === existingRequest.organizationId)?.name ?? "";
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
 
       const budgetCategories = (existingRequest.budgetCategoriesJson as { category: string; amount: string; detail?: string }[] | null) ?? [];
       // Fallback para solicitudes antiguas sin budgetCategoriesJson
@@ -2713,6 +2715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         applicantSignatureDataUrl: existingRequest.applicantSignatureDataUrl,
         bishopSignatureDataUrl: signatureDataUrl,
         signerName,
+        wardName,
       });
 
       const signedStoredFilename = `${randomUUID()}-solicitud-firmada.pdf`;
