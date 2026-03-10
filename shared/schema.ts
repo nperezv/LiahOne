@@ -502,6 +502,13 @@ export const budgetRequests = pgTable("budget_requests", {
   receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
   notes: text("notes"),
   pagarA: text("pagar_a"),
+  applicantSignatureDataUrl: text("applicant_signature_data_url"),
+  requestType: text("request_type").default("pago_adelantado"),
+  budgetCategoriesJson: jsonb("budget_categories_json")
+    .$type<{ category: string; amount: string; detail?: string }[]>()
+    .default([]),
+  bankData: jsonb("bank_data")
+    .$type<{ bankInSystem: boolean; swift?: string; iban?: string }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -6,7 +6,7 @@ import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { generateBudgetRequestPdf } from "./pdf/budget-pdf";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
@@ -2677,107 +2677,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "La solicitud no está pendiente de firma del obispo" });
       }
 
-      const planReceipt = (existingRequest.receipts || []).find((receipt: any) => receipt?.category === "plan" && receipt?.url);
-      if (!planReceipt?.url) {
-        return res.status(400).json({ error: "La solicitud no incluye un PDF/archivo de solicitud de gasto para firmar" });
+      if (!existingRequest.applicantSignatureDataUrl) {
+        return res.status(400).json({ error: "La solicitud no contiene la firma del solicitante" });
       }
 
-      const sourceFilename = String(planReceipt.filename || "solicitud-de-gasto.pdf");
-      const sourceStoredFilename = path.basename(String(planReceipt.url));
-      const sourceAbsolutePath = path.join(uploadsPath, sourceStoredFilename);
+      const requesterUser = await storage.getUser(existingRequest.requestedBy);
+      const allOrganizations = await storage.getAllOrganizations();
+      const orgName = allOrganizations.find((o: any) => o.id === existingRequest.organizationId)?.name ?? "";
 
-      try {
-        await fs.promises.access(sourceAbsolutePath, fs.constants.R_OK);
-      } catch {
-        return res.status(404).json({ error: "No se encontró el archivo de solicitud de gasto original" });
-      }
+      const budgetCategories = (existingRequest.budgetCategoriesJson as { category: string; amount: string; detail?: string }[] | null) ?? [];
+      // Fallback para solicitudes antiguas sin budgetCategoriesJson
+      const effectiveCategories = budgetCategories.length > 0
+        ? budgetCategories
+        : [{ category: existingRequest.category ?? "otros", amount: String((existingRequest.amount ?? 0) / 100) }];
 
-      const extension = path.extname(sourceFilename) || ".pdf";
-      if (extension.toLowerCase() !== ".pdf") {
-        return res.status(400).json({ error: "La solicitud de gasto debe estar en formato PDF para poder firmarse" });
-      }
+      const hasReceiptAttached = (existingRequest.receipts || []).some(
+        (r: any) => r?.category === "receipt",
+      );
 
-      const baseName = path.basename(sourceFilename, extension);
-      const signedStoredFilename = `${randomUUID()}-${baseName}-firmado${extension}`;
+      const pdfBuffer = await generateBudgetRequestPdf({
+        data: {
+          description: existingRequest.description,
+          requestType: (existingRequest.requestType as string) ?? "pago_adelantado",
+          activityDate: existingRequest.activityDate ? new Date(existingRequest.activityDate) : null,
+          budgetCategories: effectiveCategories,
+          pagarA: existingRequest.pagarA,
+          bankData: existingRequest.bankData as { bankInSystem: boolean; swift?: string; iban?: string } | null,
+          notes: existingRequest.notes,
+          hasReceiptAttached,
+        },
+        requesterName: requesterUser?.name ?? "Solicitante",
+        organizationName: orgName,
+        applicantSignatureDataUrl: existingRequest.applicantSignatureDataUrl,
+        bishopSignatureDataUrl: signatureDataUrl,
+        signerName,
+      });
+
+      const signedStoredFilename = `${randomUUID()}-solicitud-firmada.pdf`;
       const signedAbsolutePath = path.join(uploadsPath, signedStoredFilename);
+      await fs.promises.writeFile(signedAbsolutePath, pdfBuffer);
 
-      const originalBuffer = await fs.promises.readFile(sourceAbsolutePath);
-      const pdfDoc = await PDFDocument.load(originalBuffer);
-      const pages = pdfDoc.getPages();
-      if (!pages.length) {
-        return res.status(400).json({ error: "El PDF no contiene páginas" });
-      }
-
-      const page = pages[0];
-      const signatureDate = new Date().toLocaleDateString("es-ES", {
-        year: "numeric",
-        month: "2-digit",
-        day: "numeric",
-      });
-
-      // Coordenadas calibradas para PDF generado con jsPDF (A4, unidades: puntos)
-      // Sección de firmas anclada a pageHeight-72mm desde arriba.
-      // Firma obispo: mitad derecha (x = pageWidth/2 + 4 mm = ~309pt)
-      // y desde abajo: (297 - 225 - 7 - 2) mm = 63mm → 63*2.835 ≈ 179pt, caja altura ~57pt
-      const signatureBox = { x: 309, y: 147, width: 245, height: 57 };
-      const dateBox = { x: 309, y: 120, width: 245, height: 20 };
-
-      if (signatureDataUrl.startsWith("data:image/")) {
-        const base64Data = signatureDataUrl.split(",")[1] || "";
-        const imageBytes = Buffer.from(base64Data, "base64");
-        const signatureImage = signatureDataUrl.startsWith("data:image/jpeg")
-          ? await pdfDoc.embedJpg(imageBytes)
-          : await pdfDoc.embedPng(imageBytes);
-
-        const signatureScale = Math.min(
-          signatureBox.width / signatureImage.width,
-          signatureBox.height / signatureImage.height,
-        );
-        const scaledWidth = signatureImage.width * signatureScale;
-        const scaledHeight = signatureImage.height * signatureScale;
-        const centeredX = signatureBox.x + (signatureBox.width - scaledWidth) / 2;
-        const drawX = Math.max(
-          signatureBox.x + 4,
-          Math.min(signatureBox.x + signatureBox.width - scaledWidth - 4, centeredX + 14),
-        );
-
-        page.drawImage(signatureImage, {
-          x: drawX,
-          y: signatureBox.y + (signatureBox.height - scaledHeight) / 2,
-          width: scaledWidth,
-          height: scaledHeight,
-        });
-      } else {
-        const signatureFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-        page.drawText(signerName, {
-          x: signatureBox.x + 8,
-          y: signatureBox.y + 24,
-          size: 24,
-          font: signatureFont,
-          color: rgb(0.08, 0.08, 0.08),
-        });
-      }
-
-      const detailsFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      page.drawText(`Obispo: ${signerName}`, {
-        x: signatureBox.x,
-        y: signatureBox.y - 18,
-        size: 10,
-        font: detailsFont,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-      page.drawText(signatureDate, {
-        x: dateBox.x + 8,
-        y: dateBox.y + 10,
-        size: 10,
-        font: detailsFont,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-
-      const signedPdfBytes = await pdfDoc.save();
-      await fs.promises.writeFile(signedAbsolutePath, Buffer.from(signedPdfBytes));
-
-      const signedPlanFilename = `${baseName}-firmado${extension}`;
+      const signedPlanFilename = "solicitud-firmada.pdf";
       const signedPlanUrl = `/uploads/${signedStoredFilename}`;
 
       const budgetRequest = await storage.approveBudgetRequestBishop(id, req.session.userId!, {
