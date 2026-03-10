@@ -73,16 +73,16 @@ export async function generateBudgetRequestPdf(params: {
   // HEADER
   // ═══════════════════════════════════════════════
 
-  // Top border (2pt ≈ 0.7mm)
-  doc.setDrawColor(...black);
-  doc.setLineWidth(0.7);
-  doc.line(margin, y, margin + contentWidth, y);
-
-  // Right box: 55mm wide, 20mm tall (flush with top/bottom header lines)
   const rightBoxW = 55;
   const rightBoxX = margin + contentWidth - rightBoxW;
-  const headerH   = 20; // mm — height of the full header block
-  const frinjaH   = 6;  // mm — height of the gray "Propósito del gasto" strip
+  const headerH   = 20;   // mm — header block height (distance between the two black lines)
+  const frinjaH   = 6;    // mm — gray "Propósito del gasto" strip
+  // The right box extends below the header bottom line all the way to the
+  // "Solicitante" section-title underline:
+  //   headerH + 3 (y-advance after bottom line) + 5.5 (underline pos in drawSectionTitle) = 28.5
+  const rightBoxH = 28.5;
+
+  // ── STEP 1: draw the right box FIRST (so black lines can cover it) ──
 
   // Gray franja
   doc.setFillColor(...grayCcc);
@@ -92,9 +92,9 @@ export async function generateBudgetRequestPdf(params: {
   doc.setTextColor(...black);
   doc.text("Propósito del gasto", rightBoxX + rightBoxW / 2, y + 4.2, { align: "center" });
 
-  // White area below franja
+  // White area for the rest of the box (below franja)
   doc.setFillColor(255, 255, 255);
-  doc.rect(rightBoxX, y + frinjaH, rightBoxW, headerH - frinjaH, "F");
+  doc.rect(rightBoxX, y + frinjaH, rightBoxW, rightBoxH - frinjaH, "F");
 
   // Checkboxes
   const chkBoxSize = 3.5;
@@ -123,24 +123,30 @@ export async function generateBudgetRequestPdf(params: {
     doc.rect(chkBoxXR, chkY2, chkBoxSize, chkBoxSize, "F");
   }
 
-  // Right box outer border
+  // Box outer border (gray, full extended height)
   doc.setDrawColor(...gray999);
   doc.setLineWidth(0.2);
-  doc.rect(rightBoxX, y, rightBoxW, headerH);
+  doc.rect(rightBoxX, y, rightBoxW, rightBoxH);
 
-  // Left text: ward name + title
+  // ── STEP 2: draw top black 2pt line ON TOP of the box ──
+  doc.setDrawColor(...black);
+  doc.setLineWidth(0.7);
+  doc.line(margin, y, margin + contentWidth, y);
+
+  // ── STEP 3: left text (ward name + title) ──
   doc.setTextColor(...black);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.text(wardName || "Barrio", margin, y + 5);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("SOLICITUD DE", margin, y + 13);
-  doc.text("GASTOS", margin, y + 20);
+  // Keep "GASTOS" 2mm above the bottom black line (y+18, not y+20)
+  doc.text("SOLICITUD DE", margin, y + 12);
+  doc.text("GASTOS", margin, y + 18);
 
   y += headerH;
 
-  // Bottom border (2pt)
+  // ── STEP 4: bottom black 2pt line ON TOP of the box ──
   doc.setDrawColor(...black);
   doc.setLineWidth(0.7);
   doc.line(margin, y, margin + contentWidth, y);
