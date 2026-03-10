@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -92,21 +92,51 @@ const isAllowedDocument = (file: File) => {
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
 };
 
+const BUDGET_CATEGORY_OPTIONS = [
+  { value: "actividades", label: "Actividades" },
+  { value: "administracion", label: "Administración" },
+  { value: "asignacion_presupuesto", label: "Asignación de Presupuesto" },
+  { value: "curriculo", label: "Currículo" },
+  { value: "centro_distribucion", label: "Centro de Distribución" },
+  { value: "quorum_elderes", label: "Quórum Élderes" },
+  { value: "historia_familiar", label: "Centro de Historia Familiar" },
+  { value: "pfj", label: "PFJ" },
+  { value: "grupo_sumos_sacerdotes", label: "Grupo Sumos Sacerdotes" },
+  { value: "biblioteca", label: "Biblioteca" },
+  { value: "miscelaneo", label: "Misceláneo" },
+  { value: "primaria", label: "Primaria" },
+  { value: "sociedad_socorro", label: "Sociedad de Socorro" },
+  { value: "adultos_solteros", label: "Adultos Solteros" },
+  { value: "escuela_dominical", label: "Escuela Dominical" },
+  { value: "hombres_jovenes", label: "Hombres Jóvenes" },
+  { value: "mujeres_jovenes", label: "Mujeres Jóvenes" },
+  { value: "otros", label: "Otros" },
+] as const;
+
+const budgetCategorySchema = z.object({
+  category: z.string().min(1, "Selecciona una categoría"),
+  amount: z.string().min(1, "El monto es requerido"),
+  detail: z.string().optional(),
+});
+
 const budgetSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
-  amount: z.string().min(1, "El monto es requerido"),
-  category: z.enum(["actividades", "materiales", "otros"]),
   requestType: z.enum(["reembolso", "pago_adelantado"]),
   activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
   requestingOrganizationId: z.string().optional(),
-  receiptFile: z
+  budgetCategories: z.array(budgetCategorySchema).min(1, "Añade al menos una categoría"),
+  pagarA: z.string().min(1, "El nombre del beneficiario es requerido"),
+  bankInSystem: z.boolean({ required_error: "Indica si los datos bancarios están en el sistema de la Iglesia" }),
+  swift: z.string().optional(),
+  iban: z.string().optional(),
+  bankJustificanteFile: z
     .instanceof(File)
     .optional()
     .refine((file) => !file || isAllowedDocument(file), {
-      message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
+      message: "Adjunta un archivo .jpg, .jpeg o .pdf válido.",
     }),
-  activityPlanFile: z
+  receiptFile: z
     .instanceof(File)
     .optional()
     .refine((file) => !file || isAllowedDocument(file), {
@@ -120,21 +150,22 @@ const budgetSchema = z.object({
       message: "Adjunta el comprobante para solicitudes de reembolso.",
     });
   }
-
-  if (data.requestType === "reembolso" && !data.activityPlanFile) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["activityPlanFile"],
-      message: "Adjunta la solicitud de gastos para solicitudes de reembolso.",
-    });
-  }
-
-  if (data.requestType === "pago_adelantado" && !data.activityPlanFile) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["activityPlanFile"],
-      message: "Adjunta la solicitud de gasto para pagos por adelantado.",
-    });
+  data.budgetCategories.forEach((cat, i) => {
+    if (cat.category === "otros" && !cat.detail?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["budgetCategories", i, "detail"],
+        message: "Especifica el detalle para la categoría Otros.",
+      });
+    }
+  });
+  if (data.bankInSystem === false) {
+    if (!data.iban?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["iban"], message: "El IBAN es requerido." });
+    }
+    if (!data.bankJustificanteFile) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bankJustificanteFile"], message: "Adjunta el justificante de titularidad." });
+    }
   }
 });
 
@@ -203,7 +234,9 @@ export default function BudgetPage() {
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
+  const isRequesterDrawingRef = useRef(false);
   const search = useSearch();
   const highlightedRequestId = useMemo(() => {
     const params = new URLSearchParams(search);
@@ -316,14 +349,17 @@ export default function BudgetPage() {
     resolver: zodResolver(budgetSchema),
     defaultValues: {
       description: "",
-      amount: "",
-      category: "otros",
       requestType: "pago_adelantado",
       activityDate: "",
       notes: "",
       requestingOrganizationId: "",
+      budgetCategories: [{ category: "", amount: "", detail: "" }],
+      pagarA: "",
+      bankInSystem: undefined,
+      swift: "",
+      iban: "",
+      bankJustificanteFile: undefined,
       receiptFile: undefined,
-      activityPlanFile: undefined,
     },
   });
 
@@ -376,6 +412,8 @@ export default function BudgetPage() {
   }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
 
   const budgetRequestType = budgetForm.watch("requestType");
+  const watchedCategories = budgetForm.watch("budgetCategories");
+  const watchedBankInSystem = budgetForm.watch("bankInSystem");
 
   const requestableOrganizations = useMemo(() =>
     (organizations as Organization[]).filter((org) => org.type !== "barrio"),
@@ -403,13 +441,308 @@ export default function BudgetPage() {
     budgetForm.setValue("requestingOrganizationId", user?.organizationId ?? "");
   }, [isDialogOpen, isObispado, requestableOrganizations, budgetForm, user?.organizationId]);
 
-  const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
-    const parsedAmount = parseBudgetNumber(data.amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert("Ingresa un monto válido. Puedes usar coma o punto para decimales.");
-      return;
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    // Small delay to ensure canvas is mounted
+    const timer = setTimeout(() => initRequesterCanvas(), 100);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDialogOpen]);
+
+  const clearRequesterSignatureCanvas = () => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const initRequesterCanvas = () => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.lineWidth = 2.8;
+    context.lineJoin = "round";
+    context.lineCap = "round";
+    context.strokeStyle = "#111827";
+    clearRequesterSignatureCanvas();
+  };
+
+  const getRequesterCanvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  const startRequesterDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const { x, y } = getRequesterCanvasPoint(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    isRequesterDrawingRef.current = true;
+    context.beginPath();
+    context.moveTo(x, y);
+  };
+
+  const drawRequesterSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!isRequesterDrawingRef.current) return;
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const { x, y } = getRequesterCanvasPoint(event);
+    context.lineTo(x, y);
+    context.stroke();
+  };
+
+  const stopRequesterDrawing = () => {
+    isRequesterDrawingRef.current = false;
+  };
+
+  const generateBudgetRequestPdf = async (
+    data: BudgetFormValues,
+    requesterName: string,
+    organizationName: string,
+    signatureDataUrl: string,
+  ): Promise<File> => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 18;
+    const contentWidth = pageWidth - margin * 2;
+
+    // Header bar
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 28, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("SOLICITUD DE GASTOS", margin, 14);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("Barrio Madrid 8", margin, 21);
+
+    const requestTypeLabel = data.requestType === "reembolso" ? "Reembolso" : "Pago por adelantado";
+    doc.setFontSize(9);
+    doc.text(requestTypeLabel, pageWidth - margin, 14, { align: "right" });
+    doc.text(new Date().toLocaleDateString("es-ES"), pageWidth - margin, 21, { align: "right" });
+
+    let y = 40;
+
+    const drawSection = (title: string) => {
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(margin, y, contentWidth, 7, 1, 1, "F");
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(title.toUpperCase(), margin + 3, y + 4.8);
+      y += 10;
+    };
+
+    const drawField = (label: string, value: string, halfWidth = false, rightCol = false) => {
+      const colWidth = halfWidth ? contentWidth / 2 - 2 : contentWidth;
+      const colX = rightCol ? margin + contentWidth / 2 + 2 : margin;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(label, colX, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      const lines = doc.splitTextToSize(value || "—", colWidth - 2);
+      doc.text(lines, colX, y + 5);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(colX, y + 7.5, colX + colWidth, y + 7.5);
+      return lines.length * 5;
+    };
+
+    // Solicitante
+    drawSection("Solicitante");
+    drawField("Nombre", requesterName, true, false);
+    drawField("Organización", organizationName, true, true);
+    y += 15;
+    drawField("Fecha de solicitud", new Date().toLocaleDateString("es-ES"), true, false);
+    drawField("Fecha prevista del gasto", data.activityDate ? new Date(`${data.activityDate}T00:00:00`).toLocaleDateString("es-ES") : "—", true, true);
+    y += 15;
+
+    // Propósito del gasto
+    drawSection("Propósito del gasto");
+    const descLines = drawField("Propósito del gasto", data.description);
+    y += Math.max(15, descLines * 5 + 8);
+
+    drawField("Tipo de solicitud", requestTypeLabel, true, false);
+    drawField("Fecha prevista", data.activityDate ? new Date(`${data.activityDate}T00:00:00`).toLocaleDateString("es-ES") : "—", true, true);
+    y += 15;
+
+    // Categorías
+    drawSection("Categorías y montos");
+    const categoryColW = contentWidth * 0.6;
+    const amountColW = contentWidth * 0.4 - 2;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text("CATEGORÍA", margin, y);
+    doc.text("IMPORTE", margin + categoryColW + 2, y);
+    y += 4;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, margin + contentWidth, y);
+    y += 3;
+
+    let total = 0;
+    for (const cat of data.budgetCategories) {
+      const catLabel = BUDGET_CATEGORY_OPTIONS.find(o => o.value === cat.category)?.label ?? cat.category;
+      const displayLabel = cat.category === "otros" && cat.detail?.trim()
+        ? `Otros - ${cat.detail.trim()}`
+        : catLabel;
+      const amt = parseBudgetNumber(cat.amount);
+      total += amt;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      const catLines = doc.splitTextToSize(displayLabel, categoryColW - 2);
+      doc.text(catLines, margin, y + 4);
+      doc.text(`€ ${amt.toFixed(2)}`, margin + categoryColW + 2, y + 4);
+      y += Math.max(7, catLines.length * 5);
+      doc.setDrawColor(241, 245, 249);
+      doc.setLineWidth(0.2);
+      doc.line(margin, y, margin + contentWidth, y);
+      y += 2;
     }
 
+    // Total
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text("TOTAL", margin + 4, y + 4.5);
+    doc.setFontSize(13);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`€ ${total.toFixed(2)}`, margin + contentWidth - 4, y + 9, { align: "right" });
+    y += 17;
+
+    if (data.notes) {
+      drawSection("Notas");
+      const notesLines = drawField("Observaciones", data.notes);
+      y += Math.max(15, notesLines * 5 + 8);
+    }
+
+    // ── Signatures section ──
+    // Pinned near bottom so bishop coordinates are always predictable
+    const sigSectionY = pageHeight - 72;
+    y = Math.max(y + 4, sigSectionY);
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+
+    // Labels
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text("FIRMA DEL SOLICITANTE", margin, y);
+    doc.text("FIRMA DEL OBISPO", pageWidth / 2 + 4, y);
+    y += 2;
+
+    // Requester sig image (fits within left half)
+    const sigImgH = 20;
+    if (signatureDataUrl && signatureDataUrl.length > 100) {
+      doc.addImage(signatureDataUrl, "PNG", margin, y, 70, sigImgH);
+    }
+
+    // Signature underlines
+    const sigLineY = y + sigImgH + 2;
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    doc.line(margin, sigLineY, margin + 80, sigLineY);
+    doc.line(pageWidth / 2 + 4, sigLineY, pageWidth - margin, sigLineY);
+
+    // Names below lines
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(requesterName, margin, sigLineY + 4);
+    doc.text("Pendiente de firma", pageWidth / 2 + 4, sigLineY + 4);
+
+    // ── ESP CITIBANK DTA ──
+    const bankSectionY = sigLineY + 10;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(margin, bankSectionY, pageWidth - margin, bankSectionY);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text("ESP CITIBANK DTA", margin, bankSectionY + 6);
+
+    const bY = bankSectionY + 11;
+    const titularVal = data.pagarA;
+    const swiftVal = data.bankInSystem ? "Registrado en sistema LCR/CUFS" : (data.swift || "—");
+    const ibanVal = data.bankInSystem ? "Registrado en sistema LCR/CUFS" : (data.iban || "—");
+
+    const bankFields = [
+      ["Titular de la cuenta", titularVal],
+      ["Codigo bancario (SWIF o BIC)", swiftVal],
+      ["No. cuenta (IBAN)", ibanVal],
+    ] as [string, string][];
+
+    bankFields.forEach(([label, val], bi) => {
+      const fieldY = bY + bi * 10;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(label, margin, fieldY);
+      doc.setFont("helvetica", data.bankInSystem && bi > 0 ? "oblique" : "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(data.bankInSystem && bi > 0 ? 37 : 15, data.bankInSystem && bi > 0 ? 99 : 23, data.bankInSystem && bi > 0 ? 235 : 42);
+      doc.text(val, margin, fieldY + 4.5);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.line(margin, fieldY + 6, margin + contentWidth, fieldY + 6);
+    });
+
+    if (data.bankInSystem) {
+      doc.setFont("helvetica", "oblique");
+      doc.setFontSize(7);
+      doc.setTextColor(37, 99, 235);
+      doc.text("✓ Datos bancarios verificados en sistema LCR/CUFS de la Iglesia", margin, bY + 32);
+    } else if (data.bankJustificanteFile) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(22, 163, 74);
+      doc.text("✓ Justificante de titularidad adjunto a la solicitud", margin, bY + 32);
+    }
+
+    // Footer
+    doc.setFillColor(248, 250, 252);
+    doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Documento generado automáticamente · Barrio Madrid 8 · ESP CITIBANK DTA", pageWidth / 2, pageHeight - 5, { align: "center" });
+
+    const pdfBlob = doc.output("blob");
+    return new File([pdfBlob], `solicitud_gastos_${Date.now()}.pdf`, { type: "application/pdf" });
+  };
+
+  const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
     const targetOrganizationId = isObispado
       ? data.requestingOrganizationId
       : user?.organizationId;
@@ -422,16 +755,38 @@ export default function BudgetPage() {
       return;
     }
 
-    const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
+    // Validate requester signature
+    const requesterCanvas = requesterSignatureCanvasRef.current;
+    if (!requesterCanvas) {
+      alert("Error al acceder al campo de firma.");
+      return;
+    }
+    const signatureDataUrl = requesterCanvas.toDataURL("image/png");
+    const ctx = requesterCanvas.getContext("2d");
+    const pixelData = ctx?.getImageData(0, 0, requesterCanvas.width, requesterCanvas.height).data;
+    const hasSignature = pixelData ? Array.from(pixelData).some((v, i) => i % 4 !== 3 && v < 250) : false;
+    if (!hasSignature) {
+      alert("Por favor, añade tu firma antes de enviar la solicitud.");
+      return;
+    }
+
+    const orgName = (organizations as Organization[]).find((o) => o.id === targetOrganizationId)?.name ?? "";
+
+    // Compute total from all categories
+    const parsedAmount = data.budgetCategories.reduce((sum, cat) => sum + parseBudgetNumber(cat.amount), 0);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert("El importe total debe ser mayor que cero.");
+      return;
+    }
+
+    // First category value for the legacy `category` field
+    const firstCat = data.budgetCategories[0]?.category ?? "otros";
+    const legacyCategory = (["actividades", "materiales", "otros"].includes(firstCat) ? firstCat : "otros") as "actividades" | "materiales" | "otros";
 
     if (data.requestType === "reembolso" && data.receiptFile) {
       try {
         const uploadedReceipt = await uploadReceiptFile(data.receiptFile);
-        uploadedReceipts.push({
-          filename: uploadedReceipt.filename,
-          url: uploadedReceipt.url,
-          category: "receipt",
-        });
+        uploadedReceipts.push({ filename: uploadedReceipt.filename, url: uploadedReceipt.url, category: "receipt" });
       } catch (error) {
         console.error(error);
         alert("No se pudo subir el comprobante. Intenta nuevamente.");
@@ -439,26 +794,37 @@ export default function BudgetPage() {
       }
     }
 
-    if ((data.requestType === "pago_adelantado" || data.requestType === "reembolso") && data.activityPlanFile) {
+    if (!data.bankInSystem && data.bankJustificanteFile) {
       try {
-        const uploadedPlan = await uploadReceiptFile(data.activityPlanFile);
-        uploadedReceipts.push({
-          filename: uploadedPlan.filename,
-          url: uploadedPlan.url,
-          category: "plan",
-        });
+        const uploadedJustificante = await uploadReceiptFile(data.bankJustificanteFile);
+        uploadedReceipts.push({ filename: uploadedJustificante.filename, url: uploadedJustificante.url, category: "receipt" });
       } catch (error) {
         console.error(error);
-        alert("No se pudo subir la solicitud de gasto. Intenta nuevamente.");
+        alert("No se pudo subir el justificante bancario. Intenta nuevamente.");
         return;
       }
+    }
+
+    // Generate and upload the PDF automatically
+    try {
+      const pdfFile = await generateBudgetRequestPdf(data, user?.name ?? "Solicitante", orgName, signatureDataUrl);
+      const uploadedPlan = await uploadReceiptFile(pdfFile);
+      uploadedReceipts.push({
+        filename: uploadedPlan.filename,
+        url: uploadedPlan.url,
+        category: "plan",
+      });
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo generar o subir la solicitud de gastos. Intenta nuevamente.");
+      return;
     }
 
     createMutation.mutate(
       {
         description: data.description,
         amount: parsedAmount,
-        category: data.category,
+        category: legacyCategory,
         status: "solicitado",
         activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,
         notes: data.notes || "",
@@ -468,16 +834,20 @@ export default function BudgetPage() {
       {
         onSuccess: () => {
           setIsDialogOpen(false);
+          clearRequesterSignatureCanvas();
           budgetForm.reset({
             description: "",
-            amount: "",
-            category: "otros",
             requestType: "pago_adelantado",
             activityDate: "",
             notes: "",
             requestingOrganizationId: isObispado ? "" : user?.organizationId ?? "",
+            budgetCategories: [{ category: "", amount: "", detail: "" }],
+            pagarA: "",
+            bankInSystem: undefined,
+            swift: "",
+            iban: "",
+            bankJustificanteFile: undefined,
             receiptFile: undefined,
-            activityPlanFile: undefined,
           });
         },
       }
@@ -1069,28 +1439,121 @@ export default function BudgetPage() {
                     )}
                   />
 
-                  <FormField
-                    control={budgetForm.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Categoría</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-budget-category">
-                              <SelectValue placeholder="Selecciona categoría" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="actividades">Actividades</SelectItem>
-                            <SelectItem value="materiales">Materiales</SelectItem>
-                            <SelectItem value="otros">Otros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
+                  {/* ── Categorías dinámicas ── */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Categorías y montos</label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const current = budgetForm.getValues("budgetCategories");
+                          budgetForm.setValue("budgetCategories", [...current, { category: "", amount: "", detail: "" }]);
+                        }}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Añadir categoría
+                      </Button>
+                    </div>
+
+                    {watchedCategories.map((cat, index) => (
+                      <div key={index} className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-1">
+                            <FormField
+                              control={budgetForm.control}
+                              name={`budgetCategories.${index}.category`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger className="h-8 text-sm" data-testid={`select-budget-category-${index}`}>
+                                        <SelectValue placeholder="Selecciona categoría" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="max-h-52 overflow-y-auto">
+                                      {BUDGET_CATEGORY_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className="w-28 space-y-1">
+                            <FormField
+                              control={budgetForm.control}
+                              name={`budgetCategories.${index}.amount`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <BudgetCurrencyInput
+                                      {...field}
+                                      className="h-8 text-sm"
+                                      onBlur={(e) => { field.onChange(formatCurrencyInputValue(e.target.value)); field.onBlur(); }}
+                                      data-testid={`input-budget-amount-${index}`}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          {watchedCategories.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => {
+                                const current = budgetForm.getValues("budgetCategories");
+                                budgetForm.setValue("budgetCategories", current.filter((_, i) => i !== index));
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Campo "Especifique" si se selecciona Otros */}
+                        {cat.category === "otros" && (
+                          <FormField
+                            control={budgetForm.control}
+                            name={`budgetCategories.${index}.detail`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Especifique..."
+                                    className="h-8 text-sm"
+                                    {...field}
+                                    data-testid={`input-budget-detail-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Total calculado */}
+                    {watchedCategories.some(c => c.amount) && (
+                      <div className="flex justify-end pr-1">
+                        <span className="text-xs text-muted-foreground mr-2 self-center">Total:</span>
+                        <span className="text-sm font-semibold">
+                          € {watchedCategories.reduce((sum, c) => sum + parseBudgetNumber(c.amount), 0).toFixed(2)}
+                        </span>
+                      </div>
                     )}
-                  />
+                  </div>
 
                   <FormField
                     control={budgetForm.control}
@@ -1166,15 +1629,139 @@ export default function BudgetPage() {
                     )}
                   />
 
-                  <FormField
-                    control={budgetForm.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Notas (Opcional)</FormLabel>
+                  {/* ── PAGAR A ── */}
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm font-semibold text-foreground mb-3">Pagar a</p>
+                    <FormField
+                      control={budgetForm.control}
+                      name="pagarA"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre del beneficiario <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre completo de quien recibe el pago" {...field} data-testid="input-pagar-a" />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Puede ser distinto al solicitante. Se usará como titular en la sección bancaria del PDF.</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* ── DATOS BANCARIOS ── */}
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm font-semibold text-foreground mb-3">Datos bancarios del beneficiario</p>
+                    <FormField
+                      control={budgetForm.control}
+                      name="bankInSystem"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>¿Tiene datos bancarios registrados en el sistema de la Iglesia (LCR/CUFS)? <span className="text-destructive">*</span></FormLabel>
+                          <div className="grid grid-cols-2 gap-3 mt-1">
+                            {([
+                              [true, "✓", "Sí, están registrados"],
+                              [false, "✗", "No, los introduzco ahora"],
+                            ] as [boolean, string, string][]).map(([val, icon, txt]) => (
+                              <button
+                                key={String(val)}
+                                type="button"
+                                onClick={() => field.onChange(val)}
+                                className={[
+                                  "flex flex-col items-start gap-1 rounded-lg border p-3 text-left text-sm transition-colors",
+                                  field.value === val
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border bg-background text-muted-foreground hover:border-muted-foreground",
+                                ].join(" ")}
+                                data-testid={`button-bank-in-system-${val}`}
+                              >
+                                <span className="text-base font-bold">{icon}</span>
+                                <span className="font-medium">{txt}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {watchedBankInSystem === true && (
+                      <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-400">
+                        ✓ El PDF indicará que los datos están verificados en el sistema LCR/CUFS. El titular se tomará del campo "Pagar a".
+                      </div>
+                    )}
+
+                    {watchedBankInSystem === false && (
+                      <div className="mt-3 flex flex-col gap-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={budgetForm.control}
+                            name="swift"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>SWIFT / BIC</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Ej: CAIXESBB" {...field} data-testid="input-swift" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={budgetForm.control}
+                            name="iban"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>IBAN <span className="text-destructive">*</span></FormLabel>
+                                <FormControl>
+                                  <Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} data-testid="input-iban" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={budgetForm.control}
+                          name="bankJustificanteFile"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Justificante de titularidad <span className="text-destructive">*</span></FormLabel>
+                              <FormControl>
+                                <div className="flex flex-col gap-2">
+                                  <Input
+                                    id="bank-justificante-file"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.pdf,.png"
+                                    onChange={(e) => field.onChange(e.target.files?.[0] ?? undefined)}
+                                    onBlur={field.onBlur}
+                                    ref={field.ref}
+                                    className="hidden"
+                                    data-testid="input-bank-justificante"
+                                  />
+                                  <Button type="button" variant="outline" className="w-fit" asChild>
+                                    <label htmlFor="bank-justificante-file" className="cursor-pointer">
+                                      <Upload className="h-4 w-4 mr-2" />
+                                      Seleccionar justificante
+                                    </label>
+                                  </Button>
+                                  <span className="text-xs text-muted-foreground">
+                                    {field.value ? `✓ ${field.value.name}` : "Ningún archivo seleccionado — JPG, PNG o PDF"}
+                                  </span>
+                                </div>
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">Captura o PDF del banco que acredite la titularidad de la cuenta.</p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+
                         <FormControl>
                           <Textarea
-                            placeholder="Detalles adicionales sobre la solicitud"
+                            placeholder="Detalla el propósito del gasto..."
                             {...field}
                             data-testid="textarea-notes"
                           />
@@ -1224,42 +1811,39 @@ export default function BudgetPage() {
                   )}
 
                   {(budgetRequestType === "pago_adelantado" || budgetRequestType === "reembolso") && (
-                    <FormField
-                      control={budgetForm.control}
-                      name="activityPlanFile"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Solicitud de gastos</FormLabel>
-                          <FormControl>
-                            <div className="flex flex-col gap-2">
-                              <Input
-                                id="budget-activity-plan-file"
-                                type="file"
-                                accept={allowedDocumentExtensions.join(",")}
-                                onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
-                                onBlur={field.onBlur}
-                                ref={field.ref}
-                                className="hidden"
-                                data-testid="input-activity-plan-file"
-                              />
-                              <Button type="button" variant="outline" className="w-fit" asChild>
-                                <label htmlFor="budget-activity-plan-file" className="cursor-pointer">
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Subir solicitud de gasto
-                                </label>
-                              </Button>
-                              <span className="text-xs text-muted-foreground">
-                                {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
-                              </span>
-                            </div>
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para pago por adelantado.
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Firma del solicitante <span className="text-destructive">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={clearRequesterSignatureCanvas}
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Limpiar
+                        </button>
+                      </div>
+                      <div className="rounded-md border border-dashed border-slate-600 bg-[#0d1117] p-2">
+                        <canvas
+                          ref={requesterSignatureCanvasRef}
+                          width={700}
+                          height={180}
+                          className="h-36 w-full rounded border border-slate-200 bg-white"
+                          style={{ touchAction: "none" }}
+                          onPointerDown={startRequesterDrawing}
+                          onPointerMove={drawRequesterSignature}
+                          onPointerUp={stopRequesterDrawing}
+                          onPointerLeave={stopRequesterDrawing}
+                          data-testid="canvas-requester-signature"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <PenLine className="h-3 w-3" />
+                        Esta firma quedará registrada en el formulario de solicitud de gastos generado automáticamente.
+                      </p>
+                    </div>
                   )}
 
                   <div className="flex justify-end gap-2">

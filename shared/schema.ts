@@ -501,6 +501,7 @@ export const budgetRequests = pgTable("budget_requests", {
   bishopSignedPlanUrl: text("bishop_signed_plan_url"),
   receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
   notes: text("notes"),
+  pagarA: text("pagar_a"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
