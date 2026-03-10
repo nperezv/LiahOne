@@ -160,13 +160,13 @@ export async function generateBudgetRequestPdf(params: {
 
   const drawSectionTitle = (title: string) => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(...black);
-    doc.text(title, margin, y + 4);
+    doc.text(title, margin, y + 3.5);
     doc.setDrawColor(...black);
     doc.setLineWidth(0.5);
-    doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5);
-    y += 8;
+    doc.line(margin, y + 5, margin + contentWidth, y + 5);
+    y += 7;
   };
 
   // ═══════════════════════════════════════════════
@@ -178,19 +178,19 @@ export async function generateBudgetRequestPdf(params: {
   const dateColX = margin + contentWidth - dateColW;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...grayLabel);
   doc.text("Nombre", margin, y + 3);
   doc.text("Fecha", dateColX, y + 3);
 
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(...black);
-  doc.text(requesterName, margin, y + 8);
-  doc.text(new Date().toLocaleDateString("es-ES"), dateColX, y + 8);
+  doc.text(requesterName, margin, y + 7.5);
+  doc.text(new Date().toLocaleDateString("es-ES"), dateColX, y + 7.5);
 
-  y += 11;
+  y += 10;
   thinLine();
-  y += 3;
+  y += 2;
 
   // ═══════════════════════════════════════════════
   // PAGAR A
@@ -198,26 +198,26 @@ export async function generateBudgetRequestPdf(params: {
   drawSectionTitle("PAGAR A");
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...grayLabel);
   doc.text("Nombre", margin, y + 3);
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(...black);
-  doc.text(data.pagarA || "", margin, y + 8);
-  y += 11;
+  doc.text(data.pagarA || "", margin, y + 7.5);
+  y += 10;
   thinLine();
-  y += 2;
+  y += 1;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(...grayLabel);
   doc.text("Dirección", margin, y + 3);
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(...black);
-  doc.text(data.direccion || "", margin, y + 8);
-  y += 11;
+  doc.text(data.direccion || "", margin, y + 7.5);
+  y += 10;
   thinLine();
-  y += 5; // ~14pt gap before PROPÓSITO
+  y += 4; // gap before PROPÓSITO
 
   // ═══════════════════════════════════════════════
   // PROPÓSITO DEL GASTO
@@ -225,17 +225,17 @@ export async function generateBudgetRequestPdf(params: {
   drawSectionTitle("PROPÓSITO DEL GASTO");
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(...black);
-  doc.text("Razón", margin, y + 4);
-  y += 5;
+  doc.text("Razón", margin, y + 3.5);
+  y += 4;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(...black);
   const reasonLines = doc.splitTextToSize(data.description || "", contentWidth - 2);
   doc.text(reasonLines, margin, y + 4);
-  y += Math.max(7, reasonLines.length * 4.2) + 2;
+  y += Math.max(6, reasonLines.length * 4) + 2;
   thinLine();
   y += 2; // ~6pt gap before categories
 
@@ -244,7 +244,7 @@ export async function generateBudgetRequestPdf(params: {
   // ═══════════════════════════════════════════════
   const catColW  = contentWidth * 0.72;
   const amtColX  = margin + catColW;
-  const catRowH  = 11; // mm per row
+  const catRowH  = 10; // mm per row
 
   let total = 0;
   const realCats = data.budgetCategories;
@@ -255,7 +255,7 @@ export async function generateBudgetRequestPdf(params: {
 
     // Column labels
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setTextColor(...grayLabel);
     doc.text("Categoría", margin, y + 3);
     doc.text("Cantidad", amtColX, y + 3);
@@ -270,11 +270,11 @@ export async function generateBudgetRequestPdf(params: {
       total += amt;
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(...black);
       const catLines = doc.splitTextToSize(displayLabel, catColW - 4);
-      doc.text(catLines, margin, y + 8);
-      doc.text(`€ ${amt.toFixed(2)}`, amtColX, y + 8);
+      doc.text(catLines, margin, y + 7.5);
+      doc.text(`€ ${amt.toFixed(2)}`, amtColX, y + 7.5);
     }
 
     // Vertical separator cat / amount
@@ -344,7 +344,7 @@ export async function generateBudgetRequestPdf(params: {
   doc.rect(margin, y, contentWidth, legalH, "FD");
   doc.setTextColor(60, 60, 60);
   doc.text(legalLines, margin + 2, y + legalPad + 2.5);
-  y += legalH + 3;
+  y += legalH + 2;
 
   // ═══════════════════════════════════════════════
   // PARA USO EXCLUSIVO DEL SECRETARIO
@@ -352,11 +352,11 @@ export async function generateBudgetRequestPdf(params: {
   drawSectionTitle("Para uso exclusivo del secretario");
 
   // 2 equal columns, no vertical border between them
-  const sigGap      = 7;  // mm gap between columns
+  const sigGap      = 6;  // mm gap between columns
   const sigColWidth = (contentWidth - sigGap) / 2;
   const col1X       = margin;
   const col2X       = margin + sigColWidth + sigGap;
-  const sigImgH     = 18; // mm signature image height
+  const sigImgH     = 15; // mm signature image height
   const sigImgW     = sigColWidth - 2;
 
   const drawSigCol = (colX: number, label: string, sigDataUrl: string, name: string, date: string) => {
@@ -381,25 +381,25 @@ export async function generateBudgetRequestPdf(params: {
 
     // Name
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...black);
-    doc.text(name, colX, imgY + sigImgH + 5);
+    doc.text(name, colX, imgY + sigImgH + 4);
 
     // Date
-    doc.text(date, colX, imgY + sigImgH + 10);
+    doc.text(date, colX, imgY + sigImgH + 8.5);
   };
 
   const todayStr = new Date().toLocaleDateString("es-ES");
   drawSigCol(col1X, "FIRMA DEL SOLICITANTE", applicantSignatureDataUrl, requesterName, todayStr);
   drawSigCol(col2X, "FIRMA DEL OBISPO", bishopSignatureDataUrl, `Obispo: ${signerName}`, todayStr);
 
-  // Advance y past signature block: label(6) + image(18) + line(1) + name(5) + date(5) + margin
-  y += 6 + sigImgH + 12;
+  // Advance y past signature block: label(5) + image(15) + line(1) + name(4) + date(4.5) + margin
+  y += 5 + sigImgH + 10;
 
   // ═══════════════════════════════════════════════
   // TEXTO DE SEGURIDAD + LÍNEA PUNTEADA (texto primero, línea debajo)
   // ═══════════════════════════════════════════════
-  y += 4;
+  y += 3;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(80, 80, 80);
@@ -409,7 +409,7 @@ export async function generateBudgetRequestPdf(params: {
     y + 3,
     { align: "center", maxWidth: contentWidth },
   );
-  y += 8;
+  y += 7;
 
   doc.setDrawColor(...gray999);
   doc.setLineWidth(0.5);
@@ -444,23 +444,23 @@ export async function generateBudgetRequestPdf(params: {
   for (const [label, val] of bankFields) {
     const isSystem = bankInSystem && label !== "Titular de la cuenta";
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setTextColor(...grayLabel);
     doc.text(label, margin, y + 3);
 
     doc.setFont("helvetica", isSystem ? "italic" : "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(
       isSystem ? blue[0]  : black[0],
       isSystem ? blue[1]  : black[1],
       isSystem ? blue[2]  : black[2],
     );
-    doc.text(val, margin, y + 8);
+    doc.text(val, margin, y + 7.5);
 
     doc.setDrawColor(...gray999);
     doc.setLineWidth(0.18);
-    doc.line(margin, y + 10, margin + contentWidth * 0.55, y + 10);
-    y += 12;
+    doc.line(margin, y + 9.5, margin + contentWidth * 0.55, y + 9.5);
+    y += 11;
   }
 
   if (bankInSystem) {
