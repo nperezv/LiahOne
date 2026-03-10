@@ -830,7 +830,8 @@ function SacramentalMeetingPageInner() {
     if (!mainEl) return;
     const update = () => {
       if (formPanelRef.current) {
-        formPanelRef.current.style.height = `${mainEl.clientHeight}px`;
+        const paddingBottom = parseFloat(window.getComputedStyle(mainEl).paddingBottom) || 0;
+        formPanelRef.current.style.height = `${mainEl.clientHeight - paddingBottom}px`;
       }
     };
     update();
