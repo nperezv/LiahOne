@@ -634,8 +634,16 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
       });
     }
 
-    const [location] = await db.select({ code: inventoryLocations.code }).from(inventoryLocations).where(eq(inventoryLocations.id, link.targetId)).limit(1);
-    return res.json({ type: "location", location_code: location?.code ?? null });
+    const [location] = await db
+      .select({ code: inventoryLocations.code, name: inventoryLocations.name })
+      .from(inventoryLocations)
+      .where(eq(inventoryLocations.id, link.targetId))
+      .limit(1);
+    return res.json({
+      type: "location",
+      location_code: location?.code ?? null,
+      location_name: location?.name ?? null,
+    });
   };
 
   app.get("/api/inventory/by-nfc/:uid", requireAuth, requireRead, byNfcHandler);
