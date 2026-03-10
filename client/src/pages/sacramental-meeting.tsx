@@ -62,37 +62,57 @@ const HymnAutocomplete = ({
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
-  const datalistId = `hymn-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const filteredValues = useMemo(() => new Set(filtered.map((o) => o.value)), [filtered]);
-
-  const handleChange = (nextValue: string) => {
-    onChange(nextValue);
-    if (filteredValues.has(nextValue)) {
-      window.requestAnimationFrame(() => {
-        inputRef.current?.blur();
-      });
-    }
-  };
 
   return (
-    <>
+    <div className="space-y-1.5">
       <Input
-        ref={inputRef}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
-        list={datalistId}
-        onChange={(e) => handleChange(e.target.value)}
-        onBlur={() => { onBlur(); onNormalize(value); }}
+        onFocus={() => setIsOpen(true)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onBlur={() => {
+          window.setTimeout(() => {
+            setIsOpen(false);
+            onBlur();
+            onNormalize(value);
+          }, 80);
+        }}
       />
-      <datalist id={datalistId}>
-        {filtered.slice(0, 100).map((o) => (
-          <option key={o.number} value={o.value}>{`${o.number} — ${o.title}`}</option>
-        ))}
-      </datalist>
-    </>
+
+      {isOpen && (
+        <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/95 shadow-md">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground">No se encontraron himnos.</div>
+          ) : (
+            filtered.slice(0, 20).map((o) => (
+              <button
+                key={o.number}
+                type="button"
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/70",
+                  o.value === value && "bg-accent text-accent-foreground"
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(o.value);
+                  onNormalize(o.value);
+                  setIsOpen(false);
+                }}
+              >
+                <span className="w-8 shrink-0 text-xs font-bold text-muted-foreground">{o.number}</span>
+                <span className="truncate">{o.title}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -111,37 +131,54 @@ const MemberAutocomplete = ({
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
-  const datalistId = `member-autocomplete-${(testId || "default").replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const filteredValues = useMemo(() => new Set(filtered.map((o) => o.value)), [filtered]);
-
-  const handleChange = (nextValue: string) => {
-    onChange(nextValue);
-    if (filteredValues.has(nextValue)) {
-      window.requestAnimationFrame(() => {
-        inputRef.current?.blur();
-      });
-    }
-  };
 
   return (
-    <>
+    <div className="space-y-1.5">
       <Input
-        ref={inputRef}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
-        list={datalistId}
-        onChange={(e) => handleChange(e.target.value)}
-        onBlur={() => { onBlur?.(); }}
+        onFocus={() => setIsOpen(true)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onBlur={() => {
+          window.setTimeout(() => {
+            setIsOpen(false);
+            onBlur?.();
+          }, 80);
+        }}
       />
-      <datalist id={datalistId}>
-        {filtered.slice(0, 100).map((o) => (
-          <option key={o.value} value={o.value} />
-        ))}
-      </datalist>
-    </>
+
+      {isOpen && (
+        <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/95 shadow-md">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground">No se encontraron miembros.</div>
+          ) : (
+            filtered.slice(0, 20).map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className={cn(
+                  "flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent/70",
+                  o.value === value && "bg-accent text-accent-foreground"
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(o.value);
+                  setIsOpen(false);
+                }}
+              >
+                <span className="truncate">{o.value}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
