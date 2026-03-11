@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps, type Pointer
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Search } from "lucide-react";
+import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,6 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   useWelfareRequests,
   useCreateWelfareRequest,
@@ -181,6 +183,7 @@ export default function WelfarePage() {
   }, [search]);
 
   const [memberSearch, setMemberSearch] = useState("");
+  const [favorDeOpen, setFavorDeOpen] = useState(false);
 
   const { user } = useAuth();
   const { data: requests = [] as WelfareRequest[], isLoading: requestsLoading } = useWelfareRequests();
@@ -826,50 +829,65 @@ export default function WelfarePage() {
                     <FormField
                       control={welfareForm.control}
                       name="favorDe"
-                      render={({ field }) => {
-                        const filtered = (allMembers as any[])
-                          .filter((m: any) => {
-                            const name = (m.nameSurename ?? m.name ?? "").toLowerCase();
-                            return name.includes(memberSearch.toLowerCase());
-                          })
-                          .slice(0, 50);
-                        return (
-                          <FormItem>
-                            <FormLabel>Solicitud a favor de <span className="text-destructive">*</span></FormLabel>
-                            <div className="space-y-1">
-                              <div className="relative">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                                <Input
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Solicitud a favor de <span className="text-destructive">*</span></FormLabel>
+                          <Popover open={favorDeOpen} onOpenChange={setFavorDeOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  data-testid="select-welfare-favor-de"
+                                  className="w-full justify-between font-normal"
+                                >
+                                  {field.value || "Buscar miembro..."}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0" align="start">
+                              <Command shouldFilter={false}>
+                                <CommandInput
                                   placeholder="Buscar miembro..."
                                   value={memberSearch}
-                                  onChange={(e) => setMemberSearch(e.target.value)}
-                                  className="pl-8 text-sm"
-                                  data-testid="input-welfare-favor-de-search"
+                                  onValueChange={setMemberSearch}
                                 />
-                              </div>
-                              <Select onValueChange={(val) => { field.onChange(val); setMemberSearch(""); }} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger data-testid="select-welfare-favor-de">
-                                    <SelectValue placeholder="Selecciona un miembro" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent className="max-h-52 overflow-y-auto">
-                                  {filtered.length > 0
-                                    ? filtered.map((m: any) => (
-                                        <SelectItem key={m.id} value={m.nameSurename ?? m.name ?? m.id}>
-                                          {m.nameSurename ?? m.name}
-                                        </SelectItem>
-                                      ))
-                                    : <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
-                                  }
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <p className="text-xs text-muted-foreground">El solicitante será registrado automáticamente como el pagador.</p>
-                            <FormMessage />
-                          </FormItem>
-                        );
-                      }}
+                                <CommandList>
+                                  <CommandEmpty>Sin resultados</CommandEmpty>
+                                  <CommandGroup>
+                                    {(allMembers as any[])
+                                      .filter((m: any) => {
+                                        const name = (m.nameSurename ?? m.name ?? "").toLowerCase();
+                                        return name.includes(memberSearch.toLowerCase());
+                                      })
+                                      .slice(0, 50)
+                                      .map((m: any) => {
+                                        const name = m.nameSurename ?? m.name ?? m.id;
+                                        return (
+                                          <CommandItem
+                                            key={m.id}
+                                            value={name}
+                                            onSelect={() => {
+                                              field.onChange(name);
+                                              setMemberSearch("");
+                                              setFavorDeOpen(false);
+                                            }}
+                                          >
+                                            <Check className={`mr-2 h-4 w-4 ${field.value === name ? "opacity-100" : "opacity-0"}`} />
+                                            {name}
+                                          </CommandItem>
+                                        );
+                                      })}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">El solicitante será registrado automáticamente como el pagador.</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
 
                     {/* 6. Bank data */}
