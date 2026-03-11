@@ -120,6 +120,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     icon: Heart,
     roles: ["obispo", "presidente_organizacion"],
     organizationTypes: ["sociedad_socorro", "cuorum_elderes"],
+    // obispo bypasses organizationTypes check; presidentes only if their org matches
   },
   {
     title: "Presupuestos",
@@ -211,7 +212,7 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     // Otherwise, only visible if user's role is in the list
     if (!item.roles.includes(userRole)) return false;
     if (!item.organizationTypes) return true;
-    if (["obispo", "consejero_obispo"].includes(userRole)) return true;
+    if (userRole === "obispo") return true;
     if (!organizationType) return false;
     return item.organizationTypes.includes(organizationType);
   }).map(item => {
