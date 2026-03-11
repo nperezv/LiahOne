@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { generateBudgetRequestPdf } from "./pdf/budget-pdf";
+import { generateWelfareRequestPdf } from "./pdf/welfare-pdf";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
@@ -17,6 +18,7 @@ import {
   insertPresidencyMeetingSchema,
   insertPresidencyResourceSchema,
   insertBudgetRequestSchema,
+  insertWelfareRequestSchema,
   insertInterviewSchema,
   insertOrganizationInterviewSchema,
   insertGoalSchema,
@@ -3031,9 +3033,294 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // WELFARE REQUESTS
+  // ========================================
+
+  const WELFARE_REQUESTER_ORGS = new Set(["sociedad_socorro", "cuorum_elderes"]);
+
+  app.get("/api/welfare-requests", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const requests = await storage.getAllWelfareRequests();
+
+      if (user.role === "obispo") {
+        return res.json(requests);
+      }
+
+      // presidente_organizacion of sociedad_socorro or cuorum_elderes
+      if (user.role === "presidente_organizacion" && user.organizationId) {
+        const allOrgs = await storage.getAllOrganizations();
+        const userOrg = allOrgs.find((o: any) => o.id === user.organizationId);
+        if (userOrg && WELFARE_REQUESTER_ORGS.has(userOrg.type)) {
+          return res.json(requests.filter((r: any) => r.organizationId === user.organizationId));
+        }
+      }
+
+      return res.status(403).json({ error: "No tienes acceso al módulo de bienestar" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/welfare-requests", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+
+      let effectiveOrganizationId: string | null = null;
+
+      if (user.role === "obispo") {
+        effectiveOrganizationId = req.body?.organizationId || null;
+      } else if (user.role === "presidente_organizacion" && user.organizationId) {
+        const allOrgs = await storage.getAllOrganizations();
+        const userOrg = allOrgs.find((o: any) => o.id === user.organizationId);
+        if (!userOrg || !WELFARE_REQUESTER_ORGS.has(userOrg.type)) {
+          return res.status(403).json({ error: "Solo presidentes de Sociedad de Socorro o Cuórum de Élderes pueden solicitar ayuda de bienestar" });
+        }
+        effectiveOrganizationId = user.organizationId;
+      } else {
+        return res.status(403).json({ error: "No tienes permisos para crear solicitudes de bienestar" });
+      }
+
+      const normalizedActivityDate = normalizeBudgetRequestActivityDate(req.body?.activityDate);
+      if (normalizedActivityDate === undefined) {
+        return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
+      }
+
+      const requestData = insertWelfareRequestSchema.parse({
+        ...req.body,
+        organizationId: effectiveOrganizationId,
+        activityDate: normalizedActivityDate,
+        requestedBy: user.id,
+      });
+
+      const welfareRequest = await storage.createWelfareRequest(requestData);
+
+      // Notify bishop about new welfare request
+      const allUsers = await storage.getAllUsers();
+      const bishop = allUsers.find((u: any) => u.role === "obispo");
+      if (bishop && bishop.id !== user.id) {
+        const notification = await storage.createNotification({
+          userId: bishop.id,
+          type: "reminder",
+          title: "Nueva Solicitud de Bienestar",
+          description: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+          relatedId: welfareRequest.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(bishop.id, {
+            title: "Nueva Solicitud de Bienestar",
+            body: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+            url: "/welfare",
+            notificationId: notification.id,
+          });
+        }
+      }
+
+      res.status(201).json(welfareRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/welfare-requests/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const hasActivityDate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "activityDate");
+      const normalizedActivityDate = hasActivityDate
+        ? normalizeBudgetRequestActivityDate(req.body?.activityDate)
+        : undefined;
+
+      if (hasActivityDate && normalizedActivityDate === undefined) {
+        return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
+      }
+
+      const requestData = insertWelfareRequestSchema.partial().parse({
+        ...req.body,
+        ...(hasActivityDate ? { activityDate: normalizedActivityDate } : {}),
+      });
+
+      const welfareRequest = await storage.updateWelfareRequest(id, requestData);
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      res.json(welfareRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/welfare-requests/:id/sign", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const signatureSchema = z.object({
+        signatureDataUrl: z.string().min(20, "Firma requerida"),
+        signerName: z.string().trim().min(3, "Nombre del obispo requerido"),
+      });
+      const { signatureDataUrl, signerName } = signatureSchema.parse(req.body);
+
+      const existingRequest = await storage.getWelfareRequest(id);
+      if (!existingRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      if (existingRequest.status !== "solicitado") {
+        return res.status(400).json({ error: "La solicitud no está en estado solicitado" });
+      }
+
+      if (!existingRequest.applicantSignatureDataUrl) {
+        return res.status(400).json({ error: "La solicitud no contiene la firma del solicitante" });
+      }
+
+      const requesterUser = await storage.getUser(existingRequest.requestedBy);
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+
+      const welfareCategories = (existingRequest.welfareCategoriesJson as { category: string; amount: string; detail?: string }[] | null) ?? [];
+
+      const pdfBuffer = await generateWelfareRequestPdf({
+        data: {
+          description: existingRequest.description,
+          requestType: (existingRequest.requestType as string) ?? "pago_adelantado",
+          activityDate: existingRequest.activityDate ? new Date(existingRequest.activityDate) : null,
+          welfareCategories,
+          pagarA: existingRequest.pagarA,
+          bankData: existingRequest.bankData as { bankInSystem: boolean; swift?: string; iban?: string } | null,
+          notes: existingRequest.notes,
+          hasReceiptAttached: (existingRequest.receipts || []).some((r: any) => r?.category === "bank_justificante"),
+        },
+        requesterName: requesterUser?.name ?? "Solicitante",
+        applicantSignatureDataUrl: existingRequest.applicantSignatureDataUrl,
+        bishopSignatureDataUrl: signatureDataUrl,
+        signerName,
+        wardName,
+      });
+
+      const signedStoredFilename = `${randomUUID()}-solicitud-bienestar-firmada.pdf`;
+      const signedAbsolutePath = path.join(uploadsPath, signedStoredFilename);
+      await fs.promises.writeFile(signedAbsolutePath, pdfBuffer);
+
+      const signedPlanFilename = "solicitud-bienestar-firmada.pdf";
+      const signedPlanUrl = `/uploads/${signedStoredFilename}`;
+
+      const welfareRequest = await storage.approveWelfareRequestBishop(id, req.session.userId!, {
+        dataUrl: signatureDataUrl,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        signedPlanFilename,
+        signedPlanUrl,
+      });
+
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      // Notify requester
+      const approvalNotification = await storage.createNotification({
+        userId: welfareRequest.requestedBy,
+        type: "budget_approved",
+        title: "Solicitud de bienestar aprobada",
+        description: `Se ha aprobado y firmado tu solicitud "${welfareRequest.description}".`,
+        relatedId: welfareRequest.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(welfareRequest.requestedBy, {
+          title: "Solicitud de bienestar aprobada",
+          body: `Se ha aprobado y firmado tu solicitud "${welfareRequest.description}".`,
+          url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
+          notificationId: approvalNotification.id,
+        });
+      }
+
+      res.json({ ...welfareRequest, signedPlanUrl, signedPlanFilename });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/welfare-requests/:id/review", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const payloadSchema = z.object({
+        action: z.enum(["rechazar", "enmendar"]),
+        reason: z.string().trim().min(10, "El motivo debe tener al menos 10 caracteres"),
+      });
+      const { action, reason } = payloadSchema.parse(req.body);
+
+      const welfareRequest = await storage.getWelfareRequest(id);
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      if (welfareRequest.status !== "solicitado") {
+        return res.status(400).json({ error: "La solicitud no puede revisarse en su estado actual" });
+      }
+
+      const nextStatus = action === "rechazar" ? "rechazada" : "solicitado";
+      const updatedRequest = await storage.updateWelfareRequest(id, {
+        status: nextStatus as any,
+        notes: [
+          welfareRequest.notes,
+          `${action === "rechazar" ? "Rechazada" : "Devuelta para enmienda"} por obispo: ${reason}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      });
+
+      if (!updatedRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      // Notify requester
+      await storage.createNotification({
+        userId: welfareRequest.requestedBy,
+        type: "budget_rejected",
+        title: action === "rechazar" ? "Solicitud de bienestar rechazada" : "Solicitud de bienestar devuelta",
+        description: `Tu solicitud "${welfareRequest.description}" fue ${action === "rechazar" ? "rechazada" : "devuelta para enmienda"}. Motivo: ${reason}`,
+        relatedId: welfareRequest.id,
+        isRead: false,
+      });
+
+      res.json(updatedRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/welfare-requests/:id", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const welfareRequest = await storage.getWelfareRequest(id);
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+      await storage.deleteWelfareRequest(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
   // INTERVIEWS
   // ========================================
-  
+
   app.get("/api/interviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;

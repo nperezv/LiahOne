@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, Phone, Plus, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, Heart, Phone, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,6 +22,7 @@ import {
   useCreatePresidencyMeeting,
   useOrganizationInterviews,
   useUsers,
+  useWelfareRequests,
 } from "@/hooks/use-api";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -196,6 +197,7 @@ export default function PresidencyManageOrganizationPage() {
   const { data: attendance = [] } = useOrganizationAttendanceByOrg(organizationId);
   const { data: organizationInterviews = [] } = useOrganizationInterviews();
   const { data: users = [] } = useUsers();
+  const { data: welfareRequestsData = [] } = useWelfareRequests();
   const createMutation = useCreatePresidencyMeeting(organizationId);
   const upsertAttendanceMutation = useUpsertOrganizationAttendance();
 
@@ -246,6 +248,7 @@ export default function PresidencyManageOrganizationPage() {
   const currentOrganization = organizations.find((org: any) => org.id === organizationId);
   const organizationType = currentOrganization?.type;
   const canUseOrganizationInterviews = organizationType === "cuorum_elderes" || organizationType === "sociedad_socorro";
+  const canUseBienestar = organizationType === "cuorum_elderes" || organizationType === "sociedad_socorro";
   const hasOrganizationInterviewsAccess =
     user?.organizationId === organizationId &&
     (user?.role === "presidente_organizacion" ||
@@ -857,6 +860,32 @@ export default function PresidencyManageOrganizationPage() {
             </CardContent>
           ) : null}
         </Card>
+
+        {canUseBienestar ? (
+        <Card className="rounded-3xl border-border/70">
+          <CardHeader className="pb-3">
+            <div>
+              <CardTitle className="flex items-center gap-2"><Heart className="h-4 w-4 text-rose-500" />Bienestar</CardTitle>
+              <CardDescription>Solicitudes de ayuda con Ofrendas de Ayuno</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                <p className="text-muted-foreground">Pendientes</p>
+                <p className="text-xl font-semibold">{(welfareRequestsData as any[]).filter((r: any) => r.organizationId === organizationId && r.status === "solicitado").length}</p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                <p className="text-muted-foreground">Aprobadas</p>
+                <p className="text-xl font-semibold">{(welfareRequestsData as any[]).filter((r: any) => r.organizationId === organizationId && r.status === "aprobado").length}</p>
+              </div>
+            </div>
+            <Button variant="outline" className="w-full rounded-full" onClick={() => navigateWithTransition(setLocation, "/welfare")}>
+              Ver solicitudes
+            </Button>
+          </CardContent>
+        </Card>
+        ) : null}
 
       </div>
           </div>

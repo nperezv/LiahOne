@@ -692,6 +692,134 @@ export function useSignBudgetRequestAsBishop() {
 }
 
 // ========================================
+// WELFARE REQUESTS
+// ========================================
+
+export function useWelfareRequests() {
+  return useQuery<any>({
+    queryKey: ["/api/welfare-requests"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useCreateWelfareRequest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/welfare-requests", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/welfare-requests"] });
+      toast({
+        title: "Solicitud creada",
+        description: "La solicitud de bienestar ha sido enviada.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo crear la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useUpdateWelfareRequest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => apiRequest("PUT", `/api/welfare-requests/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/welfare-requests"] });
+      toast({
+        title: "Solicitud actualizada",
+        description: "La solicitud de bienestar ha sido actualizada.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useSignWelfareRequestAsBishop() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ requestId, signatureDataUrl, signerName }: { requestId: string; signatureDataUrl: string; signerName: string }) =>
+      apiRequest("POST", `/api/welfare-requests/${requestId}/sign`, { signatureDataUrl, signerName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/welfare-requests"] });
+      toast({
+        title: "Solicitud firmada",
+        description: "La firma del obispo se registró y la solicitud fue aprobada.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo firmar la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useReviewWelfareRequestAsBishop() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ requestId, action, reason }: { requestId: string; action: "rechazar" | "enmendar"; reason: string }) =>
+      apiRequest("POST", `/api/welfare-requests/${requestId}/review`, { action, reason }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/welfare-requests"] });
+      toast({
+        title: variables.action === "rechazar" ? "Solicitud rechazada" : "Solicitud devuelta para enmienda",
+        description: "Se notificó al solicitante.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo revisar la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteWelfareRequest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/welfare-requests/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/welfare-requests"] });
+      toast({
+        title: "Solicitud eliminada",
+        description: "La solicitud de bienestar ha sido eliminada.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la solicitud. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+// ========================================
 // INTERVIEWS
 // ========================================
 

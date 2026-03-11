@@ -522,6 +522,57 @@ export const budgetUnlockExceptions = pgTable("budget_unlock_exceptions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const welfareStatusEnum = pgEnum("welfare_status", [
+  "solicitado",
+  "aprobado",
+  "rechazada",
+]);
+
+// Welfare Requests (Fast Offerings)
+export const welfareRequests = pgTable("welfare_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  description: text("description").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  status: welfareStatusEnum("status").notNull().default("solicitado"),
+  requestType: text("request_type").default("pago_adelantado"),
+  activityDate: timestamp("activity_date"),
+  bishopApprovedBy: varchar("bishop_approved_by").references(() => users.id),
+  bishopApprovedAt: timestamp("bishop_approved_at"),
+  bishopSignatureDataUrl: text("bishop_signature_data_url"),
+  bishopSignatureIp: text("bishop_signature_ip"),
+  bishopSignatureUserAgent: text("bishop_signature_user_agent"),
+  bishopSignedPlanFilename: text("bishop_signed_plan_filename"),
+  bishopSignedPlanUrl: text("bishop_signed_plan_url"),
+  receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
+  notes: text("notes"),
+  pagarA: text("pagar_a"),
+  applicantSignatureDataUrl: text("applicant_signature_data_url"),
+  welfareCategoriesJson: jsonb("welfare_categories_json")
+    .$type<{ category: string; amount: string; detail?: string }[]>()
+    .default([]),
+  bankData: jsonb("bank_data")
+    .$type<{ bankInSystem: boolean; swift?: string; iban?: string }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertWelfareRequestSchema = createInsertSchema(welfareRequests);
+export type WelfareRequest = typeof welfareRequests.$inferSelect;
+export type InsertWelfareRequest = typeof welfareRequests.$inferInsert;
+
+export const welfareRequestsRelations = relations(welfareRequests, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [welfareRequests.organizationId],
+    references: [organizations.id],
+  }),
+  requestedByUser: one(users, {
+    fields: [welfareRequests.requestedBy],
+    references: [users.id],
+  }),
+}));
+
 // Interviews
 export const interviews = pgTable("interviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -764,6 +815,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   createdWardCouncils: many(wardCouncils),
   createdPresidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
+  welfareRequests: many(welfareRequests),
   interviews: many(interviews),
   createdGoals: many(goals),
   assignmentsReceived: many(assignments, { relationName: "assignedTo" }),
@@ -795,6 +847,7 @@ export const organizationsRelations = relations(organizations, ({ one, many }) =
   memberCallings: many(memberCallings),
   presidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
+  welfareRequests: many(welfareRequests),
   goals: many(goals),
   activities: many(activities),
   birthdays: many(birthdays),

@@ -25,6 +25,7 @@ const PresidencyMeetingsPage = lazy(() => import("@/pages/presidency-meetings"))
 const PresidencyManageOrganizationPage = lazy(() => import("@/pages/presidency-manage-organization"));
 const PresidencyMeetingReportPage = lazy(() => import("@/pages/presidency-meeting-report"));
 const BudgetPage = lazy(() => import("@/pages/budget"));
+const WelfarePage = lazy(() => import("@/pages/welfare"));
 const InterviewsPage = lazy(() => import("@/pages/interviews"));
 const OrganizationInterviewsPage = lazy(() => import("@/pages/organization-interviews"));
 const GoalsPage = lazy(() => import("@/pages/goals"));
@@ -108,6 +109,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/budget">
           <BudgetPage />
+        </Route>
+        <Route path="/welfare">
+          <WelfarePage />
         </Route>
         <Route path="/interviews">
           <InterviewsPage />
