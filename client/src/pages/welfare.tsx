@@ -641,6 +641,100 @@ export default function WelfarePage() {
                 </DialogHeader>
                 <Form {...welfareForm}>
                   <form onSubmit={welfareForm.handleSubmit(onSubmitWelfareRequest)} className="space-y-4">
+                    {/* 0. Solicitar a nombre de (bishop only) */}
+                    {isObispo && (
+                      <FormField
+                        control={welfareForm.control}
+                        name="solicitarANombreDe"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Solicitar a nombre de</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-welfare-solicitar-nombre">
+                                  <SelectValue placeholder="Selecciona un líder..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {welfareOrgPresidents.map((u: any) => (
+                                  <SelectItem key={u.id} value={u.name}>
+                                    {u.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">El nombre del líder seleccionado aparecerá como solicitante y perceptor de la transferencia.</p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* 0b. Solicitud a favor de */}
+                    <FormField
+                      control={welfareForm.control}
+                      name="favorDe"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Solicitud a favor de <span className="text-destructive">*</span></FormLabel>
+                          <Popover open={favorDeOpen} onOpenChange={setFavorDeOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  data-testid="select-welfare-favor-de"
+                                  className="w-full justify-between font-normal"
+                                >
+                                  {field.value || "Buscar miembro..."}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0" align="start">
+                              <Command shouldFilter={false}>
+                                <CommandInput
+                                  placeholder="Buscar miembro..."
+                                  value={memberSearch}
+                                  onValueChange={setMemberSearch}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>Sin resultados</CommandEmpty>
+                                  <CommandGroup>
+                                    {(allMembers as any[])
+                                      .filter((m: any) => {
+                                        const name = (m.nameSurename ?? m.name ?? "").toLowerCase();
+                                        return name.includes(memberSearch.toLowerCase());
+                                      })
+                                      .slice(0, 50)
+                                      .map((m: any) => {
+                                        const name = m.nameSurename ?? m.name ?? m.id;
+                                        return (
+                                          <CommandItem
+                                            key={m.id}
+                                            value={name}
+                                            onSelect={() => {
+                                              field.onChange(name);
+                                              setMemberSearch("");
+                                              setFavorDeOpen(false);
+                                            }}
+                                          >
+                                            <Check className={`mr-2 h-4 w-4 ${field.value === name ? "opacity-100" : "opacity-0"}`} />
+                                            {name}
+                                          </CommandItem>
+                                        );
+                                      })}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">Miembro que solicita la ayuda.</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     {/* 1. Description */}
                     <FormField
                       control={welfareForm.control}
@@ -791,100 +885,6 @@ export default function WelfarePage() {
                           <FormControl>
                             <Input type="date" {...field} data-testid="input-welfare-activity-date" />
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* 5b. Solicitar a nombre de (bishop only) */}
-                    {isObispo && (
-                      <FormField
-                        control={welfareForm.control}
-                        name="solicitarANombreDe"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Solicitar a nombre de</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-welfare-solicitar-nombre">
-                                  <SelectValue placeholder="Selecciona un líder..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {welfareOrgPresidents.map((u: any) => (
-                                  <SelectItem key={u.id} value={u.name}>
-                                    {u.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">El nombre del líder seleccionado aparecerá como solicitante y pagador en el PDF.</p>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* 5. Solicitud a favor de */}
-                    <FormField
-                      control={welfareForm.control}
-                      name="favorDe"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Solicitud a favor de <span className="text-destructive">*</span></FormLabel>
-                          <Popover open={favorDeOpen} onOpenChange={setFavorDeOpen}>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  data-testid="select-welfare-favor-de"
-                                  className="w-full justify-between font-normal"
-                                >
-                                  {field.value || "Buscar miembro..."}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0" align="start">
-                              <Command shouldFilter={false}>
-                                <CommandInput
-                                  placeholder="Buscar miembro..."
-                                  value={memberSearch}
-                                  onValueChange={setMemberSearch}
-                                />
-                                <CommandList>
-                                  <CommandEmpty>Sin resultados</CommandEmpty>
-                                  <CommandGroup>
-                                    {(allMembers as any[])
-                                      .filter((m: any) => {
-                                        const name = (m.nameSurename ?? m.name ?? "").toLowerCase();
-                                        return name.includes(memberSearch.toLowerCase());
-                                      })
-                                      .slice(0, 50)
-                                      .map((m: any) => {
-                                        const name = m.nameSurename ?? m.name ?? m.id;
-                                        return (
-                                          <CommandItem
-                                            key={m.id}
-                                            value={name}
-                                            onSelect={() => {
-                                              field.onChange(name);
-                                              setMemberSearch("");
-                                              setFavorDeOpen(false);
-                                            }}
-                                          >
-                                            <Check className={`mr-2 h-4 w-4 ${field.value === name ? "opacity-100" : "opacity-0"}`} />
-                                            {name}
-                                          </CommandItem>
-                                        );
-                                      })}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          <p className="text-xs text-muted-foreground">El solicitante será registrado automáticamente como el pagador.</p>
                           <FormMessage />
                         </FormItem>
                       )}
