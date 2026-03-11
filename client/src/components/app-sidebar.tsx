@@ -211,7 +211,8 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     // Otherwise, only visible if user's role is in the list
     if (!item.roles.includes(userRole)) return false;
     if (!item.organizationTypes) return true;
-    if (!organizationType) return ["obispo", "consejero_obispo"].includes(userRole);
+    if (["obispo", "consejero_obispo"].includes(userRole)) return true;
+    if (!organizationType) return false;
     return item.organizationTypes.includes(organizationType);
   }).map(item => {
     // For presidents/counselors/secretaries of organizations, filter sub-items to only show their organization
