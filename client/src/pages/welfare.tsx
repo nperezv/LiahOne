@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps, type Pointer
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,8 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   useWelfareRequests,
   useCreateWelfareRequest,
@@ -37,6 +35,47 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+
+const MemberAutocomplete = ({
+  value, options, placeholder, onChange, onBlur, testId,
+}: {
+  value: string; options: string[]; placeholder?: string;
+  onChange: (v: string) => void; onBlur?: () => void; testId?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => {
+    const trimmed = value.trim();
+    if (!trimmed) return options.slice(0, 50);
+    return options.filter((o) => o.toLowerCase().includes(trimmed.toLowerCase())).slice(0, 50);
+  }, [options, value]);
+
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        data-testid={testId}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setTimeout(() => setOpen(false), 150); onBlur?.(); }}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.map((name) => (
+            <li
+              key={name}
+              className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={(e) => { e.preventDefault(); onChange(name); setOpen(false); }}
+            >
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 const WelfareCurrencyInput = ({ className, ...props }: ComponentProps<typeof Input>) => (
   <div className="relative">
@@ -182,8 +221,7 @@ export default function WelfarePage() {
     return params.get("highlight");
   }, [search]);
 
-  const [memberSearch, setMemberSearch] = useState("");
-  const [favorDeOpen, setFavorDeOpen] = useState(false);
+
 
   const { user } = useAuth();
   const { data: requests = [] as WelfareRequest[], isLoading: requestsLoading } = useWelfareRequests();
@@ -203,6 +241,11 @@ export default function WelfarePage() {
   const userOrg = useMemo(() => (organizations as any[]).find((o: any) => o.id === user?.organizationId), [organizations, user?.organizationId]);
   const isWelfareOrg = userOrg?.type === "sociedad_socorro" || userOrg?.type === "cuorum_elderes";
   const canCreate = isObispo || (isOrgPresident && isWelfareOrg);
+
+  const memberOptions = useMemo(
+    () => (allMembers as any[]).map((m: any) => m.nameSurename ?? m.name ?? "").filter(Boolean) as string[],
+    [allMembers]
+  );
 
   const welfareOrgPresidents = useMemo(() => {
     const welfareOrgIds = (organizations as any[])
@@ -418,7 +461,6 @@ export default function WelfarePage() {
         onSuccess: () => {
           setIsDialogOpen(false);
           clearRequesterSignatureCanvas();
-          setMemberSearch("");
           welfareForm.reset({
             description: "",
             requestType: "pago_adelantado",
@@ -677,58 +719,16 @@ export default function WelfarePage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Solicitud a favor de <span className="text-destructive">*</span></FormLabel>
-                          <Popover open={favorDeOpen} onOpenChange={setFavorDeOpen}>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  data-testid="select-welfare-favor-de"
-                                  className="w-full justify-between font-normal"
-                                >
-                                  {field.value || "Buscar miembro..."}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0" align="start">
-                              <Command shouldFilter={false}>
-                                <CommandInput
-                                  placeholder="Buscar miembro..."
-                                  value={memberSearch}
-                                  onValueChange={setMemberSearch}
-                                />
-                                <CommandList>
-                                  <CommandEmpty>Sin resultados</CommandEmpty>
-                                  <CommandGroup>
-                                    {(allMembers as any[])
-                                      .filter((m: any) => {
-                                        const name = (m.nameSurename ?? m.name ?? "").toLowerCase();
-                                        return name.includes(memberSearch.toLowerCase());
-                                      })
-                                      .slice(0, 50)
-                                      .map((m: any) => {
-                                        const name = m.nameSurename ?? m.name ?? m.id;
-                                        return (
-                                          <CommandItem
-                                            key={m.id}
-                                            value={name}
-                                            onSelect={() => {
-                                              field.onChange(name);
-                                              setMemberSearch("");
-                                              setFavorDeOpen(false);
-                                            }}
-                                          >
-                                            <Check className={`mr-2 h-4 w-4 ${field.value === name ? "opacity-100" : "opacity-0"}`} />
-                                            {name}
-                                          </CommandItem>
-                                        );
-                                      })}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
+                          <FormControl>
+                            <MemberAutocomplete
+                              value={field.value}
+                              options={memberOptions}
+                              placeholder="Buscar miembro..."
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              testId="input-welfare-favor-de"
+                            />
+                          </FormControl>
                           <p className="text-xs text-muted-foreground">Miembro que solicita la ayuda.</p>
                           <FormMessage />
                         </FormItem>
