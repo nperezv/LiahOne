@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder } from "lucide-react";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -115,6 +115,13 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
+    title: "Bienestar",
+    url: "/welfare",
+    icon: Heart,
+    roles: ["obispo", "presidente_organizacion"],
+    organizationTypes: ["sociedad_socorro", "cuorum_elderes"],
+  },
+  {
     title: "Presupuestos",
     url: "/budget",
     icon: Euro,
@@ -204,7 +211,7 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     // Otherwise, only visible if user's role is in the list
     if (!item.roles.includes(userRole)) return false;
     if (!item.organizationTypes) return true;
-    if (!organizationType) return false;
+    if (!organizationType) return ["obispo", "consejero_obispo"].includes(userRole);
     return item.organizationTypes.includes(organizationType);
   }).map(item => {
     // For presidents/counselors/secretaries of organizations, filter sub-items to only show their organization
