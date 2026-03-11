@@ -554,6 +554,7 @@ export const welfareRequests = pgTable("welfare_requests", {
     .default([]),
   bankData: jsonb("bank_data")
     .$type<{ bankInSystem: boolean; swift?: string; iban?: string }>(),
+  favorDe: text("favor_de"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

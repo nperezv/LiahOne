@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps, type Pointer
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart } from "lucide-react";
+import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,6 +27,8 @@ import {
   useReviewWelfareRequestAsBishop,
   useDeleteWelfareRequest,
   useOrganizations,
+  useMembers,
+  useUsers,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
@@ -87,7 +89,8 @@ const welfareSchema = z.object({
   activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
   welfareCategories: z.array(welfareCategorySchema).min(1, "Añade al menos una categoría"),
-  pagarA: z.string().min(1, "El nombre del beneficiario es requerido"),
+  favorDe: z.string().min(1, "Selecciona el miembro a favor de quien se solicita"),
+  solicitarANombreDe: z.string().optional(),
   bankInSystem: z.boolean({ required_error: "Indica si los datos bancarios están en el sistema de la Iglesia" }),
   swift: z.string().optional(),
   iban: z.string().optional(),
@@ -153,6 +156,7 @@ interface WelfareRequest {
   receipts?: { filename: string; url: string; category?: ReceiptCategory }[];
   welfareCategoriesJson?: { category: string; amount: string; detail?: string }[];
   pagarA?: string;
+  favorDe?: string;
   bankData?: { bankInSystem: boolean; swift?: string; iban?: string };
   applicantSignatureDataUrl?: string;
   createdAt: string;
@@ -176,9 +180,13 @@ export default function WelfarePage() {
     return params.get("highlight");
   }, [search]);
 
+  const [memberSearch, setMemberSearch] = useState("");
+
   const { user } = useAuth();
   const { data: requests = [] as WelfareRequest[], isLoading: requestsLoading } = useWelfareRequests();
   const { data: organizations = [] as any[] } = useOrganizations();
+  const { data: allMembers = [] as any[] } = useMembers();
+  const { data: allUsers = [] as any[] } = useUsers();
 
   const createMutation = useCreateWelfareRequest();
   const updateMutation = useUpdateWelfareRequest();
@@ -192,6 +200,15 @@ export default function WelfarePage() {
   const userOrg = useMemo(() => (organizations as any[]).find((o: any) => o.id === user?.organizationId), [organizations, user?.organizationId]);
   const isWelfareOrg = userOrg?.type === "sociedad_socorro" || userOrg?.type === "cuorum_elderes";
   const canCreate = isObispo || (isOrgPresident && isWelfareOrg);
+
+  const welfareOrgPresidents = useMemo(() => {
+    const welfareOrgIds = (organizations as any[])
+      .filter((o: any) => o.type === "sociedad_socorro" || o.type === "cuorum_elderes")
+      .map((o: any) => o.id);
+    return (allUsers as any[]).filter(
+      (u: any) => u.role === "presidente_organizacion" && welfareOrgIds.includes(u.organizationId)
+    );
+  }, [organizations, allUsers]);
 
   const filteredRequests = useMemo(() => {
     if (isObispo) return requests as WelfareRequest[];
@@ -229,7 +246,8 @@ export default function WelfarePage() {
       activityDate: "",
       notes: "",
       welfareCategories: [{ category: "", amount: "", detail: "" }],
-      pagarA: "",
+      favorDe: "",
+      solicitarANombreDe: "",
       bankInSystem: undefined,
       swift: "",
       iban: "",
@@ -390,19 +408,22 @@ export default function WelfarePage() {
           swift: data.swift || undefined,
           iban: data.iban || undefined,
         },
-        pagarA: data.pagarA || undefined,
+        pagarA: (isObispo && data.solicitarANombreDe) ? data.solicitarANombreDe : (user?.name || undefined),
+        favorDe: data.favorDe || undefined,
       },
       {
         onSuccess: () => {
           setIsDialogOpen(false);
           clearRequesterSignatureCanvas();
+          setMemberSearch("");
           welfareForm.reset({
             description: "",
             requestType: "pago_adelantado",
             activityDate: "",
             notes: "",
             welfareCategories: [{ category: "", amount: "", detail: "" }],
-            pagarA: "",
+            favorDe: "",
+            solicitarANombreDe: "",
             bankInSystem: undefined,
             swift: "",
             iban: "",
@@ -589,8 +610,7 @@ export default function WelfarePage() {
     <div className="p-6 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
-          <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl flex items-center gap-3">
-            <Heart className="h-8 w-8 text-rose-500 md:h-10 md:w-10" />
+          <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl">
             Bienestar
           </h1>
           <p className="text-xs text-slate-400 md:text-sm">
@@ -773,19 +793,83 @@ export default function WelfarePage() {
                       )}
                     />
 
-                    {/* 5. Pagar a */}
+                    {/* 5b. Solicitar a nombre de (bishop only) */}
+                    {isObispo && (
+                      <FormField
+                        control={welfareForm.control}
+                        name="solicitarANombreDe"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Solicitar a nombre de</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-welfare-solicitar-nombre">
+                                  <SelectValue placeholder="Selecciona un líder..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {welfareOrgPresidents.map((u: any) => (
+                                  <SelectItem key={u.id} value={u.name}>
+                                    {u.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">El nombre del líder seleccionado aparecerá como solicitante y pagador en el PDF.</p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* 5. Solicitud a favor de */}
                     <FormField
                       control={welfareForm.control}
-                      name="pagarA"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nombre del beneficiario</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Nombre completo de quien recibirá el pago" {...field} data-testid="input-welfare-pagar-a" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      name="favorDe"
+                      render={({ field }) => {
+                        const filtered = (allMembers as any[])
+                          .filter((m: any) => {
+                            const name = (m.nameSurename ?? m.name ?? "").toLowerCase();
+                            return name.includes(memberSearch.toLowerCase());
+                          })
+                          .slice(0, 50);
+                        return (
+                          <FormItem>
+                            <FormLabel>Solicitud a favor de <span className="text-destructive">*</span></FormLabel>
+                            <div className="space-y-1">
+                              <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  placeholder="Buscar miembro..."
+                                  value={memberSearch}
+                                  onChange={(e) => setMemberSearch(e.target.value)}
+                                  className="pl-8 text-sm"
+                                  data-testid="input-welfare-favor-de-search"
+                                />
+                              </div>
+                              <Select onValueChange={(val) => { field.onChange(val); setMemberSearch(""); }} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-welfare-favor-de">
+                                    <SelectValue placeholder="Selecciona un miembro" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent className="max-h-52 overflow-y-auto">
+                                  {filtered.length > 0
+                                    ? filtered.map((m: any) => (
+                                        <SelectItem key={m.id} value={m.nameSurename ?? m.name ?? m.id}>
+                                          {m.nameSurename ?? m.name}
+                                        </SelectItem>
+                                      ))
+                                    : <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+                                  }
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <p className="text-xs text-muted-foreground">El solicitante será registrado automáticamente como el pagador.</p>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     {/* 6. Bank data */}

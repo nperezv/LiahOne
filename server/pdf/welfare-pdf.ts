@@ -20,6 +20,7 @@ export interface WelfarePdfData {
   activityDate: Date | null;
   welfareCategories: { category: string; amount: string; detail?: string }[];
   pagarA?: string | null;
+  favorDe?: string | null;
   bankData?: { bankInSystem: boolean; swift?: string; iban?: string } | null;
   notes?: string | null;
   hasReceiptAttached?: boolean;
@@ -207,6 +208,22 @@ export async function generateWelfareRequestPdf(params: {
   y += Math.max(6, reasonLines.length * 4) + 2;
   thinLine();
   y += 2;
+
+  // A favor de
+  if (data.favorDe) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(...black);
+    doc.text("A favor de", margin, y + 3.5);
+    y += 4;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...black);
+    doc.text(data.favorDe, margin, y + 4);
+    y += 8;
+    thinLine();
+    y += 2;
+  }
 
   // ═══════════════════════════════════════════════
   // CATEGORY TABLE — minimum 3 rows
