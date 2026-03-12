@@ -1036,13 +1036,13 @@ export default function WelfarePage() {
                               />
                               <Button
                                 type="button"
-                                variant={welfareUploadState.selfSufficiency === "done" || createMutation.isPending ? "default" : "outline"}
+                                variant={field.value ? "default" : "outline"}
                                 className="w-fit"
-                                disabled={welfareUploadState.selfSufficiency === "uploading" || createMutation.isPending}
+                                disabled={createMutation.isPending}
                                 onClick={() => (document.getElementById("welfare-self-sufficiency-plan-file") as HTMLInputElement)?.click()}
                               >
-                                {welfareUploadState.selfSufficiency === "uploading" || createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
-                                {welfareUploadState.selfSufficiency === "uploading" ? "Subiendo..." : createMutation.isPending ? "Enviando..." : "Seleccionar plan"}
+                                {createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
+                                {createMutation.isPending ? "Enviando..." : field.value ? "Plan adjunto" : "Seleccionar plan"}
                               </Button>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
@@ -1081,13 +1081,13 @@ export default function WelfarePage() {
                                 />
                                 <Button
                                   type="button"
-                                  variant={welfareUploadState.receipt === "done" || createMutation.isPending ? "default" : "outline"}
+                                  variant={field.value ? "default" : "outline"}
                                   className="w-fit"
-                                  disabled={welfareUploadState.receipt === "uploading" || createMutation.isPending}
+                                  disabled={createMutation.isPending}
                                   onClick={() => (document.getElementById("welfare-receipt-file") as HTMLInputElement)?.click()}
                                 >
-                                  {welfareUploadState.receipt === "uploading" || createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                                  {welfareUploadState.receipt === "uploading" ? "Subiendo..." : createMutation.isPending ? "Enviando..." : "Seleccionar comprobante"}
+                                  {createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                  {createMutation.isPending ? "Enviando..." : field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
                                 </Button>
                                 <span className="text-xs text-muted-foreground">
                                   {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
