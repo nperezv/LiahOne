@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps, type Pointer
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart } from "lucide-react";
+import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -211,6 +211,11 @@ export default function WelfarePage() {
   const [activeSection, setActiveSection] = useState<"resumen" | "solicitudes">("resumen");
   const [requestStatusFilter, setRequestStatusFilter] = useState<"todas" | "pendientes" | "aprobadas" | "rechazadas">("todas");
   const [attachmentsDialogRequest, setAttachmentsDialogRequest] = useState<WelfareRequest | null>(null);
+  const [welfareUploadState, setWelfareUploadState] = useState<{
+    selfSufficiency: "idle" | "uploading" | "done";
+    receipt: "idle" | "uploading" | "done";
+    bankJustificante: "idle" | "uploading" | "done";
+  }>({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" });
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -412,18 +417,24 @@ export default function WelfarePage() {
 
     // Always upload self-sufficiency plan
     try {
+      setWelfareUploadState(s => ({ ...s, selfSufficiency: "uploading" }));
       const uploaded = await uploadFile(data.selfSufficiencyPlanFile);
+      setWelfareUploadState(s => ({ ...s, selfSufficiency: "done" }));
       uploadedReceipts.push({ filename: uploaded.filename, url: uploaded.url, category: "autosuficiencia" });
     } catch {
+      setWelfareUploadState(s => ({ ...s, selfSufficiency: "idle" }));
       alert("No se pudo subir el plan de autosuficiencia. Intenta nuevamente.");
       return;
     }
 
     if (data.requestType === "reembolso" && data.receiptFile) {
       try {
+        setWelfareUploadState(s => ({ ...s, receipt: "uploading" }));
         const uploaded = await uploadFile(data.receiptFile);
+        setWelfareUploadState(s => ({ ...s, receipt: "done" }));
         uploadedReceipts.push({ filename: uploaded.filename, url: uploaded.url, category: "receipt" });
       } catch {
+        setWelfareUploadState(s => ({ ...s, receipt: "idle" }));
         alert("No se pudo subir el comprobante. Intenta nuevamente.");
         return;
       }
@@ -431,9 +442,12 @@ export default function WelfarePage() {
 
     if (!data.bankInSystem && data.bankJustificanteFile) {
       try {
+        setWelfareUploadState(s => ({ ...s, bankJustificante: "uploading" }));
         const uploaded = await uploadFile(data.bankJustificanteFile);
+        setWelfareUploadState(s => ({ ...s, bankJustificante: "done" }));
         uploadedReceipts.push({ filename: uploaded.filename, url: uploaded.url, category: "bank_justificante" });
       } catch {
+        setWelfareUploadState(s => ({ ...s, bankJustificante: "idle" }));
         alert("No se pudo subir el justificante bancario. Intenta nuevamente.");
         return;
       }
@@ -665,7 +679,7 @@ export default function WelfarePage() {
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           {canCreate && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setWelfareUploadState({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" }); }}>
               <DialogTrigger asChild>
                 <Button
                   data-testid="button-create-welfare-request"
@@ -953,11 +967,28 @@ export default function WelfarePage() {
                               <FormItem>
                                 <FormLabel className="text-xs">Justificante de titularidad bancaria</FormLabel>
                                 <FormControl>
-                                  <Input
-                                    type="file"
-                                    accept=".jpg,.jpeg,.pdf"
-                                    onChange={(e) => field.onChange(e.target.files?.[0])}
-                                  />
+                                  <div className="flex flex-col gap-2">
+                                    <Input
+                                      id="welfare-bank-justificante-file"
+                                      type="file"
+                                      accept=".jpg,.jpeg,.pdf"
+                                      onChange={(e) => field.onChange(e.target.files?.[0])}
+                                      className="hidden"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant={welfareUploadState.bankJustificante === "done" ? "default" : "outline"}
+                                      className="w-fit"
+                                      disabled={welfareUploadState.bankJustificante === "uploading"}
+                                      onClick={() => (document.getElementById("welfare-bank-justificante-file") as HTMLInputElement)?.click()}
+                                    >
+                                      {welfareUploadState.bankJustificante === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                      {welfareUploadState.bankJustificante === "uploading" ? "Subiendo..." : "Seleccionar justificante"}
+                                    </Button>
+                                    <span className="text-xs text-muted-foreground">
+                                      {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
+                                    </span>
+                                  </div>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -1002,11 +1033,15 @@ export default function WelfarePage() {
                                 data-testid="input-welfare-self-sufficiency-plan"
                                 className="hidden"
                               />
-                              <Button type="button" variant="outline" className="w-fit" asChild>
-                                <label htmlFor="welfare-self-sufficiency-plan-file" className="cursor-pointer">
-                                  <Paperclip className="h-4 w-4 mr-2" />
-                                  Seleccionar plan
-                                </label>
+                              <Button
+                                type="button"
+                                variant={welfareUploadState.selfSufficiency === "done" ? "default" : "outline"}
+                                className="w-fit"
+                                disabled={welfareUploadState.selfSufficiency === "uploading"}
+                                onClick={() => (document.getElementById("welfare-self-sufficiency-plan-file") as HTMLInputElement)?.click()}
+                              >
+                                {welfareUploadState.selfSufficiency === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
+                                {welfareUploadState.selfSufficiency === "uploading" ? "Subiendo..." : "Seleccionar plan"}
                               </Button>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
@@ -1034,12 +1069,29 @@ export default function WelfarePage() {
                             </FormLabel>
                             <p className="text-xs text-muted-foreground">Requerido para solicitudes de reembolso</p>
                             <FormControl>
-                              <Input
-                                type="file"
-                                accept=".jpg,.jpeg,.pdf,.doc,.docx"
-                                onChange={(e) => field.onChange(e.target.files?.[0])}
-                                data-testid="input-welfare-receipt"
-                              />
+                              <div className="flex flex-col gap-2">
+                                <Input
+                                  id="welfare-receipt-file"
+                                  type="file"
+                                  accept={allowedDocumentExtensions.join(",")}
+                                  onChange={(e) => field.onChange(e.target.files?.[0])}
+                                  data-testid="input-welfare-receipt"
+                                  className="hidden"
+                                />
+                                <Button
+                                  type="button"
+                                  variant={welfareUploadState.receipt === "done" ? "default" : "outline"}
+                                  className="w-fit"
+                                  disabled={welfareUploadState.receipt === "uploading"}
+                                  onClick={() => (document.getElementById("welfare-receipt-file") as HTMLInputElement)?.click()}
+                                >
+                                  {welfareUploadState.receipt === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                  {welfareUploadState.receipt === "uploading" ? "Subiendo..." : "Seleccionar comprobante"}
+                                </Button>
+                                <span className="text-xs text-muted-foreground">
+                                  {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
+                                </span>
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

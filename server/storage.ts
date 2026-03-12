@@ -1017,6 +1017,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteWelfareRequest(id: string): Promise<void> {
+    const relatedAssignments = await db
+      .select({ id: assignments.id })
+      .from(assignments)
+      .where(eq(assignments.relatedTo, `welfare:${id}`));
+
+    for (const assignment of relatedAssignments) {
+      await this.deleteAssignment(assignment.id);
+    }
+
     await this.deleteNotificationsByRelatedId(id);
     await db.delete(welfareRequests).where(eq(welfareRequests.id, id));
   }

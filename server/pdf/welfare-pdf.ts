@@ -250,9 +250,9 @@ export async function generateWelfareRequestPdf(params: {
       const catLabel = catOption?.label ?? cat.category;
       let displayLabel: string;
       if (cat.category === "otros_gastos" && cat.detail?.trim()) {
-        displayLabel = `Ofrendas de Ayuno : Ofrendas de Ayuno - Otros Gastos (otro motivo: ${cat.detail.trim()})`;
+        displayLabel = `Otros Gastos (otro motivo: ${cat.detail.trim()})`;
       } else {
-        displayLabel = `Ofrendas de Ayuno : ${catLabel}`;
+        displayLabel = catLabel.replace("Ofrendas de Ayuno - ", "");
       }
       const amt = parseWelfareNumber(cat.amount);
       total += amt;

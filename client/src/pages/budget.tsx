@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -244,6 +244,11 @@ export default function BudgetPage() {
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
   const [attachmentsDialogRequest, setAttachmentsDialogRequest] = useState<BudgetRequest | null>(null);
+  const [budgetUploadState, setBudgetUploadState] = useState<{
+    receipt: "idle" | "uploading" | "done";
+    bankJustificante: "idle" | "uploading" | "done";
+  }>({ receipt: "idle", bankJustificante: "idle" });
+  const [expenseUploadState, setExpenseUploadState] = useState<"idle" | "uploading" | "done">("idle");
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -589,9 +594,12 @@ export default function BudgetPage() {
 
     if (data.requestType === "reembolso" && data.receiptFile) {
       try {
+        setBudgetUploadState(s => ({ ...s, receipt: "uploading" }));
         const uploadedReceipt = await uploadReceiptFile(data.receiptFile);
+        setBudgetUploadState(s => ({ ...s, receipt: "done" }));
         uploadedReceipts.push({ filename: uploadedReceipt.filename, url: uploadedReceipt.url, category: "receipt" });
       } catch (error) {
+        setBudgetUploadState(s => ({ ...s, receipt: "idle" }));
         console.error(error);
         alert("No se pudo subir el comprobante. Intenta nuevamente.");
         return;
@@ -600,9 +608,12 @@ export default function BudgetPage() {
 
     if (!data.bankInSystem && data.bankJustificanteFile) {
       try {
+        setBudgetUploadState(s => ({ ...s, bankJustificante: "uploading" }));
         const uploadedJustificante = await uploadReceiptFile(data.bankJustificanteFile);
+        setBudgetUploadState(s => ({ ...s, bankJustificante: "done" }));
         uploadedReceipts.push({ filename: uploadedJustificante.filename, url: uploadedJustificante.url, category: "bank_justificante" });
       } catch (error) {
+        setBudgetUploadState(s => ({ ...s, bankJustificante: "idle" }));
         console.error(error);
         alert("No se pudo subir el justificante bancario. Intenta nuevamente.");
         return;
@@ -661,6 +672,7 @@ export default function BudgetPage() {
     let uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
     try {
+      setExpenseUploadState("uploading");
       uploadedReceipts = await Promise.all(
         data.expenseReceipts.map(async (file) => {
           const uploaded = await uploadReceiptFile(file);
@@ -671,7 +683,9 @@ export default function BudgetPage() {
           };
         })
       );
+      setExpenseUploadState("done");
     } catch (error) {
+      setExpenseUploadState("idle");
       console.error(error);
       alert("No se pudo subir los comprobantes. Intenta nuevamente.");
       return;
@@ -1194,7 +1208,7 @@ export default function BudgetPage() {
               </DialogContent>
             </Dialog>
           )}
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setBudgetUploadState({ receipt: "idle", bankJustificante: "idle" }); }}>
             <DialogTrigger asChild>
               <Button
                 data-testid="button-create-request"
@@ -1553,11 +1567,15 @@ export default function BudgetPage() {
                                     className="hidden"
                                     data-testid="input-bank-justificante"
                                   />
-                                  <Button type="button" variant="outline" className="w-fit" asChild>
-                                    <label htmlFor="bank-justificante-file" className="cursor-pointer">
-                                      <Upload className="h-4 w-4 mr-2" />
-                                      Seleccionar justificante
-                                    </label>
+                                  <Button
+                                    type="button"
+                                    variant={budgetUploadState.bankJustificante === "done" ? "default" : "outline"}
+                                    className="w-fit"
+                                    disabled={budgetUploadState.bankJustificante === "uploading"}
+                                    onClick={() => (document.getElementById("bank-justificante-file") as HTMLInputElement)?.click()}
+                                  >
+                                    {budgetUploadState.bankJustificante === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                    {budgetUploadState.bankJustificante === "uploading" ? "Subiendo..." : "Seleccionar justificante"}
                                   </Button>
                                   <span className="text-xs text-muted-foreground">
                                     {field.value ? `✓ ${field.value.name}` : "Ningún archivo seleccionado — JPG, PNG o PDF"}
@@ -1611,11 +1629,15 @@ export default function BudgetPage() {
                                 className="hidden"
                                 data-testid="input-receipt-file"
                               />
-                              <Button type="button" variant="outline" className="w-fit" asChild>
-                                <label htmlFor="budget-receipt-file" className="cursor-pointer">
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Seleccionar comprobante
-                                </label>
+                              <Button
+                                type="button"
+                                variant={budgetUploadState.receipt === "done" ? "default" : "outline"}
+                                className="w-fit"
+                                disabled={budgetUploadState.receipt === "uploading"}
+                                onClick={() => (document.getElementById("budget-receipt-file") as HTMLInputElement)?.click()}
+                              >
+                                {budgetUploadState.receipt === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                {budgetUploadState.receipt === "uploading" ? "Subiendo..." : "Seleccionar comprobante"}
                               </Button>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
@@ -1691,6 +1713,7 @@ export default function BudgetPage() {
               if (!open) {
                 setSelectedRequest(null);
                 expenseReceiptsForm.reset({ expenseReceipts: [] });
+                setExpenseUploadState("idle");
               }
             }}
           >
@@ -1722,11 +1745,15 @@ export default function BudgetPage() {
                               className="hidden"
                               data-testid="input-expense-receipts"
                             />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="expense-receipts" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" />
-                                Adjuntar comprobantes
-                              </label>
+                            <Button
+                              type="button"
+                              variant={expenseUploadState === "done" ? "default" : "outline"}
+                              className="w-fit"
+                              disabled={expenseUploadState === "uploading"}
+                              onClick={() => (document.getElementById("expense-receipts") as HTMLInputElement)?.click()}
+                            >
+                              {expenseUploadState === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                              {expenseUploadState === "uploading" ? "Subiendo..." : "Adjuntar comprobantes"}
                             </Button>
                             <span className="text-xs text-muted-foreground">
                               {field.value?.length
