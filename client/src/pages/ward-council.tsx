@@ -3,7 +3,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound } from "lucide-react";
+import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound, Save, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -206,13 +206,24 @@ function CouncilDetailsForm({
     name: "newAssignments",
   });
   const [expandedAssignments, setExpandedAssignments] = useState<Record<string, boolean>>({});
+  const [isManuallySaving, setIsManuallySaving] = useState(false);
+  const [lastManualSave, setLastManualSave] = useState<Date | null>(null);
 
   const watchedValues = useWatch({ control: form.control });
   const lastSavedRef = useRef<string>("");
   const initialRenderRef = useRef(true);
+  const councilIdRef = useRef<string>(council.id);
+  const statusRef = useRef<string>(council.status);
   const isEditable = council.status === "en_progreso" && canManage && Boolean(council.startedAt);
 
+  // Only reset the form when switching to a different council (id changed) or
+  // when the council status changes — NOT on every refetch after auto-save.
   useEffect(() => {
+    const idChanged = councilIdRef.current !== council.id;
+    const statusChanged = statusRef.current !== council.status;
+    if (!idChanged && !statusChanged) return;
+    councilIdRef.current = council.id;
+    statusRef.current = council.status;
     form.reset({
       ministryNotes: council.ministryNotes || "",
       salvationWorkNotes: council.salvationWorkNotes || "",
@@ -239,6 +250,7 @@ function CouncilDetailsForm({
     });
   }, [newAssignments.fields]);
 
+  // Auto-save every 30 seconds — includes newAssignments in the payload.
   useEffect(() => {
     if (!isEditable) return;
     if (initialRenderRef.current) {
@@ -246,298 +258,472 @@ function CouncilDetailsForm({
       return;
     }
 
-    const { newAssignments: _ignoredAssignments, ...autoSaveValues } = watchedValues ?? {};
-    const payload = JSON.stringify(autoSaveValues);
+    const payload = JSON.stringify(watchedValues ?? {});
     if (payload === lastSavedRef.current) return;
 
     const timeout = window.setTimeout(() => {
       lastSavedRef.current = payload;
-      onAutoSave(autoSaveValues);
-    }, 300000);
+      onAutoSave(watchedValues ?? {});
+    }, 30000); // 30 seconds
 
     return () => window.clearTimeout(timeout);
   }, [isEditable, onAutoSave, watchedValues]);
 
+  const handleManualSave = () => {
+    if (!isEditable) return;
+    setIsManuallySaving(true);
+    const values = form.getValues();
+    lastSavedRef.current = JSON.stringify(values);
+    onAutoSave(values);
+    setTimeout(() => {
+      setIsManuallySaving(false);
+      setLastManualSave(new Date());
+    }, 1000);
+  };
+
+  const filteredNewAssignments = (watchedValues?.newAssignments ?? []).filter(
+    (a: any) => a?.title || a?.assignedTo || a?.dueDate || a?.notes
+  );
+
   return (
     <CardContent className="space-y-6">
+      {/* Meeting time info */}
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>Inicio: {council.startedAt ? new Date(council.startedAt).toLocaleTimeString("es-ES") : "-"}</span>
         <span>Fin: {council.endedAt ? new Date(council.endedAt).toLocaleTimeString("es-ES") : "-"}</span>
       </div>
+
+      {/* Meeting info header with labeled badges */}
       <div className="rounded-md border bg-muted/30 p-3 text-sm">
         <div className="grid gap-2 sm:grid-cols-2">
-          <span>Preside: {council.presider || "-"}</span>
-          <span>Dirige: {council.director || "-"}</span>
-          <span>Oración de apertura: {council.openingPrayer || "-"}</span>
-          <span>Oración final: {council.closingPrayerBy || council.closingPrayer || "-"}</span>
-          <span>Pensamiento espiritual: {council.spiritualThoughtBy || "-"}</span>
-          <span>Himno: {council.openingHymn || "-"}</span>
+          {[
+            { label: "Preside", value: council.presider },
+            { label: "Dirige", value: council.director },
+            { label: "Oración de apertura", value: council.openingPrayer },
+            { label: "Oración final", value: council.closingPrayerBy || council.closingPrayer },
+            { label: "Pensamiento espiritual", value: council.spiritualThoughtBy },
+            { label: "Himno", value: council.openingHymn },
+          ].map(({ label, value }) => (
+            <div key={label} className="flex items-center gap-2">
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                {label}
+              </span>
+              <span className="truncate font-medium">{value || "-"}</span>
+            </div>
+          ))}
         </div>
       </div>
 
       <Form {...form}>
-        <div className="grid gap-5 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="ministryNotes"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Personas y familias (ministración y necesidades)</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+        <div className="space-y-8">
 
-          <FormField
-            control={form.control}
-            name="salvationWorkNotes"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Obra de Salvación y Exaltación</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+          {/* Sección 1: Personas y familias */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                1
+              </span>
+              <h3 className="text-sm font-semibold">Personas y familias</h3>
+            </div>
+            <p className="pl-8 text-xs text-muted-foreground">Ministración y necesidades identificadas</p>
+            <FormField
+              control={form.control}
+              name="ministryNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      disabled={!isEditable}
+                      placeholder={isEditable ? "Anota las personas y familias que necesitan atención..." : ""}
+                      className="min-h-[80px]"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
 
-          <FormField
-            control={form.control}
-            name="wardActivitiesNotes"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Actividades del barrio</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+          {/* Sección 2: Obra de Salvación y Exaltación */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                2
+              </span>
+              <h3 className="text-sm font-semibold">Obra de Salvación y Exaltación</h3>
+            </div>
+            <p className="pl-8 text-xs text-muted-foreground">Misión, templo, historia familiar, autoabastecimiento</p>
+            <FormField
+              control={form.control}
+              name="salvationWorkNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      disabled={!isEditable}
+                      placeholder={isEditable ? "Notas sobre la obra de salvación y exaltación..." : ""}
+                      className="min-h-[80px]"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
 
-          <FormField
-            control={form.control}
-            name="newAssignmentsNotes"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Nuevas asignaciones</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+          {/* Sección 3: Actividades del barrio */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                3
+              </span>
+              <h3 className="text-sm font-semibold">Actividades del barrio</h3>
+            </div>
+            <p className="pl-8 text-xs text-muted-foreground">Eventos, actividades y anuncios importantes</p>
+            <FormField
+              control={form.control}
+              name="wardActivitiesNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      disabled={!isEditable}
+                      placeholder={isEditable ? "Notas sobre actividades del barrio..." : ""}
+                      className="min-h-[80px]"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
 
-          <div className="md:col-span-2 space-y-3">
+          {/* Sección 4: Nuevas asignaciones del consejo */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                4
+              </span>
+              <h3 className="text-sm font-semibold">Nuevas asignaciones del consejo</h3>
+            </div>
+            <p className="pl-8 text-xs text-muted-foreground">
+              Se crearán como asignaciones reales al finalizar el consejo.
+            </p>
+
+            {newAssignments.fields.length === 0 ? (
+              <div className="pl-8">
+                {isEditable ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-dashed py-6 text-base"
+                    onClick={() => {
+                      const newId = newAssignments.fields.length;
+                      newAssignments.append({
+                        title: "",
+                        assignedTo: "",
+                        assignedToName: "",
+                        dueDate: "",
+                        notes: "",
+                      });
+                      // auto-expand the newly added assignment on next render
+                      setTimeout(() => {
+                        setExpandedAssignments((current) => {
+                          const keys = Object.keys(current);
+                          if (keys.length > 0) {
+                            const lastKey = keys[keys.length - 1];
+                            return { ...current, [lastKey]: true };
+                          }
+                          return current;
+                        });
+                      }, 50);
+                    }}
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Agregar primera asignación
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No hay nuevas asignaciones registradas.</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3 pl-8">
+                {newAssignments.fields.map((field, index) => {
+                  const assignmentTitle = form.watch(`newAssignments.${index}.title`) || `Asignación ${index + 1}`;
+                  const assignedToName = form.watch(`newAssignments.${index}.assignedToName`) || "Sin responsable";
+                  const dueDate = form.watch(`newAssignments.${index}.dueDate`);
+                  const dueDateLabel = dueDate
+                    ? new Date(`${dueDate}T00:00:00`).toLocaleDateString("es-ES")
+                    : "Sin fecha";
+
+                  return (
+                    <Collapsible
+                      key={field.id}
+                      open={Boolean(expandedAssignments[field.id])}
+                      onOpenChange={(open) =>
+                        setExpandedAssignments((current) => ({
+                          ...current,
+                          [field.id]: open,
+                        }))
+                      }
+                    >
+                      <div className="rounded-xl border border-border/60 bg-card/60 p-3 shadow-sm">
+                        <CollapsibleTrigger
+                          className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition hover:bg-muted/40"
+                          type="button"
+                        >
+                          <div className="min-w-0 space-y-1">
+                            <p className="truncate text-sm font-semibold">{assignmentTitle}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <UserRound className="h-3.5 w-3.5" />
+                                {assignedToName}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <CalendarDays className="h-3.5 w-3.5" />
+                                {dueDateLabel}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 transition-transform ${expandedAssignments[field.id] ? "rotate-180" : ""}`}
+                          />
+                        </CollapsibleTrigger>
+
+                        <CollapsibleContent className="pt-3">
+                          <div className="space-y-3">
+                            {/* Title on its own row */}
+                            <FormField
+                              control={form.control}
+                              name={`newAssignments.${index}.title`}
+                              render={({ field: inputField }) => (
+                                <FormItem>
+                                  <FormLabel>Asignación</FormLabel>
+                                  <FormControl>
+                                    <Input {...inputField} disabled={!isEditable} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            {/* Responsible + date on the same row */}
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name={`newAssignments.${index}.assignedTo`}
+                                render={({ field: inputField }) => (
+                                  <FormItem>
+                                    <FormLabel>Responsable</FormLabel>
+                                    <Select
+                                      value={inputField.value}
+                                      onValueChange={(value) => {
+                                        inputField.onChange(value);
+                                        const selected = leaderLookup.get(value);
+                                        form.setValue(
+                                          `newAssignments.${index}.assignedToName`,
+                                          selected?.fullName || selected?.name || selected?.email || ""
+                                        );
+                                      }}
+                                      disabled={!isEditable}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecciona" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {renderLeaderOptions(leaderGroups, true)}
+                                      </SelectContent>
+                                    </Select>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name={`newAssignments.${index}.dueDate`}
+                                render={({ field: inputField }) => (
+                                  <FormItem>
+                                    <FormLabel>Fecha límite</FormLabel>
+                                    <FormControl>
+                                      <Input type="date" {...inputField} disabled={!isEditable} />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+
+                            {/* Notes below */}
+                            <FormField
+                              control={form.control}
+                              name={`newAssignments.${index}.notes`}
+                              render={({ field: inputField }) => (
+                                <FormItem>
+                                  <FormLabel>Notas</FormLabel>
+                                  <FormControl>
+                                    <Textarea {...inputField} disabled={!isEditable} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            {isEditable && (
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => newAssignments.remove(index)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Quitar
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  );
+                })}
+
+                {isEditable && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      newAssignments.append({
+                        title: "",
+                        assignedTo: "",
+                        assignedToName: "",
+                        dueDate: "",
+                        notes: "",
+                      });
+                      setTimeout(() => {
+                        setExpandedAssignments((current) => {
+                          const keys = Object.keys(current);
+                          if (keys.length > 0) {
+                            const lastKey = keys[keys.length - 1];
+                            return { ...current, [lastKey]: true };
+                          }
+                          return current;
+                        });
+                      }, 50);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar asignación
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Sección 5: Resumen y notas finales */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                5
+              </span>
+              <h3 className="text-sm font-semibold">Resumen y notas finales</h3>
+            </div>
+            <p className="pl-8 text-xs text-muted-foreground">Acuerdos del consejo y notas del obispo/secretario</p>
+
+            <div className="space-y-4 pl-8">
+              <FormField
+                control={form.control}
+                name="finalSummaryNotes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Resumen final del consejo</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        disabled={!isEditable}
+                        placeholder={isEditable ? "Resumen de los acuerdos y decisiones del consejo..." : ""}
+                        className="min-h-[80px]"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="bishopNotes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notas del obispo/secretario</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        disabled={!isEditable}
+                        placeholder={isEditable ? "Notas privadas del obispo o secretario..." : ""}
+                        className="min-h-[80px]"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Save progress + Finalize */}
+        {canManage && (
+          <div className="space-y-3 border-t pt-4">
+            {/* Manual save row */}
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Asignaciones del consejo</p>
-                <p className="text-xs text-muted-foreground">
-                  Se crearán como asignaciones reales al finalizar el consejo.
-                </p>
+              <div className="text-xs text-muted-foreground">
+                {lastManualSave
+                  ? `Guardado: ${lastManualSave.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Sin guardar aún"}
               </div>
               {isEditable && (
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    newAssignments.append({
-                      title: "",
-                      assignedTo: "",
-                      assignedToName: "",
-                      dueDate: "",
-                      notes: "",
-                    });
-                  }}
+                  onClick={handleManualSave}
+                  disabled={isManuallySaving}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar
+                  {isManuallySaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Guardar progreso
+                    </>
+                  )}
                 </Button>
               )}
             </div>
 
-            {newAssignments.fields.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No hay nuevas asignaciones registradas.
-              </p>
-            )}
-
-            {newAssignments.fields.map((field, index) => {
-              const assignmentTitle = form.watch(`newAssignments.${index}.title`) || `Asignación ${index + 1}`;
-              const assignedToName = form.watch(`newAssignments.${index}.assignedToName`) || "Sin responsable";
-              const dueDate = form.watch(`newAssignments.${index}.dueDate`);
-              const dueDateLabel = dueDate
-                ? new Date(`${dueDate}T00:00:00`).toLocaleDateString("es-ES")
-                : "Sin fecha";
-
-              return (
-                <Collapsible
-                  key={field.id}
-                  open={Boolean(expandedAssignments[field.id])}
-                  onOpenChange={(open) =>
-                    setExpandedAssignments((current) => ({
-                      ...current,
-                      [field.id]: open,
-                    }))
-                  }
+            {/* Finalize row */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {filteredNewAssignments.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Esto creará {filteredNewAssignments.length} asignación{filteredNewAssignments.length !== 1 ? "es" : ""} y cerrará el consejo.
+                </p>
+              )}
+              <div className="flex justify-end sm:ml-auto">
+                <Button
+                  type="button"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => onFinalize(form.getValues())}
+                  disabled={council.status !== "en_progreso" || isUpdating}
                 >
-                  <div className="rounded-xl border border-border/60 bg-card/60 p-3 shadow-sm">
-                    <CollapsibleTrigger
-                      className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition hover:bg-muted/40"
-                      type="button"
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <p className="truncate text-sm font-semibold">{assignmentTitle}</p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <UserRound className="h-3.5 w-3.5" />
-                            {assignedToName}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <CalendarDays className="h-3.5 w-3.5" />
-                            {dueDateLabel}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 transition-transform ${expandedAssignments[field.id] ? "rotate-180" : ""}`}
-                      />
-                    </CollapsibleTrigger>
-
-                    <CollapsibleContent className="pt-3">
-                      <div className="grid gap-3 md:grid-cols-4">
-                        <FormField
-                          control={form.control}
-                          name={`newAssignments.${index}.title`}
-                          render={({ field: inputField }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>Asignación</FormLabel>
-                              <FormControl>
-                                <Input {...inputField} disabled={!isEditable} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`newAssignments.${index}.assignedTo`}
-                          render={({ field: inputField }) => (
-                            <FormItem>
-                              <FormLabel>Responsable</FormLabel>
-                              <Select
-                                value={inputField.value}
-                                onValueChange={(value) => {
-                                  inputField.onChange(value);
-                                  const selected = leaderLookup.get(value);
-                                  form.setValue(
-                                    `newAssignments.${index}.assignedToName`,
-                                    selected?.fullName || selected?.name || selected?.email || ""
-                                  );
-                                }}
-                                disabled={!isEditable}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {renderLeaderOptions(leaderGroups, true)}
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`newAssignments.${index}.dueDate`}
-                          render={({ field: inputField }) => (
-                            <FormItem>
-                              <FormLabel>Fecha límite</FormLabel>
-                              <FormControl>
-                                <Input type="date" {...inputField} disabled={!isEditable} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`newAssignments.${index}.notes`}
-                          render={({ field: inputField }) => (
-                            <FormItem className="md:col-span-3">
-                              <FormLabel>Notas</FormLabel>
-                              <FormControl>
-                                <Textarea {...inputField} disabled={!isEditable} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-
-                        {isEditable && (
-                          <div className="flex items-end justify-end">
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => newAssignments.remove(index)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Quitar
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
-              );
-            })}
-          </div>
-
-          <FormField
-            control={form.control}
-            name="finalSummaryNotes"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Resumen final del consejo</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="bishopNotes"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Notas del obispo/secretario</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={!isEditable} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {canManage && (
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => onFinalize(form.getValues())}
-              disabled={council.status !== "en_progreso" || isUpdating}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Finalizar consejo de barrio
-            </Button>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Finalizar consejo
+                  {filteredNewAssignments.length > 0 &&
+                    ` · Crear ${filteredNewAssignments.length} asignación${filteredNewAssignments.length !== 1 ? "es" : ""}`}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </Form>
@@ -918,10 +1104,10 @@ export default function WardCouncilPage() {
                     Programa una nueva reunión
                   </DialogDescription>
                 </DialogHeader>
-              
+
                 <Form {...createForm}>
                   <form onSubmit={createForm.handleSubmit(onCreate)} className="space-y-4">
-              
+
                     {/* Fecha */}
                     <FormField
                       control={createForm.control}
@@ -963,7 +1149,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Preside */}
                     <FormField
                       control={createForm.control}
@@ -982,7 +1168,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Dirige */}
                     <FormField
                       control={createForm.control}
@@ -1001,7 +1187,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Oración inicial */}
                     <FormField
                       control={createForm.control}
@@ -1020,7 +1206,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Himno */}
                     <FormField
                       control={createForm.control}
@@ -1034,7 +1220,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Pensamiento espiritual */}
                     <FormField
                       control={createForm.control}
@@ -1053,7 +1239,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {createForm.watch("hasSpiritualThought") && (
                       <>
                         <FormField
@@ -1075,7 +1261,7 @@ export default function WardCouncilPage() {
                         />
                       </>
                     )}
-              
+
                     {/* Oración final */}
                     <FormField
                       control={createForm.control}
@@ -1094,7 +1280,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Revisión compromisos anteriores */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -1123,13 +1309,13 @@ export default function WardCouncilPage() {
                           Agregar
                         </Button>
                       </div>
-              
+
                       {createAssignments.fields.length === 0 && (
                         <p className="text-xs text-muted-foreground">
                           No hay asignaciones previas registradas.
                         </p>
                       )}
-              
+
                       {createAssignments.fields.map((field, index) => (
                         <div key={field.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-4">
                           <FormField
@@ -1144,7 +1330,7 @@ export default function WardCouncilPage() {
                               </FormItem>
                             )}
                           />
-              
+
                           <FormField
                             control={createForm.control}
                             name={`previousAssignments.${index}.responsible`}
@@ -1162,7 +1348,7 @@ export default function WardCouncilPage() {
                               </FormItem>
                             )}
                           />
-              
+
                           <FormField
                             control={createForm.control}
                             name={`previousAssignments.${index}.status`}
@@ -1186,7 +1372,7 @@ export default function WardCouncilPage() {
                               </FormItem>
                             )}
                           />
-              
+
                           <FormField
                             control={createForm.control}
                             name={`previousAssignments.${index}.notes`}
@@ -1199,7 +1385,7 @@ export default function WardCouncilPage() {
                               </FormItem>
                             )}
                           />
-              
+
                           <div className="flex items-end justify-end">
                             <Button
                               type="button"
@@ -1214,7 +1400,7 @@ export default function WardCouncilPage() {
                         </div>
                       ))}
                     </div>
-              
+
                     {/* Ajustes */}
                     <FormField
                       control={createForm.control}
@@ -1228,7 +1414,7 @@ export default function WardCouncilPage() {
                         </FormItem>
                       )}
                     />
-              
+
                     {/* Botones */}
                     <div className="flex justify-end gap-2">
                       <Button
@@ -1242,7 +1428,7 @@ export default function WardCouncilPage() {
                         Crear
                       </Button>
                     </div>
-              
+
                   </form>
                 </Form>
               </DialogContent>
@@ -1258,10 +1444,10 @@ export default function WardCouncilPage() {
           return (
           <Card key={c.id} className="overflow-hidden">
             <CardHeader className="space-y-3">
-                  
+
               {/* Título + acciones */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  
+
                 {/* Título */}
                 <div>
                   <CardTitle className="text-lg sm:text-xl leading-snug">
@@ -1278,7 +1464,7 @@ export default function WardCouncilPage() {
                     </span>
                   </CardTitle>
                 </div>
-                  
+
                 {/* Acciones */}
                 <div className="flex flex-wrap gap-2 justify-end sm:flex-nowrap">
                   <Button
@@ -1289,7 +1475,7 @@ export default function WardCouncilPage() {
                     <Download className="h-4 w-4 sm:mr-1" />
                     <span className="hidden sm:inline">PDF</span>
                   </Button>
-                  
+
                   {canManage && (
                     <>
                       {c.status === "programado" && (
@@ -1307,7 +1493,7 @@ export default function WardCouncilPage() {
                           <span className="hidden sm:inline">Iniciar</span>
                         </Button>
                       )}
-          
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -1316,7 +1502,7 @@ export default function WardCouncilPage() {
                         <Edit className="h-4 w-4 lg:mr-1" />
                         <span className="sr-only lg:not-sr-only">Editar</span>
                       </Button>
-                  
+
                       <Button
                         variant="destructive"
                         size="sm"
@@ -1327,7 +1513,7 @@ export default function WardCouncilPage() {
                       </Button>
                     </>
                   )}
-          
+
                   {c.status === "finalizado" && (
                     <Button
                       variant="secondary"
@@ -1339,7 +1525,7 @@ export default function WardCouncilPage() {
                   )}
                 </div>
               </div>
-              
+
               {/* Descripción */}
               <CardDescription className="text-sm text-muted-foreground">
                 <div className="grid gap-1 sm:grid-cols-2">
@@ -1359,30 +1545,30 @@ export default function WardCouncilPage() {
                   <span>
                     <strong>Lugar:</strong> {c.location || "-"}
                   </span>
-                  
+
                   <span>
                     <strong>Preside:</strong> {c.presider || "-"}
                   </span>
-                  
+
                   <span>
                     <strong>Dirige:</strong> {c.director || "-"}
                   </span>
-                  
+
                   <span>
                     <strong>Oración inicial:</strong> {c.openingPrayer || "-"}
                   </span>
-                  
+
                   <span>
                     <strong>Oración final:</strong> {c.closingPrayerBy || "-"}
                   </span>
-                  
+
                   {Array.isArray(c.previousAssignments) && (
                     <span>
                       <strong>Compromisos anteriores:</strong>{" "}
                       {c.previousAssignments.length}
                     </span>
                   )}
-          
+
                   {Array.isArray(c.newAssignments) && (
                     <span>
                       <strong>Nuevas asignaciones:</strong>{" "}
@@ -1391,9 +1577,9 @@ export default function WardCouncilPage() {
                   )}
                 </div>
               </CardDescription>
-              
+
             </CardHeader>
-              
+
             {/* Detalles en progreso */}
             {c.status === "en_progreso" && (
               <CouncilDetailsForm
@@ -1525,13 +1711,13 @@ export default function WardCouncilPage() {
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un líder" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>{editLeaderOptions}</SelectContent>
-                  </Select>
-                </FormItem>
-              )}
+                          <SelectValue placeholder="Selecciona un líder" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>{editLeaderOptions}</SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
               />
 
               <FormField
@@ -1575,14 +1761,13 @@ export default function WardCouncilPage() {
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecciona un líder" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>{editLeaderOptions}</SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-              />
-
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{editLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
                 </>
               )}
 
@@ -1595,13 +1780,13 @@ export default function WardCouncilPage() {
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un líder" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>{editLeaderOptions}</SelectContent>
-                  </Select>
-                </FormItem>
-              )}
+                          <SelectValue placeholder="Selecciona un líder" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>{editLeaderOptions}</SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
               />
 
               <div className="space-y-3">
@@ -1661,14 +1846,14 @@ export default function WardCouncilPage() {
                           <Select value={inputField.value} onValueChange={inputField.onChange}>
                             <FormControl>
                               <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un líder" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>{editLeaderOptions}</SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                                <SelectValue placeholder="Selecciona un líder" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>{editLeaderOptions}</SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
 
                     <FormField
