@@ -210,6 +210,7 @@ export default function WelfarePage() {
   const [signerName, setSignerName] = useState("");
   const [activeSection, setActiveSection] = useState<"resumen" | "solicitudes">("resumen");
   const [requestStatusFilter, setRequestStatusFilter] = useState<"todas" | "pendientes" | "aprobadas" | "rechazadas">("todas");
+  const [attachmentsDialogRequest, setAttachmentsDialogRequest] = useState<WelfareRequest | null>(null);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -1239,86 +1240,71 @@ export default function WelfarePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {visibleRequests.map((request) => (
-                <Card
-                  key={request.id}
-                  data-request-id={request.id}
-                  className={`rounded-2xl border-border/60 transition-all ${highlightedRequestId === request.id ? "ring-2 ring-primary" : ""}`}
-                >
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold truncate">{request.description}</p>
-                          {getStatusBadge(request.status)}
-                        </div>
-                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Euro className="h-3 w-3" />
-                            {Number(request.amount).toFixed(2)}
-                          </span>
-                          {request.activityDate && (
-                            <span>{new Date(request.activityDate).toLocaleDateString("es-ES")}</span>
-                          )}
-                          <span>{new Date(request.createdAt).toLocaleDateString("es-ES")}</span>
-                        </div>
-                        {request.notes && (
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{request.notes}</p>
-                        )}
-                        {/* Attachments */}
-                        {(request.receipts ?? []).length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {(request.receipts ?? []).map((receipt, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => downloadFile(receipt)}
-                                className="flex items-center gap-1 rounded-full border border-border/60 bg-muted/20 px-2 py-0.5 text-xs hover:bg-muted/40 transition-colors"
-                              >
-                                <Paperclip className="h-2.5 w-2.5" />
-                                {getReceiptLabel(receipt.category)}
-                              </button>
-                            ))}
+              {visibleRequests.map((request) => {
+                const accent = request.status === "aprobado"
+                  ? "from-emerald-500/45"
+                  : request.status === "rechazada"
+                    ? "from-rose-500/45"
+                    : "from-amber-500/45";
+                const attachmentCount = (request.receipts?.length ?? 0) + (request.bishopSignedPlanUrl ? 1 : 0);
+                return (
+                  <Card
+                    key={request.id}
+                    data-request-id={request.id}
+                    className={highlightedRequestId === request.id ? "ring-2 ring-white/70" : ""}
+                  >
+                    <div className="p-6">
+                      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {getStatusBadge(request.status)}
+                            {request.favorDe && (
+                              <span className="text-sm text-slate-500">{request.favorDe}</span>
+                            )}
                           </div>
-                        )}
-                        {/* Signed PDF */}
-                        {request.bishopSignedPlanUrl && (
-                          <button
-                            type="button"
-                            onClick={() => downloadFile({ filename: request.bishopSignedPlanFilename ?? "bienestar-firmado.pdf", url: request.bishopSignedPlanUrl })}
-                            className="mt-1 flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                          >
-                            <Paperclip className="h-2.5 w-2.5" />
-                            Solicitud firmada (PDF)
-                          </button>
-                        )}
+                          <p className="text-lg font-semibold leading-tight text-foreground md:text-xl">{request.description}</p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground md:text-sm">
+                            <span>{new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}</span>
+                            {attachmentCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setAttachmentsDialogRequest(request)}
+                                className="inline-flex items-center gap-1.5 text-primary transition-colors hover:opacity-90"
+                              >
+                                <Paperclip className="h-3.5 w-3.5" />
+                                <span>{attachmentCount} adjunto{attachmentCount > 1 ? "s" : ""}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{Number(request.amount).toFixed(2)}</p>
                       </div>
-                      {/* Actions */}
-                      <div className="flex flex-wrap gap-2 shrink-0">
+
+                      <div className="flex flex-wrap gap-2">
                         {isObispo && request.status === "solicitado" && (
                           <>
                             <Button
                               size="sm"
-                              className="rounded-full"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
                               onClick={() => handleSignAsBishop(request.id)}
-                              disabled={!request.applicantSignatureDataUrl}
+                              disabled={!request.applicantSignatureDataUrl || signMutation.isPending}
                               title={!request.applicantSignatureDataUrl ? "Falta la firma del solicitante" : undefined}
                             >
                               <PenLine className="mr-1 h-3.5 w-3.5" /> Firmar
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="rounded-full"
+                              variant="secondary"
                               onClick={() => handleReviewByBishop(request.id, "enmendar")}
+                              disabled={reviewMutation.isPending}
                             >
                               Enmendar
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
-                              className="rounded-full"
                               onClick={() => handleReviewByBishop(request.id, "rechazar")}
+                              disabled={reviewMutation.isPending}
                             >
                               Rechazar
                             </Button>
@@ -1326,24 +1312,65 @@ export default function WelfarePage() {
                         )}
                         {isObispo && (
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10"
+                            size="sm"
+                            variant="destructive"
                             onClick={() => handleDelete(request.id)}
                             data-testid={`button-delete-welfare-${request.id}`}
+                            disabled={deleteMutation.isPending}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            Eliminar
                           </Button>
                         )}
                       </div>
+
+                      <div className={`mt-5 h-px bg-gradient-to-r ${accent} to-transparent`} />
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
       )}
+
+      {/* Attachments dialog */}
+      <Dialog open={Boolean(attachmentsDialogRequest)} onOpenChange={(open) => { if (!open) setAttachmentsDialogRequest(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adjuntos de la solicitud</DialogTitle>
+            <DialogDescription>
+              {attachmentsDialogRequest?.description || "Revisa y descarga los documentos adjuntos."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {attachmentsDialogRequest?.bishopSignedPlanUrl && (
+              <button
+                type="button"
+                onClick={() => downloadFile({ filename: attachmentsDialogRequest.bishopSignedPlanFilename ?? "bienestar-firmado.pdf", url: attachmentsDialogRequest.bishopSignedPlanUrl })}
+                className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
+              >
+                <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span className="min-w-0 truncate">Solicitud firmada: {attachmentsDialogRequest.bishopSignedPlanFilename ?? "bienestar-firmado.pdf"}</span>
+              </button>
+            )}
+            {attachmentsDialogRequest?.receipts?.length ? (
+              attachmentsDialogRequest.receipts.map((receipt, index) => (
+                <button
+                  key={`${attachmentsDialogRequest.id}-dialog-receipt-${index}`}
+                  type="button"
+                  onClick={() => downloadFile(receipt)}
+                  className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
+                >
+                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 truncate">{getReceiptLabel(receipt.category)}: {receipt.filename}</span>
+                </button>
+              ))
+            ) : !attachmentsDialogRequest?.bishopSignedPlanUrl ? (
+              <p className="text-sm text-muted-foreground">No hay adjuntos disponibles.</p>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bishop sign dialog */}
       <Dialog open={isSignDialogOpen} onOpenChange={setIsSignDialogOpen}>
