@@ -48,10 +48,17 @@ export const getNotificationDestination = (notification: Notification) => {
       return "/assignments";
     }
     case "budget_approved":
-    case "budget_rejected":
+    case "budget_rejected": {
+      const isWelfare = notification.title.toLowerCase().includes("bienestar");
+      if (isWelfare) {
+        return notification.relatedId
+          ? `/welfare?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/welfare";
+      }
       return notification.relatedId
         ? `/budget?highlight=${encodeURIComponent(notification.relatedId)}`
         : "/budget";
+    }
     case "birthday_today":
       return "/birthdays";
     case "upcoming_meeting":
@@ -63,6 +70,11 @@ export const getNotificationDestination = (notification: Notification) => {
       }
       if (title.includes("meta")) {
         return "/goals";
+      }
+      if (title.includes("bienestar")) {
+        return notification.relatedId
+          ? `/welfare?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/welfare";
       }
       if (title.includes("presupuesto") || title.includes("comprobantes")) {
         return "/budget";
