@@ -216,6 +216,7 @@ export default function WelfarePage() {
     receipt: "idle" | "uploading" | "done";
     bankJustificante: "idle" | "uploading" | "done";
   }>({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -414,6 +415,7 @@ export default function WelfarePage() {
       return;
     }
 
+    setIsSubmitting(true);
     const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
     // Always upload self-sufficiency plan
@@ -424,6 +426,7 @@ export default function WelfarePage() {
       uploadedReceipts.push({ filename: uploaded.filename, url: uploaded.url, category: "autosuficiencia" });
     } catch {
       setWelfareUploadState(s => ({ ...s, selfSufficiency: "idle" }));
+      setIsSubmitting(false);
       alert("No se pudo subir el plan de autosuficiencia. Intenta nuevamente.");
       return;
     }
@@ -436,6 +439,7 @@ export default function WelfarePage() {
         uploadedReceipts.push({ filename: uploaded.filename, url: uploaded.url, category: "receipt" });
       } catch {
         setWelfareUploadState(s => ({ ...s, receipt: "idle" }));
+        setIsSubmitting(false);
         alert("No se pudo subir el comprobante. Intenta nuevamente.");
         return;
       }
@@ -449,6 +453,7 @@ export default function WelfarePage() {
         uploadedReceipts.push({ filename: uploaded.filename, url: uploaded.url, category: "bank_justificante" });
       } catch {
         setWelfareUploadState(s => ({ ...s, bankJustificante: "idle" }));
+        setIsSubmitting(false);
         alert("No se pudo subir el justificante bancario. Intenta nuevamente.");
         return;
       }
@@ -475,6 +480,7 @@ export default function WelfarePage() {
       },
       {
         onSuccess: () => {
+          setIsSubmitting(false);
           setIsDialogOpen(false);
           clearRequesterSignatureCanvas();
           welfareForm.reset({
@@ -492,6 +498,9 @@ export default function WelfarePage() {
             selfSufficiencyPlanFile: undefined,
             receiptFile: undefined,
           });
+        },
+        onError: () => {
+          setIsSubmitting(false);
         },
       }
     );
@@ -680,7 +689,7 @@ export default function WelfarePage() {
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           {canCreate && (
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setWelfareUploadState({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" }); }}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setWelfareUploadState({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" }); setIsSubmitting(false); } }}>
               <DialogTrigger asChild>
                 <Button
                   data-testid="button-create-welfare-request"
@@ -1039,14 +1048,14 @@ export default function WelfarePage() {
                                   type="button"
                                   variant={field.value ? "default" : "outline"}
                                   className="w-fit"
-                                  disabled={createMutation.isPending}
+                                  disabled={isSubmitting}
                                   onClick={() => (document.getElementById("welfare-self-sufficiency-plan-file") as HTMLInputElement)?.click()}
                                 >
                                   <Paperclip className="h-4 w-4 mr-2" />
                                   {field.value ? "Plan adjunto" : "Seleccionar plan"}
                                 </Button>
-                                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                                {!createMutation.isPending && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                {!isSubmitting && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
                               </div>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
@@ -1088,14 +1097,14 @@ export default function WelfarePage() {
                                     type="button"
                                     variant={field.value ? "default" : "outline"}
                                     className="w-fit"
-                                    disabled={createMutation.isPending}
+                                    disabled={isSubmitting}
                                     onClick={() => (document.getElementById("welfare-receipt-file") as HTMLInputElement)?.click()}
                                   >
                                     <Upload className="h-4 w-4 mr-2" />
                                     {field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
                                   </Button>
-                                  {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                                  {!createMutation.isPending && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                  {!isSubmitting && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
                                 </div>
                                 <span className="text-xs text-muted-foreground">
                                   {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
@@ -1146,8 +1155,8 @@ export default function WelfarePage() {
                       <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                         Cancelar
                       </Button>
-                      <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-welfare-request">
-                        {createMutation.isPending ? "Enviando..." : "Enviar solicitud"}
+                      <Button type="submit" disabled={isSubmitting} data-testid="button-submit-welfare-request">
+                        {isSubmitting ? "Enviando..." : "Enviar solicitud"}
                       </Button>
                     </div>
                   </form>
