@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw, Loader2 } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -1629,16 +1629,20 @@ export default function BudgetPage() {
                                 className="hidden"
                                 data-testid="input-receipt-file"
                               />
-                              <Button
-                                type="button"
-                                variant={field.value ? "default" : "outline"}
-                                className="w-fit"
-                                disabled={createMutation.isPending}
-                                onClick={() => (document.getElementById("budget-receipt-file") as HTMLInputElement)?.click()}
-                              >
-                                {createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                                {createMutation.isPending ? "Enviando..." : field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant={field.value ? "default" : "outline"}
+                                  className="w-fit"
+                                  disabled={createMutation.isPending}
+                                  onClick={() => (document.getElementById("budget-receipt-file") as HTMLInputElement)?.click()}
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  {field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
+                                </Button>
+                                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                {!createMutation.isPending && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                              </div>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
                               </span>
@@ -1745,16 +1749,20 @@ export default function BudgetPage() {
                               className="hidden"
                               data-testid="input-expense-receipts"
                             />
-                            <Button
-                              type="button"
-                              variant={field.value?.length ? "default" : "outline"}
-                              className="w-fit"
-                              disabled={updateMutation.isPending}
-                              onClick={() => (document.getElementById("expense-receipts") as HTMLInputElement)?.click()}
-                            >
-                              {updateMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                              {updateMutation.isPending ? "Guardando..." : field.value?.length ? `${field.value.length} archivo${field.value.length > 1 ? "s" : ""} adjunto${field.value.length > 1 ? "s" : ""}` : "Adjuntar comprobantes"}
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant={field.value?.length ? "default" : "outline"}
+                                className="w-fit"
+                                disabled={updateMutation.isPending}
+                                onClick={() => (document.getElementById("expense-receipts") as HTMLInputElement)?.click()}
+                              >
+                                <Upload className="h-4 w-4 mr-2" />
+                                {field.value?.length ? `${field.value.length} archivo${field.value.length > 1 ? "s" : ""} adjunto${field.value.length > 1 ? "s" : ""}` : "Adjuntar comprobantes"}
+                              </Button>
+                              {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                              {!updateMutation.isPending && field.value?.length ? <CheckCircle2 className="h-4 w-4 text-primary" /> : null}
+                            </div>
                             <span className="text-xs text-muted-foreground">
                               {field.value?.length
                                 ? `Archivos seleccionados: ${field.value.length}`

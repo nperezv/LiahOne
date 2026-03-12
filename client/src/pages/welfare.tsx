@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps, type Pointer
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Loader2 } from "lucide-react";
+import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -1034,16 +1034,20 @@ export default function WelfarePage() {
                                 data-testid="input-welfare-self-sufficiency-plan"
                                 className="hidden"
                               />
-                              <Button
-                                type="button"
-                                variant={field.value ? "default" : "outline"}
-                                className="w-fit"
-                                disabled={createMutation.isPending}
-                                onClick={() => (document.getElementById("welfare-self-sufficiency-plan-file") as HTMLInputElement)?.click()}
-                              >
-                                {createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Paperclip className="h-4 w-4 mr-2" />}
-                                {createMutation.isPending ? "Enviando..." : field.value ? "Plan adjunto" : "Seleccionar plan"}
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant={field.value ? "default" : "outline"}
+                                  className="w-fit"
+                                  disabled={createMutation.isPending}
+                                  onClick={() => (document.getElementById("welfare-self-sufficiency-plan-file") as HTMLInputElement)?.click()}
+                                >
+                                  <Paperclip className="h-4 w-4 mr-2" />
+                                  {field.value ? "Plan adjunto" : "Seleccionar plan"}
+                                </Button>
+                                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                {!createMutation.isPending && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                              </div>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
                               </span>
@@ -1079,16 +1083,20 @@ export default function WelfarePage() {
                                   data-testid="input-welfare-receipt"
                                   className="hidden"
                                 />
-                                <Button
-                                  type="button"
-                                  variant={field.value ? "default" : "outline"}
-                                  className="w-fit"
-                                  disabled={createMutation.isPending}
-                                  onClick={() => (document.getElementById("welfare-receipt-file") as HTMLInputElement)?.click()}
-                                >
-                                  {createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                                  {createMutation.isPending ? "Enviando..." : field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant={field.value ? "default" : "outline"}
+                                    className="w-fit"
+                                    disabled={createMutation.isPending}
+                                    onClick={() => (document.getElementById("welfare-receipt-file") as HTMLInputElement)?.click()}
+                                  >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    {field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
+                                  </Button>
+                                  {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                  {!createMutation.isPending && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                </div>
                                 <span className="text-xs text-muted-foreground">
                                   {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
                                 </span>
