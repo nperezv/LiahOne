@@ -3224,6 +3224,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Welfare request not found" });
       }
 
+      // Create task to attach expense receipts (reembolso already has receipts attached)
+      const isReimbursementRequest = welfareRequest.requestType === "reembolso";
+      if (!isReimbursementRequest) {
+        const dueDate = welfareRequest.activityDate ? new Date(welfareRequest.activityDate) : new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+
+        const assignment = await storage.createAssignment({
+          title: "Adjuntar comprobantes de bienestar",
+          description: `Adjunta los comprobantes de gasto para la solicitud de bienestar "${welfareRequest.description}" por €${welfareRequest.amount}.`,
+          assignedTo: welfareRequest.requestedBy,
+          assignedBy: req.session.userId!,
+          dueDate,
+          relatedTo: `welfare:${welfareRequest.id}`,
+        });
+
+        const receiptNotification = await storage.createNotification({
+          userId: welfareRequest.requestedBy,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${assignment.title}"`,
+          relatedId: welfareRequest.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(welfareRequest.requestedBy, {
+            title: "Nueva Asignación",
+            body: `Se te ha asignado: "${assignment.title}"`,
+            url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
+            notificationId: receiptNotification.id,
+          });
+        }
+      }
+
       // Notify requester
       const approvalNotification = await storage.createNotification({
         userId: welfareRequest.requestedBy,
@@ -3286,7 +3320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Notify requester
-      await storage.createNotification({
+      const rejectionNotification = await storage.createNotification({
         userId: welfareRequest.requestedBy,
         type: "budget_rejected",
         title: action === "rechazar" ? "Solicitud de bienestar rechazada" : "Solicitud de bienestar devuelta",
@@ -3294,6 +3328,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         relatedId: welfareRequest.id,
         isRead: false,
       });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(welfareRequest.requestedBy, {
+          title: action === "rechazar" ? "Solicitud de bienestar rechazada" : "Solicitud de bienestar devuelta",
+          body: `Tu solicitud "${welfareRequest.description}" fue ${action === "rechazar" ? "rechazada" : "devuelta para enmienda"}. Motivo: ${reason}`,
+          url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
+          notificationId: rejectionNotification.id,
+        });
+      }
 
       res.json(updatedRequest);
     } catch (error) {

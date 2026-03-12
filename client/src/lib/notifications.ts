@@ -41,6 +41,11 @@ export const getNotificationDestination = (notification: Notification) => {
       const title = notification.title.toLowerCase();
       const description = (notification.description || "").toLowerCase();
       if (title.includes("comprobante") || description.includes("adjuntar comprobantes")) {
+        if (description.includes("bienestar")) {
+          return notification.relatedId
+            ? `/welfare?highlight=${encodeURIComponent(notification.relatedId)}`
+            : "/welfare";
+        }
         return notification.relatedId
           ? `/budget?highlight=${encodeURIComponent(notification.relatedId)}`
           : "/budget";
