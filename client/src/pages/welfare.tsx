@@ -991,15 +991,30 @@ export default function WelfarePage() {
                             <Paperclip className="h-3.5 w-3.5" />
                             Plan de Autosuficiencia <span className="text-destructive">*</span>
                           </FormLabel>
-                          <p className="text-xs text-muted-foreground">Adjunta el plan de autosuficiencia del beneficiario</p>
                           <FormControl>
-                            <Input
-                              type="file"
-                              accept=".jpg,.jpeg,.pdf,.doc,.docx"
-                              onChange={(e) => field.onChange(e.target.files?.[0])}
-                              data-testid="input-welfare-self-sufficiency-plan"
-                            />
+                            <div className="flex flex-col gap-2">
+                              <Input
+                                id="welfare-self-sufficiency-plan-file"
+                                type="file"
+                                accept={allowedDocumentExtensions.join(",")}
+                                onChange={(e) => field.onChange(e.target.files?.[0])}
+                                data-testid="input-welfare-self-sufficiency-plan"
+                                className="hidden"
+                              />
+                              <Button type="button" variant="outline" className="w-fit" asChild>
+                                <label htmlFor="welfare-self-sufficiency-plan-file" className="cursor-pointer">
+                                  <Paperclip className="h-4 w-4 mr-2" />
+                                  Seleccionar plan
+                                </label>
+                              </Button>
+                              <span className="text-xs text-muted-foreground">
+                                {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
+                              </span>
+                            </div>
                           </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Adjunta el plan de autosuficiencia del beneficiario. Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -1033,32 +1048,36 @@ export default function WelfarePage() {
 
                     {/* 10. Requester signature */}
                     <div className="space-y-2">
-                      <p className="text-sm font-medium flex items-center gap-1">
-                        <PenLine className="h-4 w-4" />
-                        Firma del solicitante
-                      </p>
-                      <p className="text-xs text-muted-foreground">Firma en el recuadro para confirmar la solicitud</p>
-                      <div className="relative rounded-xl border border-border/60 bg-white overflow-hidden">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Firma del solicitante <span className="text-destructive">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={clearRequesterSignatureCanvas}
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Limpiar
+                        </button>
+                      </div>
+                      <div className="rounded-md border border-dashed border-slate-600 bg-[#0d1117] p-2">
                         <canvas
                           ref={requesterSignatureCanvasRef}
-                          width={600}
-                          height={120}
-                          className="w-full touch-none cursor-crosshair"
+                          width={700}
+                          height={180}
+                          className="h-36 w-full rounded border border-slate-200 bg-white"
+                          style={{ touchAction: "none" }}
                           onPointerDown={startRequesterDrawing}
                           onPointerMove={drawRequesterSignature}
                           onPointerUp={stopRequesterDrawing}
                           onPointerLeave={stopRequesterDrawing}
                         />
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-full text-xs"
-                        onClick={clearRequesterSignatureCanvas}
-                      >
-                        <RotateCcw className="mr-1 h-3 w-3" /> Limpiar firma
-                      </Button>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <PenLine className="h-3 w-3" />
+                        Firma en el recuadro para confirmar la solicitud
+                      </p>
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
