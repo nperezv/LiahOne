@@ -3018,10 +3018,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Budget request not found" });
       }
 
-      // Check authorization: only obispo and consejero_obispo can delete budget requests
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
+      const isPrivileged = user.role === "obispo" || user.role === "consejero_obispo";
 
-      if (!isObispado) {
+      if (isPrivileged) {
+        // can delete anything
+      } else if (user.role === "presidente_organizacion") {
+        if (budgetRequest.organizationId !== user.organizationId) {
+          return res.status(403).json({ error: "No tienes permisos para eliminar esta solicitud" });
+        }
+        if (budgetRequest.status !== "solicitado") {
+          return res.status(403).json({ error: "Solo puedes eliminar solicitudes que aún no hayan sido aprobadas" });
+        }
+      } else {
         return res.status(403).json({ error: "Forbidden" });
       }
 

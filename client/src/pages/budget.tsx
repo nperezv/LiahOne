@@ -2164,7 +2164,8 @@ export default function BudgetPage() {
                     {request.status === "aprobado" && request.requestedBy === user?.id && shouldShowAddExpenseReceipts(request) && (
                       <Button size="sm" variant="secondary" onClick={() => openReceiptsDialog(request)} data-testid={`button-add-expense-receipts-${request.id}`}>Adjuntar comprobante</Button>
                     )}
-                    {canDelete && (
+                    {((["obispo", "consejero_obispo"].includes(user?.role || "")) ||
+                      (user?.role === "presidente_organizacion" && request.status === "solicitado" && request.organizationId === user?.organizationId)) && (
                       <Button size="sm" variant="destructive" onClick={() => handleDelete(request.id)} data-testid={`button-delete-budget-${request.id}`} disabled={deleteMutation.isPending}>Eliminar</Button>
                     )}
                   </div>
