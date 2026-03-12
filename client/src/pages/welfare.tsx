@@ -243,6 +243,7 @@ export default function WelfarePage() {
 
   const isObispo = user?.role === "obispo";
   const isOrgPresident = user?.role === "presidente_organizacion";
+  const isSecretarioFinanciero = user?.role === "secretario_financiero";
 
   const userOrg = useMemo(() => (organizations as any[]).find((o: any) => o.id === user?.organizationId), [organizations, user?.organizationId]);
   const isWelfareOrg = userOrg?.type === "sociedad_socorro" || userOrg?.type === "cuorum_elderes";
@@ -263,7 +264,7 @@ export default function WelfarePage() {
   }, [organizations, allUsers]);
 
   const filteredRequests = useMemo(() => {
-    if (isObispo) return requests as WelfareRequest[];
+    if (isObispo || isSecretarioFinanciero) return requests as WelfareRequest[];
     return (requests as WelfareRequest[]).filter((r) => r.organizationId === user?.organizationId);
   }, [requests, isObispo, user?.organizationId]);
 
@@ -654,13 +655,13 @@ export default function WelfarePage() {
     );
   }
 
-  if (!canCreate && !isObispo) {
+  if (!canCreate && !isObispo && !isSecretarioFinanciero) {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <Heart className="h-12 w-12 text-muted-foreground/40" />
         <h2 className="text-xl font-semibold">Sin acceso al módulo de Bienestar</h2>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Solo el obispo y los presidentes de Sociedad de Socorro o Cuórum de Élderes pueden acceder a este módulo.
+          Solo el obispo, el secretario financiero y los presidentes de Sociedad de Socorro o Cuórum de Élderes pueden acceder a este módulo.
         </p>
       </div>
     );
@@ -1362,7 +1363,7 @@ export default function WelfarePage() {
                             </Button>
                           </>
                         )}
-                        {isObispo && (
+                        {(isObispo || (isOrgPresident && isWelfareOrg && request.status === "solicitado" && request.organizationId === user?.organizationId)) && (
                           <Button
                             size="sm"
                             variant="destructive"

@@ -3043,7 +3043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = (req as any).user;
       const requests = await storage.getAllWelfareRequests();
 
-      if (user.role === "obispo") {
+      if (user.role === "obispo" || user.role === "secretario_financiero") {
         return res.json(requests);
       }
 
@@ -3358,13 +3358,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/welfare-requests/:id", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+  app.delete("/api/welfare-requests/:id", requireAuth, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const { id } = req.params;
       const welfareRequest = await storage.getWelfareRequest(id);
       if (!welfareRequest) {
         return res.status(404).json({ error: "Welfare request not found" });
       }
+
+      if (user.role === "obispo") {
+        // obispo can delete anything
+      } else if (user.role === "presidente_organizacion") {
+        // presidents can only delete their own org's unsigned requests
+        if (welfareRequest.organizationId !== user.organizationId) {
+          return res.status(403).json({ error: "No tienes permisos para eliminar esta solicitud" });
+        }
+        if (welfareRequest.status !== "solicitado") {
+          return res.status(403).json({ error: "Solo puedes eliminar solicitudes que aún no hayan sido firmadas por el obispo" });
+        }
+      } else {
+        return res.status(403).json({ error: "No tienes permisos para eliminar solicitudes de bienestar" });
+      }
+
       await storage.deleteWelfareRequest(id);
       res.status(204).send();
     } catch (error) {
