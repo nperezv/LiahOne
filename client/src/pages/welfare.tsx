@@ -441,7 +441,7 @@ export default function WelfarePage() {
     createMutation.mutate(
       {
         description: data.description,
-        amount: parsedAmount,
+        amount: String(parsedAmount),
         status: "solicitado",
         activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,
         notes: data.notes || "",
