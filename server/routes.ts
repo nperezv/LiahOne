@@ -3230,17 +3230,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const dueDate = welfareRequest.activityDate ? new Date(welfareRequest.activityDate) : new Date();
         dueDate.setDate(dueDate.getDate() + 7);
 
+        // If obispo created on behalf of a president (pagarA = president name), assign task to that president
+        const requestedByUser = await storage.getUser(welfareRequest.requestedBy);
+        let taskAssignTo = welfareRequest.requestedBy;
+        if (requestedByUser?.role === "obispo" && welfareRequest.pagarA) {
+          const allUsers = await storage.getAllUsers();
+          const president = allUsers.find(
+            (u: any) => u.name === welfareRequest.pagarA && u.role === "presidente_organizacion"
+          );
+          if (president) taskAssignTo = president.id;
+        }
+
         const assignment = await storage.createAssignment({
           title: "Adjuntar comprobantes de bienestar",
           description: `Adjunta los comprobantes de gasto para la solicitud de bienestar "${welfareRequest.description}" por €${welfareRequest.amount}.`,
-          assignedTo: welfareRequest.requestedBy,
+          assignedTo: taskAssignTo,
           assignedBy: req.session.userId!,
           dueDate,
           relatedTo: `welfare:${welfareRequest.id}`,
         });
 
         const receiptNotification = await storage.createNotification({
-          userId: welfareRequest.requestedBy,
+          userId: taskAssignTo,
           type: "assignment_created",
           title: "Nueva Asignación",
           description: `Se te ha asignado: "${assignment.title}"`,
@@ -3249,7 +3260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         if (isPushConfigured()) {
-          await sendPushNotification(welfareRequest.requestedBy, {
+          await sendPushNotification(taskAssignTo, {
             title: "Nueva Asignación",
             body: `Se te ha asignado: "${assignment.title}"`,
             url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
