@@ -625,7 +625,7 @@ type SacramentalRoleEntry = {
   suggestedMinutes?: number | null;
 };
 
-const buildSacramentalRoleEntries = (meeting: any) => {
+const buildSacramentalRoleEntries = (meeting: any, totalDiscourseCount?: number) => {
   const map = new Map<string, SacramentalRoleEntry[]>();
   const pushEntry = (name: string | undefined | null, entry: SacramentalRoleEntry) => {
     const normalized = normalizeComparableName(name);
@@ -660,7 +660,7 @@ const buildSacramentalRoleEntries = (meeting: any) => {
     })
     .filter((item) => Boolean(item.speaker));
 
-  const discourseMinutes = getDiscourseMinutesPerSpeaker(discourses.length);
+  const discourseMinutes = getDiscourseMinutesPerSpeaker(totalDiscourseCount ?? discourses.length);
 
   discourses.forEach((item) => {
     const lineBase = item.topic ? `Discurso: ${item.topic}` : "Discurso";
@@ -1966,6 +1966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     meeting: any,
     options?: {
       reminderType?: "midweek" | "day_before";
+      totalDiscourseCount?: number;
     }
   ) => {
     const users = await storage.getAllUsers();
@@ -1973,7 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const template = await storage.getPdfTemplate();
     const wardName = template?.wardName;
     const sacramentMeetingTime = template?.sacramentMeetingTime;
-    const rolesByName = buildSacramentalRoleEntries(meeting);
+    const rolesByName = buildSacramentalRoleEntries(meeting, options?.totalDiscourseCount);
 
     const roleEntries = Array.from(rolesByName.entries());
     let sentCount = 0;
@@ -2111,7 +2112,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (diffMeeting.assignments?.length ?? 0) > 0;
 
         if (hasNewParticipants) {
-          await notifySacramentalParticipants(diffMeeting);
+          const fullDiscourseCount = [
+            ...(meeting.discourses || []),
+            ...(meeting.messages || []),
+          ].filter((d: any) => extractParticipantName(d?.speaker)).length;
+          await notifySacramentalParticipants(diffMeeting, { totalDiscourseCount: fullDiscourseCount });
         }
       } catch (notificationError) {
         console.error("[Sacramental Emails] Failed to notify new participants after meeting update", {
