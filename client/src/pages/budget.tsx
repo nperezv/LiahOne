@@ -1631,13 +1631,13 @@ export default function BudgetPage() {
                               />
                               <Button
                                 type="button"
-                                variant={budgetUploadState.receipt === "done" ? "default" : "outline"}
+                                variant={budgetUploadState.receipt === "done" || createMutation.isPending ? "default" : "outline"}
                                 className="w-fit"
-                                disabled={budgetUploadState.receipt === "uploading"}
+                                disabled={budgetUploadState.receipt === "uploading" || createMutation.isPending}
                                 onClick={() => (document.getElementById("budget-receipt-file") as HTMLInputElement)?.click()}
                               >
-                                {budgetUploadState.receipt === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                                {budgetUploadState.receipt === "uploading" ? "Subiendo..." : "Seleccionar comprobante"}
+                                {budgetUploadState.receipt === "uploading" || createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                {budgetUploadState.receipt === "uploading" ? "Subiendo..." : createMutation.isPending ? "Enviando..." : "Seleccionar comprobante"}
                               </Button>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
@@ -1747,13 +1747,13 @@ export default function BudgetPage() {
                             />
                             <Button
                               type="button"
-                              variant={expenseUploadState === "done" ? "default" : "outline"}
+                              variant={expenseUploadState === "done" || updateMutation.isPending ? "default" : "outline"}
                               className="w-fit"
-                              disabled={expenseUploadState === "uploading"}
+                              disabled={expenseUploadState === "uploading" || updateMutation.isPending}
                               onClick={() => (document.getElementById("expense-receipts") as HTMLInputElement)?.click()}
                             >
-                              {expenseUploadState === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                              {expenseUploadState === "uploading" ? "Subiendo..." : "Adjuntar comprobantes"}
+                              {expenseUploadState === "uploading" || updateMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                              {expenseUploadState === "uploading" ? "Subiendo..." : updateMutation.isPending ? "Guardando..." : "Adjuntar comprobantes"}
                             </Button>
                             <span className="text-xs text-muted-foreground">
                               {field.value?.length
