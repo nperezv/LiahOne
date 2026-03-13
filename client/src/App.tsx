@@ -55,7 +55,6 @@ const InventoryPublicPage = lazy(() => import("@/pages/inventory-public"));
 const InventoryLocationsPage = lazy(() => import("@/pages/inventory-locations"));
 const InventoryLocationDetailPage = lazy(() => import("@/pages/inventory-location-detail"));
 const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
-const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
 const MissionWorkPage = lazy(() => import("@/pages/mission-work"));
 const BaptismPublicPage = lazy(() => import("@/pages/baptism-public"));
 
