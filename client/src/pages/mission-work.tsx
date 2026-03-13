@@ -2190,16 +2190,17 @@ function formatTimeSince(dateStr: string): string {
   return rem > 0 ? `${years} año${years !== 1 ? "s" : ""} ${rem} mes${rem !== 1 ? "es" : ""}` : `${years} año${years !== 1 ? "s" : ""}`;
 }
 
-function getLastNSundays(n: number): Date[] {
-  const result: Date[] = [];
+function getSundaysOfCurrentMonth(): Date[] {
   const today = new Date();
-  const dow = today.getDay();
-  const lastSun = new Date(today);
-  lastSun.setDate(today.getDate() - dow);
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(lastSun);
-    d.setDate(lastSun.getDate() - i * 7);
-    result.push(d);
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const result: Date[] = [];
+  const d = new Date(year, month, 1);
+  // advance to first Sunday
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  while (d.getMonth() === month) {
+    result.push(new Date(d));
+    d.setDate(d.getDate() + 7);
   }
   return result;
 }
@@ -2255,7 +2256,7 @@ function HitoRow({ label, status, date, onCycle }: {
 function SundayAttendanceTracker({ rows, onAdd, onRemove }: {
   rows: Array<{ attendedAt: string }>; onAdd: (date: string) => void; onRemove: (date: string) => void;
 }) {
-  const sundays = useMemo(() => getLastNSundays(12), []);
+  const sundays = useMemo(() => getSundaysOfCurrentMonth(), []);
   const attendedSet = useMemo(() => new Set(rows.map((r) => r.attendedAt)), [rows]);
 
   const missed = sundays.filter((s) => {
@@ -2265,6 +2266,9 @@ function SundayAttendanceTracker({ rows, onAdd, onRemove }: {
 
   return (
     <DashSection title="Asistió a la reunión sacramental" icon={<Church className="h-3.5 w-3.5" />}>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-1.5">
+        {new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+      </p>
       <div className="overflow-x-auto -mx-1 px-1">
         <div className="flex gap-1.5 min-w-max pb-1">
           {sundays.map((sunday) => {
