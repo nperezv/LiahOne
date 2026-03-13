@@ -132,12 +132,19 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
+    <header className="flex items-center justify-between gap-4 bg-background px-4 py-3 md:px-6">
       {/* IZQUIERDA */}
       <div className="flex items-center gap-3">
-        <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12" />
+        <SidebarTrigger data-testid="button-sidebar-toggle" className="h-12 w-12 rounded-md">
+          <img
+            src="/icons/compass.svg"
+            alt="Abrir menú lateral"
+            className="h-8 w-8 app-compass-static"
+            decoding="async"
+            loading="eager"
+          />
+        </SidebarTrigger>
         <div className="flex items-center gap-2">
-          <img src="/icons/icon.svg" alt="Liahonapp" className="h-7 w-7 rounded-md object-contain" />
           <h1 className="text-lg font-semibold tracking-tight">{wardName}</h1>
         </div>
       </div>
@@ -147,7 +154,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
         {notificationsOpen && (
           <div
             aria-hidden="true"
-            className="fixed inset-0 z-30 bg-black/60 backdrop-blur-[1px]"
+            className="fixed inset-0 z-30 bg-black/60"
             onClick={() => setNotificationsOpen(false)}
           />
         )}
@@ -192,8 +199,14 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
             {/* Contenido */}
             {isLoading ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                Cargando...
+              <div className="p-4 flex items-center justify-center" aria-busy="true" aria-live="polite">
+                <img
+                  src="/icons/compass.svg"
+                  alt=""
+                  className="h-6 w-6 app-compass-spin"
+                  decoding="async"
+                  loading="eager"
+                />
               </div>
             ) : unreadNotifications.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">

@@ -7,14 +7,41 @@ import type { Request } from "express";
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
+const DEFAULT_WARD_NAME = "Barrio";
+const SMTP_FROM_DEFAULT_ADDRESS = "no-reply@liahone.app";
+
+const resolveWardName = (wardName?: string | null) => {
+  const trimmedWardName = wardName?.trim();
+  return trimmedWardName || DEFAULT_WARD_NAME;
+};
+
+const getSmtpFromHeader = (wardName?: string | null) => {
+  const fromDisplayName = resolveWardName(wardName);
+  const configuredFrom = process.env.SMTP_FROM?.trim();
+  if (!configuredFrom) {
+    return `"${fromDisplayName}" <${SMTP_FROM_DEFAULT_ADDRESS}>`;
+  }
+
+  if (configuredFrom.includes("<") && configuredFrom.includes(">")) {
+    const extractedAddress = configuredFrom.match(/<([^>]+)>/)?.[1]?.trim();
+    const address = extractedAddress || SMTP_FROM_DEFAULT_ADDRESS;
+    return `"${fromDisplayName}" <${address}>`;
+  }
+
+  if (configuredFrom.includes("@")) {
+    return `"${fromDisplayName}" <${configuredFrom}>`;
+  }
+
+  return `"${fromDisplayName}" <${SMTP_FROM_DEFAULT_ADDRESS}>`;
+};
 
 
-const createSmtpTransport = () => {
+const createSmtpTransport = (wardName?: string | null) => {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(wardName);
 
   if (!host || !port || !user || !pass) {
     return null;
@@ -106,8 +133,8 @@ export function getCountryFromIp(ip?: string | null) {
 }
 
 
-export async function sendAgendaReminderEmail(payload: { toEmail: string; subject?: string; body: string }) {
-  const smtp = createSmtpTransport();
+export async function sendAgendaReminderEmail(payload: { toEmail: string; subject?: string; body: string; wardName?: string | null }) {
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Agenda reminder email:", payload);
     return;
@@ -122,12 +149,12 @@ export async function sendAgendaReminderEmail(payload: { toEmail: string; subjec
   });
 }
 
-export async function sendLoginOtpEmail(toEmail: string, code: string) {
+export async function sendLoginOtpEmail(toEmail: string, code: string, wardName?: string | null) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. OTP code:", code);
@@ -149,6 +176,52 @@ export async function sendLoginOtpEmail(toEmail: string, code: string) {
   });
 }
 
+export async function sendAccountRecoveryEmail(payload: {
+  toEmail: string;
+  name: string;
+  username: string;
+  temporaryPassword: string;
+  wardName?: string | null;
+  loginUrl?: string;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = getSmtpFromHeader(payload.wardName);
+  const wardSignature = resolveWardName(payload.wardName);
+
+  if (!host || !port || !user || !pass) {
+    console.warn("SMTP not configured. Recovery payload:", payload);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: "Recuperación de acceso",
+    text: [
+      `Hola ${payload.name},`,
+      "",
+      "Hemos procesado tu solicitud de recuperación de acceso.",
+      `Usuario: ${payload.username}`,
+      `Contraseña temporal: ${payload.temporaryPassword}`,
+      payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
+      "",
+      "Por seguridad, cambia esta contraseña después de iniciar sesión.",
+      "",
+      wardSignature,
+    ].filter((line): line is string => Boolean(line)).join("\n"),
+  });
+}
+
 export async function sendAccessRequestEmail(payload: {
   toEmail: string;
   requesterName: string;
@@ -156,12 +229,13 @@ export async function sendAccessRequestEmail(payload: {
   calling?: string | null;
   phone?: string | null;
   reviewUrl: string;
+  wardName?: string | null;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Access request:", payload);
@@ -201,12 +275,14 @@ export async function sendNewUserCredentialsEmail(payload: {
   temporaryPassword: string;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  wardName?: string | null;
+  loginUrl?: string;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. New user credentials:", payload);
@@ -234,9 +310,10 @@ export async function sendNewUserCredentialsEmail(payload: {
       "Tu cuenta ha sido creada. Usa estas credenciales para iniciar sesión:",
       `Usuario: ${payload.username}`,
       `Contraseña temporal: ${payload.temporaryPassword}`,
+      payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
       "",
       "Por seguridad, deberás cambiar esta contraseña en tu primer inicio de sesión.",
-    ].join("\n"),
+    ].filter((line): line is string => Boolean(line)).join("\n"),
   });
 }
 
@@ -252,9 +329,6 @@ const normalizeRecipientName = (value?: string | null) => {
     return namePart || "";
   }
 
-  // Importante: no reordenamos apellidos/nombres aquí.
-  // El orden ya debe venir normalizado desde el flujo que envía el correo.
-  // Esto evita "doble normalización" y casos de desnormalización.
   return cleaned;
 };
 
@@ -371,7 +445,7 @@ export async function sendInterviewScheduledEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Interview scheduled:", payload);
@@ -443,8 +517,9 @@ export async function sendOrganizationInterviewScheduledEmail(payload: {
   requesterName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  wardName?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Organization interview scheduled:", payload);
     return;
@@ -487,8 +562,9 @@ export async function sendOrganizationInterviewCancelledEmail(payload: {
   organizationName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
+  wardName?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Organization interview cancelled:", payload);
     return;
@@ -526,13 +602,13 @@ export async function sendInterviewUpdatedEmail(payload: {
   interviewDate: string;
   interviewTime: string;
   interviewerName?: string | null;
-  wardName?: string | null;
   changeLines: string[];
   secretaryName?: string | null;
+  wardName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Interview updated:", payload);
     return;
@@ -583,7 +659,7 @@ export async function sendInterviewCancelledEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Interview cancelled:", payload);
     return;
@@ -623,7 +699,7 @@ export async function sendInterviewReminder24hEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Interview reminder 24h:", payload);
     return;
@@ -663,7 +739,7 @@ export async function sendAssignmentDueReminderEmail(payload: {
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
     console.warn("SMTP not configured. Assignment reminder 24h:", payload);
     return;
@@ -692,52 +768,252 @@ export async function sendAssignmentDueReminderEmail(payload: {
   });
 }
 
-export async function sendSacramentalAssignmentEmail(payload: {
+export async function sendWardCouncilAssignmentEmail(payload: {
   toEmail: string;
   recipientName: string;
-  meetingDate: string;
-  meetingTime: string;
-  assignmentLines: string[];
+  assignmentTitle: string;
+  dueDate?: string | null;
   wardName?: string | null;
-  isUpdate?: boolean;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
 }) {
-  const smtp = createSmtpTransport();
+  const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) {
-    console.warn("SMTP not configured. Sacramental assignment:", payload);
+    console.warn("SMTP not configured. Ward council assignment email:", payload);
     return;
   }
-
-  const subject = payload.isUpdate
-    ? "Actualización de tu participación en la reunión sacramental"
-    : "Tu participación en la próxima reunión sacramental";
 
   await smtp.transporter.sendMail({
     from: smtp.from,
     to: payload.toEmail,
-    subject,
+    subject: "Nueva asignación del Consejo de Barrio",
     text: [
       buildPastoralGreeting({
         recipientName: payload.recipientName,
         recipientSex: payload.recipientSex,
         recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.meetingTime,
       }),
       "",
-      payload.isUpdate
-        ? "Con cariño te compartimos una actualización de tu participación:"
-        : "Con mucho aprecio te compartimos tu participación en la próxima reunión sacramental:",
-      ...payload.assignmentLines.map((line) => `• ${line}`),
+      "El Consejo de Barrio te ha asignado la siguiente responsabilidad:",
+      `Asignación: ${payload.assignmentTitle}`,
+      payload.dueDate ? `Fecha límite: ${payload.dueDate}` : null,
       "",
-      `Fecha: ${payload.meetingDate}`,
-      `Hora: ${payload.meetingTime} hrs.`,
+      "Gracias por tu disposición y servicio en el barrio.",
       "",
-      "Gracias por tu disposición para servir.",
-      "",
-      "Con cariño fraternal,",
+      "Con aprecio fraternal,",
       payload.wardName?.trim() || "Obispado",
-    ].join("\n"),
+    ].filter((line): line is string => Boolean(line)).join("\n"),
+  });
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const b = (value: string) => `<strong>${escapeHtml(value)}</strong>`;
+
+export async function sendSacramentalAssignmentEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  meetingDate: string;
+  meetingTime: string;
+  assignmentKind: "discourse" | "opening_prayer" | "closing_prayer" | "other_assignment";
+  topic?: string;
+  assignmentLabel?: string;
+  suggestedMinutes?: number | null;
+  wardName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+  reminderType?: "midweek" | "day_before";
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Sacramental assignment:", payload);
+    return;
+  }
+
+  const greeting = getTimeGreeting(payload.meetingTime);
+  const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
+  const normalizedName = normalizeRecipientName(payload.recipientName);
+  const headerLine = normalizedName
+    ? `${greeting}, ${salutation} ${normalizedName}:`
+    : `${greeting}, ${salutation}:`;
+
+  const wardLabel = payload.wardName?.trim();
+  const signature = wardLabel ? `Obispado ${wardLabel}` : "Obispado";
+
+  const reminderIntro =
+    payload.reminderType === "day_before"
+      ? "Te escribimos como recordatorio de tu asignación para mañana."
+      : payload.reminderType === "midweek"
+        ? "Te escribimos como recordatorio de tu asignación para esta semana."
+        : null;
+
+  let subject: string;
+  let textLines: string[];
+  let htmlLines: string[];
+
+  if (payload.assignmentKind === "discourse") {
+    const topic = payload.topic || "el Salvador Jesucristo";
+    const minutes = payload.suggestedMinutes || 10;
+
+    subject = payload.reminderType
+      ? "Recordatorio: participación como discursante en reunión sacramental"
+      : "Asignación como discursante en reunión sacramental";
+
+    if (reminderIntro) {
+      textLines = [
+        headerLine,
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Le recordamos con cariño su participación como discursante el domingo ${payload.meetingDate}, compartiendo un mensaje sobre ${topic}, con un tiempo aproximado de ${minutes} minutos.`,
+        "",
+        "Confiamos en que el Padre Celestial le inspirará y sostendrá. Gracias por su disposición.",
+        "",
+        "Con aprecio,",
+        signature,
+      ];
+
+      htmlLines = [
+        escapeHtml(headerLine),
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Le recordamos con cariño su participación como discursante el ${b(`domingo ${payload.meetingDate}`)}, ${b(`compartiendo un mensaje sobre ${topic}`)}, con un tiempo aproximado de ${b(`${minutes} minutos`)}.`,
+        "",
+        "Confiamos en que el Padre Celestial le inspirará y sostendrá. Gracias por su disposición.",
+        "",
+        "Con aprecio,",
+        escapeHtml(signature),
+      ];
+    } else {
+      textLines = [
+        headerLine,
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, como discursante, para compartir un mensaje sobre ${topic}.`,
+        "",
+        "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
+        "",
+        "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+        "",
+        `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${minutes} minutos, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+        "",
+        "Con aprecio,",
+        signature,
+      ];
+
+      htmlLines = [
+        escapeHtml(headerLine),
+        "",
+        "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+        "",
+        `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, como discursante, para ${b(`compartir un mensaje sobre ${topic}`)}.`,
+        "",
+        "Le sugerimos preparar su mensaje basándose en las Escrituras y en los discursos de la conferencia general, con el propósito principal de ayudar a la congregación a recordar al Salvador Jesucristo y Su Expiación.",
+        "",
+        "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+        "",
+        `Le agradeceremos que su mensaje pueda ajustarse a un tiempo aproximado de ${b(`${minutes} minutos`)}, y valoramos sinceramente su disposición para servir y fortalecer a la congregación con su participación.`,
+        "",
+        "Con aprecio,",
+        escapeHtml(signature),
+      ];
+    }
+  } else if (payload.assignmentKind === "opening_prayer" || payload.assignmentKind === "closing_prayer") {
+    const prayerLabel = payload.assignmentKind === "opening_prayer" ? "oración inicial" : "oración final";
+
+    subject = payload.reminderType
+      ? `Recordatorio: ${prayerLabel} en reunión sacramental`
+      : `Asignación de ${prayerLabel} en reunión sacramental`;
+
+    textLines = [
+      headerLine,
+      "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
+      ...(reminderIntro ? [reminderIntro, ""] : []),
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para ofrecer la ${prayerLabel}.`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      signature,
+    ];
+
+    htmlLines = [
+      escapeHtml(headerLine),
+      "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
+      ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para ofrecer la ${b(prayerLabel)}.`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      escapeHtml(signature),
+    ];
+  } else {
+    const assignmentLabel = payload.assignmentLabel || "asignación especial";
+
+    subject = payload.reminderType
+      ? "Recordatorio: asignación en reunión sacramental"
+      : "Asignación en reunión sacramental";
+
+    textLines = [
+      headerLine,
+      "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
+      ...(reminderIntro ? [reminderIntro, ""] : []),
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del domingo ${payload.meetingDate}, para cumplir con la siguiente asignación: ${assignmentLabel}.`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      signature,
+    ];
+
+    htmlLines = [
+      escapeHtml(headerLine),
+      "",
+      "Esperamos que usted y su familia se encuentren bien y disfrutando de las bendiciones del evangelio.",
+      "",
+      ...(reminderIntro ? [escapeHtml(reminderIntro), ""] : []),
+      `Bajo espíritu de oración, nos hemos sentido inspirados a solicitar su participación en la reunión sacramental del ${b(`domingo ${payload.meetingDate}`)}, para cumplir con la siguiente asignación: ${b(assignmentLabel)}.`,
+      "",
+      "Confiamos en que el Padre Celestial le inspirará, le ayudará y le sostendrá al prepararse para cumplir con esta asignación.",
+      "",
+      "Agradecemos sinceramente su disposición para servir y fortalecer a la congregación con su participación.",
+      "",
+      "Con aprecio,",
+      escapeHtml(signature),
+    ];
+  }
+
+  const htmlBody = htmlLines
+    .map((line) => (line === "" ? "<br/>" : `<span>${line}</span><br/>`))
+    .join("\n");
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject,
+    text: textLines.join("\n"),
+    html: htmlBody,
   });
 }
 
@@ -754,7 +1030,7 @@ export async function sendBirthdayGreetingEmail(payload: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM || "no-reply@liahone.app";
+  const from = getSmtpFromHeader(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Birthday greeting:", payload);

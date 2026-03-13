@@ -1232,7 +1232,6 @@ export async function generateWardCouncilPDF(council: any) {
     council.presider ? `Preside: ${formatPersonWithCalling(council.presider)}` : null,
     council.director ? `Dirige: ${formatPersonWithCalling(council.director)}` : null,
     council.openingPrayer ? `Oración de apertura: ${council.openingPrayer}` : null,
-    council.openingHymn ? `Himno: ${council.openingHymn}` : null,
     council.spiritualThoughtBy
       ? `Pensamiento espiritual asignado a: ${council.spiritualThoughtBy}`
       : null,
@@ -1258,10 +1257,6 @@ export async function generateWardCouncilPDF(council: any) {
     writeBlock("Revisión de compromisos anteriores", assignmentsText);
   }
 
-  writeBlock("Ajustes o decisiones necesarias", council.adjustmentsNotes);
-
-  writeBlock("Agenda", council.agenda);
-
   if (council.attendance && Array.isArray(council.attendance) && council.attendance.length > 0) {
     writeBlock("Asistencia", council.attendance.filter(Boolean).map((p: string) => `• ${p}`).join("\n"));
   }
@@ -1275,9 +1270,34 @@ export async function generateWardCouncilPDF(council: any) {
   }
 
   writeBlock("Notas", council.notes);
-  writeBlock("Personas y familias", council.ministryNotes);
-  writeBlock("Obra de Salvación y Exaltación", council.salvationWorkNotes);
-  writeBlock("Actividades del barrio", council.wardActivitiesNotes);
+
+  // §29.2.5 — 4 áreas con personas discutidas (nuevo formato)
+  const areaConfig = [
+    { label: "1. Vivir el Evangelio", persons: council.livingGospelPersons, legacyNotes: council.livingGospelNotes },
+    { label: "2. Cuidar de los necesitados", persons: council.careForOthersPersons, legacyNotes: council.careForOthersNotes || council.ministryNotes },
+    { label: "3. Invitar a todos", persons: council.missionaryPersons, legacyNotes: council.missionaryNotes },
+    { label: "4. Unir familias para la eternidad", persons: council.familyHistoryPersons, legacyNotes: council.familyHistoryNotes || council.salvationWorkNotes },
+  ];
+
+  for (const { label, persons, legacyNotes } of areaConfig) {
+    if (Array.isArray(persons) && persons.length > 0) {
+      const personsText = persons
+        .filter((p: any) => p?.name)
+        .map((p: any) => {
+          const situation = p.situation ? `: ${p.situation}` : "";
+          const responsible = p.responsibleName ? ` → ${p.responsibleName}` : "";
+          const dueDate = p.dueDate ? ` (seguimiento: ${new Date(`${p.dueDate}T00:00:00`).toLocaleDateString("es-ES")})` : "";
+          return `• ${p.name}${situation}${responsible}${dueDate}`;
+        })
+        .join("\n");
+      writeBlock(label, personsText);
+    } else if (legacyNotes) {
+      // Retrocompatibilidad con datos históricos en formato texto
+      writeBlock(label, legacyNotes);
+    }
+  }
+
+  // Acuerdos y asignaciones del consejo
   if (council.newAssignments && Array.isArray(council.newAssignments) && council.newAssignments.length > 0) {
     const newAssignmentsText = council.newAssignments
       .filter((assignment: any) => assignment?.title)
@@ -1292,17 +1312,13 @@ export async function generateWardCouncilPDF(council: any) {
         return `• ${assignment.title}${responsible}${dueDate}${notes}`;
       })
       .join("\n");
-    writeBlock("Nuevas asignaciones", newAssignmentsText);
+    writeBlock("Asignaciones adicionales", newAssignmentsText);
   }
-  writeBlock("Notas de asignaciones", council.newAssignmentsNotes);
-  writeBlock("Resumen final del consejo", council.finalSummaryNotes);
+
   if (council.closingPrayer || council.closingPrayerBy) {
-    writeBlock(
-      "Oración final",
-      council.closingPrayerBy || council.closingPrayer
-    );
+    writeBlock("Oración final", council.closingPrayerBy || council.closingPrayer);
   }
-  writeBlock("Notas del obispo/secretario", council.bishopNotes);
+  writeBlock("Notas adicionales", council.additionalNotes || council.finalSummaryNotes || council.bishopNotes);
 
   addHeaderFooterAllPages(doc, template, formattedDate);
 

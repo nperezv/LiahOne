@@ -12,6 +12,7 @@ import {
   presidencyResources,
   budgetRequests,
   budgetUnlockExceptions,
+  welfareRequests,
   interviews,
   organizationInterviews,
   goals,
@@ -59,6 +60,9 @@ import {
   type InsertBudgetRequest,
   type BudgetUnlockException,
   type InsertBudgetUnlockException,
+  type WelfareRequest,
+  type InsertWelfareRequest,
+  insertWelfareRequestSchema,
   type Interview,
   type InsertInterview,
   type OrganizationInterview,
@@ -162,6 +166,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByNormalizedUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
@@ -232,6 +237,14 @@ export interface IStorage {
   createBudgetUnlockException(data: InsertBudgetUnlockException): Promise<BudgetUnlockException>;
   getActiveBudgetUnlockException(userId: string): Promise<BudgetUnlockException | undefined>;
   deleteBudgetRequest(id: string): Promise<void>;
+
+  // Welfare Requests
+  getAllWelfareRequests(): Promise<WelfareRequest[]>;
+  getWelfareRequest(id: string): Promise<WelfareRequest | undefined>;
+  createWelfareRequest(request: InsertWelfareRequest): Promise<WelfareRequest>;
+  updateWelfareRequest(id: string, data: Partial<InsertWelfareRequest>): Promise<WelfareRequest | undefined>;
+  approveWelfareRequestBishop(id: string, approvedBy: string, signature: { dataUrl: string; ip?: string | null; userAgent?: string | null; signedPlanFilename?: string | null; signedPlanUrl?: string | null; }): Promise<WelfareRequest | undefined>;
+  deleteWelfareRequest(id: string): Promise<void>;
 
   // Interviews
   getAllInterviews(): Promise<Interview[]>;
@@ -409,6 +422,7 @@ export interface IStorage {
     expiresAt: Date;
   }): Promise<EmailOtp>;
   getEmailOtpById(id: string): Promise<EmailOtp | undefined>;
+  getActiveEmailOtpByUserAndCodeHash(userId: string, codeHash: string): Promise<EmailOtp | undefined>;
   consumeEmailOtp(id: string): Promise<void>;
 
   // Access Requests
@@ -438,6 +452,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(users)
       .where(eq(sql`lower(trim(${users.username}))`, normalized));
+    return user || undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const normalized = email.trim().toLowerCase();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(sql`lower(trim(${users.email}))`, normalized));
     return user || undefined;
   }
 
@@ -935,6 +958,76 @@ export class DatabaseStorage implements IStorage {
 
     await this.deleteNotificationsByRelatedId(id);
     await db.delete(budgetRequests).where(eq(budgetRequests.id, id));
+  }
+
+  // ========================================
+  // WELFARE REQUESTS
+  // ========================================
+
+  async getAllWelfareRequests(): Promise<WelfareRequest[]> {
+    return await db.select().from(welfareRequests).orderBy(desc(welfareRequests.createdAt));
+  }
+
+  async getWelfareRequest(id: string): Promise<WelfareRequest | undefined> {
+    const [request] = await db.select().from(welfareRequests).where(eq(welfareRequests.id, id));
+    return request || undefined;
+  }
+
+  async createWelfareRequest(insertRequest: InsertWelfareRequest): Promise<WelfareRequest> {
+    const [request] = await db.insert(welfareRequests).values(insertRequest as typeof welfareRequests.$inferInsert).returning();
+    return request;
+  }
+
+  async updateWelfareRequest(id: string, data: Partial<InsertWelfareRequest>): Promise<WelfareRequest | undefined> {
+    const [request] = await db
+      .update(welfareRequests)
+      .set({ ...data, updatedAt: new Date() } as Partial<typeof welfareRequests.$inferInsert>)
+      .where(eq(welfareRequests.id, id))
+      .returning();
+    return request || undefined;
+  }
+
+  async approveWelfareRequestBishop(
+    id: string,
+    approvedBy: string,
+    signature: {
+      dataUrl: string;
+      ip?: string | null;
+      userAgent?: string | null;
+      signedPlanFilename?: string | null;
+      signedPlanUrl?: string | null;
+    }
+  ): Promise<WelfareRequest | undefined> {
+    const [request] = await db
+      .update(welfareRequests)
+      .set({
+        status: "aprobado",
+        bishopApprovedBy: approvedBy,
+        bishopApprovedAt: new Date(),
+        bishopSignatureDataUrl: signature.dataUrl,
+        bishopSignatureIp: signature.ip ?? null,
+        bishopSignatureUserAgent: signature.userAgent ?? null,
+        bishopSignedPlanFilename: signature.signedPlanFilename ?? null,
+        bishopSignedPlanUrl: signature.signedPlanUrl ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(welfareRequests.id, id))
+      .returning();
+    return request || undefined;
+  }
+
+  async deleteWelfareRequest(id: string): Promise<void> {
+    const relatedAssignments = await db
+      .select({ id: assignments.id })
+      .from(assignments)
+      .where(eq(assignments.relatedTo, `welfare:${id}`));
+
+    for (const assignment of relatedAssignments) {
+      await this.deleteAssignment(assignment.id);
+    }
+
+    await this.deleteNotificationsByRelatedId(id);
+    await db.delete(welfareRequests).where(eq(welfareRequests.id, id));
   }
 
   // ========================================
@@ -2124,6 +2217,23 @@ export class DatabaseStorage implements IStorage {
 
   async getEmailOtpById(id: string): Promise<EmailOtp | undefined> {
     const [otp] = await db.select().from(emailOtps).where(eq(emailOtps.id, id));
+    return otp || undefined;
+  }
+
+  async getActiveEmailOtpByUserAndCodeHash(userId: string, codeHash: string): Promise<EmailOtp | undefined> {
+    const [otp] = await db
+      .select()
+      .from(emailOtps)
+      .where(
+        and(
+          eq(emailOtps.userId, userId),
+          eq(emailOtps.codeHash, codeHash),
+          isNull(emailOtps.consumedAt),
+          gte(emailOtps.expiresAt, new Date()),
+        ),
+      )
+      .orderBy(desc(emailOtps.createdAt))
+      .limit(1);
     return otp || undefined;
   }
 

@@ -6,7 +6,8 @@ import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { generateBudgetRequestPdf } from "./pdf/budget-pdf";
+import { generateWelfareRequestPdf } from "./pdf/welfare-pdf";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
@@ -17,6 +18,7 @@ import {
   insertPresidencyMeetingSchema,
   insertPresidencyResourceSchema,
   insertBudgetRequestSchema,
+  insertWelfareRequestSchema,
   insertInterviewSchema,
   insertOrganizationInterviewSchema,
   insertGoalSchema,
@@ -64,6 +66,7 @@ import {
   sendAccessRequestEmail,
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
+  sendAccountRecoveryEmail,
   sendInterviewScheduledEmail,
   sendInterviewUpdatedEmail,
   sendInterviewCancelledEmail,
@@ -71,6 +74,7 @@ import {
   sendOrganizationInterviewScheduledEmail,
   sendOrganizationInterviewCancelledEmail,
   sendAssignmentDueReminderEmail,
+  sendWardCouncilAssignmentEmail,
   sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
   sendAgendaReminderEmail,
@@ -447,7 +451,7 @@ const formatDateTimeLabels = (value: string | Date) => {
   const dateLabel = date.toLocaleDateString("es-ES", {
     year: "numeric",
     month: "long",
-    day: "2-digit",
+    day: "numeric",
   });
   const timeLabel = date.toLocaleTimeString("es-ES", {
     hour: "2-digit",
@@ -506,7 +510,7 @@ const formatMeetingLabels = (
   const dateLabel = calendarDate.toLocaleDateString("es-ES", {
     year: "numeric",
     month: "long",
-    day: "2-digit",
+    day: "numeric",
     timeZone: "UTC",
   });
 
@@ -531,14 +535,13 @@ const formatMeetingLabels = (
 };
 
 const extractParticipantName = (value?: string | null) => {
-  const normalized = normalizeMemberName(value);
-  if (!normalized) return "";
+  const raw = value?.trim() || "";
+  if (!raw) return "";
 
-  if (normalized.includes("|")) {
-    return normalized.split("|")[0]?.trim() || "";
-  }
+  const nameOnly = raw.includes("|") ? raw.split("|")[0]?.trim() || "" : raw;
+  if (!nameOnly) return "";
 
-  return normalized;
+  return normalizeMemberName(nameOnly);
 };
 
 const normalizeComparableName = (value?: string | null) =>
@@ -548,42 +551,200 @@ const normalizeComparableName = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
-const buildSacramentalRoleLines = (meeting: any) => {
-  const map = new Map<string, string[]>();
-  const pushLine = (name: string | undefined | null, line: string) => {
+const tokenizeComparableName = (value?: string | null) =>
+  normalizeComparableName(value)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const buildTokenSignature = (value?: string | null) =>
+  tokenizeComparableName(value)
+    .sort()
+    .join(" ");
+
+const scoreNameSimilarity = (targetTokens: string[], candidateTokens: string[]) => {
+  if (targetTokens.length === 0 || candidateTokens.length === 0) return Number.NEGATIVE_INFINITY;
+
+  const targetSet = new Set(targetTokens);
+  const candidateSet = new Set(candidateTokens);
+  const overlap = targetTokens.filter((token) => candidateSet.has(token)).length;
+
+  if (overlap === 0) return Number.NEGATIVE_INFINITY;
+
+  const targetInCandidate = targetTokens.every((token) => candidateSet.has(token));
+  const candidateInTarget = candidateTokens.every((token) => targetSet.has(token));
+
+  if (targetInCandidate && candidateInTarget) return 1000;
+  if ((targetInCandidate || candidateInTarget) && overlap >= 2) {
+    return 200 + overlap * 10 - Math.abs(targetTokens.length - candidateTokens.length);
+  }
+
+  if (overlap >= 3) {
+    return 100 + overlap * 5 - Math.abs(targetTokens.length - candidateTokens.length) * 2;
+  }
+
+  return Number.NEGATIVE_INFINITY;
+};
+
+function findBestNameMatch<T>(
+  targetName: string,
+  candidates: T[],
+  getName: (candidate: T) => string | null | undefined
+): T | undefined {
+  const targetTokens = tokenizeComparableName(targetName);
+  if (targetTokens.length === 0) return undefined;
+
+  let bestMatch: T | undefined = undefined;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const candidateName = getName(candidate);
+    const candidateTokens = tokenizeComparableName(candidateName);
+    const score = scoreNameSimilarity(targetTokens, candidateTokens);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = candidate;
+    }
+  }
+
+  return bestScore > Number.NEGATIVE_INFINITY ? bestMatch : undefined;
+}
+
+const getDiscourseMinutesPerSpeaker = (discourseCount: number) => {
+  if (discourseCount <= 0) return null;
+  if (discourseCount === 1) return 20;
+  if (discourseCount === 2) return 10;
+  if (discourseCount === 3) return 7;
+  return 5;
+};
+
+type SacramentalRoleEntry = {
+  kind: "discourse" | "opening_prayer" | "closing_prayer" | "other_assignment";
+  line: string;
+  topic?: string;
+  assignmentLabel?: string;
+  suggestedMinutes?: number | null;
+};
+
+const buildSacramentalRoleEntries = (meeting: any, totalDiscourseCount?: number) => {
+  const map = new Map<string, SacramentalRoleEntry[]>();
+  const pushEntry = (name: string | undefined | null, entry: SacramentalRoleEntry) => {
     const normalized = normalizeComparableName(name);
     if (!normalized) return;
     if (!map.has(normalized)) map.set(normalized, []);
-    map.get(normalized)!.push(line);
+    map.get(normalized)!.push(entry);
   };
 
-  pushLine(extractParticipantName(meeting.openingPrayer), "Oración de apertura");
-  pushLine(extractParticipantName(meeting.closingPrayer), "Oración de clausura");
-
-  const discourses = Array.isArray(meeting.discourses) ? meeting.discourses : [];
-  discourses.forEach((item: any) => {
-    const speaker = extractParticipantName(item?.speaker);
-    const topic = typeof item?.topic === "string" ? item.topic.trim() : "";
-    const line = topic ? `Discurso: ${topic}` : "Discurso";
-    pushLine(speaker, line);
+  pushEntry(extractParticipantName(meeting.openingPrayer || meeting.firstPrayer), {
+    kind: "opening_prayer",
+    line: "Oración de apertura",
   });
 
-  const assignments = Array.isArray(meeting.assignments) ? meeting.assignments : [];
+  pushEntry(extractParticipantName(meeting.closingPrayer || meeting.lastPrayer), {
+    kind: "closing_prayer",
+    line: "Oración de clausura",
+  });
+
+  const rawDiscourses = [
+    ...(Array.isArray(meeting.discourses) ? meeting.discourses : []),
+    ...(Array.isArray(meeting.messages) ? meeting.messages : []),
+  ];
+  const discourses = rawDiscourses
+    .map((item: any) => {
+      const speaker = extractParticipantName(item?.speaker);
+      const topic = typeof item?.topic === "string"
+        ? item.topic.trim()
+        : typeof item?.message === "string"
+          ? item.message.trim()
+          : "";
+      return { speaker, topic };
+    })
+    .filter((item) => Boolean(item.speaker));
+
+  const discourseMinutes = getDiscourseMinutesPerSpeaker(totalDiscourseCount ?? discourses.length);
+
+  discourses.forEach((item) => {
+    const lineBase = item.topic ? `Discurso: ${item.topic}` : "Discurso";
+    const line = discourseMinutes
+      ? `${lineBase}. Dispondrá de ${discourseMinutes} minutos para compartir su mensaje.`
+      : lineBase;
+    pushEntry(item.speaker, {
+      kind: "discourse",
+      line,
+      topic: item.topic,
+      suggestedMinutes: discourseMinutes,
+    });
+  });
+
+  const assignments = [
+    ...(Array.isArray(meeting.assignments) ? meeting.assignments : []),
+    ...(Array.isArray(meeting.additionalAssignments) ? meeting.additionalAssignments : []),
+  ];
   assignments.forEach((item: any) => {
-    const name = extractParticipantName(item?.name);
-    const assignment = typeof item?.assignment === "string" ? item.assignment.trim() : "";
+    const name = extractParticipantName(item?.name || item?.assignedTo || item?.responsible);
+    const assignment = typeof item?.assignment === "string"
+      ? item.assignment.trim()
+      : typeof item?.title === "string"
+        ? item.title.trim()
+        : typeof item?.responsibility === "string"
+          ? item.responsibility.trim()
+          : "";
     if (!assignment) return;
-    pushLine(name, `Asignación: ${assignment}`);
+    pushEntry(name, {
+      kind: "other_assignment",
+      line: `Asignación: ${assignment}`,
+      assignmentLabel: assignment,
+    });
   });
 
   return map;
 };
 
-const areStringArraysEqual = (a: string[], b: string[]) => {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((value, index) => value === sortedB[index]);
+/**
+ * Returns a synthetic meeting containing only participants that are NEW
+ * compared to oldMeeting (different name or not present before).
+ * Used to avoid re-notifying people who were already assigned.
+ */
+const diffSacramentalParticipants = (oldMeeting: any, newMeeting: any): any => {
+  const normName = (v?: string | null) =>
+    normalizeComparableName(extractParticipantName(v));
+
+  const diffMeeting: any = { ...newMeeting };
+
+  // openingPrayer — only if the person changed
+  const oldOpener = normName(oldMeeting.openingPrayer);
+  const newOpener = normName(newMeeting.openingPrayer);
+  if (!newOpener || newOpener === oldOpener) diffMeeting.openingPrayer = null;
+
+  // closingPrayer — only if the person changed
+  const oldCloser = normName(oldMeeting.closingPrayer);
+  const newCloser = normName(newMeeting.closingPrayer);
+  if (!newCloser || newCloser === oldCloser) diffMeeting.closingPrayer = null;
+
+  // discourses — only new speakers (not present in old meeting)
+  const oldSpeakers = new Set(
+    (oldMeeting.discourses || [])
+      .map((d: any) => normName(d?.speaker))
+      .filter(Boolean)
+  );
+  diffMeeting.discourses = (newMeeting.discourses || []).filter((d: any) => {
+    const name = normName(d?.speaker);
+    return name && !oldSpeakers.has(name);
+  });
+
+  // assignments — only new names (not present in old meeting)
+  const oldAssignees = new Set(
+    (oldMeeting.assignments || [])
+      .map((a: any) => normName(a?.name))
+      .filter(Boolean)
+  );
+  diffMeeting.assignments = (newMeeting.assignments || []).filter((a: any) => {
+    const name = normName(a?.name);
+    return name && !oldAssignees.has(name);
+  });
+
+  return diffMeeting;
 };
 
 async function hasInterviewCollision({
@@ -822,13 +983,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const unusualCountry = lastLogin?.country && country && lastLogin.country !== country;
 
       const requiresOtp =
-        user.requireEmailOtp ||
-        !deviceHash ||
-        !existingDevice?.trusted ||
-        unusualCountry;
+        !user.requirePasswordChange && (
+          user.requireEmailOtp ||
+          !deviceHash ||
+          !existingDevice?.trusted ||
+          unusualCountry
+        );
 
       const canSendOtp = Boolean(user.email);
       if (requiresOtp && canSendOtp) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         const otpCode = generateOtpCode();
         const otpHash = hashToken(otpCode);
         const otp = await storage.createEmailOtp({
@@ -840,7 +1005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiresAt: getOtpExpiry(),
         });
 
-        await sendLoginOtpEmail(user.email, otpCode);
+        await sendLoginOtpEmail(user.email, otpCode, wardName);
 
         await storage.createLoginEvent({
           userId: user.id,
@@ -892,12 +1057,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/login/recover", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      const trimmedEmail = typeof email === "string" ? email.trim() : "";
+      if (!trimmedEmail) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(trimmedEmail);
+      if (!user || !user.isActive || !user.email) {
+        return res.json({ message: "If that email exists, recovery instructions were sent" });
+      }
+
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const loginUrl = `${baseUrl}/login`;
+
+      const temporaryPassword = generateTemporaryPassword();
+      const hashedTemporaryPassword = await bcrypt.hash(temporaryPassword, 10);
+      await storage.updateUser(user.id, {
+        password: hashedTemporaryPassword,
+        requirePasswordChange: true,
+      });
+      await storage.revokeRefreshTokensByUser(user.id);
+
+      await sendAccountRecoveryEmail({
+        toEmail: user.email,
+        name: user.name,
+        username: user.username,
+        temporaryPassword,
+        wardName,
+        loginUrl,
+      });
+
+      return res.json({ message: "If that email exists, recovery instructions were sent" });
+    } catch (error) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/login/verify", async (req: Request, res: Response) => {
     try {
       const { otpId, code, rememberDevice, deviceId } = req.body;
       if (!otpId || !code) {
         return res.status(400).json({ error: "Code is required" });
       }
+      const normalizedCode = String(code).trim();
       const deviceHash = getDeviceHash(deviceId);
       const ipAddress = getClientIp(req);
       const country = getCountryFromIp(ipAddress);
@@ -907,13 +1114,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or expired code" });
       }
 
-      const codeHash = hashToken(code);
+      const codeHash = hashToken(normalizedCode);
+      let otpToConsume = otp;
       if (codeHash !== otp.codeHash) {
-        return res.status(400).json({ error: "Invalid or expired code" });
+        const matchingOtp = await storage.getActiveEmailOtpByUserAndCodeHash(otp.userId, codeHash);
+        if (!matchingOtp) {
+          return res.status(400).json({ error: "Invalid or expired code" });
+        }
+        otpToConsume = matchingOtp;
       }
 
-      await storage.consumeEmailOtp(otp.id);
-      const user = await storage.getUser(otp.userId);
+      await storage.consumeEmailOtp(otpToConsume.id);
+      const user = await storage.getUser(otpToConsume.userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -1057,6 +1269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const absolutePath = path.join(uploadsPath, storedFilename);
+      console.log("[download] uploadsPath:", uploadsPath, "| storedFilename:", storedFilename, "| absolutePath:", absolutePath);
       await fs.promises.access(absolutePath, fs.constants.F_OK);
 
       const requestedName = typeof req.query.filename === "string" ? req.query.filename.trim() : "";
@@ -1072,7 +1285,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.download(absolutePath, safeDownloadName);
-    } catch {
+    } catch (err: any) {
+      console.error("[download] File not found or error:", err?.message);
       res.status(404).json({ error: "File not found" });
     }
   });
@@ -1088,7 +1302,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid access request data" });
       }
 
-      const accessRequest = await storage.createAccessRequest(parsed.data);
+      const normalizedEmail = parsed.data.email.trim().toLowerCase();
+      const existingUser = await storage.getUserByEmail(normalizedEmail);
+      if (existingUser) {
+        return res.status(409).json({
+          error: "Ya existe una cuenta con ese correo.",
+          code: "ACCOUNT_ALREADY_EXISTS",
+          recoveryPath: "/login",
+        });
+      }
+
+      const accessRequest = await storage.createAccessRequest({
+        ...parsed.data,
+        email: normalizedEmail,
+      });
 
       const users = await storage.getAllUsers();
       const notificationRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
@@ -1104,6 +1331,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : [];
 
       if (recipients.length > 0) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
         const reviewUrl = `${baseUrl}/admin/users?requestId=${accessRequest.id}`;
         await Promise.all(
@@ -1115,6 +1344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               calling: accessRequest.calling,
               phone: accessRequest.phone,
               reviewUrl,
+              wardName,
             })
           )
         );
@@ -1273,12 +1503,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateAccessRequest(accessRequestId, { status: "aprobada" });
       }
 
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const loginUrl = `${baseUrl}/login`;
+
       await sendNewUserCredentialsEmail({
         toEmail: email,
         name: normalizedName,
         username: derivedUsername,
         temporaryPassword,
         recipientSex: memberForCalling?.sex,
+        wardName,
+        loginUrl,
       });
 
       const { password: _, ...userWithoutPassword } = user;
@@ -1731,7 +1968,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const notifySacramentalParticipants = async (
     meeting: any,
     options?: {
-      previousMeeting?: any;
+      reminderType?: "midweek" | "day_before";
+      totalDiscourseCount?: number;
     }
   ) => {
     const users = await storage.getAllUsers();
@@ -1739,15 +1977,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const template = await storage.getPdfTemplate();
     const wardName = template?.wardName;
     const sacramentMeetingTime = template?.sacramentMeetingTime;
-    const rolesByName = buildSacramentalRoleLines(meeting);
-    const previousRolesByName = options?.previousMeeting
-      ? buildSacramentalRoleLines(options.previousMeeting)
-      : null;
+    const rolesByName = buildSacramentalRoleEntries(meeting, options?.totalDiscourseCount);
 
     const roleEntries = Array.from(rolesByName.entries());
-    for (const [normalizedName, lines] of roleEntries) {
-      const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName);
-      const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName);
+    let sentCount = 0;
+    let skippedWithoutEmail = 0;
+    let failedCount = 0;
+
+    for (const [normalizedName, entries] of roleEntries) {
+      const normalizedNameSignature = buildTokenSignature(normalizedName);
+
+      const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName)
+        || users.find((u) => buildTokenSignature(u.name) === normalizedNameSignature)
+        || findBestNameMatch(normalizedName, users, (u) => u.name);
+
+      const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName)
+        || members.find((m) => buildTokenSignature(m.nameSurename) === normalizedNameSignature)
+        || findBestNameMatch(normalizedName, members, (m) => m.nameSurename);
+
       const matchedUserEmail = matchedUser?.email?.toLowerCase();
       const memberByUserEmail = matchedUserEmail
         ? members.find((m) => (m.email || "").toLowerCase() === matchedUserEmail)
@@ -1757,36 +2004,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const toEmail = member?.email || matchedUser?.email;
       const recipientName = normalizeMemberName(member?.nameSurename || matchedUser?.name || normalizedName);
 
-      if (!toEmail) continue;
-
-      if (previousRolesByName) {
-        const previousLines = previousRolesByName.get(normalizedName) || [];
-        const rolesChanged = !areStringArraysEqual(lines, previousLines);
-        const previousDate = options?.previousMeeting?.date;
-        const dateChanged = String(previousDate || "") !== String(meeting.date || "");
-        if (!rolesChanged && !dateChanged) {
-          continue;
-        }
+      if (!toEmail) {
+        skippedWithoutEmail += entries.length;
+        console.warn("[Sacramental Emails] Skipping participant without email", {
+          participant: recipientName || normalizedName,
+          entries: entries.map((entry) => entry.kind),
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+        });
+        continue;
       }
 
-      const { dateLabel, timeLabel } = formatMeetingLabels(
-        meeting.date,
-        sacramentMeetingTime
-      );
-      await sendSacramentalAssignmentEmail({
-        toEmail,
-        recipientName,
-        meetingDate: dateLabel,
-        meetingTime: timeLabel,
-        assignmentLines: lines,
-        wardName,
-        isUpdate: Boolean(previousRolesByName),
-        recipientSex: member?.sex,
-        recipientOrganizationType: member?.organizationId
-          ? (await storage.getOrganization(member.organizationId))?.type
-          : undefined,
-      });
+      const organizationType = member?.organizationId
+        ? (await storage.getOrganization(member.organizationId))?.type
+        : undefined;
+      const { dateLabel, timeLabel } = formatMeetingLabels(meeting.date, sacramentMeetingTime);
+
+      for (const entry of entries) {
+        try {
+          await sendSacramentalAssignmentEmail({
+            toEmail,
+            recipientName,
+            meetingDate: dateLabel,
+            meetingTime: timeLabel,
+            wardName,
+            recipientSex: member?.sex,
+            recipientOrganizationType: organizationType,
+            assignmentKind: entry.kind,
+            topic: entry.topic,
+            assignmentLabel: entry.assignmentLabel,
+            suggestedMinutes: entry.suggestedMinutes,
+            reminderType: options?.reminderType,
+          });
+          sentCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error("[Sacramental Emails] Failed to send email", {
+            participant: recipientName || normalizedName,
+            toEmail,
+            kind: entry.kind,
+            meetingId: meeting?.id,
+            meetingDate: String(meeting?.date || ""),
+            error,
+          });
+        }
+      }
     }
+
+    console.log("[Sacramental Emails] Dispatch result", {
+      sentCount,
+      skippedWithoutEmail,
+      failedCount,
+      reminderType: options?.reminderType || "initial",
+      meetingId: meeting?.id,
+      meetingDate: String(meeting?.date || ""),
+    });
   };
 
   app.post("/api/sacramental-meetings", requireAuth, async (req: Request, res: Response) => {
@@ -1799,7 +2071,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const meetingData = insertSacramentalMeetingSchema.parse(dataToValidate);
 
       const meeting = await storage.createSacramentalMeeting(meetingData);
-      await notifySacramentalParticipants(meeting);
+
+      try {
+        await notifySacramentalParticipants(meeting);
+      } catch (notificationError) {
+        console.error("[Sacramental Emails] Failed to notify participants after meeting creation", {
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+          error: notificationError,
+        });
+      }
+
       res.status(201).json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1823,7 +2105,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Meeting not found" });
       }
 
-      await notifySacramentalParticipants(meeting, { previousMeeting: currentMeeting });
+      // Notify only participants that are NEW compared to the previous version
+      try {
+        const diffMeeting = diffSacramentalParticipants(currentMeeting, meeting);
+        const hasNewParticipants =
+          diffMeeting.openingPrayer ||
+          diffMeeting.closingPrayer ||
+          (diffMeeting.discourses?.length ?? 0) > 0 ||
+          (diffMeeting.assignments?.length ?? 0) > 0;
+
+        if (hasNewParticipants) {
+          const fullDiscourseCount = [
+            ...(meeting.discourses || []),
+            ...(meeting.messages || []),
+          ].filter((d: any) => extractParticipantName(d?.speaker)).length;
+          await notifySacramentalParticipants(diffMeeting, { totalDiscourseCount: fullDiscourseCount });
+        }
+      } catch (notificationError) {
+        console.error("[Sacramental Emails] Failed to notify new participants after meeting update", {
+          meetingId: meeting?.id,
+          meetingDate: String(meeting?.date || ""),
+          error: notificationError,
+        });
+      }
 
       res.json(meeting);
     } catch (error) {
@@ -2451,105 +2755,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "La solicitud no está pendiente de firma del obispo" });
       }
 
-      const planReceipt = (existingRequest.receipts || []).find((receipt: any) => receipt?.category === "plan" && receipt?.url);
-      if (!planReceipt?.url) {
-        return res.status(400).json({ error: "La solicitud no incluye un PDF/archivo de solicitud de gasto para firmar" });
+      if (!existingRequest.applicantSignatureDataUrl) {
+        return res.status(400).json({ error: "La solicitud no contiene la firma del solicitante" });
       }
 
-      const sourceFilename = String(planReceipt.filename || "solicitud-de-gasto.pdf");
-      const sourceStoredFilename = path.basename(String(planReceipt.url));
-      const sourceAbsolutePath = path.join(uploadsPath, sourceStoredFilename);
+      const requesterUser = await storage.getUser(existingRequest.requestedBy);
+      const allOrganizations = await storage.getAllOrganizations();
+      const orgName = allOrganizations.find((o: any) => o.id === existingRequest.organizationId)?.name ?? "";
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
 
-      try {
-        await fs.promises.access(sourceAbsolutePath, fs.constants.R_OK);
-      } catch {
-        return res.status(404).json({ error: "No se encontró el archivo de solicitud de gasto original" });
-      }
+      const budgetCategories = (existingRequest.budgetCategoriesJson as { category: string; amount: string; detail?: string }[] | null) ?? [];
+      // Fallback para solicitudes antiguas sin budgetCategoriesJson
+      const effectiveCategories = budgetCategories.length > 0
+        ? budgetCategories
+        : [{ category: existingRequest.category ?? "otros", amount: String(existingRequest.amount ?? 0) }];
 
-      const extension = path.extname(sourceFilename) || ".pdf";
-      if (extension.toLowerCase() !== ".pdf") {
-        return res.status(400).json({ error: "La solicitud de gasto debe estar en formato PDF para poder firmarse" });
-      }
+      const hasReceiptAttached = (existingRequest.receipts || []).some(
+        (r: any) => r?.category === "bank_justificante",
+      );
 
-      const baseName = path.basename(sourceFilename, extension);
-      const signedStoredFilename = `${randomUUID()}-${baseName}-firmado${extension}`;
+      const pdfBuffer = await generateBudgetRequestPdf({
+        data: {
+          description: existingRequest.description,
+          requestType: (existingRequest.requestType as string) ?? "pago_adelantado",
+          activityDate: existingRequest.activityDate ? new Date(existingRequest.activityDate) : null,
+          budgetCategories: effectiveCategories,
+          pagarA: existingRequest.pagarA,
+          bankData: existingRequest.bankData as { bankInSystem: boolean; swift?: string; iban?: string } | null,
+          notes: existingRequest.notes,
+          hasReceiptAttached,
+        },
+        requesterName: requesterUser?.name ?? "Solicitante",
+        organizationName: orgName,
+        applicantSignatureDataUrl: existingRequest.applicantSignatureDataUrl,
+        bishopSignatureDataUrl: signatureDataUrl,
+        signerName,
+        wardName,
+      });
+
+      const signedStoredFilename = `${randomUUID()}-solicitud-firmada.pdf`;
       const signedAbsolutePath = path.join(uploadsPath, signedStoredFilename);
+      console.log("[sign] Writing PDF to:", signedAbsolutePath);
+      await fs.promises.writeFile(signedAbsolutePath, pdfBuffer);
+      console.log("[sign] PDF written OK, size:", pdfBuffer.length);
 
-      const originalBuffer = await fs.promises.readFile(sourceAbsolutePath);
-      const pdfDoc = await PDFDocument.load(originalBuffer);
-      const pages = pdfDoc.getPages();
-      if (!pages.length) {
-        return res.status(400).json({ error: "El PDF no contiene páginas" });
-      }
-
-      const page = pages[0];
-      const signatureDate = new Date().toLocaleDateString("es-ES", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-
-      // Coordenadas calibradas para la plantilla "Solicitud de gastos" (A4, 1 página)
-      // Área: "Para uso exclusivo del secretario" -> columna "Firma del El obispo (Opcional)"
-      const signatureBox = { x: 38, y: 306, width: 310, height: 30 };
-      const dateBox = { x: 350, y: 306, width: 180, height: 30 };
-
-      if (signatureDataUrl.startsWith("data:image/")) {
-        const base64Data = signatureDataUrl.split(",")[1] || "";
-        const imageBytes = Buffer.from(base64Data, "base64");
-        const signatureImage = signatureDataUrl.startsWith("data:image/jpeg")
-          ? await pdfDoc.embedJpg(imageBytes)
-          : await pdfDoc.embedPng(imageBytes);
-
-        const signatureScale = Math.min(
-          signatureBox.width / signatureImage.width,
-          signatureBox.height / signatureImage.height,
-        );
-        const scaledWidth = signatureImage.width * signatureScale;
-        const scaledHeight = signatureImage.height * signatureScale;
-        const centeredX = signatureBox.x + (signatureBox.width - scaledWidth) / 2;
-        const drawX = Math.max(
-          signatureBox.x + 4,
-          Math.min(signatureBox.x + signatureBox.width - scaledWidth - 4, centeredX + 14),
-        );
-
-        page.drawImage(signatureImage, {
-          x: drawX,
-          y: signatureBox.y + (signatureBox.height - scaledHeight) / 2,
-          width: scaledWidth,
-          height: scaledHeight,
-        });
-      } else {
-        const signatureFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-        page.drawText(signerName, {
-          x: signatureBox.x + 8,
-          y: signatureBox.y + 24,
-          size: 24,
-          font: signatureFont,
-          color: rgb(0.08, 0.08, 0.08),
-        });
-      }
-
-      const detailsFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      page.drawText(`Obispo: ${signerName}`, {
-        x: signatureBox.x,
-        y: signatureBox.y - 18,
-        size: 10,
-        font: detailsFont,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-      page.drawText(signatureDate, {
-        x: dateBox.x + 8,
-        y: dateBox.y + 10,
-        size: 10,
-        font: detailsFont,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-
-      const signedPdfBytes = await pdfDoc.save();
-      await fs.promises.writeFile(signedAbsolutePath, Buffer.from(signedPdfBytes));
-
-      const signedPlanFilename = `${baseName}-firmado${extension}`;
+      const signedPlanFilename = "solicitud-firmada.pdf";
       const signedPlanUrl = `/uploads/${signedStoredFilename}`;
 
       const budgetRequest = await storage.approveBudgetRequestBishop(id, req.session.userId!, {
@@ -2775,10 +3026,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Budget request not found" });
       }
 
-      // Check authorization: only obispo and consejero_obispo can delete budget requests
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
+      const isPrivileged = user.role === "obispo" || user.role === "consejero_obispo";
 
-      if (!isObispado) {
+      if (isPrivileged) {
+        // can delete anything
+      } else if (user.role === "presidente_organizacion") {
+        if (budgetRequest.organizationId !== user.organizationId) {
+          return res.status(403).json({ error: "No tienes permisos para eliminar esta solicitud" });
+        }
+        if (budgetRequest.status !== "solicitado") {
+          return res.status(403).json({ error: "Solo puedes eliminar solicitudes que aún no hayan sido aprobadas" });
+        }
+      } else {
         return res.status(403).json({ error: "Forbidden" });
       }
 
@@ -2790,9 +3049,365 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // WELFARE REQUESTS
+  // ========================================
+
+  const WELFARE_REQUESTER_ORGS = new Set(["sociedad_socorro", "cuorum_elderes"]);
+
+  app.get("/api/welfare-requests", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const requests = await storage.getAllWelfareRequests();
+
+      if (user.role === "obispo" || user.role === "secretario_financiero") {
+        return res.json(requests);
+      }
+
+      // presidente_organizacion of sociedad_socorro or cuorum_elderes
+      if (user.role === "presidente_organizacion" && user.organizationId) {
+        const allOrgs = await storage.getAllOrganizations();
+        const userOrg = allOrgs.find((o: any) => o.id === user.organizationId);
+        if (userOrg && WELFARE_REQUESTER_ORGS.has(userOrg.type)) {
+          return res.json(requests.filter((r: any) => r.organizationId === user.organizationId));
+        }
+      }
+
+      return res.status(403).json({ error: "No tienes acceso al módulo de bienestar" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/welfare-requests", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+
+      let effectiveOrganizationId: string | null = null;
+
+      if (user.role === "obispo") {
+        effectiveOrganizationId = req.body?.organizationId || null;
+      } else if (user.role === "presidente_organizacion" && user.organizationId) {
+        const allOrgs = await storage.getAllOrganizations();
+        const userOrg = allOrgs.find((o: any) => o.id === user.organizationId);
+        if (!userOrg || !WELFARE_REQUESTER_ORGS.has(userOrg.type)) {
+          return res.status(403).json({ error: "Solo presidentes de Sociedad de Socorro o Cuórum de Élderes pueden solicitar ayuda de bienestar" });
+        }
+        effectiveOrganizationId = user.organizationId;
+      } else {
+        return res.status(403).json({ error: "No tienes permisos para crear solicitudes de bienestar" });
+      }
+
+      const normalizedActivityDate = normalizeBudgetRequestActivityDate(req.body?.activityDate);
+      if (normalizedActivityDate === undefined) {
+        return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
+      }
+
+      const requestData = insertWelfareRequestSchema.parse({
+        ...req.body,
+        organizationId: effectiveOrganizationId,
+        activityDate: normalizedActivityDate,
+        requestedBy: user.id,
+      });
+
+      const welfareRequest = await storage.createWelfareRequest(requestData);
+
+      // Notify bishop about new welfare request
+      const allUsers = await storage.getAllUsers();
+      const bishop = allUsers.find((u: any) => u.role === "obispo");
+      if (bishop && bishop.id !== user.id) {
+        const notification = await storage.createNotification({
+          userId: bishop.id,
+          type: "reminder",
+          title: "Nueva Solicitud de Bienestar",
+          description: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+          relatedId: welfareRequest.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(bishop.id, {
+            title: "Nueva Solicitud de Bienestar",
+            body: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+            url: "/welfare",
+            notificationId: notification.id,
+          });
+        }
+      }
+
+      res.status(201).json(welfareRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/welfare-requests/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const hasActivityDate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "activityDate");
+      const normalizedActivityDate = hasActivityDate
+        ? normalizeBudgetRequestActivityDate(req.body?.activityDate)
+        : undefined;
+
+      if (hasActivityDate && normalizedActivityDate === undefined) {
+        return res.status(400).json({ error: [{ path: ["activityDate"], message: "Fecha inválida" }] });
+      }
+
+      const requestData = insertWelfareRequestSchema.partial().parse({
+        ...req.body,
+        ...(hasActivityDate ? { activityDate: normalizedActivityDate } : {}),
+      });
+
+      const welfareRequest = await storage.updateWelfareRequest(id, requestData);
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      res.json(welfareRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/welfare-requests/:id/sign", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const signatureSchema = z.object({
+        signatureDataUrl: z.string().min(20, "Firma requerida"),
+        signerName: z.string().trim().min(3, "Nombre del obispo requerido"),
+      });
+      const { signatureDataUrl, signerName } = signatureSchema.parse(req.body);
+
+      const existingRequest = await storage.getWelfareRequest(id);
+      if (!existingRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      if (existingRequest.status !== "solicitado") {
+        return res.status(400).json({ error: "La solicitud no está en estado solicitado" });
+      }
+
+      if (!existingRequest.applicantSignatureDataUrl) {
+        return res.status(400).json({ error: "La solicitud no contiene la firma del solicitante" });
+      }
+
+      const requesterUser = await storage.getUser(existingRequest.requestedBy);
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
+
+      const welfareCategories = (existingRequest.welfareCategoriesJson as { category: string; amount: string; detail?: string }[] | null) ?? [];
+
+      const pdfBuffer = await generateWelfareRequestPdf({
+        data: {
+          description: existingRequest.description,
+          requestType: (existingRequest.requestType as string) ?? "pago_adelantado",
+          activityDate: existingRequest.activityDate ? new Date(existingRequest.activityDate) : null,
+          welfareCategories,
+          pagarA: existingRequest.pagarA,
+          favorDe: (existingRequest as any).favorDe ?? null,
+          bankData: existingRequest.bankData as { bankInSystem: boolean; swift?: string; iban?: string } | null,
+          notes: existingRequest.notes,
+          hasReceiptAttached: (existingRequest.receipts || []).some((r: any) => r?.category === "bank_justificante"),
+        },
+        requesterName: existingRequest.pagarA ?? requesterUser?.name ?? "Solicitante",
+        applicantSignatureDataUrl: existingRequest.applicantSignatureDataUrl,
+        bishopSignatureDataUrl: signatureDataUrl,
+        signerName,
+        wardName,
+      });
+
+      const signedStoredFilename = `${randomUUID()}-solicitud-bienestar-firmada.pdf`;
+      const signedAbsolutePath = path.join(uploadsPath, signedStoredFilename);
+      await fs.promises.writeFile(signedAbsolutePath, pdfBuffer);
+
+      const signedPlanFilename = "solicitud-bienestar-firmada.pdf";
+      const signedPlanUrl = `/uploads/${signedStoredFilename}`;
+
+      const welfareRequest = await storage.approveWelfareRequestBishop(id, req.session.userId!, {
+        dataUrl: signatureDataUrl,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        signedPlanFilename,
+        signedPlanUrl,
+      });
+
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      // Create task to attach expense receipts (reembolso already has receipts attached)
+      const isReimbursementRequest = welfareRequest.requestType === "reembolso";
+      if (!isReimbursementRequest) {
+        const dueDate = welfareRequest.activityDate ? new Date(welfareRequest.activityDate) : new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+
+        // If obispo created on behalf of a president (pagarA = president name), assign task to that president
+        const requestedByUser = await storage.getUser(welfareRequest.requestedBy);
+        let taskAssignTo = welfareRequest.requestedBy;
+        if (requestedByUser?.role === "obispo" && welfareRequest.pagarA) {
+          const allUsers = await storage.getAllUsers();
+          const president = allUsers.find(
+            (u: any) => u.name === welfareRequest.pagarA && u.role === "presidente_organizacion"
+          );
+          if (president) taskAssignTo = president.id;
+        }
+
+        const assignment = await storage.createAssignment({
+          title: "Adjuntar comprobantes de bienestar",
+          description: `Adjunta los comprobantes de gasto para la solicitud de bienestar "${welfareRequest.description}" por €${welfareRequest.amount}.`,
+          assignedTo: taskAssignTo,
+          assignedBy: req.session.userId!,
+          dueDate,
+          relatedTo: `welfare:${welfareRequest.id}`,
+        });
+
+        const receiptNotification = await storage.createNotification({
+          userId: taskAssignTo,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${assignment.title}"`,
+          relatedId: welfareRequest.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(taskAssignTo, {
+            title: "Nueva Asignación",
+            body: `Se te ha asignado: "${assignment.title}"`,
+            url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
+            notificationId: receiptNotification.id,
+          });
+        }
+      }
+
+      // Notify requester
+      const approvalNotification = await storage.createNotification({
+        userId: welfareRequest.requestedBy,
+        type: "budget_approved",
+        title: "Solicitud de bienestar aprobada",
+        description: `Se ha aprobado y firmado tu solicitud "${welfareRequest.description}".`,
+        relatedId: welfareRequest.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(welfareRequest.requestedBy, {
+          title: "Solicitud de bienestar aprobada",
+          body: `Se ha aprobado y firmado tu solicitud "${welfareRequest.description}".`,
+          url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
+          notificationId: approvalNotification.id,
+        });
+      }
+
+      res.json({ ...welfareRequest, signedPlanUrl, signedPlanFilename });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/welfare-requests/:id/review", requireAuth, requireRole("obispo"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const payloadSchema = z.object({
+        action: z.enum(["rechazar", "enmendar"]),
+        reason: z.string().trim().min(10, "El motivo debe tener al menos 10 caracteres"),
+      });
+      const { action, reason } = payloadSchema.parse(req.body);
+
+      const welfareRequest = await storage.getWelfareRequest(id);
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      if (welfareRequest.status !== "solicitado") {
+        return res.status(400).json({ error: "La solicitud no puede revisarse en su estado actual" });
+      }
+
+      const nextStatus = action === "rechazar" ? "rechazada" : "solicitado";
+      const updatedRequest = await storage.updateWelfareRequest(id, {
+        status: nextStatus as any,
+        notes: [
+          welfareRequest.notes,
+          `${action === "rechazar" ? "Rechazada" : "Devuelta para enmienda"} por obispo: ${reason}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      });
+
+      if (!updatedRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      // Notify requester
+      const rejectionNotification = await storage.createNotification({
+        userId: welfareRequest.requestedBy,
+        type: "budget_rejected",
+        title: action === "rechazar" ? "Solicitud de bienestar rechazada" : "Solicitud de bienestar devuelta",
+        description: `Tu solicitud "${welfareRequest.description}" fue ${action === "rechazar" ? "rechazada" : "devuelta para enmienda"}. Motivo: ${reason}`,
+        relatedId: welfareRequest.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(welfareRequest.requestedBy, {
+          title: action === "rechazar" ? "Solicitud de bienestar rechazada" : "Solicitud de bienestar devuelta",
+          body: `Tu solicitud "${welfareRequest.description}" fue ${action === "rechazar" ? "rechazada" : "devuelta para enmienda"}. Motivo: ${reason}`,
+          url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
+          notificationId: rejectionNotification.id,
+        });
+      }
+
+      res.json(updatedRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/welfare-requests/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { id } = req.params;
+      const welfareRequest = await storage.getWelfareRequest(id);
+      if (!welfareRequest) {
+        return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      if (user.role === "obispo") {
+        // obispo can delete anything
+      } else if (user.role === "presidente_organizacion") {
+        // presidents can only delete their own org's unsigned requests
+        if (welfareRequest.organizationId !== user.organizationId) {
+          return res.status(403).json({ error: "No tienes permisos para eliminar esta solicitud" });
+        }
+        if (welfareRequest.status !== "solicitado") {
+          return res.status(403).json({ error: "Solo puedes eliminar solicitudes que aún no hayan sido firmadas por el obispo" });
+        }
+      } else {
+        return res.status(403).json({ error: "No tienes permisos para eliminar solicitudes de bienestar" });
+      }
+
+      await storage.deleteWelfareRequest(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========================================
   // INTERVIEWS
   // ========================================
-  
+
   app.get("/api/interviews", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -2904,7 +3519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
         year: "numeric",
         month: "long",
-        day: "2-digit",
+        day: "numeric",
       });
       const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
         hour: "2-digit",
@@ -3006,10 +3621,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
           year: "numeric",
           month: "2-digit",
-          day: "2-digit",
+          day: "numeric",
         });
         const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-          day: "2-digit",
+          day: "numeric",
           month: "short",
           year: "numeric",
         });
@@ -3376,10 +3991,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
                 year: "numeric",
                 month: "2-digit",
-                day: "2-digit",
+                day: "numeric",
               });
               const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-                day: "2-digit",
+                day: "numeric",
                 month: "short",
                 year: "numeric",
               });
@@ -3419,10 +4034,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
             year: "numeric",
             month: "2-digit",
-            day: "2-digit",
+            day: "numeric",
           });
           const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-            day: "2-digit",
+            day: "numeric",
             month: "short",
             year: "numeric",
           });
@@ -3598,7 +4213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
         year: "numeric",
         month: "long",
-        day: "2-digit",
+        day: "numeric",
       });
       const interviewTime = interviewDateValue.toLocaleTimeString("es-ES", {
         hour: "2-digit",
@@ -3606,7 +4221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hour12: false,
       });
       const interviewDateTitle = interviewDateValue.toLocaleDateString("es-ES", {
-        day: "2-digit",
+        day: "numeric",
         month: "short",
         year: "numeric",
       });
@@ -3643,6 +4258,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (interviewer?.email) {
+        const template = await storage.getPdfTemplate();
+        const wardName = template?.wardName;
         await sendOrganizationInterviewScheduledEmail({
           toEmail: interviewer.email,
           recipientName: normalizeMemberName(interviewer.name),
@@ -3652,6 +4269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes: interview.notes,
           organizationName: organization?.name,
           requesterName: normalizeMemberName(user.name),
+          wardName,
         });
       }
 
@@ -3876,7 +4494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (updateData.date) {
                 const updatedDateValue = new Date(updated.date);
                 const updatedDateTitle = updatedDateValue.toLocaleDateString("es-ES", {
-                  day: "2-digit",
+                  day: "numeric",
                   month: "short",
                   year: "numeric",
                 });
@@ -3916,11 +4534,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (updateData.resolution === "cancelada") {
           const interviewerUser = await storage.getUser(updated.interviewerId);
           if (interviewerUser?.email) {
+            const template = await storage.getPdfTemplate();
+            const wardName = template?.wardName;
             const canceledDateValue = new Date(updated.date);
             const canceledDate = canceledDateValue.toLocaleDateString("es-ES", {
               year: "numeric",
               month: "long",
-              day: "2-digit",
+              day: "numeric",
             });
             const canceledTime = canceledDateValue.toLocaleTimeString("es-ES", {
               hour: "2-digit",
@@ -3934,6 +4554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               interviewDate: canceledDate,
               interviewTime: canceledTime,
               organizationName: organization?.name,
+              wardName,
             });
           }
         }
@@ -5423,7 +6044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const interviewDateLabel = interviewDate.toLocaleDateString("es-ES", {
           year: "numeric",
           month: "long",
-          day: "2-digit",
+          day: "numeric",
         });
         const interviewTimeLabel = interviewDate.toLocaleTimeString("es-ES", {
           hour: "2-digit",
@@ -5560,7 +6181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const dueLabel = dueDate.toLocaleDateString("es-ES", {
               year: "numeric",
               month: "long",
-              day: "2-digit",
+              day: "numeric",
             });
             const reminder = await storage.createNotification({
               userId: assignee.id,
@@ -6501,6 +7122,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Returns all pending/in-progress assignments grouped by §29.2.5 area
+  app.get("/api/assignments/pending-by-area", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const allAssignments = await storage.getAllAssignments();
+      const areas = ["livingGospel", "careForOthers", "missionary", "familyHistory"] as const;
+      const result: Record<string, any[]> = {};
+      for (const area of areas) {
+        result[area] = allAssignments.filter(
+          (a: any) =>
+            a.area === area &&
+            a.status !== "completada" &&
+            a.status !== "cancelada" &&
+            a.status !== "archivada"
+        );
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/assignments", requireAuth, async (req: Request, res: Response) => {
     try {
       const assignmentData = insertAssignmentSchema.parse({
@@ -6527,6 +7169,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             url: "/assignments",
             notificationId: notification.id,
           });
+        }
+
+        // Email for ward council assignments (those with an area)
+        if (assignment.area) {
+          const assignee = await storage.getUser(assignment.assignedTo);
+          if (assignee?.email) {
+            const template = await storage.getPdfTemplate();
+            const dueLabel = assignment.dueDate
+              ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+              : null;
+            await sendWardCouncilAssignmentEmail({
+              toEmail: assignee.email,
+              recipientName: normalizeMemberName(assignee.name) ?? assignee.name ?? "",
+              assignmentTitle: assignment.title,
+              dueDate: dueLabel,
+              wardName: template?.wardName,
+            }).catch((err) => console.error("[WardCouncil email] Error:", err));
+          }
         }
       }
 
@@ -6850,17 +7514,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { type: "Consejo", count: filteredCouncils.length },
         ],
         budgetByStatus: [
-          { status: "Solicitado", count: filteredBudgets.filter(b => b.status === "solicitado").length, amount: filteredBudgets.filter(b => b.status === "solicitado").reduce((sum, b) => sum + b.amount, 0) },
-          { status: "Aprobado", count: filteredBudgets.filter(b => b.status === "aprobado").length, amount: filteredBudgets.filter(b => b.status === "aprobado").reduce((sum, b) => sum + b.amount, 0) },
-          { status: "En Proceso", count: filteredBudgets.filter(b => b.status === "en_proceso").length, amount: filteredBudgets.filter(b => b.status === "en_proceso").reduce((sum, b) => sum + b.amount, 0) },
-          { status: "Completado", count: filteredBudgets.filter(b => b.status === "completado").length, amount: filteredBudgets.filter(b => b.status === "completado").reduce((sum, b) => sum + b.amount, 0) },
+          { status: "Solicitado", count: filteredBudgets.filter(b => b.status === "solicitado").length, amount: filteredBudgets.filter(b => b.status === "solicitado").reduce((sum, b) => sum + Number(b.amount), 0) },
+          { status: "Aprobado", count: filteredBudgets.filter(b => b.status === "aprobado").length, amount: filteredBudgets.filter(b => b.status === "aprobado").reduce((sum, b) => sum + Number(b.amount), 0) },
+          { status: "En Proceso", count: filteredBudgets.filter(b => b.status === "en_proceso").length, amount: filteredBudgets.filter(b => b.status === "en_proceso").reduce((sum, b) => sum + Number(b.amount), 0) },
+          { status: "Completado", count: filteredBudgets.filter(b => b.status === "completado").length, amount: filteredBudgets.filter(b => b.status === "completado").reduce((sum, b) => sum + Number(b.amount), 0) },
         ],
         budgetByOrganization,
         interviewsByMonth,
         activitiesByOrganization,
         totalMetrics: {
           totalMeetings: filteredMeetings.length + filteredCouncils.length,
-          totalBudget: filteredBudgets.reduce((sum, b) => sum + b.amount, 0),
+          totalBudget: filteredBudgets.reduce((sum, b) => sum + Number(b.amount), 0),
           totalInterviews: filteredInterviews.length,
           totalActivities: filteredActivities.length,
         },
@@ -6959,7 +7623,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/push/status", requireAuth, async (req: Request, res: Response) => {
     try {
-      const subscriptions = await storage.getPushSubscriptionsByUser(req.session.userId!);
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const subscriptions = await storage.getPushSubscriptionsByUser(userId);
       res.json({
         configured: isPushConfigured(),
         subscribed: subscriptions.length > 0,
@@ -6972,6 +7641,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/push/subscribe", requireAuth, async (req: Request, res: Response) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const { endpoint, p256dh, auth } = req.body;
       
       if (!endpoint || !p256dh || !auth) {
@@ -6980,20 +7654,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existing = await storage.getPushSubscriptionByEndpoint(endpoint);
       if (existing) {
-        return res.json({ message: "Already subscribed", subscription: existing });
+        if (existing.userId !== userId || existing.p256dh !== p256dh || existing.auth !== auth) {
+          await storage.deletePushSubscriptionByEndpoint(endpoint);
+        } else {
+          return res.json({ message: "Already subscribed", subscription: existing });
+        }
       }
 
       const subscriptionData = insertPushSubscriptionSchema.parse({
-        userId: req.session.userId,
+        userId,
         endpoint,
         p256dh,
         auth,
       });
 
       const subscription = await storage.createPushSubscription(subscriptionData);
-      
+
       if (isPushConfigured()) {
-        await sendPushNotification(req.session.userId!, {
+        await sendPushNotification(userId, {
           title: "Notificaciones Activadas",
           body: "Recibirás alertas incluso cuando la app esté cerrada.",
           tag: "welcome-push",
@@ -7012,10 +7690,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/push/unsubscribe", requireAuth, async (req: Request, res: Response) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const { endpoint } = req.body;
-      
+
       if (!endpoint) {
         return res.status(400).json({ error: "Endpoint is required" });
+      }
+
+      const subscription = await storage.getPushSubscriptionByEndpoint(endpoint);
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(404).json({ error: "Subscription not found" });
       }
 
       await storage.deletePushSubscriptionByEndpoint(endpoint);
@@ -7188,8 +7876,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  let lastSacramentalReminderDate: string | null = null;
+  const sentSacramentalReminderKeys = new Set<string>();
+
+  async function sendAutomaticSacramentalAssignmentReminders() {
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const todayKey = getServerDayKey(now);
+
+      if (currentHour !== birthdaySendHour) {
+        return;
+      }
+
+      if (lastSacramentalReminderDate !== todayKey) {
+        sentSacramentalReminderKeys.clear();
+        lastSacramentalReminderDate = todayKey;
+      }
+
+      const meetings = await storage.getAllSacramentalMeetings();
+      const todayParts = parseMeetingDateParts(todayKey);
+      if (!todayParts) return;
+      const todayDateUtc = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
+
+      let remindersSent = 0;
+      for (const meeting of meetings) {
+        const meetingParts = parseMeetingDateParts(meeting.date);
+        if (!meetingParts) continue;
+
+        const meetingDateUtc = Date.UTC(meetingParts.year, meetingParts.month - 1, meetingParts.day);
+        const diffDays = Math.round((meetingDateUtc - todayDateUtc) / (24 * 60 * 60 * 1000));
+
+        const reminderType = diffDays === 4 ? "midweek" : null;
+        if (!reminderType) continue;
+
+        const dedupeKey = `${todayKey}:${reminderType}:${meeting.id}`;
+        if (sentSacramentalReminderKeys.has(dedupeKey)) continue;
+
+        await notifySacramentalParticipants(meeting, { reminderType });
+        sentSacramentalReminderKeys.add(dedupeKey);
+        remindersSent += 1;
+      }
+
+      if (remindersSent > 0) {
+        console.log(`[Sacramental Reminders] Sent ${remindersSent} meeting reminder batch(es)`);
+      }
+    } catch (error) {
+      console.error("[Sacramental Reminders] Error:", error);
+    }
+  }
+
   async function runAgendaReminderWorker() {
     try {
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName;
       const due = await storage.getAgendaRemindersDue(new Date());
       for (const reminder of due) {
         try {
@@ -7202,7 +7942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               getEventById: (eventId) => storage.getAgendaEvent(eventId),
               getTaskById: (taskId) => storage.getAgendaTask(taskId),
               sendPush: (userId, payload) => sendPushNotification(userId, payload),
-              sendEmail: (payload) => sendAgendaReminderEmail(payload),
+              sendEmail: (payload) => sendAgendaReminderEmail({ ...payload, wardName }),
               isPushConfigured,
             },
           });
@@ -7261,6 +8001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
+  startHourlyAlignedTask(sendAutomaticSacramentalAssignmentReminders);
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
   startHourlyAlignedTask(sendAgendaDailyBriefing);
   setInterval(() => {

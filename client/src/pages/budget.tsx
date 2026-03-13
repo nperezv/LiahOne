@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip } from "lucide-react";
+import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -46,9 +46,7 @@ const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Inpu
   <div className="relative">
     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
     <Input
-      type="number"
-      step="0.01"
-      min="0"
+      type="text"
       inputMode="decimal"
       placeholder="0.00"
       className={["pl-8", className].filter(Boolean).join(" ")}
@@ -92,21 +90,66 @@ const isAllowedDocument = (file: File) => {
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
 };
 
+const BUDGET_CATEGORY_OPTIONS = [
+  { value: "actividades", label: "Actividades" },
+  { value: "administracion", label: "Administración" },
+  { value: "asignacion_presupuesto", label: "Asignación de Presupuesto" },
+  { value: "curriculo", label: "Currículo" },
+  { value: "centro_distribucion", label: "Centro de Distribución" },
+  { value: "quorum_elderes", label: "Quórum Élderes" },
+  { value: "historia_familiar", label: "Centro de Historia Familiar" },
+  { value: "pfj", label: "PFJ" },
+  { value: "biblioteca", label: "Biblioteca" },
+  { value: "miscelaneo", label: "Misceláneo" },
+  { value: "primaria", label: "Primaria" },
+  { value: "sociedad_socorro", label: "Sociedad de Socorro" },
+  { value: "adultos_solteros", label: "Adultos Solteros" },
+  { value: "jovenes_adultos_solteros", label: "Jóvenes Adultos Solteros" },
+  { value: "escuela_dominical", label: "Escuela Dominical" },
+  { value: "hombres_jovenes", label: "Hombres Jóvenes" },
+  { value: "mujeres_jovenes", label: "Mujeres Jóvenes" },
+  { value: "obra_misional", label: "Obra Misional" },
+  { value: "otros", label: "Otros" },
+] as const;
+
+// Categories available per organization type
+const ORG_CATEGORY_MAP: Record<string, string[]> = {
+  cuorum_elderes:    ["quorum_elderes", "obra_misional", "historia_familiar"],
+  sociedad_socorro:  ["sociedad_socorro", "obra_misional", "historia_familiar"],
+  jas:               ["jovenes_adultos_solteros"],
+  as:                ["adultos_solteros"],
+  hombres_jovenes:   ["hombres_jovenes"],
+  mujeres_jovenes:   ["mujeres_jovenes"],
+  primaria:          ["primaria"],
+  escuela_dominical: ["escuela_dominical"],
+};
+// obispado and barrio → all categories (no restriction)
+
+const budgetCategorySchema = z.object({
+  category: z.string().min(1, "Selecciona una categoría"),
+  amount: z.string().min(1, "El monto es requerido"),
+  detail: z.string().optional(),
+});
+
 const budgetSchema = z.object({
   description: z.string().min(1, "La descripción es requerida"),
-  amount: z.string().min(1, "El monto es requerido"),
   category: z.enum(["actividades", "materiales", "otros"]),
   requestType: z.enum(["reembolso", "pago_adelantado"]),
   activityDate: z.string().min(1, "La fecha prevista es requerida"),
   notes: z.string().optional(),
   requestingOrganizationId: z.string().optional(),
-  receiptFile: z
+  budgetCategories: z.array(budgetCategorySchema).min(1, "Añade al menos una categoría"),
+  pagarA: z.string().min(1, "El nombre del beneficiario es requerido"),
+  bankInSystem: z.boolean({ required_error: "Indica si los datos bancarios están en el sistema de la Iglesia" }),
+  swift: z.string().optional(),
+  iban: z.string().optional(),
+  bankJustificanteFile: z
     .instanceof(File)
     .optional()
     .refine((file) => !file || isAllowedDocument(file), {
-      message: "Adjunta un archivo .jpg, .doc, .docx o .pdf válido.",
+      message: "Adjunta un archivo .jpg, .jpeg o .pdf válido.",
     }),
-  activityPlanFile: z
+  receiptFile: z
     .instanceof(File)
     .optional()
     .refine((file) => !file || isAllowedDocument(file), {
@@ -120,21 +163,22 @@ const budgetSchema = z.object({
       message: "Adjunta el comprobante para solicitudes de reembolso.",
     });
   }
-
-  if (data.requestType === "reembolso" && !data.activityPlanFile) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["activityPlanFile"],
-      message: "Adjunta la solicitud de gastos para solicitudes de reembolso.",
-    });
-  }
-
-  if (data.requestType === "pago_adelantado" && !data.activityPlanFile) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["activityPlanFile"],
-      message: "Adjunta la solicitud de gasto para pagos por adelantado.",
-    });
+  data.budgetCategories.forEach((cat, i) => {
+    if (cat.category === "otros" && !cat.detail?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["budgetCategories", i, "detail"],
+        message: "Especifica el detalle para la categoría Otros.",
+      });
+    }
+  });
+  if (data.bankInSystem === false) {
+    if (!data.iban?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["iban"], message: "El IBAN es requerido." });
+    }
+    if (!data.bankJustificanteFile) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bankJustificanteFile"], message: "Adjunta el justificante de titularidad." });
+    }
   }
 });
 
@@ -164,7 +208,7 @@ type ExpenseReceiptsValues = z.infer<typeof expenseReceiptsSchema>;
 type WardBudgetValues = z.infer<typeof wardBudgetSchema>;
 type OrgBudgetAssignValues = z.infer<typeof orgBudgetAssignSchema>;
 
-type ReceiptCategory = "plan" | "receipt" | "expense" | "signed_plan";
+type ReceiptCategory = "plan" | "receipt" | "expense" | "signed_plan" | "bank_justificante";
 
 interface BudgetRequest {
   id: string;
@@ -200,10 +244,17 @@ export default function BudgetPage() {
   const [selectedRequest, setSelectedRequest] = useState<BudgetRequest | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
   const [attachmentsDialogRequest, setAttachmentsDialogRequest] = useState<BudgetRequest | null>(null);
+  const [budgetUploadState, setBudgetUploadState] = useState<{
+    receipt: "idle" | "uploading" | "done";
+    bankJustificante: "idle" | "uploading" | "done";
+  }>({ receipt: "idle", bankJustificante: "idle" });
+  const [expenseUploadState, setExpenseUploadState] = useState<"idle" | "uploading" | "done">("idle");
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
+  const isRequesterDrawingRef = useRef(false);
   const search = useSearch();
   const highlightedRequestId = useMemo(() => {
     const params = new URLSearchParams(search);
@@ -316,14 +367,18 @@ export default function BudgetPage() {
     resolver: zodResolver(budgetSchema),
     defaultValues: {
       description: "",
-      amount: "",
-      category: "otros",
+      category: "actividades",
       requestType: "pago_adelantado",
       activityDate: "",
       notes: "",
       requestingOrganizationId: "",
+      budgetCategories: [{ category: "", amount: "", detail: "" }],
+      pagarA: "",
+      bankInSystem: undefined,
+      swift: "",
+      iban: "",
+      bankJustificanteFile: undefined,
       receiptFile: undefined,
-      activityPlanFile: undefined,
     },
   });
 
@@ -376,6 +431,18 @@ export default function BudgetPage() {
   }, [annualAmountDirty, annualAmountValue, wardBudgetForm]);
 
   const budgetRequestType = budgetForm.watch("requestType");
+  const watchedCategories = budgetForm.watch("budgetCategories");
+  const watchedBankInSystem = budgetForm.watch("bankInSystem");
+  const watchedOrgId = budgetForm.watch("requestingOrganizationId");
+
+  // Derive available PDF categories based on selected organization type
+  const availablePdfCategories = useMemo(() => {
+    const orgId = watchedOrgId || (isObispado ? null : user?.organizationId);
+    const orgType = (organizations as Organization[]).find(o => o.id === orgId)?.type ?? "";
+    const restricted = ORG_CATEGORY_MAP[orgType];
+    if (!restricted) return BUDGET_CATEGORY_OPTIONS; // obispado/barrio → all
+    return BUDGET_CATEGORY_OPTIONS.filter(o => restricted.includes(o.value));
+  }, [watchedOrgId, organizations, user?.organizationId, isObispado]);
 
   const requestableOrganizations = useMemo(() =>
     (organizations as Organization[]).filter((org) => org.type !== "barrio"),
@@ -403,13 +470,87 @@ export default function BudgetPage() {
     budgetForm.setValue("requestingOrganizationId", user?.organizationId ?? "");
   }, [isDialogOpen, isObispado, requestableOrganizations, budgetForm, user?.organizationId]);
 
-  const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
-    const parsedAmount = parseBudgetNumber(data.amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert("Ingresa un monto válido. Puedes usar coma o punto para decimales.");
-      return;
-    }
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    // Small delay to ensure canvas is mounted
+    const timer = setTimeout(() => initRequesterCanvas(), 100);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDialogOpen]);
 
+  // Auto-set PDF category when org changes and only one option available
+  useEffect(() => {
+    if (availablePdfCategories.length === 1) {
+      const current = budgetForm.getValues("budgetCategories");
+      const updated = current.map(cat => ({ ...cat, category: availablePdfCategories[0].value }));
+      budgetForm.setValue("budgetCategories", updated);
+    } else {
+      // Reset categories so user picks from new available list
+      budgetForm.setValue("budgetCategories", [{ category: "", amount: "", detail: "" }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedOrgId]);
+
+  const clearRequesterSignatureCanvas = () => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const initRequesterCanvas = () => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+    context.lineWidth = 2.8;
+    context.lineJoin = "round";
+    context.lineCap = "round";
+    context.strokeStyle = "#111827";
+    clearRequesterSignatureCanvas();
+  };
+
+  const getRequesterCanvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  const startRequesterDrawing = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+    const { x, y } = getRequesterCanvasPoint(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    isRequesterDrawingRef.current = true;
+    context.beginPath();
+    context.moveTo(x, y);
+  };
+
+  const drawRequesterSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!isRequesterDrawingRef.current) return;
+    const canvas = requesterSignatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return;
+    const { x, y } = getRequesterCanvasPoint(event);
+    context.lineTo(x, y);
+    context.stroke();
+  };
+
+  const stopRequesterDrawing = () => {
+    isRequesterDrawingRef.current = false;
+  };
+
+
+  const onSubmitBudgetRequest = async (data: BudgetFormValues) => {
     const targetOrganizationId = isObispado
       ? data.requestingOrganizationId
       : user?.organizationId;
@@ -422,34 +563,59 @@ export default function BudgetPage() {
       return;
     }
 
+    // Validate requester signature
+    const requesterCanvas = requesterSignatureCanvasRef.current;
+    if (!requesterCanvas) {
+      alert("Error al acceder al campo de firma.");
+      return;
+    }
+    const signatureDataUrl = requesterCanvas.toDataURL("image/png");
+    const ctx = requesterCanvas.getContext("2d");
+    const pixelData = ctx?.getImageData(0, 0, requesterCanvas.width, requesterCanvas.height).data;
+    const hasSignature = pixelData ? Array.from(pixelData).some((v, i) => i % 4 !== 3 && v < 250) : false;
+    if (!hasSignature) {
+      alert("Por favor, añade tu firma antes de enviar la solicitud.");
+      return;
+    }
+
+    const orgName = (organizations as Organization[]).find((o) => o.id === targetOrganizationId)?.name ?? "";
+
+    // Compute total from all categories
+    const parsedAmount = data.budgetCategories.reduce((sum, cat) => sum + parseBudgetNumber(cat.amount), 0);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert("El importe total debe ser mayor que cero.");
+      return;
+    }
+
+    // Map new dynamic categories to legacy 3-value category for metrics/gauges
+    const legacyCategory = data.category;
+
     const uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
     if (data.requestType === "reembolso" && data.receiptFile) {
       try {
+        setBudgetUploadState(s => ({ ...s, receipt: "uploading" }));
         const uploadedReceipt = await uploadReceiptFile(data.receiptFile);
-        uploadedReceipts.push({
-          filename: uploadedReceipt.filename,
-          url: uploadedReceipt.url,
-          category: "receipt",
-        });
+        setBudgetUploadState(s => ({ ...s, receipt: "done" }));
+        uploadedReceipts.push({ filename: uploadedReceipt.filename, url: uploadedReceipt.url, category: "receipt" });
       } catch (error) {
+        setBudgetUploadState(s => ({ ...s, receipt: "idle" }));
         console.error(error);
         alert("No se pudo subir el comprobante. Intenta nuevamente.");
         return;
       }
     }
 
-    if ((data.requestType === "pago_adelantado" || data.requestType === "reembolso") && data.activityPlanFile) {
+    if (!data.bankInSystem && data.bankJustificanteFile) {
       try {
-        const uploadedPlan = await uploadReceiptFile(data.activityPlanFile);
-        uploadedReceipts.push({
-          filename: uploadedPlan.filename,
-          url: uploadedPlan.url,
-          category: "plan",
-        });
+        setBudgetUploadState(s => ({ ...s, bankJustificante: "uploading" }));
+        const uploadedJustificante = await uploadReceiptFile(data.bankJustificanteFile);
+        setBudgetUploadState(s => ({ ...s, bankJustificante: "done" }));
+        uploadedReceipts.push({ filename: uploadedJustificante.filename, url: uploadedJustificante.url, category: "bank_justificante" });
       } catch (error) {
+        setBudgetUploadState(s => ({ ...s, bankJustificante: "idle" }));
         console.error(error);
-        alert("No se pudo subir la solicitud de gasto. Intenta nuevamente.");
+        alert("No se pudo subir el justificante bancario. Intenta nuevamente.");
         return;
       }
     }
@@ -458,26 +624,40 @@ export default function BudgetPage() {
       {
         description: data.description,
         amount: parsedAmount,
-        category: data.category,
+        category: legacyCategory,
         status: "solicitado",
         activityDate: data.activityDate ? new Date(`${data.activityDate}T00:00:00`) : null,
         notes: data.notes || "",
         receipts: uploadedReceipts,
         organizationId: targetOrganizationId,
+        applicantSignatureDataUrl: signatureDataUrl,
+        requestType: data.requestType,
+        budgetCategoriesJson: data.budgetCategories,
+        bankData: {
+          bankInSystem: data.bankInSystem ?? false,
+          swift: data.swift || undefined,
+          iban: data.iban || undefined,
+        },
+        pagarA: data.pagarA || undefined,
       },
       {
         onSuccess: () => {
           setIsDialogOpen(false);
+          clearRequesterSignatureCanvas();
           budgetForm.reset({
             description: "",
-            amount: "",
-            category: "otros",
+            category: "actividades",
             requestType: "pago_adelantado",
             activityDate: "",
             notes: "",
             requestingOrganizationId: isObispado ? "" : user?.organizationId ?? "",
+            budgetCategories: [{ category: "", amount: "", detail: "" }],
+            pagarA: "",
+            bankInSystem: undefined,
+            swift: "",
+            iban: "",
+            bankJustificanteFile: undefined,
             receiptFile: undefined,
-            activityPlanFile: undefined,
           });
         },
       }
@@ -492,6 +672,7 @@ export default function BudgetPage() {
     let uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
 
     try {
+      setExpenseUploadState("uploading");
       uploadedReceipts = await Promise.all(
         data.expenseReceipts.map(async (file) => {
           const uploaded = await uploadReceiptFile(file);
@@ -502,7 +683,9 @@ export default function BudgetPage() {
           };
         })
       );
+      setExpenseUploadState("done");
     } catch (error) {
+      setExpenseUploadState("idle");
       console.error(error);
       alert("No se pudo subir los comprobantes. Intenta nuevamente.");
       return;
@@ -720,9 +903,9 @@ export default function BudgetPage() {
     const variants: Record<string, { label: string; className: string }> = {
       solicitado: { label: "Solicitado", className: "border-amber-500/30 bg-amber-500/15 text-amber-300" },
       aprobado_financiero: { label: "Aprobación financiera", className: "border-blue-500/30 bg-blue-500/15 text-blue-300" },
-      pendiente_firma_obispo: { label: "Pendiente firma", className: "border-violet-500/30 bg-violet-500/15 text-violet-300" },
+      pendiente_firma_obispo: { label: "Pendiente firma", className: "border-primary/30 bg-primary/15 text-primary" },
       aprobado: { label: "Aprobado", className: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300" },
-      en_proceso: { label: "En proceso", className: "border-indigo-500/30 bg-indigo-500/15 text-indigo-300" },
+      en_proceso: { label: "En proceso", className: "border-primary/30 bg-primary/15 text-primary" },
       completado: { label: "Completado", className: "border-teal-500/30 bg-teal-500/15 text-teal-300" },
       rechazada: { label: "Rechazada", className: "border-rose-500/30 bg-rose-500/15 text-rose-300" },
     };
@@ -763,6 +946,9 @@ export default function BudgetPage() {
     if (receipt?.category === "receipt") {
       return "Comprobante de compra";
     }
+    if (receipt?.category === "bank_justificante") {
+      return "Justificante de titularidad bancaria";
+    }
     return "Adjunto";
   };
 
@@ -786,13 +972,25 @@ export default function BudgetPage() {
       return;
     }
 
-    const link = document.createElement("a");
-    link.href = receipt.url;
-    link.download = receipt.filename;
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    try {
+      const response = await fetch(receipt.url, {
+        headers: getAuthHeaders(),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = receipt.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("No se pudo descargar el archivo.");
+    }
   };
 
   const openAssignDialog = (orgId: string) => {
@@ -806,7 +1004,7 @@ export default function BudgetPage() {
     );
 
     if (existingBudget) {
-      orgBudgetForm.setValue("amount", existingBudget.amount.toString());
+      orgBudgetForm.setValue("amount", String(existingBudget.amount ?? "0"));
     } else {
       orgBudgetForm.reset();
     }
@@ -820,8 +1018,8 @@ export default function BudgetPage() {
     expenseReceiptsForm.reset({ expenseReceipts: [] });
   };
 
-  const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + r.amount, 0);
-  const totalApproved = filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + r.amount, 0);
+  const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + Number(r.amount), 0);
+  const totalApproved = filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + Number(r.amount), 0);
   const [activeSection, setActiveSection] = useState<"resumen" | "solicitudes" | "organizaciones">("resumen");
   const [requestStatusFilter, setRequestStatusFilter] = useState<"todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas">("todas");
 
@@ -859,7 +1057,7 @@ export default function BudgetPage() {
   }
 
   return (
-    <div className="bg-[#04060d] p-6 text-slate-100 md:p-8">
+    <div className="p-6 md:p-8">
       <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
         <div className="w-full">
           <h1 className="mb-2 text-3xl font-extrabold tracking-tight md:text-5xl">Presupuestos</h1>
@@ -1010,11 +1208,11 @@ export default function BudgetPage() {
               </DialogContent>
             </Dialog>
           )}
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setBudgetUploadState({ receipt: "idle", bankJustificante: "idle" }); }}>
             <DialogTrigger asChild>
               <Button
                 data-testid="button-create-request"
-                className="h-9 rounded-lg border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(124,58,237,0.45)] transition-all duration-200 hover:from-violet-500 hover:to-indigo-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.55)]"
+                className="h-9 rounded-lg border border-primary/40 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_0_20px_hsl(var(--primary)/0.45)] transition-all duration-200 hover:brightness-110"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Nueva Solicitud
@@ -1049,36 +1247,14 @@ export default function BudgetPage() {
 
                   <FormField
                     control={budgetForm.control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Monto (€)</FormLabel>
-                        <FormControl>
-                          <BudgetCurrencyInput
-                            {...field}
-                            onBlur={(event) => {
-                              field.onChange(formatCurrencyInputValue(event.target.value));
-                              field.onBlur();
-                            }}
-                            data-testid="input-amount"
-                          />
-                                                </FormControl>
-                        <p className="text-xs text-muted-foreground">Ingresa el monto con decimales (ej: 125.50).</p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={budgetForm.control}
                     name="category"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Categoría</FormLabel>
+                        <FormLabel>Tipo de gasto</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger data-testid="select-budget-category">
-                              <SelectValue placeholder="Selecciona categoría" />
+                            <SelectTrigger data-testid="select-budget-category-type">
+                              <SelectValue placeholder="Selecciona tipo" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -1130,6 +1306,122 @@ export default function BudgetPage() {
                     )}
                   />
 
+                  {/* ── Categorías dinámicas ── */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Categorías y montos</label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const current = budgetForm.getValues("budgetCategories");
+                          budgetForm.setValue("budgetCategories", [...current, { category: "", amount: "", detail: "" }]);
+                        }}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Añadir categoría
+                      </Button>
+                    </div>
+
+                    {watchedCategories.map((cat, index) => (
+                      <div key={index} className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-1">
+                            <FormField
+                              control={budgetForm.control}
+                              name={`budgetCategories.${index}.category`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger className="h-8 text-sm" data-testid={`select-budget-category-${index}`}>
+                                        <SelectValue placeholder="Selecciona categoría" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="max-h-52 overflow-y-auto">
+                                      {availablePdfCategories.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className="w-28 space-y-1">
+                            <FormField
+                              control={budgetForm.control}
+                              name={`budgetCategories.${index}.amount`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <BudgetCurrencyInput
+                                      {...field}
+                                      className="h-8 text-sm"
+                                      onBlur={(e) => { field.onChange(formatCurrencyInputValue(e.target.value)); field.onBlur(); }}
+                                      data-testid={`input-budget-amount-${index}`}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          {watchedCategories.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => {
+                                const current = budgetForm.getValues("budgetCategories");
+                                budgetForm.setValue("budgetCategories", current.filter((_, i) => i !== index));
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Campo "Especifique" si se selecciona Otros */}
+                        {cat.category === "otros" && (
+                          <FormField
+                            control={budgetForm.control}
+                            name={`budgetCategories.${index}.detail`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Especifique..."
+                                    className="h-8 text-sm"
+                                    {...field}
+                                    data-testid={`input-budget-detail-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Total calculado */}
+                    {watchedCategories.some(c => c.amount) && (
+                      <div className="flex justify-end pr-1">
+                        <span className="text-xs text-muted-foreground mr-2 self-center">Total:</span>
+                        <span className="text-sm font-semibold">
+                          € {watchedCategories.reduce((sum, c) => sum + parseBudgetNumber(c.amount), 0).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
                   <FormField
                     control={budgetForm.control}
                     name="requestType"
@@ -1166,15 +1458,149 @@ export default function BudgetPage() {
                     )}
                   />
 
+                  {/* ── PAGAR A ── */}
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm font-semibold text-foreground mb-3">Pagar a</p>
+                    <FormField
+                      control={budgetForm.control}
+                      name="pagarA"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre del beneficiario <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre completo de quien recibe el pago" {...field} data-testid="input-pagar-a" />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Puede ser distinto al solicitante. Se usará como titular en la sección bancaria del PDF.</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* ── DATOS BANCARIOS ── */}
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm font-semibold text-foreground mb-3">Datos bancarios del beneficiario</p>
+                    <FormField
+                      control={budgetForm.control}
+                      name="bankInSystem"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>¿Tiene datos bancarios registrados en el sistema de la Iglesia (LCR/CUFS)? <span className="text-destructive">*</span></FormLabel>
+                          <div className="grid grid-cols-2 gap-3 mt-1">
+                            {([
+                              [true, "✓", "Sí, están registrados"],
+                              [false, "✗", "No, los introduzco ahora"],
+                            ] as [boolean, string, string][]).map(([val, icon, txt]) => (
+                              <button
+                                key={String(val)}
+                                type="button"
+                                onClick={() => field.onChange(val)}
+                                className={[
+                                  "flex flex-col items-start gap-1 rounded-lg border p-3 text-left text-sm transition-colors",
+                                  field.value === val
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border bg-background text-muted-foreground hover:border-muted-foreground",
+                                ].join(" ")}
+                                data-testid={`button-bank-in-system-${val}`}
+                              >
+                                <span className="text-base font-bold">{icon}</span>
+                                <span className="font-medium">{txt}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {watchedBankInSystem === true && (
+                      <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-400">
+                        ✓ El PDF indicará que los datos están verificados en el sistema LCR/CUFS. El titular se tomará del campo "Pagar a".
+                      </div>
+                    )}
+
+                    {watchedBankInSystem === false && (
+                      <div className="mt-3 flex flex-col gap-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={budgetForm.control}
+                            name="swift"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>SWIFT / BIC</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Ej: CAIXESBB" {...field} data-testid="input-swift" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={budgetForm.control}
+                            name="iban"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>IBAN <span className="text-destructive">*</span></FormLabel>
+                                <FormControl>
+                                  <Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} data-testid="input-iban" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={budgetForm.control}
+                          name="bankJustificanteFile"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Justificante de titularidad <span className="text-destructive">*</span></FormLabel>
+                              <FormControl>
+                                <div className="flex flex-col gap-2">
+                                  <Input
+                                    id="bank-justificante-file"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.pdf,.png"
+                                    onChange={(e) => field.onChange(e.target.files?.[0] ?? undefined)}
+                                    onBlur={field.onBlur}
+                                    ref={field.ref}
+                                    className="hidden"
+                                    data-testid="input-bank-justificante"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant={budgetUploadState.bankJustificante === "done" ? "default" : "outline"}
+                                    className="w-fit"
+                                    disabled={budgetUploadState.bankJustificante === "uploading"}
+                                    onClick={() => (document.getElementById("bank-justificante-file") as HTMLInputElement)?.click()}
+                                  >
+                                    {budgetUploadState.bankJustificante === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                                    {budgetUploadState.bankJustificante === "uploading" ? "Subiendo..." : "Seleccionar justificante"}
+                                  </Button>
+                                  <span className="text-xs text-muted-foreground">
+                                    {field.value ? `✓ ${field.value.name}` : "Ningún archivo seleccionado — JPG, PNG o PDF"}
+                                  </span>
+                                </div>
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground">Captura o PDF del banco que acredite la titularidad de la cuenta.</p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+
                   <FormField
                     control={budgetForm.control}
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Notas (Opcional)</FormLabel>
+                        <FormLabel>Propósito del gasto (Opcional)</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Detalles adicionales sobre la solicitud"
+                            placeholder="Detalla el propósito del gasto..."
                             {...field}
                             data-testid="textarea-notes"
                           />
@@ -1203,12 +1629,20 @@ export default function BudgetPage() {
                                 className="hidden"
                                 data-testid="input-receipt-file"
                               />
-                              <Button type="button" variant="outline" className="w-fit" asChild>
-                                <label htmlFor="budget-receipt-file" className="cursor-pointer">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant={field.value ? "default" : "outline"}
+                                  className="w-fit"
+                                  disabled={createMutation.isPending}
+                                  onClick={() => (document.getElementById("budget-receipt-file") as HTMLInputElement)?.click()}
+                                >
                                   <Upload className="h-4 w-4 mr-2" />
-                                  Seleccionar comprobante
-                                </label>
-                              </Button>
+                                  {field.value ? "Comprobante adjunto" : "Seleccionar comprobante"}
+                                </Button>
+                                {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                {!createMutation.isPending && field.value && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                              </div>
                               <span className="text-xs text-muted-foreground">
                                 {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
                               </span>
@@ -1224,42 +1658,39 @@ export default function BudgetPage() {
                   )}
 
                   {(budgetRequestType === "pago_adelantado" || budgetRequestType === "reembolso") && (
-                    <FormField
-                      control={budgetForm.control}
-                      name="activityPlanFile"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Solicitud de gastos</FormLabel>
-                          <FormControl>
-                            <div className="flex flex-col gap-2">
-                              <Input
-                                id="budget-activity-plan-file"
-                                type="file"
-                                accept={allowedDocumentExtensions.join(",")}
-                                onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
-                                onBlur={field.onBlur}
-                                ref={field.ref}
-                                className="hidden"
-                                data-testid="input-activity-plan-file"
-                              />
-                              <Button type="button" variant="outline" className="w-fit" asChild>
-                                <label htmlFor="budget-activity-plan-file" className="cursor-pointer">
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Subir solicitud de gasto
-                                </label>
-                              </Button>
-                              <span className="text-xs text-muted-foreground">
-                                {field.value ? `Archivo seleccionado: ${field.value.name}` : "Ningún archivo seleccionado"}
-                              </span>
-                            </div>
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground">
-                            Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para pago por adelantado.
-                          </p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Firma del solicitante <span className="text-destructive">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={clearRequesterSignatureCanvas}
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Limpiar
+                        </button>
+                      </div>
+                      <div className="rounded-md border border-dashed border-slate-600 bg-[#0d1117] p-2">
+                        <canvas
+                          ref={requesterSignatureCanvasRef}
+                          width={700}
+                          height={180}
+                          className="h-36 w-full rounded border border-slate-200 bg-white"
+                          style={{ touchAction: "none" }}
+                          onPointerDown={startRequesterDrawing}
+                          onPointerMove={drawRequesterSignature}
+                          onPointerUp={stopRequesterDrawing}
+                          onPointerLeave={stopRequesterDrawing}
+                          data-testid="canvas-requester-signature"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <PenLine className="h-3 w-3" />
+                        Esta firma quedará registrada en el formulario de solicitud de gastos generado automáticamente.
+                      </p>
+                    </div>
                   )}
 
                   <div className="flex justify-end gap-2">
@@ -1286,6 +1717,7 @@ export default function BudgetPage() {
               if (!open) {
                 setSelectedRequest(null);
                 expenseReceiptsForm.reset({ expenseReceipts: [] });
+                setExpenseUploadState("idle");
               }
             }}
           >
@@ -1317,12 +1749,20 @@ export default function BudgetPage() {
                               className="hidden"
                               data-testid="input-expense-receipts"
                             />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="expense-receipts" className="cursor-pointer">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant={field.value?.length ? "default" : "outline"}
+                                className="w-fit"
+                                disabled={updateMutation.isPending}
+                                onClick={() => (document.getElementById("expense-receipts") as HTMLInputElement)?.click()}
+                              >
                                 <Upload className="h-4 w-4 mr-2" />
-                                Adjuntar comprobantes
-                              </label>
-                            </Button>
+                                {field.value?.length ? `${field.value.length} archivo${field.value.length > 1 ? "s" : ""} adjunto${field.value.length > 1 ? "s" : ""}` : "Adjuntar comprobantes"}
+                              </Button>
+                              {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                              {!updateMutation.isPending && field.value?.length ? <CheckCircle2 className="h-4 w-4 text-primary" /> : null}
+                            </div>
                             <span className="text-xs text-muted-foreground">
                               {field.value?.length
                                 ? `Archivos seleccionados: ${field.value.length}`
@@ -1359,13 +1799,13 @@ export default function BudgetPage() {
 
       <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as "resumen" | "solicitudes" | "organizaciones")}>
         <TabsList className={`mb-6 grid h-auto w-full gap-2 overflow-visible bg-transparent p-0 ${isObispado ? "grid-cols-[0.95fr_1.05fr_1.2fr]" : "grid-cols-[1fr_1.1fr]"}`}>
-          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-4">Resumen</TabsTrigger>
-          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+          <TabsTrigger value="resumen" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-3 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-primary/40 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_20px_hsl(var(--primary)/0.45)] md:px-4">Resumen</TabsTrigger>
+          <TabsTrigger value="solicitudes" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-primary/40 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_20px_hsl(var(--primary)/0.45)] md:px-3.5">
             <span className="truncate">Solicitudes</span>
             <span className={`ml-1.5 inline-flex h-5 min-w-[1.3rem] items-center justify-center rounded-md px-1 text-[11px] font-bold leading-none ${activeSection === "solicitudes" ? "bg-white/25 text-white" : "bg-white/12 text-slate-300"}`}>{filteredRequests.length}</span>
           </TabsTrigger>
           {isObispado ? (
-            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-violet-400/40 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(124,58,237,0.45)] md:px-3.5">
+            <TabsTrigger value="organizaciones" className="min-w-0 rounded-lg border border-transparent bg-[#171922] px-2.5 py-2 text-center text-sm font-semibold text-slate-300 shadow-none transition-all duration-200 hover:scale-[1.01] hover:bg-[#202637] hover:text-white data-[state=active]:border-primary/40 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_20px_hsl(var(--primary)/0.45)] md:px-3.5">
               <span className="truncate">Organizaciones</span>
             </TabsTrigger>
           ) : null}
@@ -1385,7 +1825,7 @@ export default function BudgetPage() {
 
           const mySpending = (requests as any[])
             .filter((r: any) => r.organizationId === user.organizationId && (r.status === "aprobado" || r.status === "completado"))
-            .reduce((sum: number, r: any) => sum + r.amount, 0);
+            .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
           const myAvailable = assignedAmount - mySpending;
           const mySpendingPercent = assignedAmount > 0 ? Math.round((mySpending / assignedAmount) * 100) : 0;
@@ -1442,7 +1882,7 @@ export default function BudgetPage() {
                 {[1, 2, 3, 4].map((quarter) => (
                   <div key={quarter} className="rounded-xl bg-white/5 px-3 py-3">
                     <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">T{quarter}</p>
-                    <p className={`mx-auto w-fit whitespace-nowrap text-[12px] font-extrabold leading-none md:text-[14px] ${quarter === currentQuarter ? "text-violet-400" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
+                    <p className={`mx-auto w-fit whitespace-nowrap text-[12px] font-extrabold leading-none md:text-[14px] ${quarter === currentQuarter ? "text-primary" : "text-slate-100"}`}>€{quarterBudgets[quarter as 1 | 2 | 3 | 4].toFixed(2)}</p>
                   </div>
                 ))}
               </div>
@@ -1477,7 +1917,7 @@ export default function BudgetPage() {
             <CardContent className="p-6">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Uso del trimestre actual</p>
-                <p className="text-2xl font-extrabold text-violet-400">{globalUtilizationPercent}%</p>
+                <p className="text-2xl font-extrabold text-primary">{globalUtilizationPercent}%</p>
               </div>
               <Progress value={globalUtilizationPercent} className="h-1.5" />
               <div className="mt-4 flex items-center justify-between text-sm">
@@ -1502,11 +1942,11 @@ export default function BudgetPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <p className="text-[18px] font-extrabold leading-none text-slate-100">€{request.amount.toFixed(2)}</p>
+                        <p className="text-[18px] font-extrabold leading-none text-slate-100">€{Number(request.amount).toFixed(2)}</p>
                         {request.status === "solicitado" ? (
                           <Button size="sm" className="h-7 rounded-lg bg-emerald-700 px-3 text-[11px] text-emerald-200 hover:bg-emerald-600" onClick={() => handleApprove(request.id)} disabled={approveMutation.isPending}>Aprobar</Button>
                         ) : (
-                          <Button size="sm" className="h-7 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-500 px-3 text-[11px]" onClick={() => handleSignAsBishop(request.id)} disabled={signMutation.isPending}>Firmar</Button>
+                          <Button size="sm" className="h-7 rounded-lg bg-primary px-3 text-[11px] text-primary-foreground hover:bg-primary/90" onClick={() => handleSignAsBishop(request.id)} disabled={signMutation.isPending}>Firmar</Button>
                         )}
                       </div>
                     </CardContent>
@@ -1534,7 +1974,7 @@ export default function BudgetPage() {
               // Calculate spending for this organization
               const orgSpending = (requests as any[])
                 .filter((r: any) => r.organizationId === org.id && (r.status === "aprobado" || r.status === "completado"))
-                .reduce((sum: number, r: any) => sum + r.amount, 0);
+                .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
               const available = assignedAmount - orgSpending;
               const spendingPercent = assignedAmount > 0 ? Math.round((orgSpending / assignedAmount) * 100) : 0;
@@ -1669,7 +2109,7 @@ export default function BudgetPage() {
             key={value}
             type="button"
             onClick={() => setRequestStatusFilter(value as "todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas")}
-            className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-violet-400/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-[0_0_14px_rgba(124,58,237,0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
+            className={requestStatusFilter === value ? "whitespace-nowrap rounded-full border border-primary/70 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-primary-foreground shadow-[0_0_14px_hsl(var(--primary)/0.35)]" : "whitespace-nowrap rounded-full border border-slate-700/60 bg-[#171b26] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-[#1f2534]"}
           >
             <span className="truncate">{label}</span>
           </button>
@@ -1683,7 +2123,7 @@ export default function BudgetPage() {
             const accent = request.status === "aprobado" || request.status === "completado"
               ? "from-emerald-500/45"
               : request.status === "pendiente_firma_obispo"
-                ? "from-violet-500/45"
+                ? "from-primary/45"
                 : request.status === "rechazada"
                   ? "from-rose-500/45"
                   : "from-amber-500/45";
@@ -1700,19 +2140,22 @@ export default function BudgetPage() {
                       <p className="text-lg font-semibold leading-tight text-foreground md:text-xl">{request.description}</p>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground md:text-sm">
                         <span>{new Date(request.createdAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" })}</span>
-                        {request.receipts && request.receipts.length > 0 && (
+                        {((request.receipts && request.receipts.length > 0) || request.bishopSignedPlanUrl) && (
                           <button
                             type="button"
                             onClick={() => setAttachmentsDialogRequest(request)}
-                            className="inline-flex items-center gap-1.5 text-violet-400 transition-colors hover:text-violet-300"
+                            className="inline-flex items-center gap-1.5 text-primary transition-colors hover:opacity-90"
                           >
                             <Paperclip className="h-3.5 w-3.5" />
-                            <span>{request.receipts.length} adjunto{request.receipts.length > 1 ? "s" : ""}</span>
+                            {(() => {
+                              const count = (request.receipts?.length ?? 0) + (request.bishopSignedPlanUrl ? 1 : 0);
+                              return <span>{count} adjunto{count > 1 ? "s" : ""}</span>;
+                            })()}
                           </button>
                         )}
                       </div>
                     </div>
-                    <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{request.amount.toFixed(2)}</p>
+                    <p className="text-3xl font-extrabold tracking-tight text-slate-100 md:text-4xl">€{Number(request.amount).toFixed(2)}</p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -1721,7 +2164,7 @@ export default function BudgetPage() {
                     )}
                     {user?.role === "obispo" && request.status === "pendiente_firma_obispo" && (
                       <>
-                        <Button size="sm" className="bg-violet-600 hover:bg-violet-500" onClick={() => handleSignAsBishop(request.id)} data-testid={`button-sign-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Firmar</Button>
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => handleSignAsBishop(request.id)} data-testid={`button-sign-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Firmar</Button>
                         <Button size="sm" variant="secondary" onClick={() => handleReviewByBishop(request.id, "enmendar")} data-testid={`button-amend-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Enmendar</Button>
                         <Button size="sm" variant="destructive" onClick={() => handleReviewByBishop(request.id, "rechazar")} data-testid={`button-reject-budget-${request.id}`} disabled={signMutation.isPending || reviewMutation.isPending}>Rechazar</Button>
                       </>
@@ -1729,7 +2172,8 @@ export default function BudgetPage() {
                     {request.status === "aprobado" && request.requestedBy === user?.id && shouldShowAddExpenseReceipts(request) && (
                       <Button size="sm" variant="secondary" onClick={() => openReceiptsDialog(request)} data-testid={`button-add-expense-receipts-${request.id}`}>Adjuntar comprobante</Button>
                     )}
-                    {canDelete && (
+                    {((["obispo", "consejero_obispo"].includes(user?.role || "")) ||
+                      (user?.role === "presidente_organizacion" && request.status === "solicitado" && request.organizationId === user?.organizationId)) && (
                       <Button size="sm" variant="destructive" onClick={() => handleDelete(request.id)} data-testid={`button-delete-budget-${request.id}`} disabled={deleteMutation.isPending}>Eliminar</Button>
                     )}
                   </div>
@@ -1765,6 +2209,21 @@ export default function BudgetPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {attachmentsDialogRequest?.bishopSignedPlanUrl && (
+              <button
+                type="button"
+                onClick={() => void downloadReceipt({
+                  filename: attachmentsDialogRequest.bishopSignedPlanFilename ?? "plan_firmado.pdf",
+                  url: attachmentsDialogRequest.bishopSignedPlanUrl,
+                })}
+                className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
+              >
+                <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span className="min-w-0 truncate">
+                  Plan firmado por obispo: {attachmentsDialogRequest.bishopSignedPlanFilename ?? "plan_firmado.pdf"}
+                </span>
+              </button>
+            )}
             {attachmentsDialogRequest?.receipts?.length ? (
               attachmentsDialogRequest.receipts.map((receipt, index) => (
                 <button
@@ -1773,13 +2232,13 @@ export default function BudgetPage() {
                   onClick={() => void downloadReceipt(receipt)}
                   className="flex w-full items-start gap-2 rounded-md border border-slate-700/50 bg-[#171b26] px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-[#1f2534]"
                 >
-                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                  <Paperclip className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span className="min-w-0 truncate">{getReceiptLabel(receipt)}: {receipt.filename}</span>
                 </button>
               ))
-            ) : (
+            ) : !attachmentsDialogRequest?.bishopSignedPlanUrl ? (
               <p className="text-sm text-muted-foreground">No hay adjuntos disponibles.</p>
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>

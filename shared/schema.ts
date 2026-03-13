@@ -616,6 +616,26 @@ export const wardCouncils = pgTable("ward_councils", {
   attendance: jsonb("attendance").$type<string[]>().default([]),
   agreements: jsonb("agreements").$type<{description: string, responsible: string}[]>().default([]),
   notes: text("notes"),
+  // §29.2.5 — 4 áreas del Manual General
+  livingGospelNotes: text("living_gospel_notes"),
+  careForOthersNotes: text("care_for_others_notes"),
+  missionaryNotes: text("missionary_notes"),
+  familyHistoryNotes: text("family_history_notes"),
+  // §29.2.5 — personas discutidas por área (reemplaza los campos de notas de texto)
+  livingGospelPersons: jsonb("living_gospel_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  careForOthersPersons: jsonb("care_for_others_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  missionaryPersons: jsonb("missionary_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  familyHistoryPersons: jsonb("family_history_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  additionalNotes: text("additional_notes"),
+  // Campos heredados (conservados para datos históricos, no se usan en UI)
   ministryNotes: text("ministry_notes"),
   salvationWorkNotes: text("salvation_work_notes"),
   wardActivitiesNotes: text("ward_activities_notes"),
@@ -664,7 +684,7 @@ export const budgetRequests = pgTable("budget_requests", {
   organizationId: varchar("organization_id").references(() => organizations.id),
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   description: text("description").notNull(),
-  amount: integer("amount").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
   category: budgetCategoryEnum("category").notNull().default("otros"),
   status: budgetStatusEnum("status").notNull().default("solicitado"),
   activityDate: timestamp("activity_date"),
@@ -681,6 +701,14 @@ export const budgetRequests = pgTable("budget_requests", {
   bishopSignedPlanUrl: text("bishop_signed_plan_url"),
   receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
   notes: text("notes"),
+  pagarA: text("pagar_a"),
+  applicantSignatureDataUrl: text("applicant_signature_data_url"),
+  requestType: text("request_type").default("pago_adelantado"),
+  budgetCategoriesJson: jsonb("budget_categories_json")
+    .$type<{ category: string; amount: string; detail?: string }[]>()
+    .default([]),
+  bankData: jsonb("bank_data")
+    .$type<{ bankInSystem: boolean; swift?: string; iban?: string }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -693,6 +721,58 @@ export const budgetUnlockExceptions = pgTable("budget_unlock_exceptions", {
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const welfareStatusEnum = pgEnum("welfare_status", [
+  "solicitado",
+  "aprobado",
+  "rechazada",
+]);
+
+// Welfare Requests (Fast Offerings)
+export const welfareRequests = pgTable("welfare_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  description: text("description").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  status: welfareStatusEnum("status").notNull().default("solicitado"),
+  requestType: text("request_type").default("pago_adelantado"),
+  activityDate: timestamp("activity_date"),
+  bishopApprovedBy: varchar("bishop_approved_by").references(() => users.id),
+  bishopApprovedAt: timestamp("bishop_approved_at"),
+  bishopSignatureDataUrl: text("bishop_signature_data_url"),
+  bishopSignatureIp: text("bishop_signature_ip"),
+  bishopSignatureUserAgent: text("bishop_signature_user_agent"),
+  bishopSignedPlanFilename: text("bishop_signed_plan_filename"),
+  bishopSignedPlanUrl: text("bishop_signed_plan_url"),
+  receipts: jsonb("receipts").$type<{filename: string, url: string, category: string}[]>().default([]),
+  notes: text("notes"),
+  pagarA: text("pagar_a"),
+  applicantSignatureDataUrl: text("applicant_signature_data_url"),
+  welfareCategoriesJson: jsonb("welfare_categories_json")
+    .$type<{ category: string; amount: string; detail?: string }[]>()
+    .default([]),
+  bankData: jsonb("bank_data")
+    .$type<{ bankInSystem: boolean; swift?: string; iban?: string }>(),
+  favorDe: text("favor_de"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertWelfareRequestSchema = createInsertSchema(welfareRequests);
+export type WelfareRequest = typeof welfareRequests.$inferSelect;
+export type InsertWelfareRequest = typeof welfareRequests.$inferInsert;
+
+export const welfareRequestsRelations = relations(welfareRequests, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [welfareRequests.organizationId],
+    references: [organizations.id],
+  }),
+  requestedByUser: one(users, {
+    fields: [welfareRequests.requestedBy],
+    references: [users.id],
+  }),
+}));
 
 // Interviews
 export const interviews = pgTable("interviews", {
@@ -779,6 +859,7 @@ export const assignments = pgTable("assignments", {
   status: assignmentStatusEnum("status").notNull().default("pendiente"),
   resolution: archiveResolutionEnum("resolution"),
   relatedTo: text("related_to"), // Reference to council or meeting
+  area: text("area"), // §29.2.5 area: 'livingGospel' | 'careForOthers' | 'missionary' | 'familyHistory'
   notes: text("notes"),
   cancellationReason: text("cancellation_reason"),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
@@ -936,6 +1017,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   createdWardCouncils: many(wardCouncils),
   createdPresidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
+  welfareRequests: many(welfareRequests),
   interviews: many(interviews),
   createdGoals: many(goals),
   assignmentsReceived: many(assignments, { relationName: "assignedTo" }),
@@ -967,6 +1049,7 @@ export const organizationsRelations = relations(organizations, ({ one, many }) =
   memberCallings: many(memberCallings),
   presidencyMeetings: many(presidencyMeetings),
   budgetRequests: many(budgetRequests),
+  welfareRequests: many(welfareRequests),
   goals: many(goals),
   activities: many(activities),
   birthdays: many(birthdays),
@@ -1340,6 +1423,7 @@ export const selectPresidencyResourceSchema = createSelectSchema(presidencyResou
 // Budget Requests
 export const insertBudgetRequestSchema = createInsertSchema(budgetRequests, {
   activityDate: dateSchema.nullable().optional(),
+  amount: z.union([z.number(), z.string()]).transform((v) => String(v)),
 }).omit({
   id: true,
   createdAt: true,

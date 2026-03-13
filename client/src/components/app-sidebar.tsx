@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder } from "lucide-react";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -128,6 +128,14 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     ],
   },
   {
+    title: "Bienestar",
+    url: "/welfare",
+    icon: Heart,
+    roles: ["obispo", "presidente_organizacion"],
+    organizationTypes: ["sociedad_socorro", "cuorum_elderes"],
+    // obispo bypasses organizationTypes check; presidentes only if their org matches
+  },
+  {
     title: "Presupuestos",
     url: "/budget",
     icon: Euro,
@@ -217,6 +225,7 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
     // Otherwise, only visible if user's role is in the list
     if (!item.roles.includes(userRole)) return false;
     if (!item.organizationTypes) return true;
+    if (userRole === "obispo") return true;
     if (!organizationType) return false;
     return item.organizationTypes.includes(organizationType);
   }).map(item => {
@@ -294,27 +303,38 @@ export function AppSidebar() {
   const { data: organizations = [] } = useOrganizations();
 
   // Get organization type from user's organization (for presidents/counselors/secretaries)
-  const organizationType = user?.organizationId && organizations.length > 0
-    ? organizations.find(org => org.id === user.organizationId)?.type
-    : undefined;
+  const organizationType = React.useMemo(() => {
+    if (!user?.organizationId || organizations.length === 0) return undefined;
+    return organizations.find(org => org.id === user.organizationId)?.type;
+  }, [organizations, user?.organizationId]);
 
-  const menuItems = getVisibleMenuItems(user?.role, organizationType);
-  const pinnedUrls = getPinnedUrls(user?.role);
-  const pinnedMenuItems = menuItems.filter((item) => item.url && pinnedUrls.includes(item.url));
-  const secondaryMenuItems = menuItems.filter((item) => {
-    if (item.url) {
-      return !pinnedUrls.includes(item.url);
-    }
+  const menuItems = React.useMemo(
+    () => getVisibleMenuItems(user?.role, organizationType),
+    [organizationType, user?.role],
+  );
 
-    return true;
-  });
+  const pinnedUrls = React.useMemo(() => getPinnedUrls(user?.role), [user?.role]);
 
-  const pendingByUrl: Record<string, number> = {
+  const pinnedMenuItems = React.useMemo(
+    () => menuItems.filter((item) => item.url && pinnedUrls.includes(item.url)),
+    [menuItems, pinnedUrls],
+  );
+
+  const secondaryMenuItems = React.useMemo(
+    () => menuItems.filter((item) => (item.url ? !pinnedUrls.includes(item.url) : true)),
+    [menuItems, pinnedUrls],
+  );
+
+  const pendingByUrl: Record<string, number> = React.useMemo(() => ({
     "/assignments": dashboardStats?.pendingAssignments ?? 0,
     "/interviews": dashboardStats?.upcomingInterviews ?? 0,
     "/organization-interviews": dashboardStats?.upcomingInterviews ?? 0,
     "/budget": dashboardStats?.budgetRequests?.pending ?? 0,
-  };
+  }), [
+    dashboardStats?.budgetRequests?.pending,
+    dashboardStats?.pendingAssignments,
+    dashboardStats?.upcomingInterviews,
+  ]);
   return (
     <Sidebar>
       <SidebarContent>
