@@ -1,8 +1,9 @@
 import type { Express, Request, Response, RequestHandler } from "express";
 import { randomBytes, createHash } from "node:crypto";
-import { and, desc, eq, gt, inArray, isNull, lt, lte } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { sendPushNotification, isPushConfigured } from "./push-service";
 import { computeMinimumReady } from "./mission-baptism-readiness";
 import { buildReminderDedupeKey, computeDaysUntilService, resolveReminderRule } from "./mission-baptism-reminder-policy";
 import { containsBlockedUrl, isPublicWindowActive, isRateLimited, normalizeDisplayName } from "./mission-baptism-public-rules";
@@ -111,6 +112,10 @@ const noteSchema = z.object({ note: z.string().min(1).max(2000) });
 const lessonStatusSchema = z.object({ status: z.enum(["not_started", "taught", "completed", "repeated"]), notes: z.string().optional() });
 const commitmentResultSchema = z.object({ result: z.enum(["pending", "done", "not_done", "partial"]), note: z.string().optional() });
 const milestoneStatusSchema = z.object({ status: z.enum(["pending", "done", "waived"]), note: z.string().optional() });
+
+// Milestone key helpers — match by metadata.milestoneKey so templates don't need a specific title
+const milestoneKeyFilter = (key: string) =>
+  sql`${missionTemplateItems.metadata}->>'milestoneKey' = ${key}`;
 
 async function canAccessMission(user: any) {
   if (!user) return false;
@@ -248,6 +253,39 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
     res.status(201).json(row);
   });
 
+  app.get("/api/mission/contacts/:id/template-items", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select().from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const [template] = await db.select().from(missionTrackTemplates).where(and(eq(missionTrackTemplates.unitId, user.organizationId), eq(missionTrackTemplates.personType, contact.personType), eq(missionTrackTemplates.isDefault, true))).limit(1);
+    if (!template) return res.json([]);
+    const items = await db.select().from(missionTemplateItems).where(eq(missionTemplateItems.templateId, template.id)).orderBy(missionTemplateItems.order);
+    res.json(items);
+  });
+
+  app.get("/api/mission/contacts/:id/assignees", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const rows = await db
+      .select({
+        id: missionContactAssignees.id,
+        assigneeRole: missionContactAssignees.assigneeRole,
+        isPrimary: missionContactAssignees.isPrimary,
+        userId: missionContactAssignees.userId,
+        assigneeName: missionContactAssignees.assigneeName,
+        userName: users.name,
+        createdAt: missionContactAssignees.createdAt,
+      })
+      .from(missionContactAssignees)
+      .leftJoin(users, eq(users.id, missionContactAssignees.userId))
+      .where(eq(missionContactAssignees.contactId, req.params.id))
+      .orderBy(missionContactAssignees.createdAt);
+    res.json(rows);
+  });
+
   app.post("/api/mission/contacts/:id/notes", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
@@ -295,19 +333,102 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
     res.json(row);
   });
 
+  app.get("/api/mission/contacts/:id/notes", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const notes = await db
+      .select({
+        id: missionContactNotes.id,
+        note: missionContactNotes.note,
+        createdAt: missionContactNotes.createdAt,
+        authorName: users.name,
+      })
+      .from(missionContactNotes)
+      .leftJoin(users, eq(users.id, missionContactNotes.authorUserId))
+      .where(eq(missionContactNotes.contactId, req.params.id))
+      .orderBy(desc(missionContactNotes.createdAt));
+    res.json(notes);
+  });
+
   app.get("/api/mission/contacts/:id/progress", requireAuth, async (req, res) => {
     const user = (req as any).user;
     if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
     const [lessons, commitments, milestones] = await Promise.all([
-      db.select().from(missionContactLessons).where(eq(missionContactLessons.contactId, req.params.id)),
-      db.select().from(missionContactCommitments).where(eq(missionContactCommitments.contactId, req.params.id)),
-      db.select().from(missionContactMilestones).where(eq(missionContactMilestones.contactId, req.params.id)),
+      db.select({
+        id: missionContactLessons.id,
+        templateItemId: missionContactLessons.templateItemId,
+        status: missionContactLessons.status,
+        taughtAt: missionContactLessons.taughtAt,
+        completedAt: missionContactLessons.completedAt,
+        notes: missionContactLessons.notes,
+        itemTitle: missionTemplateItems.title,
+        itemOrder: missionTemplateItems.order,
+        itemRequired: missionTemplateItems.required,
+      })
+        .from(missionContactLessons)
+        .leftJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactLessons.templateItemId))
+        .where(eq(missionContactLessons.contactId, req.params.id))
+        .orderBy(missionTemplateItems.order),
+      db.select({
+        id: missionContactCommitments.id,
+        templateItemId: missionContactCommitments.templateItemId,
+        result: missionContactCommitments.result,
+        assignedAt: missionContactCommitments.assignedAt,
+        dueAt: missionContactCommitments.dueAt,
+        completedAt: missionContactCommitments.completedAt,
+        note: missionContactCommitments.note,
+        itemTitle: missionTemplateItems.title,
+        itemOrder: missionTemplateItems.order,
+        itemRequired: missionTemplateItems.required,
+      })
+        .from(missionContactCommitments)
+        .leftJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactCommitments.templateItemId))
+        .where(eq(missionContactCommitments.contactId, req.params.id))
+        .orderBy(missionTemplateItems.order),
+      db.select({
+        id: missionContactMilestones.id,
+        templateItemId: missionContactMilestones.templateItemId,
+        status: missionContactMilestones.status,
+        doneAt: missionContactMilestones.doneAt,
+        note: missionContactMilestones.note,
+        itemTitle: missionTemplateItems.title,
+        itemOrder: missionTemplateItems.order,
+        itemRequired: missionTemplateItems.required,
+      })
+        .from(missionContactMilestones)
+        .leftJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
+        .where(eq(missionContactMilestones.contactId, req.params.id))
+        .orderBy(missionTemplateItems.order),
     ]);
-    const nextSteps = [
-      ...milestones.filter((m) => m.status !== "done").slice(0, 2).map((m) => `Milestone pendiente: ${m.templateItemId}`),
-      ...commitments.filter((c) => c.result === "pending").slice(0, 1).map((c) => `Compromiso pendiente: ${c.templateItemId}`),
-    ].slice(0, 3);
-    res.json({ lessons, commitments, milestones, nextRecommendedSteps: nextSteps });
+    res.json({ lessons, commitments, milestones });
+  });
+
+  app.get("/api/baptisms/eligible-contacts", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+
+    // Contacts with baptism_date_set milestone done
+    const eligible = await db
+      .selectDistinct({ id: missionContacts.id, fullName: missionContacts.fullName })
+      .from(missionContacts)
+      .innerJoin(missionContactMilestones, eq(missionContactMilestones.contactId, missionContacts.id))
+      .innerJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
+      .where(
+        and(
+          eq(missionContacts.unitId, user.organizationId),
+          eq(missionContactMilestones.status, "done"),
+          milestoneKeyFilter("baptism_date_set"),
+        )
+      );
+
+    // Exclude those who already have a scheduled/live service
+    const existing = await db
+      .select({ candidateContactId: baptismServices.candidateContactId })
+      .from(baptismServices)
+      .where(and(eq(baptismServices.unitId, user.organizationId), inArray(baptismServices.status, ["scheduled", "live"])));
+
+    const taken = new Set(existing.map((r) => r.candidateContactId));
+    res.json(eligible.filter((c) => !taken.has(c.id)));
   });
 
   app.get("/api/baptisms/services", requireAuth, async (req, res) => {
@@ -325,9 +446,9 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
       .select({ id: missionContactMilestones.id })
       .from(missionContactMilestones)
       .innerJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
-      .where(and(eq(missionContactMilestones.contactId, payload.candidateContactId), eq(missionContactMilestones.status, "done"), eq(missionTemplateItems.itemType, "milestone"), eq(missionTemplateItems.title, "Fecha bautismal definida")))
+      .where(and(eq(missionContactMilestones.contactId, payload.candidateContactId), eq(missionContactMilestones.status, "done"), eq(missionTemplateItems.itemType, "milestone"), milestoneKeyFilter("baptism_date_set")))
       .limit(1);
-    if (!dateSetMilestone) return res.status(400).json({ error: "Milestone Fecha bautismal definida es requerido" });
+    if (!dateSetMilestone) return res.status(400).json({ error: "El hito de fecha bautismal no está completado" });
 
     const prepDeadline = new Date(payload.serviceAt);
     prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
@@ -429,7 +550,7 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
         .select({ id: missionContactMilestones.id })
         .from(missionContactMilestones)
         .innerJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
-        .where(and(eq(missionContactMilestones.contactId, service.candidateContactId), eq(missionContactMilestones.status, "done"), eq(missionTemplateItems.itemType, "milestone"), eq(missionTemplateItems.title, "Entrevista bautismal PROGRAMADA")))
+        .where(and(eq(missionContactMilestones.contactId, service.candidateContactId), eq(missionContactMilestones.status, "done"), eq(missionTemplateItems.itemType, "milestone"), milestoneKeyFilter("interview_scheduled")))
         .limit(1),
     ]);
 
@@ -592,38 +713,53 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
   app.post("/api/baptisms/jobs/t14-check", requireAuth, async (req, res) => {
     const user = (req as any).user;
     if (!isMissionLeader(user)) return res.status(403).json({ error: "Forbidden" });
-
-    const now = new Date();
-    const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-    const services = await db.select().from(baptismServices).where(and(gt(baptismServices.serviceAt, now), lte(baptismServices.serviceAt, horizon)));
-
-    for (const service of services) {
-      const daysUntilService = computeDaysUntilService(service.serviceAt, now);
-      const rule = resolveReminderRule(daysUntilService);
-      if (!rule) continue;
-
-      const [programItems, assignments, interviewScheduled] = await Promise.all([
-        db.select({ type: baptismProgramItems.type }).from(baptismProgramItems).where(eq(baptismProgramItems.serviceId, service.id)),
-        db.select({ type: baptismAssignments.type, assigneeUserId: baptismAssignments.assigneeUserId, assigneeName: baptismAssignments.assigneeName }).from(baptismAssignments).where(eq(baptismAssignments.serviceId, service.id)),
-        db
-          .select({ id: missionContactMilestones.id })
-          .from(missionContactMilestones)
-          .innerJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
-          .where(and(eq(missionContactMilestones.contactId, service.candidateContactId), eq(missionContactMilestones.status, "done"), eq(missionTemplateItems.itemType, "milestone"), eq(missionTemplateItems.title, "Entrevista bautismal PROGRAMADA")))
-          .limit(1),
-      ]);
-
-      const readiness = computeMinimumReady({ programItems, assignments, hasInterviewScheduledMilestone: Boolean(interviewScheduled) });
-      if (readiness.ready) continue;
-
-      const dedupeKey = buildReminderDedupeKey(service.id, rule);
-      const delivered = await db.select().from(baptismNotificationDeliveries).where(eq(baptismNotificationDeliveries.dedupeKey, dedupeKey)).limit(1);
-      if (delivered[0]) continue;
-
-      await db.insert(baptismNotificationDeliveries).values({ serviceId: service.id, rule, dedupeKey });
-      await db.insert(notifications).values({ userId: service.createdBy, title: `Servicio bautismal ${rule.toUpperCase()}`, message: "Aún no cumple mínimo listo.", type: "reminder" });
-    }
-
-    res.json({ ok: true });
+    const count = await runBaptismReadinessCheck();
+    res.json({ ok: true, notificationsSent: count });
   });
+}
+
+export async function runBaptismReadinessCheck(): Promise<number> {
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const services = await db
+    .select()
+    .from(baptismServices)
+    .where(and(gt(baptismServices.serviceAt, now), lte(baptismServices.serviceAt, horizon)));
+
+  let sent = 0;
+
+  for (const service of services) {
+    const daysUntilService = computeDaysUntilService(service.serviceAt, now);
+    const rule = resolveReminderRule(daysUntilService);
+    if (!rule) continue;
+
+    const [programItems, assignments, interviewScheduled] = await Promise.all([
+      db.select({ type: baptismProgramItems.type }).from(baptismProgramItems).where(eq(baptismProgramItems.serviceId, service.id)),
+      db.select({ type: baptismAssignments.type, assigneeUserId: baptismAssignments.assigneeUserId, assigneeName: baptismAssignments.assigneeName }).from(baptismAssignments).where(eq(baptismAssignments.serviceId, service.id)),
+      db
+        .select({ id: missionContactMilestones.id })
+        .from(missionContactMilestones)
+        .innerJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
+        .where(and(eq(missionContactMilestones.contactId, service.candidateContactId), eq(missionContactMilestones.status, "done"), eq(missionTemplateItems.itemType, "milestone"), milestoneKeyFilter("interview_scheduled")))
+        .limit(1),
+    ]);
+
+    const readiness = computeMinimumReady({ programItems, assignments, hasInterviewScheduledMilestone: Boolean(interviewScheduled) });
+    if (readiness.ready) continue;
+
+    const dedupeKey = buildReminderDedupeKey(service.id, rule);
+    const delivered = await db.select().from(baptismNotificationDeliveries).where(eq(baptismNotificationDeliveries.dedupeKey, dedupeKey)).limit(1);
+    if (delivered[0]) continue;
+
+    const title = `Bautismo no listo — ${rule.toUpperCase()}`;
+    const message = `El servicio en ${service.locationName} aún no cumple el mínimo requerido.`;
+    await db.insert(baptismNotificationDeliveries).values({ serviceId: service.id, rule, dedupeKey });
+    await db.insert(notifications).values({ userId: service.createdBy, title, message, type: "reminder" });
+    if (isPushConfigured()) {
+      await sendPushNotification(service.createdBy, { title, body: message, url: "/mission-work" }).catch(() => {});
+    }
+    sent++;
+  }
+
+  return sent;
 }
