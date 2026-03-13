@@ -32,12 +32,6 @@ function relativeTime(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-ES");
 }
 
-const MISSION_ROLES = [
-  "mission_leader", "ward_missionary", "full_time_missionary",
-  "obispo", "consejero_obispo", "presidente_organizacion",
-  "consejero_organizacion", "secretario_organizacion",
-];
-
 const STAGE_OPTIONS = [
   { value: "new", label: "Nuevo" },
   { value: "teaching", label: "En enseñanza" },
@@ -123,12 +117,12 @@ function stageBadgeVariant(s: string): "default" | "secondary" | "outline" {
 
 export default function MissionWorkPage() {
   const { toast } = useToast();
-  const me = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const missionAccess = useQuery<any>({ queryKey: ["/api/mission/access"] });
   const contacts = useQuery<any[]>({ queryKey: ["/api/mission/contacts"] });
   const services = useQuery<any[]>({ queryKey: ["/api/baptisms/services"] });
   const pendingPosts = useQuery<any[]>({
     queryKey: ["/api/baptisms/moderation/posts?status=pending"],
-    enabled: me.data?.role === "mission_leader",
+    enabled: Boolean(missionAccess.data?.canModeratePosts),
   });
 
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -192,9 +186,17 @@ export default function MissionWorkPage() {
     [services.data],
   );
 
-  const isLeader = me.data?.role === "mission_leader";
+  const isLeader = Boolean(missionAccess.data?.isMissionLeader);
 
-  if (!MISSION_ROLES.includes(me.data?.role)) {
+  if (missionAccess.isLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">Cargando permisos de Obra Misional...</div>;
+  }
+
+  if (missionAccess.isError) {
+    return <div className="p-6 text-sm text-destructive">No se pudo validar tu acceso a Obra Misional.</div>;
+  }
+
+  if (!missionAccess.data?.hasAccess) {
     return <div className="p-6 text-sm text-muted-foreground">No tienes permisos para Obra Misional.</div>;
   }
 
