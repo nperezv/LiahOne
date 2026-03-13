@@ -4,17 +4,17 @@ DO $$ BEGIN
   ALTER TYPE "role" ADD VALUE IF NOT EXISTS 'full_time_missionary';
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE IF NOT EXISTS "mission_person_type" AS ENUM ('friend','recent_convert','less_active');
-CREATE TYPE IF NOT EXISTS "mission_assignee_role" AS ENUM ('missionary','member_friend','leader');
-CREATE TYPE IF NOT EXISTS "mission_item_type" AS ENUM ('lesson','commitment','checkpoint','habit','milestone');
-CREATE TYPE IF NOT EXISTS "mission_lesson_status" AS ENUM ('not_started','taught','completed','repeated');
-CREATE TYPE IF NOT EXISTS "mission_commitment_result" AS ENUM ('pending','done','not_done','partial');
-CREATE TYPE IF NOT EXISTS "mission_milestone_status" AS ENUM ('pending','done','waived');
-CREATE TYPE IF NOT EXISTS "baptism_service_status" AS ENUM ('scheduled','live','completed','archived');
-CREATE TYPE IF NOT EXISTS "baptism_program_item_type" AS ENUM ('opening_prayer','hymn','talk','special_music','ordinance_baptism','closing_prayer');
-CREATE TYPE IF NOT EXISTS "baptism_assignment_type" AS ENUM ('refreshments','cleaning','baptism_clothing','wet_clothes_pickup','reception','music');
-CREATE TYPE IF NOT EXISTS "baptism_assignment_status" AS ENUM ('pending','done');
-CREATE TYPE IF NOT EXISTS "baptism_public_post_status" AS ENUM ('pending','approved','rejected');
+DO $$ BEGIN CREATE TYPE "mission_person_type" AS ENUM ('friend','recent_convert','less_active'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "mission_assignee_role" AS ENUM ('missionary','member_friend','leader'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "mission_item_type" AS ENUM ('lesson','commitment','checkpoint','habit','milestone'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "mission_lesson_status" AS ENUM ('not_started','taught','completed','repeated'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "mission_commitment_result" AS ENUM ('pending','done','not_done','partial'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "mission_milestone_status" AS ENUM ('pending','done','waived'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "baptism_service_status" AS ENUM ('scheduled','live','completed','archived'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "baptism_program_item_type" AS ENUM ('opening_prayer','hymn','talk','special_music','ordinance_baptism','closing_prayer'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "baptism_assignment_type" AS ENUM ('refreshments','cleaning','baptism_clothing','wet_clothes_pickup','reception','music'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "baptism_assignment_status" AS ENUM ('pending','done'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "baptism_public_post_status" AS ENUM ('pending','approved','rejected'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 ALTER TABLE "hymns" ADD COLUMN IF NOT EXISTS "hymnbook" text NOT NULL DEFAULT 'default';
 ALTER TABLE "hymns" ADD COLUMN IF NOT EXISTS "lang" text NOT NULL DEFAULT 'es';
