@@ -14,6 +14,7 @@ import {
   type ThemePreference,
 } from "@/lib/theme";
 
+const NotFound = lazy(() => import( "@/pages/not-found"));
 const LoginPage = lazy(() => import("@/pages/login"));
 const WelcomePage = lazy(() => import("@/pages/welcome"));
 const RequestAccessPage = lazy(() => import("@/pages/request-access"));
@@ -54,6 +55,9 @@ const InventoryPublicPage = lazy(() => import("@/pages/inventory-public"));
 const InventoryLocationsPage = lazy(() => import("@/pages/inventory-locations"));
 const InventoryLocationDetailPage = lazy(() => import("@/pages/inventory-location-detail"));
 const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
+const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
+const MissionWorkPage = lazy(() => import("@/pages/mission-work"));
+const BaptismPublicPage = lazy(() => import("@/pages/baptism-public"));
 
 function RouteLoadingFallback() {
   return (
@@ -197,6 +201,9 @@ function ProtectedRoutes() {
         <Route path="/admin/users">
           <AdminUsersPage />
         </Route>
+        <Route path="/mission-work">
+          <MissionWorkPage />
+        </Route>
         <Route path="/:rest*">
           <Redirect to="/dashboard" />
         </Route>
@@ -207,18 +214,17 @@ function ProtectedRoutes() {
 
 function Router() {
   return (
-    <Suspense fallback={<RouteLoadingFallback />}>
-      <Switch>
-        <Route path="/welcome" component={WelcomePage} />
-        <Route path="/login" component={LoginRoute} />
-        <Route path="/request-access" component={RequestAccessPage} />
-        <Route path="/donar" component={DonationsPage} />
-        <Route path="/">
-          <Redirect to="/welcome" />
-        </Route>
-        <Route component={ProtectedRoutes} />
-      </Switch>
-    </Suspense>
+    <Switch>
+      <Route path="/welcome" component={WelcomePage} />
+      <Route path="/login" component={LoginRoute} />
+      <Route path="/request-access" component={RequestAccessPage} />
+      <Route path="/donar" component={DonationsPage} />
+      <Route path="/b/:slug" component={BaptismPublicPage} />
+      <Route path="/">
+        <Redirect to="/welcome" />
+      </Route>
+      <Route component={ProtectedRoutes} />
+    </Switch>
   );
 }
 

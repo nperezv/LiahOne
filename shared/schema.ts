@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric, date, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric, date, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -89,7 +89,22 @@ export const roleEnum = pgEnum("role", [
   "secretario_organizacion",
   "bibliotecario",
   "lider_actividades",
+  "mission_leader",
+  "ward_missionary",
+  "full_time_missionary",
 ]);
+
+export const missionPersonTypeEnum = pgEnum("mission_person_type", ["friend", "recent_convert", "less_active"]);
+export const missionAssigneeRoleEnum = pgEnum("mission_assignee_role", ["missionary", "member_friend", "leader"]);
+export const missionItemTypeEnum = pgEnum("mission_item_type", ["lesson", "commitment", "checkpoint", "habit", "milestone"]);
+export const missionLessonStatusEnum = pgEnum("mission_lesson_status", ["not_started", "taught", "completed", "repeated"]);
+export const missionCommitmentResultEnum = pgEnum("mission_commitment_result", ["pending", "done", "not_done", "partial"]);
+export const missionMilestoneStatusEnum = pgEnum("mission_milestone_status", ["pending", "done", "waived"]);
+export const baptismServiceStatusEnum = pgEnum("baptism_service_status", ["scheduled", "live", "completed", "archived"]);
+export const baptismProgramItemTypeEnum = pgEnum("baptism_program_item_type", ["opening_prayer", "hymn", "talk", "special_music", "ordinance_baptism", "closing_prayer"]);
+export const baptismAssignmentTypeEnum = pgEnum("baptism_assignment_type", ["refreshments", "cleaning", "baptism_clothing", "wet_clothes_pickup", "reception", "music"]);
+export const baptismAssignmentStatusEnum = pgEnum("baptism_assignment_status", ["pending", "done"]);
+export const baptismPublicPostStatusEnum = pgEnum("baptism_public_post_status", ["pending", "approved", "rejected"]);
 
 export const organizationTypeEnum = pgEnum("organization_type", [
   "obispado",
@@ -348,10 +363,175 @@ export const memberOrganizations = pgTable("member_organizations", {
 });
 
 
+
+export const missionContacts = pgTable("mission_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unitId: varchar("unit_id").notNull().references(() => organizations.id),
+  fullName: text("full_name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  personType: missionPersonTypeEnum("person_type").notNull(),
+  stage: text("stage").notNull().default("new"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const missionContactAssignees = pgTable("mission_contact_assignees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  assigneeName: text("assignee_name"),
+  assigneeRole: missionAssigneeRoleEnum("assignee_role").notNull().default("missionary"),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const missionContactNotes = pgTable("mission_contact_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  authorUserId: varchar("author_user_id").notNull().references(() => users.id),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const missionTrackTemplates = pgTable("mission_track_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unitId: varchar("unit_id").notNull().references(() => organizations.id),
+  personType: missionPersonTypeEnum("person_type").notNull(),
+  name: text("name").notNull(),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const missionTemplateItems = pgTable("mission_template_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => missionTrackTemplates.id, { onDelete: "cascade" }),
+  order: integer("order").notNull().default(0),
+  title: text("title").notNull(),
+  itemType: missionItemTypeEnum("item_type").notNull(),
+  required: boolean("required").notNull().default(false),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+});
+
+export const missionContactLessons = pgTable("mission_contact_lessons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  templateItemId: varchar("template_item_id").notNull().references(() => missionTemplateItems.id),
+  status: missionLessonStatusEnum("status").notNull().default("not_started"),
+  taughtAt: timestamp("taught_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  teacherUserIds: jsonb("teacher_user_ids").$type<string[]>().notNull().default([]),
+  notes: text("notes"),
+}, (t) => ({
+  uniqueProgress: uniqueIndex("mission_contact_lessons_contact_template_idx").on(t.contactId, t.templateItemId),
+}));
+
+export const missionContactCommitments = pgTable("mission_contact_commitments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  templateItemId: varchar("template_item_id").notNull().references(() => missionTemplateItems.id),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow().notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  result: missionCommitmentResultEnum("result").notNull().default("pending"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  note: text("note"),
+}, (t) => ({
+  uniqueProgress: uniqueIndex("mission_contact_commitments_contact_template_idx").on(t.contactId, t.templateItemId),
+}));
+
+export const missionContactMilestones = pgTable("mission_contact_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  templateItemId: varchar("template_item_id").notNull().references(() => missionTemplateItems.id),
+  status: missionMilestoneStatusEnum("status").notNull().default("pending"),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  doneBy: varchar("done_by").references(() => users.id),
+  note: text("note"),
+});
+
+export const baptismServices = pgTable("baptism_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unitId: varchar("unit_id").notNull().references(() => organizations.id),
+  candidateContactId: varchar("candidate_contact_id").notNull().references(() => missionContacts.id),
+  serviceAt: timestamp("service_at", { withTimezone: true }).notNull(),
+  locationName: text("location_name").notNull(),
+  locationAddress: text("location_address"),
+  mapsUrl: text("maps_url"),
+  status: baptismServiceStatusEnum("status").notNull().default("scheduled"),
+  prepDeadlineAt: timestamp("prep_deadline_at", { withTimezone: true }).notNull(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const baptismProgramItems = pgTable("baptism_program_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => baptismServices.id, { onDelete: "cascade" }),
+  order: integer("order").notNull().default(0),
+  type: baptismProgramItemTypeEnum("type").notNull(),
+  title: text("title"),
+  participantUserId: varchar("participant_user_id").references(() => users.id),
+  participantDisplayName: text("participant_display_name"),
+  publicVisibility: boolean("public_visibility").notNull().default(true),
+  hymnId: varchar("hymn_id").references(() => hymns.id),
+  notes: text("notes"),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+export const baptismAssignments = pgTable("baptism_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => baptismServices.id, { onDelete: "cascade" }),
+  type: baptismAssignmentTypeEnum("type").notNull(),
+  assigneeUserId: varchar("assignee_user_id").references(() => users.id),
+  assigneeName: text("assignee_name"),
+  status: baptismAssignmentStatusEnum("status").notNull().default("pending"),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  notes: text("notes"),
+});
+
+export const baptismPublicLinks = pgTable("baptism_public_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => baptismServices.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull(),
+  code: text("code").notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  revokedBy: varchar("revoked_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const baptismPublicPosts = pgTable("baptism_public_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  publicLinkId: varchar("public_link_id").notNull().references(() => baptismPublicLinks.id, { onDelete: "cascade" }),
+  displayName: text("display_name"),
+  message: text("message").notNull(),
+  photoUrl: text("photo_url"),
+  status: baptismPublicPostStatusEnum("status").notNull().default("pending"),
+  clientRequestId: text("client_request_id").notNull(),
+  ipHash: text("ip_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  moderatedBy: varchar("moderated_by").references(() => users.id),
+  moderatedAt: timestamp("moderated_at", { withTimezone: true }),
+});
+
+export const baptismNotificationDeliveries = pgTable("baptism_notification_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull().references(() => baptismServices.id, { onDelete: "cascade" }),
+  rule: text("rule").notNull(),
+  dedupeKey: text("dedupe_key").notNull().unique(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const hymns = pgTable("hymns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hymnbook: text("hymnbook").notNull().default("default"),
+  lang: text("lang").notNull().default("es"),
   number: integer("number").notNull(),
   title: text("title").notNull(),
+  externalUrl: text("external_url"),
 });
 
 // Sacramental Meetings

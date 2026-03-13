@@ -94,6 +94,19 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     ],
     presidentOnly: true, // Presidents only see their own presidency
   },
+    {
+    title: "Obra Misional",
+    url: "/mission-work",
+    icon: Folder,
+    roles: ["obispo", "consejero_obispo", "mission_leader", "ward_missionary", "full_time_missionary"],
+  },
+  {
+    title: "Obra Misional",
+    url: "/mission-work",
+    icon: Folder,
+    roles: ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"],
+    organizationTypes: ["cuorum_elderes", "sociedad_socorro"],
+  },
   {
     title: "Inventario",
     url: "/inventory",
