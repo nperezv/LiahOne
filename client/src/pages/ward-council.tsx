@@ -57,12 +57,9 @@ const councilSchema = z.object({
   presider: z.string().optional(),
   director: z.string().optional(),
   openingPrayer: z.string().optional(),
-  openingHymn: z.string().optional(),
   closingPrayerBy: z.string().optional(),
   hasSpiritualThought: z.boolean().optional(),
-  spiritualThought: z.string().optional(),
   spiritualThoughtBy: z.string().optional(),
-  spiritualThoughtTopic: z.string().optional(),
   previousAssignments: z
     .array(
       z.object({
@@ -73,16 +70,16 @@ const councilSchema = z.object({
       })
     )
     .optional(),
-  adjustmentsNotes: z.string().optional(),
 });
 
 type CouncilFormValues = z.infer<typeof councilSchema>;
 
 const councilDetailsSchema = z.object({
-  ministryNotes: z.string().optional(),
-  salvationWorkNotes: z.string().optional(),
-  wardActivitiesNotes: z.string().optional(),
-  newAssignmentsNotes: z.string().optional(),
+  // §29.2.5 — 4 áreas del Manual General
+  livingGospelNotes: z.string().optional(),
+  careForOthersNotes: z.string().optional(),
+  missionaryNotes: z.string().optional(),
+  familyHistoryNotes: z.string().optional(),
   newAssignments: z
     .array(
       z.object({
@@ -189,10 +186,10 @@ function CouncilDetailsForm({
   const form = useForm<CouncilDetailsFormValues>({
     resolver: zodResolver(councilDetailsSchema),
     defaultValues: {
-      ministryNotes: council.ministryNotes || "",
-      salvationWorkNotes: council.salvationWorkNotes || "",
-      wardActivitiesNotes: council.wardActivitiesNotes || "",
-      newAssignmentsNotes: council.newAssignmentsNotes || "",
+      livingGospelNotes: council.livingGospelNotes || "",
+      careForOthersNotes: council.careForOthersNotes || "",
+      missionaryNotes: council.missionaryNotes || "",
+      familyHistoryNotes: council.familyHistoryNotes || "",
       newAssignments: (council.newAssignments || []).map((assignment: any) => ({
         ...assignment,
         dueDate: formatDateForInput(assignment?.dueDate),
@@ -206,6 +203,12 @@ function CouncilDetailsForm({
     name: "newAssignments",
   });
   const [expandedAssignments, setExpandedAssignments] = useState<Record<string, boolean>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => ({
+    livingGospelNotes: Boolean(council.livingGospelNotes),
+    careForOthersNotes: Boolean(council.careForOthersNotes),
+    missionaryNotes: Boolean(council.missionaryNotes),
+    familyHistoryNotes: Boolean(council.familyHistoryNotes),
+  }));
   const [isManuallySaving, setIsManuallySaving] = useState(false);
   const [lastManualSave, setLastManualSave] = useState<Date | null>(null);
 
@@ -225,16 +228,22 @@ function CouncilDetailsForm({
     councilIdRef.current = council.id;
     statusRef.current = council.status;
     form.reset({
-      ministryNotes: council.ministryNotes || "",
-      salvationWorkNotes: council.salvationWorkNotes || "",
-      wardActivitiesNotes: council.wardActivitiesNotes || "",
-      newAssignmentsNotes: council.newAssignmentsNotes || "",
+      livingGospelNotes: council.livingGospelNotes || "",
+      careForOthersNotes: council.careForOthersNotes || "",
+      missionaryNotes: council.missionaryNotes || "",
+      familyHistoryNotes: council.familyHistoryNotes || "",
       newAssignments: (council.newAssignments || []).map((assignment: any) => ({
         ...assignment,
         dueDate: formatDateForInput(assignment?.dueDate),
       })),
       finalSummaryNotes: council.finalSummaryNotes || "",
       bishopNotes: council.bishopNotes || "",
+    });
+    setExpandedSections({
+      livingGospelNotes: Boolean(council.livingGospelNotes),
+      careForOthersNotes: Boolean(council.careForOthersNotes),
+      missionaryNotes: Boolean(council.missionaryNotes),
+      familyHistoryNotes: Boolean(council.familyHistoryNotes),
     });
     lastSavedRef.current = "";
     initialRenderRef.current = true;
@@ -302,7 +311,6 @@ function CouncilDetailsForm({
             { label: "Oración de apertura", value: council.openingPrayer },
             { label: "Oración final", value: council.closingPrayerBy || council.closingPrayer },
             { label: "Pensamiento espiritual", value: council.spiritualThoughtBy },
-            { label: "Himno", value: council.openingHymn },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center gap-2">
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -317,92 +325,86 @@ function CouncilDetailsForm({
       <Form {...form}>
         <div className="space-y-8">
 
-          {/* Sección 1: Personas y familias */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                1
-              </span>
-              <h3 className="text-sm font-semibold">Personas y familias</h3>
-            </div>
-            <p className="pl-8 text-xs text-muted-foreground">Ministración y necesidades identificadas</p>
-            <FormField
-              control={form.control}
-              name="ministryNotes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      disabled={!isEditable}
-                      placeholder={isEditable ? "Anota las personas y familias que necesitan atención..." : ""}
-                      className="min-h-[80px]"
+          {/* 4 áreas §29.2.5 — colapsables */}
+          {([
+            {
+              key: "livingGospelNotes" as const,
+              number: 1,
+              title: "Vivir el Evangelio",
+              description: "Fe, ordenanzas, convenios y actividad de miembros",
+              placeholder: "Notas sobre fe, ordenanzas, convenios...",
+            },
+            {
+              key: "careForOthersNotes" as const,
+              number: 2,
+              title: "Cuidar de los necesitados",
+              description: "Ministerio, bienestar y familias que necesitan atención",
+              placeholder: "Notas sobre personas y familias con necesidades...",
+            },
+            {
+              key: "missionaryNotes" as const,
+              number: 3,
+              title: "Invitar a todos",
+              description: "Investigadores, referencias de miembros y miembros nuevos",
+              placeholder: "Notas sobre investigadores, referencias y miembros nuevos...",
+            },
+            {
+              key: "familyHistoryNotes" as const,
+              number: 4,
+              title: "Unir familias para la eternidad",
+              description: "Templo, historia familiar y preparación de ordenanzas",
+              placeholder: "Notas sobre templo, historia familiar...",
+            },
+          ] as const).map(({ key, number, title, description, placeholder }) => (
+            <Collapsible
+              key={key}
+              open={Boolean(expandedSections[key])}
+              onOpenChange={(open) =>
+                setExpandedSections((prev) => ({ ...prev, [key]: open }))
+              }
+            >
+              <div className="rounded-xl border border-border/60 bg-card/40">
+                <CollapsibleTrigger className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/30" type="button">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                    {number}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">{title}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expandedSections[key] ? "rotate-180" : ""}`}
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-4 pb-4">
+                    <FormField
+                      control={form.control}
+                      name={key}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              disabled={!isEditable}
+                              placeholder={isEditable ? placeholder : ""}
+                              className="min-h-[90px]"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
                     />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          ))}
 
-          {/* Sección 2: Obra de Salvación y Exaltación */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                2
-              </span>
-              <h3 className="text-sm font-semibold">Obra de Salvación y Exaltación</h3>
-            </div>
-            <p className="pl-8 text-xs text-muted-foreground">Misión, templo, historia familiar, autoabastecimiento</p>
-            <FormField
-              control={form.control}
-              name="salvationWorkNotes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      disabled={!isEditable}
-                      placeholder={isEditable ? "Notas sobre la obra de salvación y exaltación..." : ""}
-                      className="min-h-[80px]"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Sección 3: Actividades del barrio */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                3
-              </span>
-              <h3 className="text-sm font-semibold">Actividades del barrio</h3>
-            </div>
-            <p className="pl-8 text-xs text-muted-foreground">Eventos, actividades y anuncios importantes</p>
-            <FormField
-              control={form.control}
-              name="wardActivitiesNotes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      disabled={!isEditable}
-                      placeholder={isEditable ? "Notas sobre actividades del barrio..." : ""}
-                      className="min-h-[80px]"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Sección 4: Nuevas asignaciones del consejo */}
+          {/* Sección 5: Nuevas asignaciones del consejo */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                4
+                5
               </span>
               <h3 className="text-sm font-semibold">Nuevas asignaciones del consejo</h3>
             </div>
@@ -621,11 +623,11 @@ function CouncilDetailsForm({
             )}
           </div>
 
-          {/* Sección 5: Resumen y notas finales */}
+          {/* Sección 6: Resumen y notas finales */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                5
+                6
               </span>
               <h3 className="text-sm font-semibold">Resumen y notas finales</h3>
             </div>
@@ -829,14 +831,10 @@ export default function WardCouncilPage() {
       presider: "",
       director: "",
       openingPrayer: "",
-      openingHymn: "",
       closingPrayerBy: "",
       hasSpiritualThought: false,
-      spiritualThought: "",
       spiritualThoughtBy: "",
-      spiritualThoughtTopic: "",
       previousAssignments: [],
-      adjustmentsNotes: "",
     },
   });
 
@@ -864,18 +862,13 @@ export default function WardCouncilPage() {
         ...payload,
         date: dateTime,
         previousAssignments: data.previousAssignments || [],
-        adjustmentsNotes: data.adjustmentsNotes || "",
         location: data.location || "",
         presider: data.presider || "",
         director: data.director || "",
         openingPrayer: data.openingPrayer || "",
-        openingHymn: data.openingHymn || "",
         closingPrayerBy: data.closingPrayerBy || "",
-        spiritualThought: "",
         spiritualThoughtBy: hasSpiritualThought ? data.spiritualThoughtBy || "" : "",
-        spiritualThoughtTopic: "",
         attendance: [],
-        agreements: [],
       },
       {
         onSuccess: () => {
@@ -898,16 +891,12 @@ export default function WardCouncilPage() {
           ...payload,
           date: dateTime,
           previousAssignments: data.previousAssignments || [],
-          adjustmentsNotes: data.adjustmentsNotes || "",
           location: data.location || "",
           presider: data.presider || "",
           director: data.director || "",
           openingPrayer: data.openingPrayer || "",
-          openingHymn: data.openingHymn || "",
           closingPrayerBy: data.closingPrayerBy || "",
-          spiritualThought: "",
           spiritualThoughtBy: hasSpiritualThought ? data.spiritualThoughtBy || "" : "",
-          spiritualThoughtTopic: "",
         },
       },
       {
@@ -930,26 +919,15 @@ export default function WardCouncilPage() {
       presider: council.presider || "",
       director: council.director || "",
       openingPrayer: council.openingPrayer || "",
-      openingHymn: council.openingHymn || "",
       closingPrayerBy: council.closingPrayerBy || "",
       hasSpiritualThought: Boolean(council.spiritualThoughtBy),
-      spiritualThought: "",
       spiritualThoughtBy: council.spiritualThoughtBy || "",
-      spiritualThoughtTopic: "",
       previousAssignments: (council.previousAssignments || []).map((assignment: any) => ({
         assignment: assignment?.assignment || "",
         responsible: assignment?.responsible || "",
         status: assignment?.status || "pendiente",
         notes: assignment?.notes || "",
       })),
-      newAssignments: (council.newAssignments || []).map((assignment: any) => ({
-        title: assignment?.title || "",
-        assignedTo: assignment?.assignedTo || "",
-        assignedToName: assignment?.assignedToName || "",
-        dueDate: formatDateForInput(assignment?.dueDate),
-        notes: assignment?.notes || "",
-      })),
-      adjustmentsNotes: council.adjustmentsNotes || "",
     });
     setIsEditOpen(true);
   };
@@ -1207,20 +1185,6 @@ export default function WardCouncilPage() {
                       )}
                     />
 
-                    {/* Himno */}
-                    <FormField
-                      control={createForm.control}
-                      name="openingHymn"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Himno (opcional)</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
                     {/* Pensamiento espiritual */}
                     <FormField
                       control={createForm.control}
@@ -1400,20 +1364,6 @@ export default function WardCouncilPage() {
                         </div>
                       ))}
                     </div>
-
-                    {/* Ajustes */}
-                    <FormField
-                      control={createForm.control}
-                      name="adjustmentsNotes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Ajustes o decisiones necesarias</FormLabel>
-                          <FormControl>
-                            <Textarea {...field} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
 
                     {/* Botones */}
                     <div className="flex justify-end gap-2">
@@ -1722,19 +1672,6 @@ export default function WardCouncilPage() {
 
               <FormField
                 control={editForm.control}
-                name="openingHymn"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Himno (opcional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
                 name="hasSpiritualThought"
                 render={({ field }) => (
                   <FormItem className="flex items-center space-x-2">
@@ -1907,19 +1844,6 @@ export default function WardCouncilPage() {
                   </div>
                 ))}
               </div>
-
-              <FormField
-                control={editForm.control}
-                name="adjustmentsNotes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ajustes o decisiones necesarias</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
 
               <div className="flex justify-end gap-2">
                 <Button

@@ -1232,7 +1232,6 @@ export async function generateWardCouncilPDF(council: any) {
     council.presider ? `Preside: ${formatPersonWithCalling(council.presider)}` : null,
     council.director ? `Dirige: ${formatPersonWithCalling(council.director)}` : null,
     council.openingPrayer ? `Oración de apertura: ${council.openingPrayer}` : null,
-    council.openingHymn ? `Himno: ${council.openingHymn}` : null,
     council.spiritualThoughtBy
       ? `Pensamiento espiritual asignado a: ${council.spiritualThoughtBy}`
       : null,
@@ -1258,10 +1257,6 @@ export async function generateWardCouncilPDF(council: any) {
     writeBlock("Revisión de compromisos anteriores", assignmentsText);
   }
 
-  writeBlock("Ajustes o decisiones necesarias", council.adjustmentsNotes);
-
-  writeBlock("Agenda", council.agenda);
-
   if (council.attendance && Array.isArray(council.attendance) && council.attendance.length > 0) {
     writeBlock("Asistencia", council.attendance.filter(Boolean).map((p: string) => `• ${p}`).join("\n"));
   }
@@ -1275,9 +1270,11 @@ export async function generateWardCouncilPDF(council: any) {
   }
 
   writeBlock("Notas", council.notes);
-  writeBlock("Personas y familias", council.ministryNotes);
-  writeBlock("Obra de Salvación y Exaltación", council.salvationWorkNotes);
-  writeBlock("Actividades del barrio", council.wardActivitiesNotes);
+  // §29.2.5 — 4 áreas (nuevos campos; retrocompatibilidad con datos históricos)
+  writeBlock("1. Vivir el Evangelio", council.livingGospelNotes);
+  writeBlock("2. Cuidar de los necesitados", council.careForOthersNotes || council.ministryNotes);
+  writeBlock("3. Invitar a todos", council.missionaryNotes);
+  writeBlock("4. Unir familias para la eternidad", council.familyHistoryNotes || council.salvationWorkNotes);
   if (council.newAssignments && Array.isArray(council.newAssignments) && council.newAssignments.length > 0) {
     const newAssignmentsText = council.newAssignments
       .filter((assignment: any) => assignment?.title)
@@ -1294,7 +1291,6 @@ export async function generateWardCouncilPDF(council: any) {
       .join("\n");
     writeBlock("Nuevas asignaciones", newAssignmentsText);
   }
-  writeBlock("Notas de asignaciones", council.newAssignmentsNotes);
   writeBlock("Resumen final del consejo", council.finalSummaryNotes);
   if (council.closingPrayer || council.closingPrayerBy) {
     writeBlock(

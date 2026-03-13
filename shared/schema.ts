@@ -436,6 +436,12 @@ export const wardCouncils = pgTable("ward_councils", {
   attendance: jsonb("attendance").$type<string[]>().default([]),
   agreements: jsonb("agreements").$type<{description: string, responsible: string}[]>().default([]),
   notes: text("notes"),
+  // §29.2.5 — 4 áreas del Manual General
+  livingGospelNotes: text("living_gospel_notes"),
+  careForOthersNotes: text("care_for_others_notes"),
+  missionaryNotes: text("missionary_notes"),
+  familyHistoryNotes: text("family_history_notes"),
+  // Campos heredados (conservados para datos históricos, no se usan en UI)
   ministryNotes: text("ministry_notes"),
   salvationWorkNotes: text("salvation_work_notes"),
   wardActivitiesNotes: text("ward_activities_notes"),
