@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, pgEnum, boolean, jsonb, numeric, date, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, uuid, timestamp, integer, pgEnum, boolean, jsonb, numeric, date, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -473,7 +473,7 @@ export const baptismProgramItems = pgTable("baptism_program_items", {
   participantUserId: varchar("participant_user_id").references(() => users.id),
   participantDisplayName: text("participant_display_name"),
   publicVisibility: boolean("public_visibility").notNull().default(true),
-  hymnId: varchar("hymn_id").references(() => hymns.id),
+  hymnId: uuid("hymn_id").references(() => hymns.id),
   notes: text("notes"),
   updatedBy: varchar("updated_by").references(() => users.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }),

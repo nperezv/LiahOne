@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS "baptism_program_items" (
   "participant_user_id" varchar REFERENCES "users"("id"),
   "participant_display_name" text,
   "public_visibility" boolean NOT NULL DEFAULT true,
-  "hymn_id" varchar REFERENCES "hymns"("id"),
+  "hymn_id" uuid REFERENCES "hymns"("id"),
   "notes" text,
   "updated_by" varchar REFERENCES "users"("id"),
   "updated_at" timestamptz
