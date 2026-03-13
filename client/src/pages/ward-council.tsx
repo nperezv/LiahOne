@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound, Save, Loader2 } from "lucide-react";
+import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound, Save, Loader2, Clock, AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,12 +39,71 @@ import {
   useCreateAssignment,
   useUsers,
   useOrganizations,
+  useMembers,
+  usePendingAssignmentsByArea,
 } from "@/hooks/use-api";
 
 import { useAuth } from "@/lib/auth";
 import { generateWardCouncilPDF } from "@/lib/pdf-utils";
 import { exportWardCouncils } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
+
+/* =========================
+   MemberAutocomplete
+========================= */
+
+type MemberOption = { value: string };
+
+const filterMemberOptions = (options: MemberOption[], query: string) => {
+  const q = query.trim().toLowerCase();
+  if (!q) return options;
+  return options.filter((o) => o.value.toLowerCase().includes(q));
+};
+
+function MemberAutocomplete({
+  value,
+  options,
+  placeholder,
+  onChange,
+  onBlur,
+  disabled,
+}: {
+  value: string;
+  options: MemberOption[];
+  placeholder?: string;
+  onChange: (v: string) => void;
+  onBlur?: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        disabled={disabled}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setOpen(false); onBlur?.(); }}
+      />
+      {open && !disabled && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 15).map((o) => (
+            <li
+              key={o.value}
+              className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={(e) => { e.preventDefault(); onChange(o.value); setOpen(false); }}
+            >
+              {o.value}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /* =========================
    Schema
@@ -74,12 +133,20 @@ const councilSchema = z.object({
 
 type CouncilFormValues = z.infer<typeof councilSchema>;
 
+const areaPersonSchema = z.object({
+  name: z.string().min(1, "Requerido"),
+  situation: z.string().min(1, "Requerido"),
+  responsibleId: z.string().min(1, "Requerido"),
+  responsibleName: z.string().optional(),
+  dueDate: z.string().optional(),
+});
+
 const councilDetailsSchema = z.object({
-  // §29.2.5 — 4 áreas del Manual General
-  livingGospelNotes: z.string().optional(),
-  careForOthersNotes: z.string().optional(),
-  missionaryNotes: z.string().optional(),
-  familyHistoryNotes: z.string().optional(),
+  // §29.2.5 — 4 áreas del Manual General: personas discutidas
+  livingGospelPersons: z.array(areaPersonSchema).optional(),
+  careForOthersPersons: z.array(areaPersonSchema).optional(),
+  missionaryPersons: z.array(areaPersonSchema).optional(),
+  familyHistoryPersons: z.array(areaPersonSchema).optional(),
   newAssignments: z
     .array(
       z.object({
@@ -91,6 +158,7 @@ const councilDetailsSchema = z.object({
       })
     )
     .optional(),
+  additionalNotes: z.string().optional(),
   finalSummaryNotes: z.string().optional(),
   bishopNotes: z.string().optional(),
 });
@@ -183,31 +251,41 @@ function CouncilDetailsForm({
   leaderGroups: { name: string; members: any[] }[];
   leaderLookup: Map<string, any>;
 }) {
+  const { data: members = [] } = useMembers();
+  const memberOptions = useMemo(
+    () => Array.from(new Set(members.map((m: any) => m.nameSurename).filter(Boolean))).map((v) => ({ value: v as string })),
+    [members]
+  );
+  const { data: pendingByArea = {} } = usePendingAssignmentsByArea();
+
   const form = useForm<CouncilDetailsFormValues>({
     resolver: zodResolver(councilDetailsSchema),
     defaultValues: {
-      livingGospelNotes: council.livingGospelNotes || "",
-      careForOthersNotes: council.careForOthersNotes || "",
-      missionaryNotes: council.missionaryNotes || "",
-      familyHistoryNotes: council.familyHistoryNotes || "",
+      livingGospelPersons: council.livingGospelPersons || [],
+      careForOthersPersons: council.careForOthersPersons || [],
+      missionaryPersons: council.missionaryPersons || [],
+      familyHistoryPersons: council.familyHistoryPersons || [],
       newAssignments: (council.newAssignments || []).map((assignment: any) => ({
         ...assignment,
         dueDate: formatDateForInput(assignment?.dueDate),
       })),
+      additionalNotes: council.additionalNotes || "",
       finalSummaryNotes: council.finalSummaryNotes || "",
       bishopNotes: council.bishopNotes || "",
     },
   });
-  const newAssignments = useFieldArray({
-    control: form.control,
-    name: "newAssignments",
-  });
+  const newAssignments = useFieldArray({ control: form.control, name: "newAssignments" });
+  const livingGospelPersonsField = useFieldArray({ control: form.control, name: "livingGospelPersons" });
+  const careForOthersPersonsField = useFieldArray({ control: form.control, name: "careForOthersPersons" });
+  const missionaryPersonsField = useFieldArray({ control: form.control, name: "missionaryPersons" });
+  const familyHistoryPersonsField = useFieldArray({ control: form.control, name: "familyHistoryPersons" });
+
   const [expandedAssignments, setExpandedAssignments] = useState<Record<string, boolean>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => ({
-    livingGospelNotes: Boolean(council.livingGospelNotes),
-    careForOthersNotes: Boolean(council.careForOthersNotes),
-    missionaryNotes: Boolean(council.missionaryNotes),
-    familyHistoryNotes: Boolean(council.familyHistoryNotes),
+    livingGospelPersons: (council.livingGospelPersons?.length ?? 0) > 0,
+    careForOthersPersons: (council.careForOthersPersons?.length ?? 0) > 0,
+    missionaryPersons: (council.missionaryPersons?.length ?? 0) > 0,
+    familyHistoryPersons: (council.familyHistoryPersons?.length ?? 0) > 0,
   }));
   const [isManuallySaving, setIsManuallySaving] = useState(false);
   const [lastManualSave, setLastManualSave] = useState<Date | null>(null);
@@ -228,22 +306,23 @@ function CouncilDetailsForm({
     councilIdRef.current = council.id;
     statusRef.current = council.status;
     form.reset({
-      livingGospelNotes: council.livingGospelNotes || "",
-      careForOthersNotes: council.careForOthersNotes || "",
-      missionaryNotes: council.missionaryNotes || "",
-      familyHistoryNotes: council.familyHistoryNotes || "",
+      livingGospelPersons: council.livingGospelPersons || [],
+      careForOthersPersons: council.careForOthersPersons || [],
+      missionaryPersons: council.missionaryPersons || [],
+      familyHistoryPersons: council.familyHistoryPersons || [],
       newAssignments: (council.newAssignments || []).map((assignment: any) => ({
         ...assignment,
         dueDate: formatDateForInput(assignment?.dueDate),
       })),
+      additionalNotes: council.additionalNotes || "",
       finalSummaryNotes: council.finalSummaryNotes || "",
       bishopNotes: council.bishopNotes || "",
     });
     setExpandedSections({
-      livingGospelNotes: Boolean(council.livingGospelNotes),
-      careForOthersNotes: Boolean(council.careForOthersNotes),
-      missionaryNotes: Boolean(council.missionaryNotes),
-      familyHistoryNotes: Boolean(council.familyHistoryNotes),
+      livingGospelPersons: (council.livingGospelPersons?.length ?? 0) > 0,
+      careForOthersPersons: (council.careForOthersPersons?.length ?? 0) > 0,
+      missionaryPersons: (council.missionaryPersons?.length ?? 0) > 0,
+      familyHistoryPersons: (council.familyHistoryPersons?.length ?? 0) > 0,
     });
     lastSavedRef.current = "";
     initialRenderRef.current = true;
@@ -325,37 +404,47 @@ function CouncilDetailsForm({
       <Form {...form}>
         <div className="space-y-8">
 
-          {/* 4 áreas §29.2.5 — colapsables */}
+          {/* 4 áreas §29.2.5 — personas discutidas */}
           {([
             {
-              key: "livingGospelNotes" as const,
+              key: "livingGospelPersons" as const,
+              fieldArray: livingGospelPersonsField,
+              areaKey: "livingGospel",
               number: 1,
               title: "Vivir el Evangelio",
               description: "Fe, ordenanzas, convenios y actividad de miembros",
-              placeholder: "Notas sobre fe, ordenanzas, convenios...",
+              situationPlaceholder: "Ej: Inactivo hace 3 meses, pendiente de bautismo...",
             },
             {
-              key: "careForOthersNotes" as const,
+              key: "careForOthersPersons" as const,
+              fieldArray: careForOthersPersonsField,
+              areaKey: "careForOthers",
               number: 2,
               title: "Cuidar de los necesitados",
               description: "Ministerio, bienestar y familias que necesitan atención",
-              placeholder: "Notas sobre personas y familias con necesidades...",
+              situationPlaceholder: "Ej: Necesidad económica, visitas ministeriales pendientes...",
             },
             {
-              key: "missionaryNotes" as const,
+              key: "missionaryPersons" as const,
+              fieldArray: missionaryPersonsField,
+              areaKey: "missionary",
               number: 3,
               title: "Invitar a todos",
               description: "Investigadores, referencias de miembros y miembros nuevos",
-              placeholder: "Notas sobre investigadores, referencias y miembros nuevos...",
+              situationPlaceholder: "Ej: Investigador en lección 3, referencia de la Hna. García...",
             },
             {
-              key: "familyHistoryNotes" as const,
+              key: "familyHistoryPersons" as const,
+              fieldArray: familyHistoryPersonsField,
+              areaKey: "familyHistory",
               number: 4,
               title: "Unir familias para la eternidad",
               description: "Templo, historia familiar y preparación de ordenanzas",
-              placeholder: "Notas sobre templo, historia familiar...",
+              situationPlaceholder: "Ej: Listo para el templo, nombres de familia para ordenanzas...",
             },
-          ] as const).map(({ key, number, title, description, placeholder }) => (
+          ]).map(({ key, fieldArray, areaKey, number, title, description, situationPlaceholder }) => {
+            const pending = (pendingByArea as Record<string, any[]>)[areaKey] ?? [];
+            return (
             <Collapsible
               key={key}
               open={Boolean(expandedSections[key])}
@@ -372,33 +461,187 @@ function CouncilDetailsForm({
                     <p className="text-sm font-semibold">{title}</p>
                     <p className="text-xs text-muted-foreground">{description}</p>
                   </div>
+                  <div className="flex items-center gap-2">
+                    {pending.length > 0 && (
+                      <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        <Clock className="h-3 w-3" />
+                        {pending.length}
+                      </span>
+                    )}
+                    {fieldArray.fields.length > 0 && (
+                      <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        {fieldArray.fields.length} persona{fieldArray.fields.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
                   <ChevronDown
                     className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expandedSections[key] ? "rotate-180" : ""}`}
                   />
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className="px-4 pb-4">
-                    <FormField
-                      control={form.control}
-                      name={key}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              disabled={!isEditable}
-                              placeholder={isEditable ? placeholder : ""}
-                              className="min-h-[90px]"
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                  <div className="px-4 pb-4 space-y-4">
+
+                    {/* Seguimiento: asignaciones pendientes de consejos anteriores */}
+                    {pending.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" />
+                          Seguimiento — asignaciones pendientes
+                        </p>
+                        {pending.map((a: any) => (
+                          <div key={a.id} className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs dark:border-amber-800/40 dark:bg-amber-900/10">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span className="min-w-0 flex-1 truncate font-medium">{a.title}</span>
+                            <span className="shrink-0 text-muted-foreground">{a.assignedToName || a.assignedTo}</span>
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 font-medium ${
+                              a.status === "en_proceso"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            }`}>
+                              {a.status === "en_proceso" ? "En proceso" : "Pendiente"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Personas a discutir hoy */}
+                    {fieldArray.fields.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">Personas a discutir hoy</p>
+                        {fieldArray.fields.map((field, index) => (
+                          <div key={field.id} className="rounded-lg border border-border/60 bg-background p-3 space-y-2">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {/* Nombre del miembro */}
+                              <FormField
+                                control={form.control}
+                                name={`${key}.${index}.name` as any}
+                                render={({ field: f }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Miembro / Familia</FormLabel>
+                                    <FormControl>
+                                      <MemberAutocomplete
+                                        value={f.value as string}
+                                        options={memberOptions}
+                                        placeholder="Nombre del miembro"
+                                        onChange={f.onChange}
+                                        onBlur={f.onBlur}
+                                        disabled={!isEditable}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              {/* Situación */}
+                              <FormField
+                                control={form.control}
+                                name={`${key}.${index}.situation` as any}
+                                render={({ field: f }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Situación</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        {...f}
+                                        disabled={!isEditable}
+                                        placeholder={isEditable ? situationPlaceholder : ""}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {/* Responsable */}
+                              <FormField
+                                control={form.control}
+                                name={`${key}.${index}.responsibleId` as any}
+                                render={({ field: f }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Responsable</FormLabel>
+                                    <Select
+                                      value={f.value as string}
+                                      onValueChange={(val) => {
+                                        f.onChange(val);
+                                        const selected = leaderLookup.get(val);
+                                        form.setValue(
+                                          `${key}.${index}.responsibleName` as any,
+                                          selected?.fullName || selected?.name || selected?.email || ""
+                                        );
+                                      }}
+                                      disabled={!isEditable}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecciona" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {renderLeaderOptions(leaderGroups, true)}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              {/* Fecha de seguimiento */}
+                              <FormField
+                                control={form.control}
+                                name={`${key}.${index}.dueDate` as any}
+                                render={({ field: f }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">Seguimiento</FormLabel>
+                                    <FormControl>
+                                      <Input type="date" {...f} disabled={!isEditable} />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            {isEditable && (
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive h-7 px-2"
+                                  onClick={() => fieldArray.remove(index)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                  Quitar
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {fieldArray.fields.length === 0 && pending.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {isEditable ? "Sin personas agregadas todavía." : "No se discutieron personas en esta área."}
+                      </p>
+                    )}
+
+                    {isEditable && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-dashed"
+                        onClick={() => fieldArray.append({ name: "", situation: "", responsibleId: "", responsibleName: "", dueDate: "" })}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1.5" />
+                        Agregar persona
+                      </Button>
+                    )}
                   </div>
                 </CollapsibleContent>
               </div>
             </Collapsible>
-          ))}
+            );
+          })}
 
           {/* Sección 5: Nuevas asignaciones del consejo */}
           <div className="space-y-3">
@@ -669,6 +912,24 @@ function CouncilDetailsForm({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="additionalNotes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notas adicionales del acta</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        disabled={!isEditable}
+                        placeholder={isEditable ? "Información adicional a incluir en el acta del consejo..." : ""}
+                        className="min-h-[80px]"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
           </div>
         </div>
@@ -709,7 +970,7 @@ function CouncilDetailsForm({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               {filteredNewAssignments.length > 0 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Esto creará {filteredNewAssignments.length} asignación{filteredNewAssignments.length !== 1 ? "es" : ""} y cerrará el consejo.
+                  Se crearán asignaciones automáticas de las personas discutidas más {filteredNewAssignments.length} asignación{filteredNewAssignments.length !== 1 ? "es" : ""} manual{filteredNewAssignments.length !== 1 ? "es" : ""}.
                 </p>
               )}
               <div className="flex justify-end sm:ml-auto">
@@ -935,6 +1196,7 @@ export default function WardCouncilPage() {
   const finalizeCouncil = async (council: any, latestData?: CouncilDetailsFormValues) => {
     if (council.status !== "en_progreso") return;
 
+    // Manual newAssignments (additional, non-area)
     const sourceAssignments = Array.isArray(latestData?.newAssignments)
       ? latestData.newAssignments
       : Array.isArray(council.newAssignments)
@@ -968,35 +1230,63 @@ export default function WardCouncilPage() {
       return;
     }
 
+    // Area persons → assignments (auto-generated from the 4 §29.2.5 areas)
+    const areaPersonsMap: { key: string; area: string }[] = [
+      { key: "livingGospelPersons", area: "livingGospel" },
+      { key: "careForOthersPersons", area: "careForOthers" },
+      { key: "missionaryPersons", area: "missionary" },
+      { key: "familyHistoryPersons", area: "familyHistory" },
+    ];
+    const areaAssignments = areaPersonsMap.flatMap(({ key, area }) => {
+      const persons = (latestData as any)?.[key] || (council as any)[key] || [];
+      return (persons as any[])
+        .filter((p: any) => p.name && p.responsibleId)
+        .map((p: any) => ({
+          title: `Atender a ${p.name}${p.situation ? `: ${p.situation}` : ""}`,
+          assignedTo: p.responsibleId,
+          dueDate: p.dueDate || "",
+          area,
+        }));
+    });
+
     const existingIds = Array.isArray(council.assignmentIds) ? council.assignmentIds : [];
 
     try {
       if (latestData) {
         await updateMutation.mutateAsync({
           id: council.id,
-          data: {
-            ...latestData,
-            newAssignments: normalizedAssignments,
-          },
+          data: { ...latestData, newAssignments: normalizedAssignments },
           silent: true,
         });
       }
 
+      // Create all assignments (area + manual)
+      const allToCreate = [
+        ...areaAssignments.map((a) => ({
+          title: a.title,
+          assignedTo: a.assignedTo,
+          dueDate: a.dueDate,
+          area: a.area,
+          relatedTo: council.id,
+          status: "pendiente" as const,
+          silent: true,
+        })),
+        ...touchedAssignments.map((a: any) => ({
+          title: a.title,
+          description: a.notes || "",
+          assignedTo: a.assignedTo,
+          dueDate: a.dueDate,
+          relatedTo: council.id,
+          status: "pendiente" as const,
+          silent: true,
+        })),
+      ];
+
       const createdAssignments = await Promise.all(
-        touchedAssignments.map((assignment: any) =>
-          createAssignmentMutation.mutateAsync({
-            title: assignment.title,
-            description: assignment.notes || "",
-            assignedTo: assignment.assignedTo,
-            dueDate: assignment.dueDate,
-            status: "pendiente",
-            relatedTo: council.id,
-            silent: true,
-          })
-        )
+        allToCreate.map((data) => createAssignmentMutation.mutateAsync(data))
       );
 
-      const createdIds = createdAssignments.map((assignment: any) => assignment.id);
+      const createdIds = createdAssignments.map((a: any) => a.id);
 
       await updateMutation.mutateAsync({
         id: council.id,
@@ -1007,6 +1297,7 @@ export default function WardCouncilPage() {
         },
       });
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assignments/pending-by-area"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
     } catch (error) {
       toast({

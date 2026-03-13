@@ -441,6 +441,20 @@ export const wardCouncils = pgTable("ward_councils", {
   careForOthersNotes: text("care_for_others_notes"),
   missionaryNotes: text("missionary_notes"),
   familyHistoryNotes: text("family_history_notes"),
+  // §29.2.5 — personas discutidas por área (reemplaza los campos de notas de texto)
+  livingGospelPersons: jsonb("living_gospel_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  careForOthersPersons: jsonb("care_for_others_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  missionaryPersons: jsonb("missionary_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  familyHistoryPersons: jsonb("family_history_persons")
+    .$type<{ name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[]>()
+    .default([]),
+  additionalNotes: text("additional_notes"),
   // Campos heredados (conservados para datos históricos, no se usan en UI)
   ministryNotes: text("ministry_notes"),
   salvationWorkNotes: text("salvation_work_notes"),
@@ -665,6 +679,7 @@ export const assignments = pgTable("assignments", {
   status: assignmentStatusEnum("status").notNull().default("pendiente"),
   resolution: archiveResolutionEnum("resolution"),
   relatedTo: text("related_to"), // Reference to council or meeting
+  area: text("area"), // §29.2.5 area: 'livingGospel' | 'careForOthers' | 'missionary' | 'familyHistory'
   notes: text("notes"),
   cancellationReason: text("cancellation_reason"),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

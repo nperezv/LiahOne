@@ -73,6 +73,7 @@ import {
   sendOrganizationInterviewScheduledEmail,
   sendOrganizationInterviewCancelledEmail,
   sendAssignmentDueReminderEmail,
+  sendWardCouncilAssignmentEmail,
   sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
   sendAgendaReminderEmail,
@@ -7119,6 +7120,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Returns all pending/in-progress assignments grouped by §29.2.5 area
+  app.get("/api/assignments/pending-by-area", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const allAssignments = await storage.getAllAssignments();
+      const areas = ["livingGospel", "careForOthers", "missionary", "familyHistory"] as const;
+      const result: Record<string, any[]> = {};
+      for (const area of areas) {
+        result[area] = allAssignments.filter(
+          (a: any) =>
+            a.area === area &&
+            a.status !== "completada" &&
+            a.status !== "cancelada" &&
+            a.status !== "archivada"
+        );
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/assignments", requireAuth, async (req: Request, res: Response) => {
     try {
       const assignmentData = insertAssignmentSchema.parse({
@@ -7145,6 +7167,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             url: "/assignments",
             notificationId: notification.id,
           });
+        }
+
+        // Email for ward council assignments (those with an area)
+        if (assignment.area) {
+          const assignee = await storage.getUser(assignment.assignedTo);
+          if (assignee?.email) {
+            const template = await storage.getPdfTemplate();
+            const dueLabel = assignment.dueDate
+              ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+              : null;
+            await sendWardCouncilAssignmentEmail({
+              toEmail: assignee.email,
+              recipientName: normalizeMemberName(assignee.name) ?? assignee.name ?? "",
+              assignmentTitle: assignment.title,
+              dueDate: dueLabel,
+              wardName: template?.wardName,
+            }).catch((err) => console.error("[WardCouncil email] Error:", err));
+          }
         }
       }
 

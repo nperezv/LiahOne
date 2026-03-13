@@ -768,6 +768,44 @@ export async function sendAssignmentDueReminderEmail(payload: {
   });
 }
 
+export async function sendWardCouncilAssignmentEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  assignmentTitle: string;
+  dueDate?: string | null;
+  wardName?: string | null;
+  recipientSex?: string | null;
+  recipientOrganizationType?: string | null;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Ward council assignment email:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Nueva asignación del Consejo de Barrio",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+      }),
+      "",
+      "El Consejo de Barrio te ha asignado la siguiente responsabilidad:",
+      `Asignación: ${payload.assignmentTitle}`,
+      payload.dueDate ? `Fecha límite: ${payload.dueDate}` : null,
+      "",
+      "Gracias por tu disposición y servicio en el barrio.",
+      "",
+      "Con aprecio fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].filter((line): line is string => Boolean(line)).join("\n"),
+  });
+}
+
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, "&amp;")

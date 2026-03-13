@@ -1411,6 +1411,13 @@ export function useAgendaCapture(options?: { onSuccess?: () => void }) {
 // ASSIGNMENTS
 // ========================================
 
+export function usePendingAssignmentsByArea() {
+  return useQuery<Record<string, any[]>>({
+    queryKey: ["/api/assignments/pending-by-area"],
+    staleTime: 30_000,
+  });
+}
+
 export function useAssignments() {
   return useQuery<any>({
     queryKey: ["/api/assignments"],
