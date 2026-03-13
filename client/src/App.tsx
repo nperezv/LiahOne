@@ -337,7 +337,9 @@ function App() {
               </div>
             </div>
           )}
-          <Router />
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Router />
+          </Suspense>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
