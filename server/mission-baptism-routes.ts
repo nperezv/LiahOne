@@ -165,6 +165,19 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
     next();
   });
 
+  app.get("/api/mission/access", requireAuth, async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const hasAccess = await canAccessMission(user);
+    const missionLeader = isMissionLeader(user);
+
+    res.json({
+      hasAccess,
+      isMissionLeader: missionLeader,
+      canModeratePosts: missionLeader,
+      role: user?.role ?? null,
+    });
+  });
+
   app.get("/api/mission/contacts", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
