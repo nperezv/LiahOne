@@ -1315,15 +1315,10 @@ export async function generateWardCouncilPDF(council: any) {
     writeBlock("Asignaciones adicionales", newAssignmentsText);
   }
 
-  writeBlock("Resumen final del consejo", council.finalSummaryNotes);
   if (council.closingPrayer || council.closingPrayerBy) {
-    writeBlock(
-      "Oración final",
-      council.closingPrayerBy || council.closingPrayer
-    );
+    writeBlock("Oración final", council.closingPrayerBy || council.closingPrayer);
   }
-  writeBlock("Notas adicionales del acta", council.additionalNotes);
-  writeBlock("Notas del obispo/secretario", council.bishopNotes);
+  writeBlock("Notas adicionales", council.additionalNotes || council.finalSummaryNotes || council.bishopNotes);
 
   addHeaderFooterAllPages(doc, template, formattedDate);
 

@@ -159,8 +159,6 @@ const councilDetailsSchema = z.object({
     )
     .optional(),
   additionalNotes: z.string().optional(),
-  finalSummaryNotes: z.string().optional(),
-  bishopNotes: z.string().optional(),
 });
 
 type CouncilDetailsFormValues = z.infer<typeof councilDetailsSchema>;
@@ -270,8 +268,6 @@ function CouncilDetailsForm({
         dueDate: formatDateForInput(assignment?.dueDate),
       })),
       additionalNotes: council.additionalNotes || "",
-      finalSummaryNotes: council.finalSummaryNotes || "",
-      bishopNotes: council.bishopNotes || "",
     },
   });
   const newAssignments = useFieldArray({ control: form.control, name: "newAssignments" });
@@ -315,8 +311,6 @@ function CouncilDetailsForm({
         dueDate: formatDateForInput(assignment?.dueDate),
       })),
       additionalNotes: council.additionalNotes || "",
-      finalSummaryNotes: council.finalSummaryNotes || "",
-      bishopNotes: council.bishopNotes || "",
     });
     setExpandedSections({
       livingGospelPersons: (council.livingGospelPersons?.length ?? 0) > 0,
@@ -643,16 +637,16 @@ function CouncilDetailsForm({
             );
           })}
 
-          {/* Sección 5: Nuevas asignaciones del consejo */}
+          {/* Sección 5: Asignaciones adicionales */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                 5
               </span>
-              <h3 className="text-sm font-semibold">Nuevas asignaciones del consejo</h3>
+              <h3 className="text-sm font-semibold">Asignaciones adicionales</h3>
             </div>
             <p className="pl-8 text-xs text-muted-foreground">
-              Se crearán como asignaciones reales al finalizar el consejo.
+              Para asignaciones que no encajan en las 4 áreas. Se crearán al finalizar el consejo.
             </p>
 
             {newAssignments.fields.length === 0 ? (
@@ -866,65 +860,26 @@ function CouncilDetailsForm({
             )}
           </div>
 
-          {/* Sección 6: Resumen y notas finales */}
+          {/* Sección 6: Notas adicionales */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                 6
               </span>
-              <h3 className="text-sm font-semibold">Resumen y notas finales</h3>
+              <h3 className="text-sm font-semibold">Notas adicionales</h3>
             </div>
-            <p className="pl-8 text-xs text-muted-foreground">Acuerdos del consejo y notas del obispo/secretario</p>
-
-            <div className="space-y-4 pl-8">
-              <FormField
-                control={form.control}
-                name="finalSummaryNotes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Resumen final del consejo</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        disabled={!isEditable}
-                        placeholder={isEditable ? "Resumen de los acuerdos y decisiones del consejo..." : ""}
-                        className="min-h-[80px]"
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="bishopNotes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notas del obispo/secretario</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        disabled={!isEditable}
-                        placeholder={isEditable ? "Notas privadas del obispo o secretario..." : ""}
-                        className="min-h-[80px]"
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
+            <div className="pl-8">
               <FormField
                 control={form.control}
                 name="additionalNotes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Notas adicionales del acta</FormLabel>
                     <FormControl>
                       <Textarea
                         {...field}
                         disabled={!isEditable}
-                        placeholder={isEditable ? "Información adicional a incluir en el acta del consejo..." : ""}
-                        className="min-h-[80px]"
+                        placeholder={isEditable ? "Acuerdos, observaciones o cualquier detalle a incluir en el acta..." : ""}
+                        className="min-h-[100px]"
                       />
                     </FormControl>
                   </FormItem>
