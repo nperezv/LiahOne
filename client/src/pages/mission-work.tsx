@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueries } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronDown, ChevronRight, CheckCircle2, Circle, AlertTriangle, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckCircle2, Circle, AlertTriangle, Clock, User2, BookOpen, Star, Heart, Sparkles, GraduationCap, Church, Pencil, Plus } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 function relativeTime(dateStr: string) {
@@ -1170,6 +1170,7 @@ function ContactSheet({
     queryKey: [`/api/mission/contacts/${contactId}`],
     enabled: Boolean(contactId) && open,
   });
+
   const progress = useQuery<{ lessons: any[]; commitments: any[]; milestones: any[] }>({
     queryKey: [`/api/mission/contacts/${contactId}/progress`],
     enabled: Boolean(contactId) && open,
@@ -1305,78 +1306,51 @@ function ContactSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
+      <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col">
         {!c ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Cargando…</div>
         ) : (
           <>
-            <SheetHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <SheetHeader className="px-6 pt-5 pb-4 border-b shrink-0">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <SheetTitle className="text-lg leading-tight">{c.fullName}</SheetTitle>
-                  <p className="text-sm text-muted-foreground mt-0.5">{personTypeLabel(c.personType)}</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-semibold text-primary">
+                      {c.fullName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <SheetTitle className="text-base leading-tight">{c.fullName}</SheetTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">{personTypeLabel(c.personType)}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 mt-1">
+                <div className="flex items-center gap-2 shrink-0">
                   {c.personType === "friend" && c.stage === "baptized" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7"
-                      onClick={() => confirmContact.mutate()}
-                      disabled={confirmContact.isPending}
-                    >
+                    <Button size="sm" variant="outline" className="text-xs h-7"
+                      onClick={() => confirmContact.mutate()} disabled={confirmContact.isPending}>
                       {confirmContact.isPending ? "Confirmando…" : "Confirmar bautismo"}
                     </Button>
                   )}
-                  <Badge variant={stageBadgeVariant(c.stage)}>{stageLabel(c.stage)}</Badge>
+                  <Badge variant={stageBadgeVariant(c.stage)} className="text-xs">{stageLabel(c.stage)}</Badge>
                 </div>
               </div>
             </SheetHeader>
 
             <ScrollArea className="flex-1 min-h-0">
-              <div className="px-6 py-4 space-y-6">
+              <div className="px-5 py-5 space-y-6">
                 <InfoSection contact={c} onSave={(data) => updateContact.mutate(data)} saving={updateContact.isPending} />
-
-                <Separator />
-                <FellowshipSection
-                  fellowshipName={c.fellowshipName}
-                  onSave={(name) => updateContact.mutate({ fellowshipName: name || null })}
-                  saving={updateContact.isPending}
-                />
-
-                <Separator />
-                <AttendanceSection
-                  rows={attendance.data || []}
-                  loading={attendance.isLoading}
-                  onAdd={(date) => addAttendance.mutate(date)}
-                  onRemove={(date) => removeAttendance.mutate(date)}
-                />
-
-                {(assignees.data || []).length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold">Asignados</h3>
-                      {assignees.data!.map((a) => (
-                        <div key={a.id} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
-                          <span>{a.userName || a.assigneeName || "—"}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {ASSIGNEE_ROLE_LABELS[a.assigneeRole] ?? a.assigneeRole}
-                            {a.isPrimary ? " · Principal" : ""}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
 
                 {showFriendProgress && (
                   <>
                     <Separator />
-                    <FriendProgressSection
+                    <FriendDashboard
+                      contact={c}
                       sections={friendProgress.data || []}
+                      attendance={attendance.data || []}
                       loading={friendProgress.isLoading}
                       onSaveSection={(key, data) => saveFriendSection.mutate({ sectionKey: key, data })}
+                      onAddAttendance={(date) => addAttendance.mutate(date)}
+                      onRemoveAttendance={(date) => removeAttendance.mutate(date)}
                     />
                   </>
                 )}
@@ -1384,10 +1358,14 @@ function ContactSheet({
                 {showCovenantPath && (
                   <>
                     <Separator />
-                    <CovenantPathSection
+                    <CovenantPathDashboard
+                      contact={c}
                       items={covenantPath.data || []}
+                      attendance={attendance.data || []}
                       loading={covenantPath.isLoading}
                       onSaveItem={(itemKey, data) => saveCovenantItem.mutate({ itemKey, ...data })}
+                      onAddAttendance={(date) => addAttendance.mutate(date)}
+                      onRemoveAttendance={(date) => removeAttendance.mutate(date)}
                     />
                   </>
                 )}
@@ -2198,6 +2176,562 @@ function ApprovalTab({ rows, loading, onSelect }: {
 }
 
 // ─── Reject Dialog ────────────────────────────────────────────────────────────
+
+// ─── Pastoral Dashboard Helpers ───────────────────────────────────────────────
+
+function formatTimeSince(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(ms / 86_400_000);
+  if (days < 30) return `${days} día${days !== 1 ? "s" : ""}`;
+  const months = Math.floor(days / 30.44);
+  if (months < 12) return `${months} mes${months !== 1 ? "es" : ""}`;
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  return rem > 0 ? `${years} año${years !== 1 ? "s" : ""} ${rem} mes${rem !== 1 ? "es" : ""}` : `${years} año${years !== 1 ? "s" : ""}`;
+}
+
+function getLastNSundays(n: number): Date[] {
+  const result: Date[] = [];
+  const today = new Date();
+  const dow = today.getDay();
+  const lastSun = new Date(today);
+  lastSun.setDate(today.getDate() - dow);
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(lastSun);
+    d.setDate(lastSun.getDate() - i * 7);
+    result.push(d);
+  }
+  return result;
+}
+
+function toDateStr(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Reusable section wrapper
+function DashSection({ title, icon, children, action }: {
+  title: string; icon?: React.ReactNode; children: React.ReactNode; action?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {icon && <span className="text-muted-foreground">{icon}</span>}
+          <h4 className="text-sm font-semibold tracking-tight">{title}</h4>
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Status row for milestones/hitos
+function HitoRow({ label, status, date, onCycle }: {
+  label: string; status: string; date?: string | null; onCycle?: () => void;
+}) {
+  const cfg = status === "done"
+    ? { cls: "border-green-200 bg-green-50 text-green-800", dot: "bg-green-500", icon: "✓" }
+    : status === "waived"
+    ? { cls: "border-yellow-200 bg-yellow-50 text-yellow-800", dot: "bg-yellow-400", icon: "~" }
+    : { cls: "border-border bg-muted/30 text-muted-foreground", dot: "bg-muted-foreground/30", icon: "○" };
+
+  return (
+    <button
+      onClick={onCycle}
+      className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-xs text-left transition-colors hover:opacity-80 ${cfg.cls}`}
+    >
+      <span className={`h-2 w-2 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className="flex-1 leading-snug">{label}</span>
+      {date && <span className="opacity-60 shrink-0">{new Date(date).toLocaleDateString("es-ES")}</span>}
+    </button>
+  );
+}
+
+// Sunday attendance visual tracker
+function SundayAttendanceTracker({ rows, onAdd, onRemove }: {
+  rows: Array<{ attendedAt: string }>; onAdd: (date: string) => void; onRemove: (date: string) => void;
+}) {
+  const sundays = useMemo(() => getLastNSundays(12), []);
+  const attendedSet = useMemo(() => new Set(rows.map((r) => r.attendedAt)), [rows]);
+
+  const missed = sundays.filter((s) => {
+    const ds = toDateStr(s);
+    return !attendedSet.has(ds) && s <= new Date();
+  }).length;
+
+  return (
+    <DashSection title="Asistió a la reunión sacramental" icon={<Church className="h-3.5 w-3.5" />}>
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="flex gap-1.5 min-w-max pb-1">
+          {sundays.map((sunday) => {
+            const ds = toDateStr(sunday);
+            const attended = attendedSet.has(ds);
+            const isFuture = sunday > new Date();
+            return (
+              <button
+                key={ds}
+                disabled={isFuture}
+                onClick={() => { if (attended) onRemove(ds); else onAdd(ds); }}
+                className="flex flex-col items-center gap-1 group"
+                title={ds}
+              >
+                <span className="text-[10px] font-medium leading-none text-muted-foreground">
+                  {sunday.getDate()}
+                </span>
+                <span className="text-[9px] leading-none text-muted-foreground/70 uppercase">
+                  {sunday.toLocaleDateString("es-ES", { month: "short" }).replace(".", "").slice(0, 3)}
+                </span>
+                <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                  isFuture
+                    ? "border-border/30 bg-transparent"
+                    : attended
+                    ? "border-green-500 bg-green-500 shadow-sm"
+                    : "border-muted-foreground/30 bg-transparent group-hover:border-muted-foreground"
+                }`}>
+                  {attended && (
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {missed > 0 && (
+        <p className="text-[11px] text-destructive font-medium">
+          {missed} reunión{missed !== 1 ? "es" : ""} sacramental{missed !== 1 ? "es" : ""} que no asistió
+        </p>
+      )}
+    </DashSection>
+  );
+}
+
+// ─── Covenant Path Dashboard ──────────────────────────────────────────────────
+
+const CP_PRINCIPLES = ["gospel_study", "sabbath_day", "share_gospel", "family_home_evening", "follow_prophet", "obey_commandments"];
+const CP_TEMPLE = ["temple_recommend_proxy", "family_history", "patriarchal_blessing", "endowment", "sealing"];
+const CP_ORDINATION = ["aaronic_priesthood_ymen", "melchizedek_priesthood"];
+const CP_CALLING = ["young_women", "relief_society", "primary", "service"];
+const CP_SELFRELIANCЕ = ["self_reliance"];
+
+function CovenantPathDashboard({ contact, items, attendance, loading, onSaveItem, onAddAttendance, onRemoveAttendance }: {
+  contact: any;
+  items: any[];
+  attendance: Array<{ attendedAt: string }>;
+  loading: boolean;
+  onSaveItem: (itemKey: string, data: any) => void;
+  onAddAttendance: (date: string) => void;
+  onRemoveAttendance: (date: string) => void;
+}) {
+  const itemMap = useMemo(() => new Map(items.map((i) => [i.key, i])), [items]);
+  const get = (key: string) => itemMap.get(key);
+  const cycleLesson = (key: string) => {
+    const cur = get(key)?.lessonStatus ?? "not_started";
+    const next = cur === "not_started" ? "taught" : cur === "taught" ? "completed" : "not_started";
+    onSaveItem(key, { lessonStatus: next });
+  };
+  const cycleMilestone = (key: string) => {
+    const cur = get(key)?.milestoneStatus ?? "pending";
+    const next = cur === "pending" ? "done" : cur === "done" ? "waived" : "pending";
+    onSaveItem(key, { milestoneStatus: next });
+  };
+
+  const memberSince = contact.confirmedAt
+    ? `Miembro por ${formatTimeSince(contact.confirmedAt)}`
+    : contact.createdAt ? `En seguimiento hace ${formatTimeSince(contact.createdAt)}` : null;
+
+  if (loading) return <p className="text-sm text-muted-foreground py-4">Cargando senda de los convenios…</p>;
+
+  return (
+    <div className="space-y-5">
+      {/* Breadcrumb */}
+      <div className="space-y-0.5">
+        <p className="text-[11px] text-muted-foreground uppercase tracking-widest font-medium">
+          Progreso de la senda de los convenios
+        </p>
+        <p className="text-xs text-muted-foreground">{contact.personType === "less_active" ? "Menos activo" : "Miembro nuevo"}</p>
+        {memberSince && (
+          <p className="text-xs text-muted-foreground/70">{memberSince}</p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* ── Left column ──────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* 1. Attendance */}
+          <SundayAttendanceTracker rows={attendance} onAdd={onAddAttendance} onRemove={onRemoveAttendance} />
+
+          {/* 2. Friends in church */}
+          <DashSection title="Amigos en la Iglesia" icon={<Heart className="h-3.5 w-3.5" />}>
+            {get("friendship_members") ? (
+              <HitoRow
+                label="Entablar amistad con miembros de su barrio"
+                status={get("friendship_members")!.milestoneStatus}
+                onCycle={() => cycleMilestone("friendship_members")}
+              />
+            ) : null}
+            {get("friendship_members")?.notes && (
+              <p className="text-xs text-muted-foreground pl-1">{get("friendship_members")!.notes}</p>
+            )}
+          </DashSection>
+
+          {/* 3. Priesthood ordination */}
+          <DashSection title="Ordenación en el sacerdocio" icon={<Star className="h-3.5 w-3.5" />}>
+            {CP_ORDINATION.map((key) => {
+              const item = get(key);
+              if (!item) return null;
+              return (
+                <HitoRow
+                  key={key}
+                  label={item.title}
+                  status={item.milestoneStatus}
+                  onCycle={() => cycleMilestone(key)}
+                />
+              );
+            })}
+          </DashSection>
+
+          {/* 4. Calling */}
+          <DashSection title="Llamamiento" icon={<Sparkles className="h-3.5 w-3.5" />}>
+            {CP_CALLING.map((key) => {
+              const item = get(key);
+              if (!item) return null;
+              return (
+                <HitoRow
+                  key={key}
+                  label={item.title}
+                  status={item.commitmentStatus === "committed" ? "done" : item.milestoneStatus}
+                  onCycle={() => cycleMilestone(key)}
+                />
+              );
+            })}
+          </DashSection>
+
+          {/* 5. Help needed */}
+          {get("overcome_discouragement") && (
+            <DashSection title="Ayuda que se precisa" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
+              <HitoRow
+                label="Superar el desánimo y los contratiempos"
+                status={get("overcome_discouragement")!.commitmentStatus === "committed" ? "done" : "pending"}
+                onCycle={() => {
+                  const cur = get("overcome_discouragement")!.commitmentStatus;
+                  onSaveItem("overcome_discouragement", { commitmentStatus: cur === "committed" ? "pending" : "committed" });
+                }}
+              />
+              {get("overcome_discouragement")?.notes && (
+                <p className="text-xs text-muted-foreground pl-1">{get("overcome_discouragement")!.notes}</p>
+              )}
+            </DashSection>
+          )}
+        </div>
+
+        {/* ── Right column ─────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* 6. Temple */}
+          <DashSection title="Ordenanzas y experiencias del templo" icon={<Sparkles className="h-3.5 w-3.5" />}>
+            {CP_TEMPLE.map((key) => {
+              const item = get(key);
+              if (!item) return null;
+              return (
+                <HitoRow
+                  key={key}
+                  label={item.title}
+                  status={item.milestoneStatus}
+                  onCycle={() => cycleMilestone(key)}
+                />
+              );
+            })}
+          </DashSection>
+
+          {/* 7. Principles taught */}
+          <DashSection title="Principios que se enseñaron" icon={<BookOpen className="h-3.5 w-3.5" />}>
+            {CP_PRINCIPLES.map((key) => {
+              const item = get(key);
+              if (!item) return null;
+              const ls = item.lessonStatus;
+              const dot =
+                ls === "completed" ? "bg-green-500" :
+                ls === "taught" ? "bg-blue-400" :
+                "bg-muted-foreground/25";
+              return (
+                <button
+                  key={key}
+                  onClick={() => cycleLesson(key)}
+                  className="w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-xs text-left hover:bg-muted/40 transition-colors"
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${dot}`} />
+                  <span className="flex-1 leading-snug">{item.title}</span>
+                  {ls !== "not_started" && (
+                    <span className={`shrink-0 text-[10px] font-medium ${ls === "completed" ? "text-green-700" : "text-blue-600"}`}>
+                      {ls === "completed" ? "Completado" : "Enseñado"}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </DashSection>
+
+          {/* 8. Self-reliance */}
+          <DashSection title="Clases de autosuficiencia completadas" icon={<GraduationCap className="h-3.5 w-3.5" />}>
+            {get("self_reliance") ? (
+              <HitoRow
+                label="Ser autosuficiente"
+                status={get("self_reliance")!.milestoneStatus}
+                onCycle={() => cycleMilestone("self_reliance")}
+              />
+            ) : null}
+            {/* Static self-reliance classes */}
+            {[
+              "Resiliencia emocional",
+              "Las finanzas personales",
+              "Inicia tu negocio y hazlo crecer",
+              "Educación para un mejor empleo",
+              "Buscar un mejor empleo",
+            ].map((cls) => (
+              <div key={cls} className="flex items-center gap-2.5 rounded-lg border px-3 py-2 text-xs bg-muted/20">
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/25 shrink-0" />
+                <span className="flex-1 text-muted-foreground">{cls}</span>
+              </div>
+            ))}
+          </DashSection>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Friend Dashboard ─────────────────────────────────────────────────────────
+
+const FRIEND_LESSON_KEYS: Array<[string, string]> = [
+  ["restoration", "Mensaje de la Restauración"],
+  ["plan_salvation", "El plan de salvación del Padre Celestial"],
+  ["gospel_of_jesus", "El evangelio de Jesucristo"],
+  ["commandments", "Llegar a ser discípulos de Jesucristo"],
+  ["laws_ordinances", "Leyes y Ordenanzas"],
+  ["pre_baptism_review", "Repaso pre-bautismal"],
+];
+
+const FRIEND_BASIC_COMMITMENT_LABELS: Record<string, string> = {
+  praysPersonally: "Ora personalmente",
+  readsBoM: "Lee el Libro de Mormón",
+  attendsChurch: "Asiste a la iglesia",
+  keepsSabbath: "Guarda el día de reposo",
+  willingToRepent: "Dispuesto a arrepentirse",
+  desiresFollowChrist: "Desea seguir a Cristo",
+};
+
+function FriendDashboard({ contact, sections, attendance, loading, onSaveSection, onAddAttendance, onRemoveAttendance }: {
+  contact: any;
+  sections: Array<{ sectionKey: string; data: any; updatedAt?: string }>;
+  attendance: Array<{ attendedAt: string }>;
+  loading: boolean;
+  onSaveSection: (key: string, data: any) => void;
+  onAddAttendance: (date: string) => void;
+  onRemoveAttendance: (date: string) => void;
+}) {
+  const sectionMap = useMemo(() => new Map(sections.map((s) => [s.sectionKey, s.data ?? {}])), [sections]);
+  const s = (key: string): any => sectionMap.get(key) ?? {};
+
+  const startDate = contact.createdAt;
+  const tracking = startDate ? `En seguimiento hace ${formatTimeSince(startDate)}` : null;
+
+  // Interview status color
+  const interviewStatus = s("s7_interview").status ?? "not_ready";
+  const baptismGoal = s("s8_baptism").goalStatus ?? "initial_interest";
+  const INTERVIEW_LABELS: Record<string, string> = {
+    not_ready: "No listo para entrevistar",
+    ready: "Listo para entrevistar",
+    scheduled: "Entrevista programada",
+    approved: "Entrevista aprobada",
+  };
+  const BAPTISM_GOAL_LABELS: Record<string, string> = {
+    initial_interest: "Interés inicial",
+    progressing: "En progreso",
+    date_set: "Fecha bautismal definida",
+    interview_passed: "Entrevista aprobada",
+    baptized: "Bautizado",
+  };
+
+  if (loading) return <p className="text-sm text-muted-foreground py-4">Cargando progreso del amigo…</p>;
+
+  const s1 = s("s1_friendship");
+  const s3 = s("s3_prayer");
+  const s4 = s("s4_lessons");
+  const s5 = s("s5_commitments");
+  const s6 = s("s6_support");
+  const s7 = s("s7_interview");
+  const s8 = s("s8_baptism");
+  const s9 = s("s9_post_baptism");
+
+  const friendNames = [s1.friendMember1, s1.friendMember2].filter(Boolean);
+  const basicCommitments = s5.basicCommitments ?? {};
+  const lessons = s4.lessons ?? {};
+
+  // Progress summary
+  const lessonsDone = Object.values(lessons).filter((l: any) => l?.received).length;
+  const commitsDone = Object.values(basicCommitments).filter(Boolean).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Breadcrumb */}
+      <div className="space-y-0.5">
+        <p className="text-[11px] text-muted-foreground uppercase tracking-widest font-medium">Seguimiento del amigo</p>
+        {tracking && <p className="text-xs text-muted-foreground/70">{tracking}</p>}
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "Asistencias", value: attendance.length },
+          { label: "Lecciones", value: `${lessonsDone}/6` },
+          { label: "Compromisos", value: `${commitsDone}/6` },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-xl border bg-muted/20 p-2.5 text-center">
+            <p className="text-lg font-bold leading-tight">{stat.value}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{stat.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* ── Left column ──────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* 1. Attendance */}
+          <SundayAttendanceTracker rows={attendance} onAdd={onAddAttendance} onRemove={onRemoveAttendance} />
+
+          {/* 2. Friends in church */}
+          <DashSection title="Amigos en la Iglesia" icon={<Heart className="h-3.5 w-3.5" />}
+            action={
+              <button
+                className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                onClick={() => {
+                  const updated = { ...s1, friendMember1: s1.friendMember1 || "Nuevo amigo" };
+                  onSaveSection("s1_friendship", updated);
+                }}
+              >
+                <Plus className="h-3 w-3" /> Agregar amigo
+              </button>
+            }
+          >
+            {friendNames.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {friendNames.map((name: string) => (
+                  <span key={name} className="rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium">{name}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Sin amigos miembros asignados aún.</p>
+            )}
+          </DashSection>
+
+          {/* 3. Support */}
+          <DashSection title="Apoyo del barrio" icon={<Sparkles className="h-3.5 w-3.5" />}>
+            {[
+              ["bishopKnowsFriend", "Obispo conoce al amigo"],
+              ["missionLeaderAssigned", "Líder misional asignado"],
+              ["memberCompanionAssigned", "Miembro acompañante asignado"],
+            ].map(([k, l]) => (
+              <div key={k} className={`flex items-center gap-2 text-xs rounded-lg border px-3 py-2 ${s6[k] ? "border-green-200 bg-green-50 text-green-800" : "border-border bg-muted/20 text-muted-foreground"}`}>
+                <span className={`h-2 w-2 rounded-full shrink-0 ${s6[k] ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                {l}
+              </div>
+            ))}
+            {s6.mainFriendMember && (
+              <p className="text-xs text-muted-foreground pl-1">Miembro principal: {s6.mainFriendMember}</p>
+            )}
+          </DashSection>
+
+          {/* 4. Interview & Baptism status */}
+          <DashSection title="Estado hacia el bautismo" icon={<Star className="h-3.5 w-3.5" />}>
+            <div className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+              interviewStatus === "approved" ? "border-green-200 bg-green-50 text-green-800" :
+              interviewStatus === "scheduled" ? "border-blue-200 bg-blue-50 text-blue-800" :
+              interviewStatus === "ready" ? "border-yellow-200 bg-yellow-50 text-yellow-800" :
+              "border-border bg-muted/20 text-muted-foreground"
+            }`}>
+              Entrevista: {INTERVIEW_LABELS[interviewStatus] ?? interviewStatus}
+            </div>
+            <div className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+              baptismGoal === "baptized" ? "border-green-200 bg-green-50 text-green-800" :
+              baptismGoal === "date_set" ? "border-blue-200 bg-blue-50 text-blue-800" :
+              "border-border bg-muted/20 text-muted-foreground"
+            }`}>
+              Objetivo: {BAPTISM_GOAL_LABELS[baptismGoal] ?? baptismGoal}
+            </div>
+            {s8.confirmedDate && (
+              <p className="text-xs text-muted-foreground pl-1">Fecha: {new Date(s8.confirmedDate + "T12:00:00").toLocaleDateString("es-ES")}</p>
+            )}
+          </DashSection>
+
+        </div>
+
+        {/* ── Right column ─────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* 5. Principles taught */}
+          <DashSection title="Principios que se enseñaron" icon={<BookOpen className="h-3.5 w-3.5" />}>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-1">
+              <span className="h-2 w-2 rounded-full bg-green-500 inline-block" /> Miembro presente
+            </p>
+            {FRIEND_LESSON_KEYS.map(([key, label]) => {
+              const lesson = lessons[key] ?? {};
+              const done = Boolean(lesson.received);
+              return (
+                <div key={key} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${done ? "border-green-200 bg-green-50 text-green-800" : "border-border bg-muted/20 text-muted-foreground"}`}>
+                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${done ? "bg-green-500" : "bg-muted-foreground/25"}`} />
+                  <span className="flex-1 leading-snug">{label}</span>
+                  {lesson.date && <span className="opacity-60 shrink-0">{new Date(lesson.date + "T12:00:00").toLocaleDateString("es-ES")}</span>}
+                </div>
+              );
+            })}
+          </DashSection>
+
+          {/* 6. Basic commitments */}
+          <DashSection title="Compromisos básicos" icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
+            {Object.entries(FRIEND_BASIC_COMMITMENT_LABELS).map(([key, label]) => {
+              const done = Boolean(basicCommitments[key]);
+              return (
+                <div key={key} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${done ? "border-green-200 bg-green-50 text-green-800" : "border-border bg-muted/20 text-muted-foreground"}`}>
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-green-500" : "bg-muted-foreground/25"}`} />
+                  {label}
+                </div>
+              );
+            })}
+          </DashSection>
+
+          {/* 7. Prayer & scripture habits */}
+          <DashSection title="Oración y Escrituras" icon={<Sparkles className="h-3.5 w-3.5" />}>
+            {[
+              ["praysPersonally", "Ora personalmente"],
+              ["hasBoM", "Tiene Libro de Mormón"],
+              ["startedReading", "Empezó a leer"],
+              ["understandsReading", "Entiende la lectura"],
+            ].map(([k, l]) => {
+              const done = Boolean(s3[k]);
+              return (
+                <div key={k} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${done ? "border-green-200 bg-green-50 text-green-800" : "border-border bg-muted/20 text-muted-foreground"}`}>
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-green-500" : "bg-muted-foreground/25"}`} />
+                  {l}
+                </div>
+              );
+            })}
+          </DashSection>
+
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Less Active Tab ──────────────────────────────────────────────────────────
 
