@@ -55,6 +55,8 @@ import InventoryPublicPage from "@/pages/inventory-public";
 import InventoryLocationsPage from "@/pages/inventory-locations";
 import InventoryLocationDetailPage from "@/pages/inventory-location-detail";
 import InventoryHistoryPage from "@/pages/inventory-history";
+import MissionWorkPage from "@/pages/mission-work";
+import BaptismPublicPage from "@/pages/baptism-public";
 
 function LoginRoute() {
   const { isAuthenticated, login, verifyLogin } = useAuth();
@@ -181,6 +183,9 @@ function ProtectedRoutes() {
         <Route path="/admin/users">
           <AdminUsersPage />
         </Route>
+        <Route path="/mission-work">
+          <MissionWorkPage />
+        </Route>
         <Route path="/:rest*">
           <Redirect to="/dashboard" />
         </Route>
@@ -196,6 +201,7 @@ function Router() {
       <Route path="/login" component={LoginRoute} />
       <Route path="/request-access" component={RequestAccessPage} />
       <Route path="/donar" component={DonationsPage} />
+      <Route path="/b/:slug" component={BaptismPublicPage} />
       <Route path="/">
         <Redirect to="/welcome" />
       </Route>

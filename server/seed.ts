@@ -1,8 +1,28 @@
 import { db } from "./db";
-import { users, organizations, members, birthdays } from "@shared/schema";
+import { users, organizations, members, birthdays, hymns } from "@shared/schema";
 import bcrypt from "bcrypt";
 import fs from "fs/promises";
 import path from "path";
+import { and, eq } from "drizzle-orm";
+
+
+async function seedHymns() {
+  const files = ["hymns_es.json", "hymns_en.json"];
+  for (const file of files) {
+    const fullPath = path.resolve(process.cwd(), "data", "hymns", file);
+    try {
+      const raw = await fs.readFile(fullPath, "utf-8");
+      const items = JSON.parse(raw) as Array<{ hymnbook: string; lang: string; number: number; title: string; external_url?: string }>;
+      for (const item of items) {
+        const exists = await db.select().from(hymns).where(and(eq(hymns.hymnbook, item.hymnbook), eq(hymns.lang, item.lang), eq(hymns.number, item.number))).limit(1);
+        if (exists.length > 0) continue;
+        await db.insert(hymns).values({ hymnbook: item.hymnbook, lang: item.lang, number: item.number, title: item.title, externalUrl: item.external_url || null });
+      }
+    } catch {
+      // ignore missing hymn seed file
+    }
+  }
+}
 
 async function seed() {
   console.log("🌱 Seeding database...");
@@ -52,6 +72,8 @@ async function seed() {
     } else {
       console.log("✅ Users already exist, skipping admin creation.");
     }
+
+    await seedHymns();
 
     if (existingMembers.length > 0) {
       console.log("✅ Members already seeded, skipping member import.");

@@ -44,6 +44,7 @@ import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-u
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
+import { registerMissionBaptismRoutes } from "./mission-baptism-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -637,6 +638,7 @@ async function hasInterviewCollision({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
+  registerMissionBaptismRoutes(app, requireAuth);
   // Setup session middleware
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable is required");
