@@ -1,6 +1,6 @@
 import type { Express, Request, Response, RequestHandler } from "express";
 import { randomBytes, createHash } from "node:crypto";
-import { and, desc, eq, gt, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, lte, not, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { sendPushNotification, isPushConfigured } from "./push-service";
@@ -8,7 +8,7 @@ import { computeMinimumReady } from "./mission-baptism-readiness";
 import { buildReminderDedupeKey, computeDaysUntilService, resolveReminderRule } from "./mission-baptism-reminder-policy";
 import { containsBlockedUrl, isPublicWindowActive, isRateLimited, normalizeDisplayName } from "./mission-baptism-public-rules";
 import { toPublicServiceDTO } from "./mission-baptism-public-dto";
-import { isActiveSession, nextSessionPayload } from "./mission-baptism-link-session";
+import { approvedSessionPayload, isActiveSession, nextSessionPayload } from "./mission-baptism-link-session";
 import {
   baptismAssignments,
   baptismNotificationDeliveries,
@@ -17,12 +17,16 @@ import {
   baptismPublicPosts,
   baptismServices,
   hymns,
+  missionChurchAttendance,
   missionContactAssignees,
   missionContactCommitments,
   missionContactLessons,
   missionContactMilestones,
   missionContactNotes,
   missionContacts,
+  missionCoordinationTasks,
+  missionCovenantPathProgress,
+  missionFriendSectionData,
   missionTemplateItems,
   missionTrackTemplates,
   notifications,
@@ -48,7 +52,102 @@ const contactUpdateSchema = z.object({
   stage: z.string().min(1).optional(),
   phone: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
+  fellowshipUserId: z.string().nullable().optional(),
+  fellowshipName: z.string().nullable().optional(),
+  confirmedAt: z.coerce.date().nullable().optional(),
 });
+
+// ── System-defined covenant path items (recent_convert + less_active) ─────────
+const COVENANT_PATH_ITEMS = [
+  { key: "friendship_members",          title: "Entablar amistad con miembros de su barrio", order: 0 },
+  { key: "gospel_study",                title: "Mejorar el estudio del Evangelio", order: 1 },
+  { key: "aaronic_priesthood_ymen",     title: "Aprender acerca del Sacerdocio Aarónico y el programa de los Hombres Jóvenes", order: 2 },
+  { key: "young_women",                 title: "Aprender acerca del programa de las Mujeres Jóvenes", order: 3 },
+  { key: "relief_society",              title: "Aprender acerca de la Sociedad de Socorro", order: 4 },
+  { key: "primary",                     title: "Aprender acerca de la Primaria — Servir a los niños", order: 5 },
+  { key: "temple_recommend_proxy",      title: "Recibir una recomendación para el templo para efectuar bautismos y confirmaciones por representante", order: 6 },
+  { key: "family_history",              title: "Ayudar a sus antepasados a recibir las ordenanzas sagradas", order: 7 },
+  { key: "patriarchal_blessing",        title: "Recibir la bendición patriarcal", order: 8 },
+  { key: "overcome_discouragement",     title: "Superar el desánimo y los contratiempos", order: 9 },
+  { key: "sabbath_day",                 title: "Santificar el día de reposo", order: 10 },
+  { key: "service",                     title: "Prestar servicio a otras personas", order: 11 },
+  { key: "share_gospel",                title: "Compartir el Evangelio", order: 12 },
+  { key: "family_home_evening",         title: "Participar en una noche de hogar", order: 13 },
+  { key: "follow_prophet",              title: "Seguir al profeta", order: 14 },
+  { key: "obey_commandments",           title: "Obedecer los mandamientos", order: 15 },
+  { key: "self_reliance",               title: "Ser autosuficiente", order: 16 },
+  { key: "melchizedek_priesthood",      title: "Aprender acerca del Sacerdocio de Melquisedec", order: 17 },
+  { key: "endowment",                   title: "Recibir la investidura", order: 18 },
+  { key: "sealing",                     title: "Ser sellado a su familia", order: 19 },
+] as const;
+
+// ── Friend section keys and default JSONB shapes ───────────────────────────────
+const FRIEND_SECTION_DEFAULTS: Record<string, object> = {
+  s1_friendship: { referredBy: "", firstContactDate: "", knowsMember: false, hasChurchFriend: false, conversedOutsideLessons: false, invitedToActivity: false, attendedActivity: false, knowsBishop: false, knowsMissionLeader: false, knowsFamily: false, comfortableAtChapel: false, socialObservations: "", friendMember1: "", friendMember2: "", supportFamily: "", assignedLeader: "", ministeringRef: "" },
+  s2_attendance: { firstSacramentalDate: "", nextSundayCommitted: "", reasonIfAbsent: "" },
+  s3_prayer: { knowsHowToPray: false, praysPersonally: false, praysMorning: false, praysEvening: false, prayedWithMissionaries: false, prayedWithMembers: false, sharedPrayerExperiences: false, hasBoM: false, bomFormat: "", startedReading: false, readingStartDate: "", lastChapterRead: "", lastReadingDate: "", readsAlone: true, understandsReading: false, asksQuestions: false, weeklyTracking: { monday: { prayed: false, read: false }, tuesday: { prayed: false, read: false }, wednesday: { prayed: false, read: false }, thursday: { prayed: false, read: false }, friday: { prayed: false, read: false }, saturday: { prayed: false, read: false }, sunday: { prayed: false, read: false } }, favoritePasage: "", doubts: "" },
+  s4_lessons: { lessons: { restoration: { received: false, date: "", whoPresent: "", membersPresent: "", understanding: "", acceptedCommitments: false, doubts: "", nextLesson: "" }, plan_salvation: { received: false, date: "", whoPresent: "", membersPresent: "", understanding: "", acceptedCommitments: false, doubts: "", nextLesson: "" }, gospel_of_jesus: { received: false, date: "", whoPresent: "", membersPresent: "", understanding: "", acceptedCommitments: false, doubts: "", nextLesson: "" }, commandments: { received: false, date: "", whoPresent: "", membersPresent: "", understanding: "", acceptedCommitments: false, doubts: "", nextLesson: "" }, laws_ordinances: { received: false, date: "", whoPresent: "", membersPresent: "", understanding: "", acceptedCommitments: false, doubts: "", nextLesson: "" }, pre_baptism_review: { received: false, date: "", whoPresent: "", membersPresent: "", understanding: "", acceptedCommitments: false, doubts: "", nextLesson: "" } }, commitments: { prayAboutMessage: false, readAssignedChapter: false, attendChurch: false, keepCommitment: false, shareExperience: false } },
+  s5_commitments: { basicCommitments: { praysPersonally: false, readsBoM: false, attendsChurch: false, keepsSabbath: false, willingToRepent: false, desiresFollowChrist: false }, wordOfWisdom: { explained: false, understood: false, living: false }, lawOfChastity: { explained: false, understood: false, living: false }, tithing: { explained: false, understood: false, willingToLive: false }, sabbathDay: { explained: false, understood: false, living: false }, repentance: { understood: false, applying: false }, spiritualStrengths: "", currentDifficulties: "", needsSpecialSupport: false, nextCommitment: "" },
+  s6_support: { bishopKnowsFriend: false, missionLeaderAssigned: false, memberCompanionAssigned: false, supportFamilyAssigned: false, quorumSRInformed: false, participatesInCoordination: false, bishop: "", assignedCounselor: "", wardMissionLeader: "", mainFriendMember: "", hostFamily: "", fullTimeMissionaries: "", lastLeaderContact: "", lastMemberVisit: "", nextVisit: "", temporalNeeds: "", coordinationComments: "" },
+  s7_interview: { receivedMainLessons: false, attendsChurch: false, praysReadsRegularly: false, livesBasicCommandments: false, showedRepentance: false, desiresHonestBaptism: false, understandsBaptismalCovenant: false, tentativeInterviewDate: "", interviewer: "", pendingDoubts: "", obstaclesDetected: "", needsMoreTime: false, rescheduledDate: "", status: "not_ready" },
+  s8_baptism: { hasBaptismDate: false, proposedDate: "", confirmedDate: "", location: "", baptizedBy: "", witnesses: "", programPrepared: false, invitationsSent: false, confirmationDate: "", sacramentalMeetingAssigned: "", leadersInformed: false, recordPrepared: false, clothingReady: false, goalStatus: "initial_interest" },
+  s9_post_baptism: { receivedConfirmation: false, hasFriends: false, attendsEveryWeek: false, studiesGospel: false, receivedCallingOrService: false, participatesInActivities: false, hasLeaderSupport: false, proxyBaptismRecommend: false, familyHistoryStarted: false, ancestorNamesReady: false, participatedInTemple: false, preparingPatriarchalBlessing: false, preparingQuorumIntegration: false, monthlyTracking: { month1: false, month2: false, month3: false, month4: false, month5: false, month6: false } },
+};
+
+async function seedCovenantPath(contactId: string) {
+  const values = COVENANT_PATH_ITEMS.map((item) => ({ contactId, itemKey: item.key }));
+  await db.insert(missionCovenantPathProgress).values(values).onConflictDoNothing();
+}
+
+async function seedFriendSections(contactId: string) {
+  const values = Object.entries(FRIEND_SECTION_DEFAULTS).map(([key, data]) => ({ contactId, sectionKey: key, data }));
+  await db.insert(missionFriendSectionData).values(values).onConflictDoNothing();
+}
+
+const coordinationTaskSchema = z.object({
+  contactId: z.string().nullable().optional(),
+  title: z.string().min(1),
+  description: z.string().nullable().optional(),
+  ownerUserId: z.string().nullable().optional(),
+  ownerName: z.string().nullable().optional(),
+  priority: z.enum(["high", "medium", "low"]).optional(),
+  status: z.enum(["open", "done", "canceled"]).optional(),
+  dueAt: z.coerce.date().nullable().optional(),
+});
+
+const DEFAULT_TEMPLATES: Record<string, { name: string; items: Array<{ order: number; title: string; itemType: string; required: boolean; metadata: Record<string, unknown> }> }> = {
+  friend: {
+    name: "Amigo — Estándar",
+    items: [
+      { order: 0, title: "Lección 1: El Plan de Dios", itemType: "lesson", required: true, metadata: {} },
+      { order: 1, title: "Lección 2: El Evangelio de Jesucristo", itemType: "lesson", required: true, metadata: {} },
+      { order: 2, title: "Lección 3: La Restauración", itemType: "lesson", required: true, metadata: {} },
+      { order: 3, title: "Orar diariamente", itemType: "commitment", required: false, metadata: {} },
+      { order: 4, title: "Leer el Libro de Mormón", itemType: "commitment", required: false, metadata: {} },
+      { order: 5, title: "Asistir a la iglesia", itemType: "commitment", required: false, metadata: {} },
+      { order: 6, title: "Fecha bautismal definida", itemType: "milestone", required: true, metadata: { milestoneKey: "baptism_date_set" } },
+      { order: 7, title: "Entrevista bautismal PROGRAMADA", itemType: "milestone", required: true, metadata: { milestoneKey: "interview_scheduled" } },
+      { order: 8, title: "Entrevista bautismal APROBADA", itemType: "milestone", required: true, metadata: { milestoneKey: "interview_approved" } },
+    ],
+  },
+  recent_convert: {
+    name: "Converso reciente — Retención",
+    items: [
+      { order: 0, title: "Recibir la Aaróntica", itemType: "milestone", required: false, metadata: {} },
+      { order: 1, title: "Asistir a 4 sacramentos seguidos", itemType: "commitment", required: false, metadata: {} },
+      { order: 2, title: "Recibir una llamada en la iglesia", itemType: "milestone", required: false, metadata: {} },
+      { order: 3, title: "Completar el curso de nuevos miembros", itemType: "lesson", required: false, metadata: {} },
+    ],
+  },
+  less_active: {
+    name: "Menos activo — Reactivación",
+    items: [
+      { order: 0, title: "Primera visita de contacto", itemType: "lesson", required: false, metadata: {} },
+      { order: 1, title: "Invitar a actividad", itemType: "commitment", required: false, metadata: {} },
+      { order: 2, title: "Asistir al sacramento", itemType: "commitment", required: false, metadata: {} },
+    ],
+  },
+};
 
 const assigneeSchema = z.object({
   userId: z.string().optional(),
@@ -135,6 +234,10 @@ function isMissionLeader(user: any) {
   return user && LEADER_ONLY.has(user.role);
 }
 
+function canApproveBaptism(user: any) {
+  return user && (user.role === "obispo" || user.role === "consejero_obispo");
+}
+
 function ipHash(req: Request) {
   const value = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
   return createHash("sha256").update(value || "unknown-ip").digest("hex");
@@ -181,15 +284,30 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
   app.get("/api/mission/contacts", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
-    const contacts = await db.select().from(missionContacts).where(eq(missionContacts.unitId, user.organizationId));
+    const showArchived = req.query.archived === "true";
+    const conditions = [eq(missionContacts.unitId, user.organizationId)];
+    if (!showArchived) conditions.push(eq(missionContacts.isArchived, false));
+    const contacts = await db.select().from(missionContacts).where(and(...conditions));
     res.json(contacts);
   });
 
   app.post("/api/mission/contacts", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
-    const payload = z.object({ fullName: z.string().min(1), personType: z.enum(["friend", "recent_convert", "less_active"]), stage: z.string().default("new"), phone: z.string().optional(), email: z.string().optional() }).parse(req.body);
+    const payload = z.object({
+      fullName: z.string().min(1),
+      personType: z.enum(["friend", "recent_convert", "less_active"]),
+      stage: z.string().default("new"),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+      memberUserId: z.string().optional(),
+    }).parse(req.body);
     const [contact] = await db.insert(missionContacts).values({ ...payload, unitId: user.organizationId }).returning();
+    if (contact.personType === "friend") {
+      await seedFriendSections(contact.id);
+    } else {
+      await seedCovenantPath(contact.id);
+    }
     res.status(201).json(contact);
   });
 
@@ -499,6 +617,84 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
     res.status(204).send();
   });
 
+  // ── Approval flow ────────────────────────────────────────────────────────────
+
+  app.post("/api/baptisms/services/:id/submit-for-approval", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [service] = await db.select().from(baptismServices).where(and(eq(baptismServices.id, req.params.id), eq(baptismServices.unitId, user.organizationId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!["draft", "needs_revision"].includes(service.approvalStatus)) {
+      return res.status(400).json({ error: "Solo se puede enviar a aprobación desde estado borrador o necesita revisión" });
+    }
+    const [updated] = await db.update(baptismServices).set({ approvalStatus: "pending_approval", approvalComment: null, updatedAt: new Date() }).where(eq(baptismServices.id, service.id)).returning();
+
+    // Notify bishops in the unit
+    const bishops = await db.select({ id: users.id }).from(users).where(and(eq(users.organizationId, user.organizationId), eq(users.role, "obispo" as any)));
+    for (const bishop of bishops) {
+      await db.insert(notifications).values({ userId: bishop.id, title: "Agenda bautismal pendiente de aprobación", message: `El servicio en ${service.locationName} necesita tu aprobación.`, type: "reminder" });
+    }
+    res.json(updated);
+  });
+
+  app.post("/api/baptisms/services/:id/approve", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!canApproveBaptism(user)) return res.status(403).json({ error: "Forbidden" });
+    const [service] = await db.select().from(baptismServices).where(and(eq(baptismServices.id, req.params.id), eq(baptismServices.unitId, user.organizationId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (service.approvalStatus !== "pending_approval") {
+      return res.status(400).json({ error: "El servicio no está pendiente de aprobación" });
+    }
+    const now = new Date();
+    const [updated] = await db.update(baptismServices).set({ approvalStatus: "approved", approvedBy: user.id, approvedAt: now, approvalComment: null, updatedAt: now }).where(eq(baptismServices.id, service.id)).returning();
+
+    // Revoke any existing active links and create a new one that activates on service date
+    await db.update(baptismPublicLinks).set({ revokedAt: now, revokedBy: user.id }).where(and(eq(baptismPublicLinks.serviceId, service.id), isNull(baptismPublicLinks.revokedAt), gt(baptismPublicLinks.expiresAt, now)));
+    const [latest] = await db.select({ slug: baptismPublicLinks.slug }).from(baptismPublicLinks).where(eq(baptismPublicLinks.serviceId, service.id)).orderBy(desc(baptismPublicLinks.createdAt)).limit(1);
+    const session = approvedSessionPayload({ serviceId: service.id, serviceAt: service.serviceAt, randomCode: randomBytes(3).toString("hex"), previousSlug: latest?.slug ?? null, randomSlugHex: randomBytes(3).toString("hex") });
+    await db.insert(baptismPublicLinks).values({ serviceId: service.id, ...session, createdBy: user.id });
+
+    // Notify the leader
+    await db.insert(notifications).values({ userId: service.createdBy, title: "Agenda aprobada", message: `El Obispo aprobó el servicio en ${service.locationName}. El enlace se activará el día del bautismo.`, type: "reminder" });
+    res.json(updated);
+  });
+
+  app.post("/api/baptisms/services/:id/reject", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!canApproveBaptism(user)) return res.status(403).json({ error: "Forbidden" });
+    const { comment } = z.object({ comment: z.string().min(1).max(500) }).parse(req.body);
+    const [service] = await db.select().from(baptismServices).where(and(eq(baptismServices.id, req.params.id), eq(baptismServices.unitId, user.organizationId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (service.approvalStatus !== "pending_approval") {
+      return res.status(400).json({ error: "El servicio no está pendiente de aprobación" });
+    }
+    const [updated] = await db.update(baptismServices).set({ approvalStatus: "needs_revision", approvalComment: comment, updatedAt: new Date() }).where(eq(baptismServices.id, service.id)).returning();
+
+    await db.insert(notifications).values({ userId: service.createdBy, title: "Agenda requiere revisión", message: `El Obispo solicitó cambios en el servicio de ${service.locationName}: ${comment}`, type: "reminder" });
+    res.json(updated);
+  });
+
+  app.get("/api/baptisms/pending-approvals", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!canApproveBaptism(user)) return res.status(403).json({ error: "Forbidden" });
+    const rows = await db
+      .select({
+        id: baptismServices.id,
+        locationName: baptismServices.locationName,
+        serviceAt: baptismServices.serviceAt,
+        approvalStatus: baptismServices.approvalStatus,
+        candidateName: missionContacts.fullName,
+        createdBy: baptismServices.createdBy,
+        leaderName: users.name,
+      })
+      .from(baptismServices)
+      .leftJoin(missionContacts, eq(missionContacts.id, baptismServices.candidateContactId))
+      .leftJoin(users, eq(users.id, baptismServices.createdBy))
+      .where(and(eq(baptismServices.unitId, user.organizationId), eq(baptismServices.approvalStatus, "pending_approval")))
+      .orderBy(baptismServices.serviceAt);
+    res.json(rows);
+  });
+
   app.post("/api/baptisms/services/:id/program-items", requireAuth, async (req, res) => {
     const user = (req as any).user;
     if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
@@ -723,12 +919,382 @@ export function registerMissionBaptismRoutes(app: Express, requireAuth: RequestH
     res.status(201).json(row);
   });
 
+  // ── Confirm friend→recent_convert ──────────────────────────────────────────
+  app.post("/api/mission/contacts/:id/confirm", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select().from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    if (contact.personType !== "friend") return res.status(400).json({ error: "Solo se puede confirmar un amigo" });
+    const now = new Date();
+    const { confirmedAt } = z.object({ confirmedAt: z.coerce.date().optional() }).parse(req.body);
+    const confirmDate = confirmedAt ?? now;
+    const [updated] = await db.update(missionContacts).set({ personType: "recent_convert", stage: "active", confirmedAt: confirmDate, updatedAt: now }).where(eq(missionContacts.id, contact.id)).returning();
+    await db.insert(missionContactNotes).values({ contactId: contact.id, authorUserId: user.id, note: `✅ Confirmado: ${contact.fullName} fue bautizado y actualizado a converso reciente.` });
+    res.json(updated);
+  });
+
+  // ── Seed default templates ──────────────────────────────────────────────────
+  app.post("/api/mission/templates/seed-defaults", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!isMissionLeader(user)) return res.status(403).json({ error: "Forbidden" });
+    const unitId = user.organizationId;
+    let created = 0;
+    for (const [personType, tpl] of Object.entries(DEFAULT_TEMPLATES) as [string, typeof DEFAULT_TEMPLATES[string]][]) {
+      const existing = await db.select({ id: missionTrackTemplates.id }).from(missionTrackTemplates).where(and(eq(missionTrackTemplates.unitId, unitId), eq(missionTrackTemplates.personType, personType as any), eq(missionTrackTemplates.isDefault, true))).limit(1);
+      if (existing[0]) continue;
+      const [template] = await db.insert(missionTrackTemplates).values({ unitId, personType: personType as any, name: tpl.name, isDefault: true }).returning();
+      for (const item of tpl.items) {
+        await db.insert(missionTemplateItems).values({ templateId: template.id, order: item.order, title: item.title, itemType: item.itemType as any, required: item.required, metadata: item.metadata });
+      }
+      created++;
+    }
+    res.json({ ok: true, created });
+  });
+
+  // ── Church attendance ───────────────────────────────────────────────────────
+  app.get("/api/mission/contacts/:id/attendance", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const rows = await db.select({ id: missionChurchAttendance.id, attendedAt: missionChurchAttendance.attendedAt, createdAt: missionChurchAttendance.createdAt }).from(missionChurchAttendance).where(eq(missionChurchAttendance.contactId, req.params.id)).orderBy(desc(missionChurchAttendance.attendedAt));
+    res.json(rows);
+  });
+
+  app.post("/api/mission/contacts/:id/attendance", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const { attendedAt } = z.object({ attendedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD") }).parse(req.body);
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const [row] = await db.insert(missionChurchAttendance).values({ contactId: req.params.id, attendedAt, notedBy: user.id }).onConflictDoNothing().returning();
+    res.status(row ? 201 : 200).json(row ?? { contactId: req.params.id, attendedAt });
+  });
+
+  app.delete("/api/mission/contacts/:id/attendance/:date", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    await db.delete(missionChurchAttendance).where(and(eq(missionChurchAttendance.contactId, req.params.id), eq(missionChurchAttendance.attendedAt, req.params.date)));
+    res.status(204).send();
+  });
+
+  // ── Coordination tasks ──────────────────────────────────────────────────────
+  app.get("/api/mission/coordination-tasks", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const statusFilter = req.query.status ? String(req.query.status) : null;
+    const contactFilter = req.query.contactId ? String(req.query.contactId) : null;
+    const conditions = [eq(missionCoordinationTasks.unitId, user.organizationId)];
+    if (statusFilter) conditions.push(eq(missionCoordinationTasks.status, statusFilter as any));
+    if (contactFilter) conditions.push(eq(missionCoordinationTasks.contactId, contactFilter));
+    const rows = await db.select().from(missionCoordinationTasks).where(and(...conditions)).orderBy(missionCoordinationTasks.dueAt, missionCoordinationTasks.createdAt);
+    res.json(rows);
+  });
+
+  app.get("/api/mission/my-tasks", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const rows = await db.select().from(missionCoordinationTasks).where(and(eq(missionCoordinationTasks.ownerUserId, user.id), eq(missionCoordinationTasks.status, "open"))).orderBy(missionCoordinationTasks.dueAt);
+    res.json(rows);
+  });
+
+  app.post("/api/mission/coordination-tasks", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const payload = coordinationTaskSchema.parse(req.body);
+    const [row] = await db.insert(missionCoordinationTasks).values({ ...payload, unitId: user.organizationId, createdBy: user.id, priority: payload.priority ?? "medium", status: payload.status ?? "open" }).returning();
+    res.status(201).json(row);
+  });
+
+  app.patch("/api/mission/coordination-tasks/:id", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const payload = coordinationTaskSchema.partial({ title: true }).parse(req.body);
+    const completedAt = payload.status === "done" ? new Date() : payload.status === "open" || payload.status === "canceled" ? null : undefined;
+    const [row] = await db.update(missionCoordinationTasks).set({ ...payload, ...(completedAt !== undefined ? { completedAt } : {}), updatedAt: new Date() }).where(and(eq(missionCoordinationTasks.id, req.params.id), eq(missionCoordinationTasks.unitId, user.organizationId))).returning();
+    if (!row) return res.status(404).json({ error: "Task not found" });
+    res.json(row);
+  });
+
+  app.delete("/api/mission/coordination-tasks/:id", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [deleted] = await db.delete(missionCoordinationTasks).where(and(eq(missionCoordinationTasks.id, req.params.id), eq(missionCoordinationTasks.unitId, user.organizationId))).returning({ id: missionCoordinationTasks.id });
+    if (!deleted) return res.status(404).json({ error: "Task not found" });
+    res.status(204).send();
+  });
+
+  // ── Coordination dashboard ──────────────────────────────────────────────────
+  app.get("/api/mission/coordination-dashboard", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const unitId = user.organizationId;
+
+    const [contacts, tasks, attendance] = await Promise.all([
+      db.select().from(missionContacts).where(eq(missionContacts.unitId, unitId)),
+      db.select().from(missionCoordinationTasks).where(eq(missionCoordinationTasks.unitId, unitId)),
+      db.select({ contactId: missionChurchAttendance.contactId, attendedAt: missionChurchAttendance.attendedAt }).from(missionChurchAttendance).innerJoin(missionContacts, eq(missionContacts.id, missionChurchAttendance.contactId)).where(eq(missionContacts.unitId, unitId)).orderBy(desc(missionChurchAttendance.attendedAt)),
+    ]);
+
+    const attendanceByContact = new Map<string, string[]>();
+    for (const row of attendance) {
+      const arr = attendanceByContact.get(row.contactId) ?? [];
+      arr.push(row.attendedAt);
+      attendanceByContact.set(row.contactId, arr);
+    }
+
+    const tasksByContact = new Map<string, typeof tasks>();
+    for (const task of tasks) {
+      if (task.contactId) {
+        const arr = tasksByContact.get(task.contactId) ?? [];
+        arr.push(task);
+        tasksByContact.set(task.contactId, arr);
+      }
+    }
+
+    const summary = contacts.map((c) => {
+      const att = attendanceByContact.get(c.id) ?? [];
+      const ctasks = tasksByContact.get(c.id) ?? [];
+      return {
+        contactId: c.id,
+        fullName: c.fullName,
+        personType: c.personType,
+        stage: c.stage,
+        fellowshipUserId: c.fellowshipUserId,
+        fellowshipName: c.fellowshipName,
+        attendanceCount: att.length,
+        lastAttendedAt: att[0] ?? null,
+        openTasks: ctasks.filter((t) => t.status === "open").length,
+        overdueTasks: ctasks.filter((t) => t.status === "open" && t.dueAt && t.dueAt < new Date()).length,
+      };
+    });
+
+    res.json({ contacts: summary, unlinkedTasks: tasks.filter((t) => !t.contactId) });
+  });
+
+  // ── Baptism candidate status ────────────────────────────────────────────────
+  app.get("/api/baptisms/candidate-status", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+
+    const contacts = await db.select().from(missionContacts).where(and(eq(missionContacts.unitId, user.organizationId), eq(missionContacts.personType, "friend")));
+
+    const milestones = await db
+      .select({ contactId: missionContactMilestones.contactId, milestoneKey: sql<string>`${missionTemplateItems.metadata}->>'milestoneKey'`, status: missionContactMilestones.status })
+      .from(missionContactMilestones)
+      .innerJoin(missionTemplateItems, eq(missionTemplateItems.id, missionContactMilestones.templateItemId))
+      .where(inArray(missionContactMilestones.contactId, contacts.map((c) => c.id)));
+
+    const existingServices = await db
+      .select({ candidateContactId: baptismServices.candidateContactId })
+      .from(baptismServices)
+      .where(and(eq(baptismServices.unitId, user.organizationId), inArray(baptismServices.status, ["scheduled", "live"])));
+    const scheduled = new Set(existingServices.map((s) => s.candidateContactId));
+
+    const milestoneMap = new Map<string, Map<string, string>>();
+    for (const m of milestones) {
+      if (!milestoneMap.has(m.contactId)) milestoneMap.set(m.contactId, new Map());
+      if (m.milestoneKey) milestoneMap.get(m.contactId)!.set(m.milestoneKey, m.status);
+    }
+
+    const eligible: typeof contacts = [];
+    const almostReady: Array<{ contact: (typeof contacts)[0]; missingKeys: string[] }> = [];
+    const notEligible: Array<{ contact: (typeof contacts)[0]; missingKeys: string[] }> = [];
+
+    for (const c of contacts) {
+      if (scheduled.has(c.id)) continue;
+      const keys = milestoneMap.get(c.id) ?? new Map();
+      const dateSet = keys.get("baptism_date_set") === "done";
+      const interviewScheduled = keys.get("interview_scheduled") === "done";
+      const interviewApproved = keys.get("interview_approved") === "done";
+      const missing: string[] = [];
+      if (!dateSet) missing.push("baptism_date_set");
+      if (!interviewScheduled) missing.push("interview_scheduled");
+      if (!interviewApproved) missing.push("interview_approved");
+
+      if (missing.length === 0) eligible.push(c);
+      else if (missing.length <= 1) almostReady.push({ contact: c, missingKeys: missing });
+      else notEligible.push({ contact: c, missingKeys: missing });
+    }
+
+    res.json({ eligible, almostReady, notEligible });
+  });
+
+  // ── Friend progress sections (9-section JSONB form) ─────────────────────────
+  app.get("/api/mission/contacts/:id/friend-progress", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const rows = await db.select().from(missionFriendSectionData).where(eq(missionFriendSectionData.contactId, req.params.id)).orderBy(missionFriendSectionData.sectionKey);
+    res.json(rows);
+  });
+
+  app.put("/api/mission/contacts/:id/friend-progress/:sectionKey", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const data = z.record(z.any()).parse(req.body);
+    const now = new Date();
+    const [row] = await db
+      .insert(missionFriendSectionData)
+      .values({ contactId: req.params.id, sectionKey: req.params.sectionKey, data, updatedAt: now })
+      .onConflictDoUpdate({ target: [missionFriendSectionData.contactId, missionFriendSectionData.sectionKey], set: { data, updatedAt: now } })
+      .returning();
+    res.json(row);
+  });
+
+  // ── Covenant path progress (20 items × 3 stages) ────────────────────────────
+  app.get("/api/mission/contacts/:id/covenant-path", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const rows = await db.select().from(missionCovenantPathProgress).where(eq(missionCovenantPathProgress.contactId, req.params.id));
+    const progressMap = new Map(rows.map((r) => [r.itemKey, r]));
+    const merged = COVENANT_PATH_ITEMS.map((item) => {
+      const saved = progressMap.get(item.key);
+      return {
+        key: item.key,
+        title: item.title,
+        order: item.order,
+        lessonStatus: saved?.lessonStatus ?? "not_started",
+        commitmentStatus: saved?.commitmentStatus ?? "pending",
+        milestoneStatus: saved?.milestoneStatus ?? "pending",
+        notes: saved?.notes ?? null,
+        updatedAt: saved?.updatedAt ?? null,
+      };
+    });
+    res.json(merged);
+  });
+
+  app.put("/api/mission/contacts/:id/covenant-path/:itemKey", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const [contact] = await db.select({ id: missionContacts.id }).from(missionContacts).where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId))).limit(1);
+    if (!contact) return res.status(404).json({ error: "Contact not found" });
+    const payload = z.object({
+      lessonStatus: z.enum(["not_started", "taught", "completed"]).optional(),
+      commitmentStatus: z.enum(["pending", "committed", "not_committed"]).optional(),
+      milestoneStatus: z.enum(["pending", "done", "waived"]).optional(),
+      notes: z.string().nullable().optional(),
+    }).parse(req.body);
+    const now = new Date();
+    const [row] = await db
+      .insert(missionCovenantPathProgress)
+      .values({ contactId: req.params.id, itemKey: req.params.itemKey, ...payload, updatedAt: now })
+      .onConflictDoUpdate({ target: [missionCovenantPathProgress.contactId, missionCovenantPathProgress.itemKey], set: { ...payload, updatedAt: now } })
+      .returning();
+    res.json(row);
+  });
+
+  // ── Directory members search (for less_active contact creation) ──────────────
+  app.get("/api/mission/directory-members", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+    const q = String(req.query.q || "").trim();
+    const conditions: any[] = [eq(users.organizationId, user.organizationId)];
+    if (q) conditions.push(sql`lower(${users.name}) like ${"%" + q.toLowerCase() + "%"}`);
+    const members = await db
+      .select({ id: users.id, name: users.name, role: users.role })
+      .from(users)
+      .where(and(...conditions))
+      .orderBy(users.name)
+      .limit(50);
+    const tracked = new Set(
+      (await db
+        .select({ memberUserId: missionContacts.memberUserId })
+        .from(missionContacts)
+        .where(and(eq(missionContacts.unitId, user.organizationId), eq(missionContacts.personType, "less_active"), eq(missionContacts.isArchived, false))))
+        .map((r) => r.memberUserId)
+        .filter(Boolean)
+    );
+    res.json(members.filter((m) => !tracked.has(m.id)));
+  });
+
+  // ── Archive contact (manual) ─────────────────────────────────────────────────
+  app.post("/api/mission/contacts/:id/archive", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!isMissionLeader(user)) return res.status(403).json({ error: "Forbidden" });
+    const now = new Date();
+    const [updated] = await db
+      .update(missionContacts)
+      .set({ isArchived: true, archivedAt: now, updatedAt: now })
+      .where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId)))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Contact not found" });
+    res.json(updated);
+  });
+
+  app.post("/api/mission/contacts/:id/unarchive", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!isMissionLeader(user)) return res.status(403).json({ error: "Forbidden" });
+    const now = new Date();
+    const [updated] = await db
+      .update(missionContacts)
+      .set({ isArchived: false, archivedAt: null, updatedAt: now })
+      .where(and(eq(missionContacts.id, req.params.id), eq(missionContacts.unitId, user.organizationId)))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Contact not found" });
+    res.json(updated);
+  });
+
+  // ── Mission progress transitions job ────────────────────────────────────────
+  app.post("/api/baptisms/jobs/mission-transitions", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!isMissionLeader(user)) return res.status(403).json({ error: "Forbidden" });
+    const result = await runMissionProgressTransitions();
+    res.json({ ok: true, ...result });
+  });
+
   app.post("/api/baptisms/jobs/t14-check", requireAuth, async (req, res) => {
     const user = (req as any).user;
     if (!isMissionLeader(user)) return res.status(403).json({ error: "Forbidden" });
     const count = await runBaptismReadinessCheck();
     res.json({ ok: true, notificationsSent: count });
   });
+}
+
+export async function runMissionProgressTransitions(): Promise<{ transitioned: number; archived: number }> {
+  const now = new Date();
+  const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+  const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+  // Seed covenant path for recent converts confirmed 6+ months ago (idempotent)
+  const toTransition = await db
+    .select({ id: missionContacts.id })
+    .from(missionContacts)
+    .where(and(
+      eq(missionContacts.personType, "recent_convert"),
+      eq(missionContacts.isArchived, false),
+      not(isNull(missionContacts.confirmedAt)),
+      lte(missionContacts.confirmedAt, sixMonthsAgo),
+    ));
+
+  for (const contact of toTransition) {
+    await seedCovenantPath(contact.id);
+  }
+
+  // Archive recent converts confirmed 12+ months ago
+  const toArchive = await db
+    .select({ id: missionContacts.id })
+    .from(missionContacts)
+    .where(and(
+      eq(missionContacts.personType, "recent_convert"),
+      eq(missionContacts.isArchived, false),
+      not(isNull(missionContacts.confirmedAt)),
+      lte(missionContacts.confirmedAt, twelveMonthsAgo),
+    ));
+
+  if (toArchive.length > 0) {
+    await db.update(missionContacts)
+      .set({ isArchived: true, archivedAt: now, updatedAt: now })
+      .where(inArray(missionContacts.id, toArchive.map((c) => c.id)));
+  }
+
+  return { transitioned: toTransition.length, archived: toArchive.length };
 }
 
 export async function runBaptismReadinessCheck(): Promise<number> {

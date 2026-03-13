@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckCircle2, Circle, AlertTriangle, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 function relativeTime(dateStr: string) {
@@ -105,11 +105,42 @@ const ASSIGNEE_ROLE_LABELS: Record<string, string> = {
   leader: "Líder",
 };
 
+const TASK_PRIORITY_LABELS: Record<string, string> = { high: "Alta", medium: "Media", low: "Baja" };
+const TASK_STATUS_LABELS: Record<string, string> = { open: "Abierta", done: "Hecha", canceled: "Cancelada" };
+
+function taskPriorityColor(p: string) {
+  if (p === "high") return "text-destructive";
+  if (p === "medium") return "text-yellow-600";
+  return "text-muted-foreground";
+}
+
+function taskDueBadge(dueAt: string | null, status: string) {
+  if (status !== "open" || !dueAt) return null;
+  const diff = new Date(dueAt).getTime() - Date.now();
+  if (diff < 0) return <span className="text-xs text-destructive font-medium">Vencida</span>;
+  if (diff < 3 * 24 * 3600_000) return <span className="text-xs text-yellow-600">Pronto</span>;
+  return null;
+}
+
 function stageLabel(s: string) { return STAGE_OPTIONS.find((o) => o.value === s)?.label ?? s; }
 function personTypeLabel(t: string) { return PERSON_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t; }
 function stageBadgeVariant(s: string): "default" | "secondary" | "outline" {
   if (s === "baptized" || s === "confirmed") return "default";
   if (s === "on_date") return "secondary";
+  return "outline";
+}
+
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  draft: "Borrador",
+  pending_approval: "Pendiente de aprobación",
+  approved: "Aprobada",
+  needs_revision: "Necesita revisión",
+};
+
+function approvalBadgeVariant(s: string): "default" | "secondary" | "outline" | "destructive" {
+  if (s === "approved") return "default";
+  if (s === "pending_approval") return "secondary";
+  if (s === "needs_revision") return "destructive";
   return "outline";
 }
 
@@ -187,6 +218,12 @@ export default function MissionWorkPage() {
   );
 
   const isLeader = Boolean(missionAccess.data?.isMissionLeader);
+  const canApprove = ["obispo", "consejero_obispo"].includes(missionAccess.data?.role ?? "");
+
+  const pendingApprovals = useQuery<any[]>({
+    queryKey: ["/api/baptisms/pending-approvals"],
+    enabled: canApprove,
+  });
 
   if (missionAccess.isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">Cargando permisos de Obra Misional...</div>;
@@ -213,7 +250,13 @@ export default function MissionWorkPage() {
           <TabsTrigger value="recent">Conversos ({byType.recent.length})</TabsTrigger>
           <TabsTrigger value="less">Menos activos ({byType.less.length})</TabsTrigger>
           <TabsTrigger value="baptisms">Bautismos</TabsTrigger>
-          {isLeader && <TabsTrigger value="templates">Plantillas</TabsTrigger>}
+          <TabsTrigger value="coordination">Coordinación</TabsTrigger>
+          {canApprove && <TabsTrigger value="templates">Plantillas</TabsTrigger>}
+          {canApprove && (
+            <TabsTrigger value="approvals">
+              Aprobaciones{(pendingApprovals.data?.length ?? 0) > 0 ? ` (${pendingApprovals.data!.length})` : ""}
+            </TabsTrigger>
+          )}
           {isLeader && <TabsTrigger value="moderation">Moderación</TabsTrigger>}
         </TabsList>
 
@@ -224,7 +267,7 @@ export default function MissionWorkPage() {
           <ContactList title="Conversos recientes" rows={byType.recent} onSelect={setSelectedContactId} />
         </TabsContent>
         <TabsContent value="less">
-          <ContactList title="Menos activos" rows={byType.less} onSelect={setSelectedContactId} />
+          <LessActiveTab rows={byType.less} onSelect={setSelectedContactId} onCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/mission/contacts"] })} />
         </TabsContent>
 
         <TabsContent value="baptisms">
@@ -272,7 +315,21 @@ export default function MissionWorkPage() {
           </Card>
         </TabsContent>
 
-        {isLeader && (
+        <TabsContent value="coordination">
+          <CoordinationTab />
+        </TabsContent>
+
+        {canApprove && (
+          <TabsContent value="approvals">
+            <ApprovalTab
+              rows={pendingApprovals.data || []}
+              loading={pendingApprovals.isLoading}
+              onSelect={setSelectedServiceId}
+            />
+          </TabsContent>
+        )}
+
+        {canApprove && (
           <TabsContent value="templates">
             <TemplatesTab />
           </TabsContent>
@@ -311,6 +368,7 @@ export default function MissionWorkPage() {
         open={Boolean(selectedServiceId)}
         onOpenChange={(o) => { if (!o) setSelectedServiceId(null); }}
         isLeader={isLeader}
+        canApprove={canApprove}
         onPublishLink={(id) => publishLink.mutate(id)}
         publishPending={publishLink.isPending}
       />
@@ -422,7 +480,8 @@ function TemplatesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <SeedDefaultsButton onSeeded={() => queryClient.invalidateQueries({ queryKey: ["/api/mission/templates"] })} />
         <Button size="sm" onClick={() => setCreateOpen(true)}>+ Nueva plantilla</Button>
       </div>
       {PERSON_TYPE_OPTIONS.map((pt) => (
@@ -632,11 +691,12 @@ function CreateTemplateDialog({ open, onOpenChange, onCreated }: {
 
 // ─── Baptism Service Sheet ────────────────────────────────────────────────────
 
-function BaptismServiceSheet({ serviceId, open, onOpenChange, isLeader, onPublishLink, publishPending }: {
+function BaptismServiceSheet({ serviceId, open, onOpenChange, isLeader, canApprove, onPublishLink, publishPending }: {
   serviceId: string | null; open: boolean; onOpenChange: (o: boolean) => void;
-  isLeader: boolean; onPublishLink: (id: string) => void; publishPending: boolean;
+  isLeader: boolean; canApprove: boolean; onPublishLink: (id: string) => void; publishPending: boolean;
 }) {
   const { toast } = useToast();
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   const service = useQuery<any>({
     queryKey: [`/api/baptisms/services/${serviceId}`],
@@ -679,6 +739,39 @@ function BaptismServiceSheet({ serviceId, open, onOpenChange, isLeader, onPublis
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/baptisms/services/${serviceId}`] }),
   });
 
+  const submitForApproval = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/baptisms/services/${serviceId}/submit-for-approval`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/baptisms/services/${serviceId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/baptisms/services"] });
+      toast({ title: "Agenda enviada al Obispo para aprobación" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  const approveService = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/baptisms/services/${serviceId}/approve`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/baptisms/services/${serviceId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/baptisms/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/baptisms/pending-approvals"] });
+      toast({ title: "Agenda aprobada. El enlace se activará el día del bautismo." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  const rejectService = useMutation({
+    mutationFn: (comment: string) => apiRequest("POST", `/api/baptisms/services/${serviceId}/reject`, { comment }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/baptisms/services/${serviceId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/baptisms/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/baptisms/pending-approvals"] });
+      setRejectOpen(false);
+      toast({ title: "Agenda devuelta para revisión" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
   if (!serviceId) return null;
   const svc = service.data;
 
@@ -693,24 +786,78 @@ function BaptismServiceSheet({ serviceId, open, onOpenChange, isLeader, onPublis
         ) : (
           <>
             <SheetHeader className="px-6 pt-6 pb-4 border-b shrink-0">
-              <SheetTitle className="text-lg leading-tight">{svc.locationName}</SheetTitle>
+              <div className="flex items-start justify-between gap-2">
+                <SheetTitle className="text-lg leading-tight">{svc.locationName}</SheetTitle>
+                <Badge variant={approvalBadgeVariant(svc.approvalStatus)} className="shrink-0 text-xs mt-0.5">
+                  {APPROVAL_STATUS_LABELS[svc.approvalStatus] ?? svc.approvalStatus}
+                </Badge>
+              </div>
               <p className="text-sm text-muted-foreground">
                 {new Date(svc.serviceAt).toLocaleString("es-ES")}
                 {svc.locationAddress && ` · ${svc.locationAddress}`}
               </p>
-              {isLeader && (
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" onClick={() => onPublishLink(svc.id)} disabled={publishPending}>
-                    Publicar enlace 24h
+
+              {/* Rejection comment visible to leader */}
+              {svc.approvalStatus === "needs_revision" && svc.approvalComment && (
+                <div className="rounded border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  <p className="font-medium text-xs mb-0.5">Comentario del Obispo:</p>
+                  <p>{svc.approvalComment}</p>
+                </div>
+              )}
+
+              {/* Leader actions */}
+              {(svc.approvalStatus === "draft" || svc.approvalStatus === "needs_revision") && (
+                <div className="flex gap-2 pt-1 flex-wrap">
+                  <Button
+                    size="sm"
+                    onClick={() => submitForApproval.mutate()}
+                    disabled={submitForApproval.isPending}
+                  >
+                    {submitForApproval.isPending ? "Enviando…" : "Enviar a aprobación"}
                   </Button>
-                  {linkState.data?.activePublicUrl && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={linkState.data.activePublicUrl} target="_blank" rel="noreferrer">Vista pública</a>
+                  {isLeader && (
+                    <Button size="sm" variant="outline" onClick={() => onPublishLink(svc.id)} disabled={publishPending}>
+                      Publicar enlace manual
                     </Button>
                   )}
                 </div>
               )}
+
+              {/* Bishop actions */}
+              {canApprove && svc.approvalStatus === "pending_approval" && (
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" onClick={() => approveService.mutate()} disabled={approveService.isPending}>
+                    {approveService.isPending ? "Aprobando…" : "Aprobar agenda"}
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)}>
+                    Rechazar
+                  </Button>
+                </div>
+              )}
+
+              {/* Approved: show public link state */}
+              {svc.approvalStatus === "approved" && (
+                <div className="flex gap-2 pt-1 flex-wrap">
+                  {linkState.data?.active ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={linkState.data.activePublicUrl} target="_blank" rel="noreferrer">Ver enlace público</a>
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground self-center">
+                      Enlace activo el {new Date(svc.serviceAt).toLocaleDateString("es-ES")}
+                    </p>
+                  )}
+                </div>
+              )}
             </SheetHeader>
+
+            {/* Reject dialog */}
+            <RejectDialog
+              open={rejectOpen}
+              onOpenChange={setRejectOpen}
+              onReject={(comment) => rejectService.mutate(comment)}
+              saving={rejectService.isPending}
+            />
 
             <ScrollArea className="flex-1 min-h-0">
               <div className="px-6 py-4 space-y-6">
@@ -1039,6 +1186,20 @@ function ContactSheet({
     queryKey: [`/api/mission/contacts/${contactId}/assignees`],
     enabled: Boolean(contactId) && open,
   });
+  const attendance = useQuery<any[]>({
+    queryKey: [`/api/mission/contacts/${contactId}/attendance`],
+    enabled: Boolean(contactId) && open,
+  });
+
+  const friendProgress = useQuery<any[]>({
+    queryKey: [`/api/mission/contacts/${contactId}/friend-progress`],
+    enabled: Boolean(contactId) && open,
+  });
+
+  const covenantPath = useQuery<any[]>({
+    queryKey: [`/api/mission/contacts/${contactId}/covenant-path`],
+    enabled: Boolean(contactId) && open,
+  });
 
   const updateContact = useMutation({
     mutationFn: (data: any) => apiRequest("PATCH", `/api/mission/contacts/${contactId}`, data),
@@ -1072,6 +1233,38 @@ function ContactSheet({
     onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
   });
 
+  const confirmContact = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/mission/contacts/${contactId}/confirm`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/mission/contacts/${contactId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/mission/contacts"] });
+      toast({ title: "Contacto confirmado como converso reciente" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  const addAttendance = useMutation({
+    mutationFn: (attendedAt: string) => apiRequest("POST", `/api/mission/contacts/${contactId}/attendance`, { attendedAt }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/mission/contacts/${contactId}/attendance`] }),
+  });
+
+  const removeAttendance = useMutation({
+    mutationFn: (date: string) => apiRequest("DELETE", `/api/mission/contacts/${contactId}/attendance/${date}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/mission/contacts/${contactId}/attendance`] }),
+  });
+
+  const saveFriendSection = useMutation({
+    mutationFn: ({ sectionKey, data }: { sectionKey: string; data: any }) =>
+      apiRequest("PUT", `/api/mission/contacts/${contactId}/friend-progress/${sectionKey}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/mission/contacts/${contactId}/friend-progress`] }),
+  });
+
+  const saveCovenantItem = useMutation({
+    mutationFn: ({ itemKey, ...data }: any) =>
+      apiRequest("PUT", `/api/mission/contacts/${contactId}/covenant-path/${itemKey}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/mission/contacts/${contactId}/covenant-path`] }),
+  });
+
   const mergedProgress = useMemo(() => {
     const items = templateItems.data || [];
     const prog = progress.data;
@@ -1103,6 +1296,13 @@ function ContactSheet({
   if (!contactId) return null;
   const c = contact.data;
 
+  const sixMonthsMs = 180 * 24 * 60 * 60 * 1000;
+  const confirmedTs = c?.confirmedAt ? new Date(c.confirmedAt).getTime() : null;
+  const showFriendProgress = c?.personType === "friend" ||
+    (c?.personType === "recent_convert" && confirmedTs !== null && Date.now() - confirmedTs < sixMonthsMs);
+  const showCovenantPath = c?.personType === "less_active" ||
+    (c?.personType === "recent_convert" && (confirmedTs === null || Date.now() - confirmedTs >= sixMonthsMs));
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
@@ -1116,13 +1316,41 @@ function ContactSheet({
                   <SheetTitle className="text-lg leading-tight">{c.fullName}</SheetTitle>
                   <p className="text-sm text-muted-foreground mt-0.5">{personTypeLabel(c.personType)}</p>
                 </div>
-                <Badge variant={stageBadgeVariant(c.stage)} className="shrink-0 mt-1">{stageLabel(c.stage)}</Badge>
+                <div className="flex items-center gap-2 shrink-0 mt-1">
+                  {c.personType === "friend" && c.stage === "baptized" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7"
+                      onClick={() => confirmContact.mutate()}
+                      disabled={confirmContact.isPending}
+                    >
+                      {confirmContact.isPending ? "Confirmando…" : "Confirmar bautismo"}
+                    </Button>
+                  )}
+                  <Badge variant={stageBadgeVariant(c.stage)}>{stageLabel(c.stage)}</Badge>
+                </div>
               </div>
             </SheetHeader>
 
             <ScrollArea className="flex-1 min-h-0">
               <div className="px-6 py-4 space-y-6">
                 <InfoSection contact={c} onSave={(data) => updateContact.mutate(data)} saving={updateContact.isPending} />
+
+                <Separator />
+                <FellowshipSection
+                  fellowshipName={c.fellowshipName}
+                  onSave={(name) => updateContact.mutate({ fellowshipName: name || null })}
+                  saving={updateContact.isPending}
+                />
+
+                <Separator />
+                <AttendanceSection
+                  rows={attendance.data || []}
+                  loading={attendance.isLoading}
+                  onAdd={(date) => addAttendance.mutate(date)}
+                  onRemove={(date) => removeAttendance.mutate(date)}
+                />
 
                 {(assignees.data || []).length > 0 && (
                   <>
@@ -1142,14 +1370,27 @@ function ContactSheet({
                   </>
                 )}
 
-                <Separator />
-                <ProgressSection
-                  merged={mergedProgress}
-                  loading={progress.isLoading || templateItems.isLoading}
-                  onLesson={(id, s) => updateLesson.mutate({ itemId: id, status: s })}
-                  onCommitment={(id, r) => updateCommitment.mutate({ itemId: id, result: r })}
-                  onMilestone={(id, s) => updateMilestone.mutate({ itemId: id, status: s })}
-                />
+                {showFriendProgress && (
+                  <>
+                    <Separator />
+                    <FriendProgressSection
+                      sections={friendProgress.data || []}
+                      loading={friendProgress.isLoading}
+                      onSaveSection={(key, data) => saveFriendSection.mutate({ sectionKey: key, data })}
+                    />
+                  </>
+                )}
+
+                {showCovenantPath && (
+                  <>
+                    <Separator />
+                    <CovenantPathSection
+                      items={covenantPath.data || []}
+                      loading={covenantPath.isLoading}
+                      onSaveItem={(itemKey, data) => saveCovenantItem.mutate({ itemKey, ...data })}
+                    />
+                  </>
+                )}
 
                 <Separator />
                 <NotesSection
@@ -1508,6 +1749,1173 @@ function CreateBaptismServiceDialog({ open, onOpenChange, onCreated }: {
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Fellowship Section ────────────────────────────────────────────────────────
+
+function FellowshipSection({ fellowshipName, onSave, saving }: {
+  fellowshipName?: string | null; onSave: (name: string) => void; saving: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(fellowshipName ?? "");
+
+  useEffect(() => { setValue(fellowshipName ?? ""); }, [fellowshipName]);
+
+  if (!editing) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Compañero miembro</h3>
+          <button className="text-xs text-muted-foreground hover:underline" onClick={() => setEditing(true)}>Editar</button>
+        </div>
+        <p className="text-sm text-muted-foreground">{fellowshipName || "No asignado"}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold">Compañero miembro</h3>
+      <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Nombre del miembro compañero" className="h-8 text-sm" />
+      <div className="flex gap-2">
+        <Button size="sm" disabled={saving} onClick={() => { onSave(value); setEditing(false); }}>
+          {saving ? "Guardando…" : "Guardar"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => { setValue(fellowshipName ?? ""); setEditing(false); }}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Attendance Section ────────────────────────────────────────────────────────
+
+function AttendanceSection({ rows, loading, onAdd, onRemove }: {
+  rows: Array<{ id: string; attendedAt: string }>; loading: boolean;
+  onAdd: (date: string) => void; onRemove: (date: string) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [pickedDate, setPickedDate] = useState("");
+
+  const lastFour = rows.slice(0, 4);
+  const count = rows.length;
+
+  function submit() {
+    if (!pickedDate) return;
+    onAdd(pickedDate);
+    setPickedDate("");
+    setPicking(false);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Asistencia a la iglesia ({count})</h3>
+        <button className="text-xs text-muted-foreground hover:underline" onClick={() => setPicking((v) => !v)}>
+          {picking ? "Cancelar" : "+ Añadir"}
+        </button>
+      </div>
+
+      {picking && (
+        <div className="flex items-center gap-2">
+          <Input type="date" value={pickedDate} onChange={(e) => setPickedDate(e.target.value)} className="h-8 text-sm flex-1" />
+          <Button size="sm" onClick={submit} disabled={!pickedDate}>Añadir</Button>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Cargando…</p>
+      ) : lastFour.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Sin registros de asistencia.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {lastFour.map((r) => (
+            <div key={r.id} className="flex items-center gap-1 rounded border px-2 py-1 text-xs">
+              <CheckCircle2 className="h-3 w-3 text-green-600 shrink-0" />
+              <span>{new Date(r.attendedAt + "T12:00:00").toLocaleDateString("es-ES")}</span>
+              <button
+                className="ml-1 text-muted-foreground hover:text-destructive"
+                onClick={() => onRemove(r.attendedAt)}
+                title="Eliminar"
+              >×</button>
+            </div>
+          ))}
+          {count > 4 && <span className="text-xs text-muted-foreground self-center">+{count - 4} más</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Seed Defaults Button ──────────────────────────────────────────────────────
+
+function SeedDefaultsButton({ onSeeded }: { onSeeded: () => void }) {
+  const { toast } = useToast();
+  const seed = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/mission/templates/seed-defaults"),
+    onSuccess: (data: any) => {
+      onSeeded();
+      if (data?.created > 0) toast({ title: `${data.created} plantilla(s) por defecto creadas` });
+      else toast({ title: "Las plantillas por defecto ya existen" });
+    },
+    onError: () => toast({ title: "Error al crear plantillas", variant: "destructive" }),
+  });
+
+  return (
+    <Button size="sm" variant="outline" onClick={() => seed.mutate()} disabled={seed.isPending}>
+      {seed.isPending ? "Creando…" : "Sembrar plantillas por defecto"}
+    </Button>
+  );
+}
+
+// ─── Coordination Tab ─────────────────────────────────────────────────────────
+
+function CoordinationTab() {
+  const [activeView, setActiveView] = useState<"tasks" | "dashboard">("tasks");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Button size="sm" variant={activeView === "tasks" ? "default" : "outline"} onClick={() => setActiveView("tasks")}>Tareas</Button>
+        <Button size="sm" variant={activeView === "dashboard" ? "default" : "outline"} onClick={() => setActiveView("dashboard")}>Dashboard</Button>
+      </div>
+      {activeView === "tasks" ? <CoordinationTasksView /> : <CoordinationDashboard />}
+    </div>
+  );
+}
+
+function CoordinationTasksView() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const tasks = useQuery<any[]>({
+    queryKey: ["/api/mission/coordination-tasks", statusFilter],
+    queryFn: () => apiRequest("GET", `/api/mission/coordination-tasks?status=${statusFilter}`),
+  });
+
+  const contacts = useQuery<any[]>({ queryKey: ["/api/mission/contacts"] });
+
+  const updateTask = useMutation({
+    mutationFn: ({ id, ...data }: any) => apiRequest("PATCH", `/api/mission/coordination-tasks/${id}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/mission/coordination-tasks"] }),
+  });
+
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/mission/coordination-tasks/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mission/coordination-tasks"] });
+      toast({ title: "Tarea eliminada" });
+    },
+  });
+
+  const contactMap = useMemo(() => {
+    return new Map((contacts.data || []).map((c: any) => [c.id, c.fullName]));
+  }, [contacts.data]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="open" className="text-xs">Abiertas</SelectItem>
+            <SelectItem value="done" className="text-xs">Hechas</SelectItem>
+            <SelectItem value="canceled" className="text-xs">Canceladas</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button size="sm" onClick={() => setCreateOpen(true)}>+ Nueva tarea</Button>
+      </div>
+
+      <div className="space-y-2">
+        {tasks.isLoading && <p className="text-sm text-muted-foreground">Cargando…</p>}
+        {(tasks.data || []).length === 0 && !tasks.isLoading && (
+          <p className="text-sm text-muted-foreground">Sin tareas.</p>
+        )}
+        {(tasks.data || []).map((task) => (
+          <div key={task.id} className="rounded border p-3 text-sm space-y-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium leading-tight">{task.title}</p>
+                {task.contactId && (
+                  <p className="text-xs text-muted-foreground">Contacto: {contactMap.get(task.contactId) ?? task.contactId}</p>
+                )}
+                {task.ownerName && (
+                  <p className="text-xs text-muted-foreground">Responsable: {task.ownerName}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className={`text-xs font-medium ${taskPriorityColor(task.priority)}`}>
+                  {TASK_PRIORITY_LABELS[task.priority] ?? task.priority}
+                </span>
+              </div>
+            </div>
+            {task.description && <p className="text-xs text-muted-foreground">{task.description}</p>}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-2">
+                {task.dueAt && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(task.dueAt).toLocaleDateString("es-ES")}
+                  </span>
+                )}
+                {taskDueBadge(task.dueAt, task.status)}
+              </div>
+              <div className="flex gap-1">
+                {task.status === "open" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-xs px-2"
+                    onClick={() => updateTask.mutate({ id: task.id, status: "done" })}
+                  >
+                    Marcar hecha
+                  </Button>
+                )}
+                {task.status === "done" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-xs px-2"
+                    onClick={() => updateTask.mutate({ id: task.id, status: "open" })}
+                  >
+                    Reabrir
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+                  onClick={() => deleteTask.mutate(task.id)}
+                >
+                  Borrar
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <CreateTaskDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        contacts={contacts.data || []}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/mission/coordination-tasks"] })}
+      />
+    </div>
+  );
+}
+
+function CreateTaskDialog({ open, onOpenChange, contacts, onCreated }: {
+  open: boolean; onOpenChange: (o: boolean) => void; contacts: any[]; onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
+    defaultValues: { title: "", description: "", priority: "medium", contactId: "", ownerName: "", dueAt: "" },
+  });
+  const priority = watch("priority");
+  const contactId = watch("contactId");
+
+  const create = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/mission/coordination-tasks", data),
+    onSuccess: () => {
+      onCreated();
+      onOpenChange(false);
+      reset();
+      toast({ title: "Tarea creada" });
+    },
+  });
+
+  function handleCreate(data: any) {
+    create.mutate({
+      ...data,
+      contactId: data.contactId || null,
+      dueAt: data.dueAt || null,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Nueva tarea de coordinación</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit(handleCreate)} className="space-y-4">
+          <div className="space-y-1">
+            <Label>Título *</Label>
+            <Input {...register("title", { required: true })} placeholder="Ej: Llamar a hermano García" />
+            {errors.title && <p className="text-xs text-destructive">Requerido</p>}
+          </div>
+          <div className="space-y-1">
+            <Label>Descripción</Label>
+            <Textarea {...register("description")} placeholder="Detalles opcionales…" rows={2} className="text-sm resize-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Prioridad</Label>
+              <Select value={priority} onValueChange={(v) => setValue("priority", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="medium">Media</SelectItem>
+                  <SelectItem value="low">Baja</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Fecha límite</Label>
+              <Input type="date" {...register("dueAt")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Responsable</Label>
+              <Input {...register("ownerName")} placeholder="Nombre" />
+            </div>
+            <div className="space-y-1">
+              <Label>Contacto relacionado</Label>
+              <Select value={contactId} onValueChange={(v) => setValue("contactId", v)}>
+                <SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Ninguno</SelectItem>
+                  {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.fullName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" disabled={create.isPending}>{create.isPending ? "Creando…" : "Crear"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Coordination Dashboard ────────────────────────────────────────────────────
+
+function CoordinationDashboard() {
+  const dashboard = useQuery<any>({ queryKey: ["/api/mission/coordination-dashboard"] });
+
+  if (dashboard.isLoading) return <p className="text-sm text-muted-foreground">Cargando…</p>;
+  if (!dashboard.data) return null;
+
+  const { contacts, unlinkedTasks } = dashboard.data as { contacts: any[]; unlinkedTasks: any[] };
+
+  return (
+    <div className="space-y-4">
+      {unlinkedTasks.length > 0 && (
+        <Card>
+          <CardHeader className="py-3"><CardTitle className="text-sm">Tareas sin contacto ({unlinkedTasks.length})</CardTitle></CardHeader>
+          <CardContent className="space-y-1 pt-0">
+            {unlinkedTasks.map((t) => (
+              <div key={t.id} className="flex items-center justify-between text-sm rounded border px-3 py-2">
+                <span>{t.title}</span>
+                <div className="flex items-center gap-2">
+                  {taskDueBadge(t.dueAt, t.status)}
+                  <span className={`text-xs ${taskPriorityColor(t.priority)}`}>{TASK_PRIORITY_LABELS[t.priority]}</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-2">
+        {contacts.map((c: any) => (
+          <div key={c.contactId} className="rounded border p-3 text-sm space-y-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">{c.fullName}</p>
+                <p className="text-xs text-muted-foreground">{personTypeLabel(c.personType)} · {stageLabel(c.stage)}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                {c.overdueTasks > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" />{c.overdueTasks} vencida{c.overdueTasks > 1 ? "s" : ""}
+                  </Badge>
+                )}
+                {c.openTasks > 0 && c.overdueTasks === 0 && (
+                  <Badge variant="secondary" className="text-xs">{c.openTasks} tarea{c.openTasks > 1 ? "s" : ""}</Badge>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3 text-green-600" />
+                {c.attendanceCount} asistencia{c.attendanceCount !== 1 ? "s" : ""}
+                {c.lastAttendedAt && ` · última: ${new Date(c.lastAttendedAt + "T12:00:00").toLocaleDateString("es-ES")}`}
+              </span>
+              {c.fellowshipName && (
+                <span className="flex items-center gap-1">
+                  <Circle className="h-3 w-3" />
+                  {c.fellowshipName}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+        {contacts.length === 0 && <p className="text-sm text-muted-foreground">Sin contactos.</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Approval Tab (bishop view) ───────────────────────────────────────────────
+
+function ApprovalTab({ rows, loading, onSelect }: {
+  rows: any[]; loading: boolean; onSelect: (id: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>Agendas pendientes de aprobación ({rows.length})</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        {loading && <p className="text-sm text-muted-foreground">Cargando…</p>}
+        {!loading && rows.length === 0 && (
+          <p className="text-sm text-muted-foreground">Sin agendas pendientes.</p>
+        )}
+        {rows.map((row) => (
+          <button
+            key={row.id}
+            className="w-full rounded border p-3 text-left text-sm hover:bg-muted/50 transition-colors"
+            onClick={() => onSelect(row.id)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">{row.locationName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(row.serviceAt).toLocaleString("es-ES")}
+                  {row.candidateName && ` · Candidato: ${row.candidateName}`}
+                </p>
+                {row.leaderName && <p className="text-xs text-muted-foreground">Preparado por: {row.leaderName}</p>}
+              </div>
+              <Badge variant="secondary" className="shrink-0 text-xs">Revisar</Badge>
+            </div>
+          </button>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Reject Dialog ────────────────────────────────────────────────────────────
+
+// ─── Less Active Tab ──────────────────────────────────────────────────────────
+
+function LessActiveTab({ rows, onSelect, onCreated }: {
+  rows: any[]; onSelect: (id: string) => void; onCreated: () => void;
+}) {
+  const [selectOpen, setSelectOpen] = useState(false);
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => setSelectOpen(true)}>+ Seleccionar miembro del directorio</Button>
+      </div>
+      <ContactList title="Menos activos" rows={rows} onSelect={onSelect} />
+      <SelectMemberDialog
+        open={selectOpen}
+        onOpenChange={setSelectOpen}
+        onCreated={() => { onCreated(); setSelectOpen(false); }}
+      />
+    </div>
+  );
+}
+
+function SelectMemberDialog({ open, onOpenChange, onCreated }: {
+  open: boolean; onOpenChange: (o: boolean) => void; onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedMember, setSelectedMember] = useState<{ id: string; name: string } | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const members = useQuery<Array<{ id: string; name: string; role: string }>>({
+    queryKey: ["/api/mission/directory-members", debouncedSearch],
+    queryFn: () => apiRequest("GET", `/api/mission/directory-members?q=${encodeURIComponent(debouncedSearch)}`),
+    enabled: open,
+  });
+
+  const create = useMutation({
+    mutationFn: (member: { id: string; name: string }) =>
+      apiRequest("POST", "/api/mission/contacts", {
+        fullName: member.name,
+        personType: "less_active",
+        stage: "new",
+        memberUserId: member.id,
+      }),
+    onSuccess: () => { onCreated(); toast({ title: "Contacto creado" }); setSelectedMember(null); setSearch(""); },
+    onError: (err: any) => toast({ title: "Error", description: err?.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setSearch(""); setSelectedMember(null); } }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Seleccionar miembro del directorio</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre…"
+            className="h-9"
+            autoFocus
+          />
+          <div className="max-h-64 overflow-y-auto space-y-1 rounded border">
+            {members.isLoading && <p className="p-3 text-sm text-muted-foreground">Buscando…</p>}
+            {!members.isLoading && (members.data || []).length === 0 && (
+              <p className="p-3 text-sm text-muted-foreground">Sin resultados.</p>
+            )}
+            {(members.data || []).map((m) => (
+              <button
+                key={m.id}
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors ${selectedMember?.id === m.id ? "bg-muted" : ""}`}
+                onClick={() => setSelectedMember(m)}
+              >
+                <span className="font-medium">{m.name}</span>
+                <span className="ml-2 text-xs text-muted-foreground">{m.role}</span>
+              </button>
+            ))}
+          </div>
+          {selectedMember && (
+            <p className="text-sm text-muted-foreground">Seleccionado: <strong>{selectedMember.name}</strong></p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button
+            disabled={!selectedMember || create.isPending}
+            onClick={() => selectedMember && create.mutate(selectedMember)}
+          >
+            {create.isPending ? "Creando…" : "Agregar como menos activo"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Covenant Path Section ────────────────────────────────────────────────────
+
+const LESSON_STATUS_CYCLE = ["not_started", "taught", "completed"] as const;
+const COMMITMENT_STATUS_CYCLE = ["pending", "committed", "not_committed"] as const;
+const MILESTONE_STATUS_CYCLE = ["pending", "done", "waived"] as const;
+
+const LESSON_STATUS_LABELS_CP: Record<string, string> = { not_started: "Sin iniciar", taught: "Enseñado", completed: "Completado" };
+const COMMITMENT_STATUS_LABELS_CP: Record<string, string> = { pending: "Pendiente", committed: "Comprometido", not_committed: "No comprometido" };
+const MILESTONE_STATUS_LABELS_CP: Record<string, string> = { pending: "Pendiente", done: "Hecho", waived: "Dispensado" };
+
+function cpStatusColor(val: string, type: "lesson" | "commitment" | "milestone") {
+  if (type === "lesson") {
+    if (val === "completed") return "bg-green-100 text-green-700 border-green-300";
+    if (val === "taught") return "bg-blue-100 text-blue-700 border-blue-300";
+    return "bg-muted text-muted-foreground border-border";
+  }
+  if (type === "commitment") {
+    if (val === "committed") return "bg-green-100 text-green-700 border-green-300";
+    if (val === "not_committed") return "bg-red-100 text-red-700 border-red-300";
+    return "bg-muted text-muted-foreground border-border";
+  }
+  if (val === "done") return "bg-green-100 text-green-700 border-green-300";
+  if (val === "waived") return "bg-yellow-100 text-yellow-700 border-yellow-300";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+function cycleValue<T extends readonly string[]>(cycle: T, current: string): T[number] {
+  const idx = cycle.indexOf(current as T[number]);
+  return cycle[(idx + 1) % cycle.length];
+}
+
+function CovenantPathSection({ items, loading, onSaveItem }: {
+  items: any[]; loading: boolean;
+  onSaveItem: (itemKey: string, data: { lessonStatus?: string; commitmentStatus?: string; milestoneStatus?: string }) => void;
+}) {
+  const [notesOpen, setNotesOpen] = useState<string | null>(null);
+  const [notesText, setNotesText] = useState("");
+
+  if (loading) return <div className="space-y-2"><h3 className="text-sm font-semibold">Senda de los convenios</h3><p className="text-xs text-muted-foreground">Cargando…</p></div>;
+
+  const completed = items.filter(i => i.milestoneStatus === "done" || i.lessonStatus === "completed").length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Senda de los convenios</h3>
+        <span className="text-xs text-muted-foreground">{completed}/{items.length}</span>
+      </div>
+      <Progress value={items.length > 0 ? Math.round((completed / items.length) * 100) : 0} className="h-1.5" />
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <div key={item.key} className="rounded border p-2 text-sm">
+            <div className="flex items-start gap-2">
+              <p className="flex-1 text-xs leading-snug font-medium min-w-0">{item.order + 1}. {item.title}</p>
+              <button
+                className="text-xs text-muted-foreground hover:underline shrink-0"
+                onClick={() => { setNotesOpen(notesOpen === item.key ? null : item.key); setNotesText(item.notes ?? ""); }}
+              >
+                Notas
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              <button
+                className={`rounded border px-2 py-0.5 text-xs transition-colors ${cpStatusColor(item.lessonStatus, "lesson")}`}
+                onClick={() => onSaveItem(item.key, { lessonStatus: cycleValue(LESSON_STATUS_CYCLE, item.lessonStatus) })}
+                title="Lección — clic para cambiar"
+              >
+                L: {LESSON_STATUS_LABELS_CP[item.lessonStatus] ?? item.lessonStatus}
+              </button>
+              <button
+                className={`rounded border px-2 py-0.5 text-xs transition-colors ${cpStatusColor(item.commitmentStatus, "commitment")}`}
+                onClick={() => onSaveItem(item.key, { commitmentStatus: cycleValue(COMMITMENT_STATUS_CYCLE, item.commitmentStatus) })}
+                title="Compromiso — clic para cambiar"
+              >
+                C: {COMMITMENT_STATUS_LABELS_CP[item.commitmentStatus] ?? item.commitmentStatus}
+              </button>
+              <button
+                className={`rounded border px-2 py-0.5 text-xs transition-colors ${cpStatusColor(item.milestoneStatus, "milestone")}`}
+                onClick={() => onSaveItem(item.key, { milestoneStatus: cycleValue(MILESTONE_STATUS_CYCLE, item.milestoneStatus) })}
+                title="Hito — clic para cambiar"
+              >
+                H: {MILESTONE_STATUS_LABELS_CP[item.milestoneStatus] ?? item.milestoneStatus}
+              </button>
+            </div>
+            {notesOpen === item.key && (
+              <div className="mt-2 flex gap-2">
+                <Input
+                  value={notesText}
+                  onChange={(e) => setNotesText(e.target.value)}
+                  placeholder="Notas…"
+                  className="h-7 text-xs flex-1"
+                />
+                <Button
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  onClick={() => { onSaveItem(item.key, { notes: notesText }); setNotesOpen(null); }}
+                >
+                  Guardar
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Friend Progress Section ──────────────────────────────────────────────────
+
+const FRIEND_SECTION_LABELS: Record<string, string> = {
+  s1_friendship: "1. Amistad y acercamiento",
+  s2_attendance: "2. Asistencia a la iglesia",
+  s3_prayer: "3. Oración y Escrituras",
+  s4_lessons: "4. Lecciones",
+  s5_commitments: "5. Compromisos",
+  s6_support: "6. Apoyo del barrio",
+  s7_interview: "7. Entrevista bautismal",
+  s8_baptism: "8. Bautismo",
+  s9_post_baptism: "9. Post bautismo",
+};
+
+function FriendProgressSection({ sections, loading, onSaveSection }: {
+  sections: Array<{ sectionKey: string; data: any; updatedAt?: string }>;
+  loading: boolean;
+  onSaveSection: (sectionKey: string, data: any) => void;
+}) {
+  const sectionMap = useMemo(() => new Map(sections.map((s) => [s.sectionKey, s])), [sections]);
+  const completed = sections.filter((s) => {
+    const d = s.data as any;
+    if (s.sectionKey === "s7_interview") return d.status === "approved";
+    if (s.sectionKey === "s8_baptism") return d.hasBaptismDate === true;
+    if (s.sectionKey === "s9_post_baptism") return d.receivedConfirmation === true;
+    return false;
+  }).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Progreso del amigo</h3>
+        {!loading && <span className="text-xs text-muted-foreground">{sections.length} secciones</span>}
+      </div>
+      {loading && <p className="text-xs text-muted-foreground">Cargando…</p>}
+      {Object.entries(FRIEND_SECTION_LABELS).map(([key, label]) => {
+        const section = sectionMap.get(key);
+        return (
+          <FriendSectionCard
+            key={key}
+            sectionKey={key}
+            label={label}
+            data={section?.data ?? {}}
+            updatedAt={section?.updatedAt}
+            onSave={(data) => onSaveSection(key, data)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function FriendSectionCard({ sectionKey, label, data, updatedAt, onSave }: {
+  sectionKey: string; label: string; data: any; updatedAt?: string; onSave: (d: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<any>(data);
+
+  // Sync draft when data changes
+  useEffect(() => { setDraft(data); }, [data]);
+
+  function toggle(key: string) {
+    setDraft((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  }
+  function setField(key: string, value: any) {
+    setDraft((prev: any) => ({ ...prev, [key]: value }));
+  }
+  function toggleNested(parentKey: string, childKey: string) {
+    setDraft((prev: any) => ({
+      ...prev,
+      [parentKey]: { ...(prev[parentKey] ?? {}), [childKey]: !prev[parentKey]?.[childKey] },
+    }));
+  }
+
+  // Section-specific summary
+  function getSummary() {
+    const boolKeys = Object.keys(data).filter((k) => typeof data[k] === "boolean" && data[k] === true);
+    if (boolKeys.length > 0) return `${boolKeys.length} marcado${boolKeys.length > 1 ? "s" : ""}`;
+    if (sectionKey === "s7_interview") return data.status === "approved" ? "Aprobada" : data.status ?? "Sin estado";
+    if (sectionKey === "s8_baptism") return data.goalStatus ?? "Sin estado";
+    return updatedAt ? new Date(updatedAt).toLocaleDateString("es-ES") : "Sin datos";
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                <span className="text-sm font-medium">{label}</span>
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0">{getSummary()}</span>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0 pb-3 space-y-3">
+            <FriendSectionForm
+              sectionKey={sectionKey}
+              draft={draft}
+              onToggle={toggle}
+              onSetField={setField}
+              onToggleNested={toggleNested}
+            />
+            <Button size="sm" className="w-full" onClick={() => onSave(draft)}>Guardar sección</Button>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
+function FriendSectionForm({ sectionKey, draft, onToggle, onSetField, onToggleNested }: {
+  sectionKey: string; draft: any;
+  onToggle: (k: string) => void;
+  onSetField: (k: string, v: any) => void;
+  onToggleNested: (parent: string, child: string) => void;
+}) {
+  // Render simple bool + string fields for each section
+  const renderBool = (key: string, label: string) => (
+    <label key={key} className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={Boolean(draft[key])}
+        onChange={() => onToggle(key)}
+        className="rounded border h-4 w-4"
+      />
+      <span className="text-sm">{label}</span>
+    </label>
+  );
+  const renderText = (key: string, label: string, placeholder?: string) => (
+    <div key={key} className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        value={draft[key] ?? ""}
+        onChange={(e) => onSetField(key, e.target.value)}
+        placeholder={placeholder ?? ""}
+        className="h-8 text-sm"
+      />
+    </div>
+  );
+  const renderDate = (key: string, label: string) => (
+    <div key={key} className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        type="date"
+        value={draft[key] ?? ""}
+        onChange={(e) => onSetField(key, e.target.value)}
+        className="h-8 text-sm"
+      />
+    </div>
+  );
+  const renderNestedBool = (parentKey: string, childKey: string, label: string) => {
+    const parent = draft[parentKey] ?? {};
+    return (
+      <label key={`${parentKey}.${childKey}`} className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={Boolean(parent[childKey])}
+          onChange={() => onToggleNested(parentKey, childKey)}
+          className="rounded border h-4 w-4"
+        />
+        <span className="text-sm">{label}</span>
+      </label>
+    );
+  };
+
+  if (sectionKey === "s1_friendship") return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        {renderText("referredBy", "Referido por")}
+        {renderDate("firstContactDate", "Primer contacto")}
+      </div>
+      <div className="space-y-1.5">
+        {renderBool("knowsMember", "Conoce a un miembro")}
+        {renderBool("hasChurchFriend", "Tiene amigo en la iglesia")}
+        {renderBool("conversedOutsideLessons", "Ha conversado fuera de lecciones")}
+        {renderBool("invitedToActivity", "Invitado a actividad")}
+        {renderBool("attendedActivity", "Asistió a actividad")}
+        {renderBool("knowsBishop", "Conoce al Obispo")}
+        {renderBool("knowsMissionLeader", "Conoce al Líder Misional")}
+        {renderBool("comfortableAtChapel", "Cómodo en la capilla")}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {renderText("friendMember1", "Amigo miembro 1")}
+        {renderText("friendMember2", "Amigo miembro 2")}
+        {renderText("assignedLeader", "Líder asignado")}
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Observaciones</Label>
+        <Textarea
+          value={draft.socialObservations ?? ""}
+          onChange={(e) => onSetField("socialObservations", e.target.value)}
+          rows={2}
+          className="text-sm resize-none"
+        />
+      </div>
+    </div>
+  );
+
+  if (sectionKey === "s2_attendance") return (
+    <div className="space-y-2">
+      {renderDate("firstSacramentalDate", "Primera sacramental")}
+      {renderDate("nextSundayCommitted", "Próximo domingo comprometido")}
+      {renderText("reasonIfAbsent", "Razón si no asistió")}
+    </div>
+  );
+
+  if (sectionKey === "s3_prayer") return (
+    <div className="space-y-2">
+      <div className="space-y-1.5">
+        {renderBool("knowsHowToPray", "Sabe orar")}
+        {renderBool("praysPersonally", "Ora personalmente")}
+        {renderBool("praysMorning", "Ora por la mañana")}
+        {renderBool("praysEvening", "Ora por la noche")}
+        {renderBool("hasBoM", "Tiene Libro de Mormón")}
+        {renderBool("startedReading", "Comenzó a leer")}
+        {renderBool("understandsReading", "Entiende la lectura")}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {renderDate("readingStartDate", "Inicio de lectura")}
+        {renderText("lastChapterRead", "Último capítulo leído")}
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Dudas</Label>
+        <Textarea
+          value={draft.doubts ?? ""}
+          onChange={(e) => onSetField("doubts", e.target.value)}
+          rows={2}
+          className="text-sm resize-none"
+        />
+      </div>
+    </div>
+  );
+
+  if (sectionKey === "s4_lessons") {
+    const lessons = draft.lessons ?? {};
+    const lessonNames: Record<string, string> = {
+      restoration: "Restauración",
+      plan_salvation: "Plan de Salvación",
+      gospel_of_jesus: "Evangelio de Jesucristo",
+      commandments: "Mandamientos",
+      laws_ordinances: "Leyes y Ordenanzas",
+      pre_baptism_review: "Repaso pre-bautismal",
+    };
+    return (
+      <div className="space-y-3">
+        {Object.entries(lessonNames).map(([lKey, lLabel]) => {
+          const lesson = lessons[lKey] ?? {};
+          return (
+            <div key={lKey} className="rounded border p-2 space-y-1.5">
+              <p className="text-xs font-semibold">{lLabel}</p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(lesson.received)}
+                  onChange={() => {
+                    const updated = { ...lessons, [lKey]: { ...lesson, received: !lesson.received } };
+                    onSetField("lessons", updated as any);
+                  }}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm">Recibida</span>
+              </label>
+              {lesson.received && (
+                <Input
+                  type="date"
+                  value={lesson.date ?? ""}
+                  onChange={(e) => {
+                    const updated = { ...lessons, [lKey]: { ...lesson, date: e.target.value } };
+                    onSetField("lessons", updated as any);
+                  }}
+                  className="h-7 text-xs"
+                  placeholder="Fecha"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (sectionKey === "s5_commitments") {
+    const basic = draft.basicCommitments ?? {};
+    const basicLabels: Record<string, string> = {
+      praysPersonally: "Ora personalmente",
+      readsBoM: "Lee el Libro de Mormón",
+      attendsChurch: "Asiste a la iglesia",
+      keepsSabbath: "Guarda el día de reposo",
+      willingToRepent: "Dispuesto a arrepentirse",
+      desiresFollowChrist: "Desea seguir a Cristo",
+    };
+    const laws: Array<[string, string]> = [
+      ["wordOfWisdom", "Ley de Salud"],
+      ["lawOfChastity", "Ley de Castidad"],
+      ["tithing", "Diezmo"],
+      ["sabbathDay", "Día de Reposo"],
+    ];
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold mb-1.5">Compromisos básicos</p>
+          <div className="space-y-1.5">
+            {Object.entries(basicLabels).map(([k, l]) => (
+              <label key={k} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(basic[k])}
+                  onChange={() => onSetField("basicCommitments", { ...basic, [k]: !basic[k] } as any)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm">{l}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {laws.map(([lawKey, lawLabel]) => {
+          const law = (draft[lawKey] ?? {}) as any;
+          return (
+            <div key={lawKey} className="rounded border p-2 space-y-1">
+              <p className="text-xs font-semibold">{lawLabel}</p>
+              {(["explained", "understood", "living"] as const).map((field) => (
+                <label key={field} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(law[field])}
+                    onChange={() => onSetField(lawKey, { ...law, [field]: !law[field] } as any)}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm capitalize">{field === "explained" ? "Explicada" : field === "understood" ? "Entendida" : "Viviendo"}</span>
+                </label>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (sectionKey === "s6_support") return (
+    <div className="space-y-2">
+      <div className="space-y-1.5">
+        {renderBool("bishopKnowsFriend", "El Obispo conoce al amigo")}
+        {renderBool("missionLeaderAssigned", "Líder misional asignado")}
+        {renderBool("memberCompanionAssigned", "Miembro acompañante asignado")}
+        {renderBool("participatesInCoordination", "Participa en coordinación misional")}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {renderText("bishop", "Obispo")}
+        {renderText("wardMissionLeader", "Líder misional del barrio")}
+        {renderText("mainFriendMember", "Miembro amigo principal")}
+        {renderDate("nextVisit", "Próxima visita")}
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Comentarios de coordinación</Label>
+        <Textarea
+          value={draft.coordinationComments ?? ""}
+          onChange={(e) => onSetField("coordinationComments", e.target.value)}
+          rows={2}
+          className="text-sm resize-none"
+        />
+      </div>
+    </div>
+  );
+
+  if (sectionKey === "s7_interview") return (
+    <div className="space-y-2">
+      <div className="space-y-1.5">
+        {renderBool("receivedMainLessons", "Recibió las lecciones principales")}
+        {renderBool("attendsChurch", "Asiste a la iglesia")}
+        {renderBool("praysReadsRegularly", "Ora y lee regularmente")}
+        {renderBool("livesBasicCommandments", "Vive los mandamientos básicos")}
+        {renderBool("showedRepentance", "Muestra arrepentimiento")}
+        {renderBool("desiresHonestBaptism", "Desea bautizarse honestamente")}
+        {renderBool("understandsBaptismalCovenant", "Entiende el convenio bautismal")}
+      </div>
+      {renderDate("tentativeInterviewDate", "Fecha tentativa de entrevista")}
+      {renderText("interviewer", "Entrevistador")}
+      <div className="space-y-1">
+        <Label className="text-xs">Estado de entrevista</Label>
+        <Select value={draft.status ?? "not_ready"} onValueChange={(v) => onSetField("status", v)}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="not_ready">No listo</SelectItem>
+            <SelectItem value="ready">Listo para entrevistar</SelectItem>
+            <SelectItem value="scheduled">Entrevista programada</SelectItem>
+            <SelectItem value="approved">Entrevista aprobada</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Dudas u obstáculos</Label>
+        <Textarea
+          value={draft.pendingDoubts ?? ""}
+          onChange={(e) => onSetField("pendingDoubts", e.target.value)}
+          rows={2}
+          className="text-sm resize-none"
+        />
+      </div>
+    </div>
+  );
+
+  if (sectionKey === "s8_baptism") return (
+    <div className="space-y-2">
+      {renderBool("hasBaptismDate", "Tiene fecha de bautismo")}
+      {renderDate("proposedDate", "Fecha propuesta")}
+      {renderDate("confirmedDate", "Fecha confirmada")}
+      {renderText("location", "Lugar del bautismo")}
+      {renderText("baptizedBy", "Bautizado por")}
+      {renderBool("programPrepared", "Programa preparado")}
+      {renderBool("invitationsSent", "Invitaciones enviadas")}
+      {renderBool("clothingReady", "Ropa bautismal lista")}
+      {renderBool("recordPrepared", "Registro preparado")}
+      <div className="space-y-1">
+        <Label className="text-xs">Estado del objetivo bautismal</Label>
+        <Select value={draft.goalStatus ?? "initial_interest"} onValueChange={(v) => onSetField("goalStatus", v)}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="initial_interest">Interés inicial</SelectItem>
+            <SelectItem value="progressing">En progreso</SelectItem>
+            <SelectItem value="date_set">Fecha definida</SelectItem>
+            <SelectItem value="interview_passed">Entrevista aprobada</SelectItem>
+            <SelectItem value="baptized">Bautizado</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  if (sectionKey === "s9_post_baptism") {
+    const monthly = draft.monthlyTracking ?? {};
+    return (
+      <div className="space-y-2">
+        <div className="space-y-1.5">
+          {renderBool("receivedConfirmation", "Recibió la confirmación")}
+          {renderBool("hasFriends", "Tiene amigos en la iglesia")}
+          {renderBool("attendsEveryWeek", "Asiste cada semana")}
+          {renderBool("studiesGospel", "Estudia el Evangelio")}
+          {renderBool("receivedCallingOrService", "Recibió llamamiento o servicio")}
+          {renderBool("hasLeaderSupport", "Tiene apoyo de líder")}
+          {renderBool("proxyBaptismRecommend", "Recomendación para bautismo por representación")}
+          {renderBool("familyHistoryStarted", "Comenzó historia familiar")}
+          {renderBool("preparingPatriarchalBlessing", "Preparándose para bendición patriarcal")}
+        </div>
+        <div>
+          <p className="text-xs font-semibold mb-1.5">Seguimiento mensual (6 meses)</p>
+          <div className="flex gap-2 flex-wrap">
+            {[1, 2, 3, 4, 5, 6].map((m) => (
+              <label key={m} className="flex items-center gap-1 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={Boolean(monthly[`month${m}`])}
+                  onChange={() => onSetField("monthlyTracking", { ...monthly, [`month${m}`]: !monthly[`month${m}`] } as any)}
+                  className="h-3.5 w-3.5"
+                />
+                Mes {m}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Generic fallback for any section
+  return (
+    <div className="space-y-2">
+      {Object.entries(draft).map(([key, value]) => {
+        if (typeof value === "boolean") return renderBool(key, key);
+        if (typeof value === "string") return renderText(key, key);
+        return null;
+      })}
+    </div>
+  );
+}
+
+// ─── Reject Dialog ────────────────────────────────────────────────────────────
+
+function RejectDialog({ open, onOpenChange, onReject, saving }: {
+  open: boolean; onOpenChange: (o: boolean) => void; onReject: (comment: string) => void; saving: boolean;
+}) {
+  const [comment, setComment] = useState("");
+
+  function submit() {
+    if (!comment.trim()) return;
+    onReject(comment.trim());
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setComment(""); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Rechazar agenda</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Indica qué debe corregirse. El líder misional verá este mensaje.</p>
+          <Textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Ej: Falta el nombre del bautizador, hay que añadir la oración de apertura…"
+            rows={3}
+            className="text-sm resize-none"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="destructive" onClick={submit} disabled={saving || !comment.trim()}>
+            {saving ? "Enviando…" : "Rechazar y notificar"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

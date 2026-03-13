@@ -101,6 +101,7 @@ export const missionLessonStatusEnum = pgEnum("mission_lesson_status", ["not_sta
 export const missionCommitmentResultEnum = pgEnum("mission_commitment_result", ["pending", "done", "not_done", "partial"]);
 export const missionMilestoneStatusEnum = pgEnum("mission_milestone_status", ["pending", "done", "waived"]);
 export const baptismServiceStatusEnum = pgEnum("baptism_service_status", ["scheduled", "live", "completed", "archived"]);
+export const baptismApprovalStatusEnum = pgEnum("baptism_approval_status", ["draft", "pending_approval", "approved", "needs_revision"]);
 export const baptismProgramItemTypeEnum = pgEnum("baptism_program_item_type", ["opening_prayer", "hymn", "talk", "special_music", "ordinance_baptism", "closing_prayer"]);
 export const baptismAssignmentTypeEnum = pgEnum("baptism_assignment_type", ["refreshments", "cleaning", "baptism_clothing", "wet_clothes_pickup", "reception", "music"]);
 export const baptismAssignmentStatusEnum = pgEnum("baptism_assignment_status", ["pending", "done"]);
@@ -364,6 +365,9 @@ export const memberOrganizations = pgTable("member_organizations", {
 
 
 
+export const missionTaskPriorityEnum = pgEnum("mission_task_priority", ["high", "medium", "low"]);
+export const missionTaskStatusEnum = pgEnum("mission_task_status", ["open", "done", "canceled"]);
+
 export const missionContacts = pgTable("mission_contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   unitId: varchar("unit_id").notNull().references(() => organizations.id),
@@ -372,6 +376,12 @@ export const missionContacts = pgTable("mission_contacts", {
   email: text("email"),
   personType: missionPersonTypeEnum("person_type").notNull(),
   stage: text("stage").notNull().default("new"),
+  fellowshipUserId: varchar("fellowship_user_id").references(() => users.id),
+  fellowshipName: text("fellowship_name"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  memberUserId: varchar("member_user_id").references(() => users.id),
+  isArchived: boolean("is_archived").notNull().default(false),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -449,6 +459,51 @@ export const missionContactMilestones = pgTable("mission_contact_milestones", {
   note: text("note"),
 });
 
+export const missionChurchAttendance = pgTable("mission_church_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  attendedAt: date("attended_at").notNull(),
+  notedBy: varchar("noted_by").notNull().references(() => users.id),
+  detail: jsonb("detail").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const missionCovenantPathProgress = pgTable("mission_covenant_path_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  itemKey: text("item_key").notNull(),
+  lessonStatus: text("lesson_status").notNull().default("not_started"),
+  commitmentStatus: text("commitment_status").notNull().default("pending"),
+  milestoneStatus: text("milestone_status").notNull().default("pending"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const missionFriendSectionData = pgTable("mission_friend_section_data", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").notNull().references(() => missionContacts.id, { onDelete: "cascade" }),
+  sectionKey: text("section_key").notNull(),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const missionCoordinationTasks = pgTable("mission_coordination_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unitId: varchar("unit_id").notNull().references(() => organizations.id),
+  contactId: varchar("contact_id").references(() => missionContacts.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  ownerUserId: varchar("owner_user_id").references(() => users.id),
+  ownerName: text("owner_name"),
+  priority: missionTaskPriorityEnum("priority").notNull().default("medium"),
+  status: missionTaskStatusEnum("status").notNull().default("open"),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const baptismServices = pgTable("baptism_services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   unitId: varchar("unit_id").notNull().references(() => organizations.id),
@@ -458,6 +513,10 @@ export const baptismServices = pgTable("baptism_services", {
   locationAddress: text("location_address"),
   mapsUrl: text("maps_url"),
   status: baptismServiceStatusEnum("status").notNull().default("scheduled"),
+  approvalStatus: baptismApprovalStatusEnum("approval_status").notNull().default("draft"),
+  approvalComment: text("approval_comment"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   prepDeadlineAt: timestamp("prep_deadline_at", { withTimezone: true }).notNull(),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
