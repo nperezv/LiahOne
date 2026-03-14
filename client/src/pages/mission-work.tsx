@@ -397,17 +397,17 @@ function AttendanceGrid({
                 title={attended ? "Marcar ausente" : "Marcar presente"}
               >
                 {attended ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary fill-primary" />
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground" />
+                  <Circle className="h-5 w-5 text-primary/70" />
                 )}
               </button>
             ) : (
               <span title={iso}>
                 {attended ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary fill-primary" />
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground" />
+                  <Circle className="h-5 w-5 text-primary/70" />
                 )}
               </span>
             )}
@@ -691,17 +691,17 @@ function LessonStatusIcon({
 }) {
   if (present) {
     return (
-      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        <User2 className="h-2 w-2" />
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <User2 className="h-3 w-3" />
       </span>
     );
   }
 
   if (exists) {
-    return <span className="block h-3.5 w-3.5 rounded-full border-[1.8px] border-primary/80" />;
+    return <span className="block h-5 w-5 rounded-full border-2 border-primary/80" />;
   }
 
-  return <Circle className="h-3.5 w-3.5 text-muted-foreground" />;
+  return <Circle className="h-5 w-5 text-primary/70" />;
 }
 
 // ============================================================
@@ -786,8 +786,21 @@ function PersonaDetailSheet({
     mutationFn: (data: {
       principio_id: number;
       sesion_num: number;
-      miembro_presente: boolean;
-    }) => apiRequest("PUT", `/api/mission/personas/${id}/sesiones`, data),
+      miembro_presente?: boolean;
+      action: "set" | "delete";
+    }) => {
+      if (data.action === "delete") {
+        return apiRequest(
+          "DELETE",
+          `/api/mission/personas/${id}/sesiones/${data.principio_id}/${data.sesion_num}`
+        );
+      }
+      return apiRequest("PUT", `/api/mission/personas/${id}/sesiones`, {
+        principio_id: data.principio_id,
+        sesion_num: data.sesion_num,
+        miembro_presente: !!data.miembro_presente,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "sesiones"] });
     },
@@ -915,21 +928,41 @@ function PersonaDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
         <SheetHeader className="mb-4">
-          <SheetTitle className="flex items-center gap-2">
-            <User2 className="h-5 w-5 text-muted-foreground" />
-            {persona.nombre}
-            <Badge variant="outline" className="ml-2 text-xs">
-              {tipo === "nuevo"
-                ? "Nuevo"
-                : tipo === "regresando"
-                ? "Regresando"
-                : "Enseñando"}
-            </Badge>
-          </SheetTitle>
-          <p className="text-sm text-muted-foreground">
-            Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
-            {formatMemberTime(persona.fechaPrimerContacto)}
-          </p>
+          {tipo === "enseñando" ? (
+            <>
+              <SheetTitle className="text-5xl font-bold tracking-tight">Persona a la que se está enseñando</SheetTitle>
+              <p className="text-5xl font-semibold">{persona.nombre}</p>
+              <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-4 text-3xl">
+                <div>
+                  <p className="font-semibold">Se le enseñó por primera vez</p>
+                  <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Fecha bautismal</p>
+                  <p className="text-muted-foreground">{formatDisplayDate(persona.fechaBautismo)}</p>
+                </div>
+              </div>
+              <p className="text-3xl font-semibold">Próximo evento programado</p>
+            </>
+          ) : (
+            <>
+              <SheetTitle className="flex items-center gap-2">
+                <User2 className="h-5 w-5 text-muted-foreground" />
+                {persona.nombre}
+                <Badge variant="outline" className="ml-2 text-xs">
+                  {tipo === "nuevo"
+                    ? "Nuevo"
+                    : tipo === "regresando"
+                    ? "Regresando"
+                    : "Enseñando"}
+                </Badge>
+              </SheetTitle>
+              <p className="text-sm text-muted-foreground">
+                Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
+                {formatMemberTime(persona.fechaPrimerContacto)}
+              </p>
+            </>
+          )}
         </SheetHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1375,14 +1408,32 @@ function PersonaDetailSheet({
                             <button
                               key={sesNum}
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
+                                if (!exists) {
+                                  toggleSesionMutation.mutate({
+                                    action: "set",
+                                    principio_id: p.id,
+                                    sesion_num: sesNum,
+                                    miembro_presente: true,
+                                  });
+                                  return;
+                                }
+                                if (present) {
+                                  toggleSesionMutation.mutate({
+                                    action: "set",
+                                    principio_id: p.id,
+                                    sesion_num: sesNum,
+                                    miembro_presente: false,
+                                  });
+                                  return;
+                                }
                                 toggleSesionMutation.mutate({
+                                  action: "delete",
                                   principio_id: p.id,
                                   sesion_num: sesNum,
-                                  miembro_presente: !present,
-                                })
-                              }
-                              className="focus:outline-none"
+                                });
+                              }}
+                              className="focus:outline-none p-0.5"
                               title={`Sesión ${sesNum}`}
                             >
                               <LessonStatusIcon present={present} exists={exists} />

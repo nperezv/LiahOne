@@ -995,4 +995,36 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       }
     }
   );
+
+  app.delete(
+    "/api/mission/personas/:id/sesiones/:principioId/:sesionNum",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const user = (req as any).user;
+        if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+
+        const principioId = Number(req.params.principioId);
+        const sesionNum = Number(req.params.sesionNum);
+        if (!Number.isInteger(principioId) || !Number.isInteger(sesionNum)) {
+          return res.status(400).json({ message: "Parámetros inválidos" });
+        }
+
+        await db
+          .delete(missionSesionPrincipio)
+          .where(
+            and(
+              eq(missionSesionPrincipio.personaId, req.params.id),
+              eq(missionSesionPrincipio.principioId, principioId),
+              eq(missionSesionPrincipio.sesionNum, sesionNum)
+            )
+          );
+
+        return res.json({ success: true });
+      } catch (err) {
+        console.error("[mission sesiones DELETE]", err);
+        return res.status(500).json({ message: "Error interno" });
+      }
+    }
+  );
 }
