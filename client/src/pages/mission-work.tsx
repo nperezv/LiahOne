@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
 import { useAuth } from "@/lib/auth.tsx";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1320,9 +1319,23 @@ function TabContent({
 // Main Page
 // ============================================================
 
+const SECTION_META: Record<PersonaTipo, { label: string; subtitle: string }> = {
+  nuevo: {
+    label: "Miembros nuevos",
+    subtitle: "Miembros bautizados recientemente en seguimiento",
+  },
+  regresando: {
+    label: "Regresando a la actividad",
+    subtitle: "Miembros que están regresando a la actividad",
+  },
+  enseñando: {
+    label: "Personas a las que se está enseñando",
+    subtitle: "Personas que están recibiendo las discusiones misioneras",
+  },
+};
+
 export default function MissionWork() {
-  const { user } = useAuth();
-  const [tab, setTab] = useState<PersonaTipo>("nuevo");
+  const [section, setSection] = useState<PersonaTipo | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -1363,75 +1376,79 @@ export default function MissionWork() {
     setSheetOpen(true);
   };
 
+  // ── Section view ──────────────────────────────────────────
+  if (section) {
+    const meta = SECTION_META[section];
+    return (
+      <div className="p-8">
+        <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setSection(null)}>
+              <ChevronRight className="h-4 w-4 rotate-180" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold mb-1">{meta.label}</h1>
+              <p className="text-sm text-muted-foreground">{meta.subtitle}</p>
+            </div>
+          </div>
+        </div>
+
+        <TabContent tipo={section} sundays={sundays} onSelect={handleSelect} />
+
+        <PersonaDetailSheet
+          persona={selectedPersona}
+          open={sheetOpen}
+          onOpenChange={(v) => {
+            setSheetOpen(v);
+            if (!v) setSelectedPersona(null);
+          }}
+          tipo={selectedPersona?.tipo ?? section}
+        />
+      </div>
+    );
+  }
+
+  // ── Home view (cards) ─────────────────────────────────────
   return (
     <div className="p-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold mb-2">Progreso de la senda de los convenios</h1>
-          <p className="text-sm text-muted-foreground">
-            Seguimiento de miembros nuevos, quienes regresan y personas que están siendo enseñadas
-          </p>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-2">Progreso de la senda de los convenios</h1>
+        <p className="text-sm text-muted-foreground">
+          Seguimiento de miembros nuevos, quienes regresan y personas que están siendo enseñadas
+        </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold">{totalNuevo}</p>
-            <p className="text-xs uppercase text-muted-foreground tracking-wide mt-1">
-              Miembros nuevos
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold">{totalRegresando}</p>
-            <p className="text-xs uppercase text-muted-foreground tracking-wide mt-1">
-              Regresando
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-2xl font-bold">{totalEnsenando}</p>
-            <p className="text-xs uppercase text-muted-foreground tracking-wide mt-1">
-              Siendo enseñadas
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {(
+          [
+            { tipo: "nuevo" as PersonaTipo, count: totalNuevo, loading: nuevoQuery.isLoading },
+            { tipo: "regresando" as PersonaTipo, count: totalRegresando, loading: regresandoQuery.isLoading },
+            { tipo: "enseñando" as PersonaTipo, count: totalEnsenando, loading: ensenandoQuery.isLoading },
+          ] as const
+        ).map(({ tipo, count, loading }) => {
+          const meta = SECTION_META[tipo];
+          return (
+            <Card
+              key={tipo}
+              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => setSection(tipo)}
+            >
+              <CardContent className="p-6">
+                {loading ? (
+                  <Skeleton className="h-8 w-12 mb-2" />
+                ) : (
+                  <p className="text-3xl font-bold mb-1">{count}</p>
+                )}
+                <p className="font-medium mb-1">{meta.label}</p>
+                <p className="text-xs text-muted-foreground">{meta.subtitle}</p>
+                <div className="flex items-center gap-1 mt-4 text-xs text-primary">
+                  Ver lista <ChevronRight className="h-3 w-3" />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
-
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as PersonaTipo)}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="nuevo">Miembros nuevos</TabsTrigger>
-          <TabsTrigger value="regresando">Regresando a la actividad</TabsTrigger>
-          <TabsTrigger value="enseñando">Personas a las que se está enseñando</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="nuevo">
-          <TabContent tipo="nuevo" sundays={sundays} onSelect={handleSelect} />
-        </TabsContent>
-        <TabsContent value="regresando">
-          <TabContent tipo="regresando" sundays={sundays} onSelect={handleSelect} />
-        </TabsContent>
-        <TabsContent value="enseñando">
-          <TabContent tipo="enseñando" sundays={sundays} onSelect={handleSelect} />
-        </TabsContent>
-      </Tabs>
-
-      {/* Detail Sheet */}
-      <PersonaDetailSheet
-        persona={selectedPersona}
-        open={sheetOpen}
-        onOpenChange={(v) => {
-          setSheetOpen(v);
-          if (!v) setSelectedPersona(null);
-        }}
-        tipo={selectedPersona?.tipo ?? tab}
-      />
     </div>
   );
 }
