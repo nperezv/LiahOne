@@ -1406,30 +1406,9 @@ export default function MissionWork() {
       {/* Tabs */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as PersonaTipo)}>
         <TabsList className="mb-4">
-          <TabsTrigger value="nuevo">
-            Miembros nuevos
-            {totalNuevo > 0 && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                {totalNuevo}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="regresando">
-            Regresando a la actividad
-            {totalRegresando > 0 && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                {totalRegresando}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="enseñando">
-            Personas a las que se está enseñando
-            {totalEnsenando > 0 && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                {totalEnsenando}
-              </Badge>
-            )}
-          </TabsTrigger>
+          <TabsTrigger value="nuevo">Miembros nuevos</TabsTrigger>
+          <TabsTrigger value="regresando">Regresando a la actividad</TabsTrigger>
+          <TabsTrigger value="enseñando">Personas a las que se está enseñando</TabsTrigger>
         </TabsList>
 
         <TabsContent value="nuevo">
