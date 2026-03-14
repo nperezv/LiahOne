@@ -930,19 +930,19 @@ function PersonaDetailSheet({
         <SheetHeader className="mb-4">
           {tipo === "enseñando" ? (
             <>
-              <SheetTitle className="text-5xl font-bold tracking-tight">Persona a la que se está enseñando</SheetTitle>
-              <p className="text-5xl font-semibold">{persona.nombre}</p>
-              <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-4 text-3xl">
+              <SheetTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Persona a la que se está enseñando</SheetTitle>
+              <p className="text-2xl sm:text-3xl font-medium">{persona.nombre}</p>
+              <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-4 text-base">
                 <div>
                   <p className="font-semibold">Se le enseñó por primera vez</p>
                   <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
                 </div>
                 <div>
-                  <p className="font-semibold">Fecha bautismal</p>
+                  <p className="font-semibold inline-flex items-center gap-1"><Users className="h-4 w-4" />Fecha bautismal</p>
                   <p className="text-muted-foreground">{formatDisplayDate(persona.fechaBautismo)}</p>
                 </div>
               </div>
-              <p className="text-3xl font-semibold">Próximo evento programado</p>
+              <p className="text-xl font-semibold">Próximo evento programado</p>
             </>
           ) : (
             <>
@@ -1281,36 +1281,42 @@ function PersonaDetailSheet({
                   </Button>
                 </div>
                 <div className="space-y-1.5 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={otrosCompromisos.conocerObispo}
-                      disabled={!editOtrosCompromisos}
-                      onChange={(e) =>
-                        otrosCompromisosMutation.mutate({
-                          ...otrosCompromisos,
-                          conocerObispo: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4"
-                    />
+                  <button
+                    type="button"
+                    disabled={!editOtrosCompromisos}
+                    className="flex items-center gap-2 disabled:cursor-default"
+                    onClick={() =>
+                      otrosCompromisosMutation.mutate({
+                        ...otrosCompromisos,
+                        conocerObispo: !otrosCompromisos.conocerObispo,
+                      })
+                    }
+                  >
+                    {otrosCompromisos.conocerObispo ? (
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-primary/70" />
+                    )}
                     <span>Conocer al obispo</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={otrosCompromisos.historiaFamiliar}
-                      disabled={!editOtrosCompromisos}
-                      onChange={(e) =>
-                        otrosCompromisosMutation.mutate({
-                          ...otrosCompromisos,
-                          historiaFamiliar: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4"
-                    />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!editOtrosCompromisos}
+                    className="flex items-center gap-2 disabled:cursor-default"
+                    onClick={() =>
+                      otrosCompromisosMutation.mutate({
+                        ...otrosCompromisos,
+                        historiaFamiliar: !otrosCompromisos.historiaFamiliar,
+                      })
+                    }
+                  >
+                    {otrosCompromisos.historiaFamiliar ? (
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-primary/70" />
+                    )}
                     <span>Participar en la historia familiar</span>
-                  </label>
+                  </button>
                 </div>
               </section>
             )}
@@ -1520,7 +1526,7 @@ function PersonaDetailSheet({
                       <div className="mb-1 flex items-center gap-2">
                         <span className="text-sm">{c.nombre}</span>
                         {c.fechaCumplido && !editCompromisosBautismo && (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-primary fill-primary" />
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
                         )}
                       </div>
                       {editCompromisosBautismo ? (
@@ -1677,8 +1683,8 @@ function PersonaCard({
                     title={isFuture ? "Domingo futuro" : attended ? "Marcar ausente" : "Marcar presente"}
                   >
                     {attended
-                      ? <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-100" />
-                      : <Circle className="h-5 w-5 text-muted-foreground" />}
+                      ? <CheckCircle2 className="h-5 w-5 text-primary" />
+                      : <Circle className="h-5 w-5 text-primary/70" />}
                   </button>
                 </div>
               );
