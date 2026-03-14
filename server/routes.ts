@@ -46,7 +46,7 @@ import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-u
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
-import { registerMissionBaptismRoutes, runBaptismReadinessCheck } from "./mission-baptism-routes";
+import { registerMissionRoutes } from "./mission-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -799,7 +799,7 @@ async function hasInterviewCollision({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
-  registerMissionBaptismRoutes(app, requireAuth);
+  registerMissionRoutes(app, requireAuth);
   // Setup session middleware
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable is required");
@@ -7998,24 +7998,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  async function sendAutomaticBaptismReadinessNotifications() {
-    const currentHour = new Date().getHours();
-    if (currentHour !== 9) return;
-    try {
-      const sent = await runBaptismReadinessCheck();
-      if (sent > 0) console.log(`[Baptism Readiness] ${sent} notificación(es) enviada(s)`);
-    } catch (err) {
-      console.error("[Baptism Readiness] Error:", err);
-    }
-  }
-
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
   startHourlyAlignedTask(sendAutomaticSacramentalAssignmentReminders);
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
   startHourlyAlignedTask(sendAgendaDailyBriefing);
-  startHourlyAlignedTask(sendAutomaticBaptismReadinessNotifications);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);
