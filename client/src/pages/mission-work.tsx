@@ -701,7 +701,7 @@ function LessonStatusIcon({
     return <span className="block h-5 w-5 rounded-full border-2 border-primary/80" />;
   }
 
-  return <Circle className="h-5 w-5 text-primary/70" />;
+  return <span className="block h-5 w-5 rounded-full border-2 border-primary/45 bg-white" />;
 }
 
 // ============================================================
@@ -932,12 +932,12 @@ function PersonaDetailSheet({
             <>
               <SheetTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Persona a la que se está enseñando</SheetTitle>
               <p className="text-2xl sm:text-3xl font-medium">{persona.nombre}</p>
-              <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-4 text-base">
-                <div>
+              <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
+                <div className="min-w-[220px]">
                   <p className="font-semibold">Se le enseñó por primera vez</p>
                   <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
                 </div>
-                <div>
+                <div className="min-w-[220px]">
                   <p className="font-semibold inline-flex items-center gap-1"><Users className="h-4 w-4" />Fecha bautismal</p>
                   <p className="text-muted-foreground">{formatDisplayDate(persona.fechaBautismo)}</p>
                 </div>
