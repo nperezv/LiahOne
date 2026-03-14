@@ -1340,7 +1340,7 @@ function PersonaDetailSheet({
                   Principios
                 </h3>
                 <Button
-                  variant="ghost"
+                  variant={editSesiones ? "default" : "outline"}
                   size="sm"
                   className="h-7 px-2 text-xs"
                   onClick={() => setEditSesiones((v) => !v)}
