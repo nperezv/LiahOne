@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/auth-tokens";
 import { useAuth } from "@/lib/auth.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -189,33 +190,31 @@ function formatDisplayDate(dateStr: string | null | undefined): string {
 // API Hooks
 // ============================================================
 
+function missionFetch(url: string) {
+  const token = getAccessToken();
+  return fetch(url, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }).then((r) => r.json());
+}
+
 function usePersonas(tipo: PersonaTipo) {
   return useQuery<Persona[]>({
     queryKey: ["/api/mission/personas", tipo],
-    queryFn: () =>
-      fetch(`/api/mission/personas?tipo=${encodeURIComponent(tipo)}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas?tipo=${encodeURIComponent(tipo)}`),
   });
 }
 
 function usePrincipios() {
   return useQuery<Principio[]>({
     queryKey: ["/api/mission/principios"],
-    queryFn: () =>
-      fetch("/api/mission/principios", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
   });
 }
 
 function usePersonaAmigos(id: string | null) {
   return useQuery<Amigo[]>({
     queryKey: ["/api/mission/personas", id, "amigos"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/amigos`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/amigos`),
     enabled: !!id,
   });
 }
@@ -223,10 +222,7 @@ function usePersonaAmigos(id: string | null) {
 function usePersonaAsistencia(id: string | null) {
   return useQuery<{ fecha_domingo: string; asistio: boolean }[]>({
     queryKey: ["/api/mission/personas", id, "asistencia"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/asistencia`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/asistencia`),
     enabled: !!id,
   });
 }
@@ -234,10 +230,7 @@ function usePersonaAsistencia(id: string | null) {
 function usePersonaSesiones(id: string | null) {
   return useQuery<Sesion[]>({
     queryKey: ["/api/mission/personas", id, "sesiones"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/sesiones`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/sesiones`),
     enabled: !!id,
   });
 }
@@ -245,10 +238,7 @@ function usePersonaSesiones(id: string | null) {
 function usePersonaCompromisosBautismo(id: string | null) {
   return useQuery<CompromisoBautismo[]>({
     queryKey: ["/api/mission/personas", id, "compromisos-bautismo"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/compromisos-bautismo`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/compromisos-bautismo`),
     enabled: !!id,
   });
 }
@@ -256,10 +246,7 @@ function usePersonaCompromisosBautismo(id: string | null) {
 function usePersonaSacerdocio(id: string | null) {
   return useQuery<Sacerdocio>({
     queryKey: ["/api/mission/personas", id, "sacerdocio"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/sacerdocio`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/sacerdocio`),
     enabled: !!id,
   });
 }
@@ -267,10 +254,7 @@ function usePersonaSacerdocio(id: string | null) {
 function usePersonaTemplo(id: string | null) {
   return useQuery<TemploOrdinanzas>({
     queryKey: ["/api/mission/personas", id, "templo"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/templo`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/templo`),
     enabled: !!id,
   });
 }
@@ -278,10 +262,7 @@ function usePersonaTemplo(id: string | null) {
 function usePersonaSelfReliance(id: string | null) {
   return useQuery<SelfReliance>({
     queryKey: ["/api/mission/personas", id, "self-reliance"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/self-reliance`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/self-reliance`),
     enabled: !!id,
   });
 }
@@ -289,10 +270,7 @@ function usePersonaSelfReliance(id: string | null) {
 function usePersonaLlamamiento(id: string | null) {
   return useQuery<Llamamiento>({
     queryKey: ["/api/mission/personas", id, "llamamiento"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/llamamiento`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/llamamiento`),
     enabled: !!id,
   });
 }
@@ -300,10 +278,7 @@ function usePersonaLlamamiento(id: string | null) {
 function usePersonaMinistracion(id: string | null) {
   return useQuery<Ministracion>({
     queryKey: ["/api/mission/personas", id, "ministracion"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/ministracion`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/ministracion`),
     enabled: !!id,
   });
 }
@@ -311,10 +286,7 @@ function usePersonaMinistracion(id: string | null) {
 function usePersonaOtrosCompromisos(id: string | null) {
   return useQuery<OtroCompromiso>({
     queryKey: ["/api/mission/personas", id, "otros-compromisos"],
-    queryFn: () =>
-      fetch(`/api/mission/personas/${id}/otros-compromisos`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
+    queryFn: () => missionFetch(`/api/mission/personas/${id}/otros-compromisos`),
     enabled: !!id,
   });
 }
@@ -1358,10 +1330,6 @@ export default function MissionWork() {
 
   const accessQuery = useQuery<{ allowed: boolean }>({
     queryKey: ["/api/mission/access"],
-    queryFn: () =>
-      fetch("/api/mission/access", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") || ""}` },
-      }).then((r) => r.json()),
   });
 
   const nuevoQuery = usePersonas("nuevo");
