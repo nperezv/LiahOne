@@ -691,17 +691,17 @@ function LessonStatusIcon({
 }) {
   if (present) {
     return (
-      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        <User2 className="h-2.5 w-2.5" />
+      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <User2 className="h-2 w-2" />
       </span>
     );
   }
 
   if (exists) {
-    return <span className="block h-4 w-4 rounded-full border-2 border-primary/80" />;
+    return <span className="block h-3.5 w-3.5 rounded-full border-[1.8px] border-primary/80" />;
   }
 
-  return <Circle className="h-4 w-4 text-muted-foreground" />;
+  return <Circle className="h-3.5 w-3.5 text-muted-foreground" />;
 }
 
 // ============================================================
@@ -1034,9 +1034,7 @@ function PersonaDetailSheet({
                 </div>
 
                 <div className="max-h-40 overflow-y-auto rounded-md border p-1">
-                  {!friendSearch.trim() ? (
-                    <p className="px-2 py-1 text-xs text-muted-foreground">Escribe para buscar miembros del directorio.</p>
-                  ) : membersQuery.isLoading ? (
+                  {!friendSearch.trim() ? null : membersQuery.isLoading ? (
                     <p className="px-2 py-1 text-xs text-muted-foreground">Cargando...</p>
                   ) : filteredFriends.length === 0 ? (
                     <p className="px-2 py-1 text-xs text-muted-foreground">Sin resultados.</p>
@@ -1249,29 +1247,38 @@ function PersonaDetailSheet({
                     {editOtrosCompromisos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
                   </Button>
                 </div>
-                {editOtrosCompromisos ? (
-                  <>
-                    <BooleanRow
-                      label="Conocer al obispo"
-                      value={otrosCompromisos.conocerObispo}
-                      onToggle={(v) =>
-                        otrosCompromisosMutation.mutate({ ...otrosCompromisos, conocerObispo: v })
+                <div className="space-y-1.5 text-sm">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={otrosCompromisos.conocerObispo}
+                      disabled={!editOtrosCompromisos}
+                      onChange={(e) =>
+                        otrosCompromisosMutation.mutate({
+                          ...otrosCompromisos,
+                          conocerObispo: e.target.checked,
+                        })
                       }
+                      className="h-4 w-4"
                     />
-                    <BooleanRow
-                      label="Historia familiar"
-                      value={otrosCompromisos.historiaFamiliar}
-                      onToggle={(v) =>
-                        otrosCompromisosMutation.mutate({ ...otrosCompromisos, historiaFamiliar: v })
+                    <span>Conocer al obispo</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={otrosCompromisos.historiaFamiliar}
+                      disabled={!editOtrosCompromisos}
+                      onChange={(e) =>
+                        otrosCompromisosMutation.mutate({
+                          ...otrosCompromisos,
+                          historiaFamiliar: e.target.checked,
+                        })
                       }
+                      className="h-4 w-4"
                     />
-                  </>
-                ) : (
-                  <div className="space-y-1 text-sm">
-                    <div>{otrosCompromisos.conocerObispo ? "✓" : "○"} Conocer al obispo</div>
-                    <div>{otrosCompromisos.historiaFamiliar ? "✓" : "○"} Historia familiar</div>
-                  </div>
-                )}
+                    <span>Participar en la historia familiar</span>
+                  </label>
+                </div>
               </section>
             )}
           </div>
@@ -1356,7 +1363,7 @@ function PersonaDetailSheet({
                           {done}/{p.maxSesiones}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-0.5">
                         {Array.from({ length: p.maxSesiones }, (_, i) => {
                           const sesNum = i + 1;
                           const key = `${p.id}-${sesNum}`;
@@ -1455,8 +1462,16 @@ function PersonaDetailSheet({
                 </div>
                 <div className="space-y-2">
                   {compromisosBautismo.map((c) => (
-                    <div key={c.commitmentKey} className="rounded-md border p-2">
-                      <span className="text-sm block mb-2">{c.nombre}</span>
+                    <div
+                      key={c.commitmentKey}
+                      className={editCompromisosBautismo ? "rounded-md border p-2" : "py-1"}
+                    >
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="text-sm">{c.nombre}</span>
+                        {c.fechaCumplido && !editCompromisosBautismo && (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary fill-primary" />
+                        )}
+                      </div>
                       {editCompromisosBautismo ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
@@ -1489,10 +1504,9 @@ function PersonaDetailSheet({
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-1 text-xs text-muted-foreground">
-                          <p>Invitado: {c.fechaInvitado ? formatDisplayDate(c.fechaInvitado) : "—"}</p>
-                          <p>Cumplido: {c.fechaCumplido ? formatDisplayDate(c.fechaCumplido) : "—"}</p>
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Invitado: {c.fechaInvitado ? formatDisplayDate(c.fechaInvitado) : "—"}
+                        </p>
                       )}
                     </div>
                   ))}
