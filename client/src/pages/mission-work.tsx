@@ -691,19 +691,14 @@ function LessonStatusIcon({
 }) {
   if (present) {
     return (
-      <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary" aria-hidden="true">
-        <path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M8.42519 8.92249C6.84619 8.92249 5.56219 7.59449 5.56219 5.96149C5.56219 4.32849 6.84619 3.00049 8.42519 3.00049C10.0042 3.00049 11.2882 4.32849 11.2882 5.96149C11.2882 7.59449 10.0042 8.92249 8.42519 8.92249ZM16.516 21.6798C15.4003 21.6798 14.7854 21.2118 14.2418 20.7982L14.24 20.7968L14.2372 20.7947C13.7265 20.4057 13.3223 20.0978 12.406 20.0978C11.933 20.0978 11.628 20.3258 11.167 20.6708L11.1662 20.6714C10.5653 21.1203 9.81641 21.6798 8.53699 21.6798C7.45287 21.6798 6.7681 21.1417 6.21734 20.7088L6.21599 20.7078C5.75899 20.3468 5.42999 20.0878 4.93199 20.0878C3.89687 20.0878 3.48493 20.5201 3.47036 20.5354L3.46999 20.5358C3.33299 20.7128 3.11999 20.8178 2.88799 20.8178C2.72299 20.8178 2.56699 20.7638 2.43499 20.6628C2.27899 20.5418 2.17799 20.3668 2.15399 20.1708C2.12799 19.9738 2.18099 19.7798 2.30299 19.6228C2.38299 19.5188 3.14399 18.6058 4.93199 18.6058C5.94299 18.6058 6.57399 19.1018 7.12999 19.5398C7.61499 19.9228 7.96399 20.1978 8.53699 20.1978C9.32262 20.1978 9.74459 19.8831 10.2792 19.4843L10.28 19.4838C10.825 19.0768 11.441 18.6168 12.406 18.6168C13.823 18.6168 14.552 19.1708 15.137 19.6168C15.596 19.9668 15.899 20.1978 16.516 20.1978C17.2309 20.1978 17.549 19.9318 17.9889 19.5639L17.989 19.5638L17.9893 19.5635C18.4663 19.1635 19.1183 18.6168 20.295 18.6168C21.626 18.6168 22.24 19.1258 22.732 19.5338C22.884 19.6608 22.979 19.8398 22.996 20.0368C23.015 20.2348 22.955 20.4268 22.828 20.5788C22.687 20.7478 22.48 20.8458 22.258 20.8458C22.086 20.8458 21.918 20.7848 21.786 20.6748L21.7847 20.6737C21.3814 20.3393 21.0901 20.0978 20.295 20.0978C19.658 20.0978 19.372 20.3378 18.942 20.6998L18.9412 20.7004C18.4193 21.1373 17.7714 21.6798 16.516 21.6798ZM13.1062 5.96149C13.1062 7.59449 14.3902 8.92249 15.9692 8.92249C17.5482 8.92249 18.8332 7.59449 18.8332 5.96149C18.8332 4.32849 17.5482 3.00049 15.9692 3.00049C14.3902 3.00049 13.1062 4.32849 13.1062 5.96149ZM8.53749 18.6925C7.96349 18.6925 7.61449 18.4175 7.13249 18.0365C6.57349 17.5965 5.94249 17.1005 4.93249 17.1005C4.86652 17.1005 4.80355 17.1025 4.74057 17.1045L4.74049 17.1045L4.75949 13.3545C4.75949 13.3545 1.00049 12.6665 1.00049 9.49449L1.17449 4.52449C1.17449 4.02049 1.50649 3.61049 1.91649 3.61049C2.32549 3.61049 2.65949 4.02049 2.65949 4.52449L2.82749 8.85649C2.91649 9.92149 3.89649 10.3905 4.61449 10.3905L10.9745 10.3885C10.9745 10.3885 10.3335 10.7295 10.1005 11.3125C9.93749 11.7205 9.86949 12.1505 9.86949 12.5795V18.2735C9.48749 18.5265 9.10549 18.6925 8.53749 18.6925ZM15.137 18.1115C15.596 18.4615 15.899 18.6925 16.516 18.6925C17.2302 18.6925 17.5474 18.4278 17.9867 18.0612L17.99 18.0585C18.466 17.6585 19.12 17.1105 20.295 17.1105C20.403 17.1105 20.505 17.1145 20.603 17.1205V12.5795C20.603 11.3715 19.62 10.3885 18.412 10.3885H13.527C12.319 10.3885 11.336 11.3715 11.336 12.5795V17.3255C11.682 17.1815 12.035 17.1105 12.406 17.1105C13.823 17.1105 14.552 17.6655 15.137 18.1115Z"
-          fill="currentColor"
-        />
-      </svg>
+      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <User2 className="h-2.5 w-2.5" />
+      </span>
     );
   }
 
   if (exists) {
-    return <span className="h-4 w-4 rounded-full border-[2.5px] border-primary/80" />;
+    return <span className="block h-4 w-4 rounded-full border-2 border-primary/80" />;
   }
 
   return <Circle className="h-4 w-4 text-muted-foreground" />;
@@ -948,12 +943,12 @@ function PersonaDetailSheet({
                 </h3>
                 {tipo === "enseñando" && (
                   <Button
-                    variant={editAsistencia ? "default" : "outline"}
+                    variant="ghost"
                     size="sm"
-                    className="h-7 rounded-full px-3 text-xs"
+                    className="h-7 px-2 text-xs"
                     onClick={() => setEditAsistencia((v) => !v)}
                   >
-                    {editAsistencia ? "Listo" : "Editar"}
+                    {editAsistencia ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
                   </Button>
                 )}
               </div>
@@ -973,12 +968,12 @@ function PersonaDetailSheet({
                 </h3>
                 {tipo === "enseñando" && (
                   <Button
-                    variant={editAmigos ? "default" : "outline"}
+                    variant="ghost"
                     size="sm"
-                    className="h-7 rounded-full px-3 text-xs"
+                    className="h-7 px-2 text-xs"
                     onClick={() => setEditAmigos((v) => !v)}
                   >
-                    {editAmigos ? "Listo" : "Editar"}
+                    {editAmigos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
                   </Button>
                 )}
               </div>
@@ -1246,12 +1241,12 @@ function PersonaDetailSheet({
                     Otros compromisos
                   </h3>
                   <Button
-                    variant={editOtrosCompromisos ? "default" : "outline"}
+                    variant="ghost"
                     size="sm"
-                    className="h-7 rounded-full px-3 text-xs"
+                    className="h-7 px-2 text-xs"
                     onClick={() => setEditOtrosCompromisos((v) => !v)}
                   >
-                    {editOtrosCompromisos ? "Listo" : "Editar"}
+                    {editOtrosCompromisos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
                   </Button>
                 </div>
                 {editOtrosCompromisos ? (
@@ -1340,7 +1335,7 @@ function PersonaDetailSheet({
                 <Button
                   variant={editSesiones ? "default" : "outline"}
                   size="sm"
-                  className="h-7 rounded-full px-3 text-xs"
+                  className="h-7 px-2 text-xs"
                   onClick={() => setEditSesiones((v) => !v)}
                 >
                   {editSesiones ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
@@ -1450,12 +1445,12 @@ function PersonaDetailSheet({
                     Compromisos bautismales
                   </h3>
                   <Button
-                    variant={editCompromisosBautismo ? "default" : "outline"}
+                    variant="ghost"
                     size="sm"
-                    className="h-7 rounded-full px-3 text-xs"
+                    className="h-7 px-2 text-xs"
                     onClick={() => setEditCompromisosBautismo((v) => !v)}
                   >
-                    {editCompromisosBautismo ? "Listo" : "Editar"}
+                    {editCompromisosBautismo ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
                   </Button>
                 </div>
                 <div className="space-y-2">
