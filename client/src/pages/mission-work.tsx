@@ -701,7 +701,7 @@ function LessonStatusIcon({
     return <span className="block h-5 w-5 rounded-full border-2 border-primary/80" />;
   }
 
-  return <span className="block h-5 w-5 rounded-full border-2 border-primary/45 bg-white" />;
+  return <span className="block h-5 w-5 rounded-full border-2 border-white/55 bg-transparent" />;
 }
 
 // ============================================================
@@ -931,7 +931,7 @@ function PersonaDetailSheet({
           {tipo === "enseñando" ? (
             <>
               <SheetTitle className="text-2xl sm:text-3xl font-bold tracking-tight">Persona a la que se está enseñando</SheetTitle>
-              <p className="text-2xl sm:text-3xl font-medium">{persona.nombre}</p>
+              <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
               <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
                 <div className="min-w-[220px]">
                   <p className="font-semibold">Se le enseñó por primera vez</p>
@@ -942,7 +942,7 @@ function PersonaDetailSheet({
                   <p className="text-muted-foreground">{formatDisplayDate(persona.fechaBautismo)}</p>
                 </div>
               </div>
-              <p className="text-xl font-semibold">Próximo evento programado</p>
+              <p className="text-xl font-semibold text-left">Próximo evento programado</p>
             </>
           ) : (
             <>
