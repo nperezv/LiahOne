@@ -421,6 +421,7 @@ export const missionCompromisoBautismo = pgTable("mission_compromiso_bautismo", 
   nombre: text("nombre").notNull(),
   orden: integer("orden").notNull(),
   fechaInvitado: date("fecha_invitado"),
+  fechaCumplido: date("fecha_cumplido"),
 }, (t) => ({
   uniqCompromiso: uniqueIndex("mission_compromiso_bautismo_persona_key_idx").on(t.personaId, t.commitmentKey),
 }));
