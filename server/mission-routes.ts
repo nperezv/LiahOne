@@ -214,6 +214,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         proximoEvento: z.string().nullable().optional(),
         notas: z.string().nullable().optional(),
         fotoUrl: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+        memberId: z.string().nullable().optional(),
       });
 
       const data = schema.parse(req.body);
@@ -229,6 +232,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           proximoEvento: data.proximoEvento || null,
           notas: data.notas || null,
           fotoUrl: data.fotoUrl || null,
+          phone: data.phone || null,
+          email: data.email || null,
+          memberId: data.memberId || null,
         })
         .returning();
 

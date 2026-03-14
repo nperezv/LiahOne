@@ -375,7 +375,231 @@ function AttendanceGrid({
 }
 
 // ============================================================
-// AddPersonaDialog
+// AddPersonaDialog — member picker (nuevo / regresando)
+// ============================================================
+
+interface DirectoryMember {
+  id: string;
+  nameSurename: string;
+  phone?: string | null;
+  email?: string | null;
+  organizationName?: string | null;
+}
+
+function AddFromDirectoryDialog({
+  open,
+  onOpenChange,
+  tipo,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  tipo: "nuevo" | "regresando";
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<DirectoryMember | null>(null);
+  const [fechaPrimerContacto, setFechaPrimerContacto] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  const membersQuery = useQuery<DirectoryMember[]>({ queryKey: ["/api/members"] });
+
+  const filtered = useMemo(() => {
+    const members = membersQuery.data ?? [];
+    if (!search.trim()) return members;
+    const q = search.toLowerCase();
+    return members.filter((m) => m.nameSurename.toLowerCase().includes(q));
+  }, [membersQuery.data, search]);
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/mission/personas", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+      toast({ title: "Persona agregada al seguimiento" });
+      setSelected(null);
+      setSearch("");
+      onOpenChange(false);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const handleAdd = () => {
+    if (!selected) return;
+    createMutation.mutate({
+      nombre: selected.nameSurename,
+      tipo,
+      fechaPrimerContacto,
+      phone: selected.phone ?? null,
+      email: selected.email ?? null,
+      memberId: selected.id,
+    });
+  };
+
+  const getInitials = (name: string) =>
+    name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setSelected(null); setSearch(""); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {tipo === "nuevo" ? "Agregar miembro nuevo" : "Agregar miembro que regresa"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar en el directorio..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+              autoFocus
+            />
+          </div>
+
+          {/* Member list */}
+          <div className="max-h-56 overflow-y-auto space-y-1 rounded-md border p-1">
+            {membersQuery.isLoading ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">Cargando directorio...</p>
+            ) : filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">Sin resultados</p>
+            ) : (
+              filtered.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSelected(m)}
+                  className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${
+                    selected?.id === m.id ? "bg-primary/10 font-medium" : ""
+                  }`}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
+                    {getInitials(m.nameSurename)}
+                  </div>
+                  <div>
+                    <p className="font-medium leading-tight">{m.nameSurename}</p>
+                    {m.organizationName && (
+                      <p className="text-xs text-muted-foreground">{m.organizationName}</p>
+                    )}
+                  </div>
+                  {selected?.id === m.id && (
+                    <CheckCircle2 className="ml-auto h-4 w-4 text-primary" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+
+          {/* Date */}
+          {selected && (
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Fecha de {tipo === "nuevo" ? "bautismo / primer contacto" : "inicio de seguimiento"}
+              </Label>
+              <Input
+                type="date"
+                value={fechaPrimerContacto}
+                onChange={(e) => setFechaPrimerContacto(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="mt-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={handleAdd} disabled={!selected || createMutation.isPending}>
+            {createMutation.isPending ? "Agregando..." : "Agregar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
+// AddPersonaDialog — manual entry (enseñando)
+// ============================================================
+
+function AddEnsenandoDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [nombre, setNombre] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [fechaPrimerContacto, setFechaPrimerContacto] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/mission/personas", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", "enseñando"] });
+      toast({ title: "Persona agregada al seguimiento" });
+      setNombre(""); setPhone(""); setEmail("");
+      onOpenChange(false);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    createMutation.mutate({
+      nombre: nombre.trim(),
+      tipo: "enseñando",
+      fechaPrimerContacto,
+      phone: phone.trim() || null,
+      email: email.trim() || null,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Agregar persona a enseñar</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <Label>Nombre completo <span className="text-destructive">*</span></Label>
+            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo" autoFocus />
+          </div>
+          <div>
+            <Label>Teléfono</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 000 0000" type="tel" />
+          </div>
+          <div>
+            <Label>Correo electrónico</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" type="email" />
+          </div>
+          <div>
+            <Label>Primera enseñanza</Label>
+            <Input type="date" value={fechaPrimerContacto} onChange={(e) => setFechaPrimerContacto(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" disabled={createMutation.isPending || !nombre.trim()}>
+              {createMutation.isPending ? "Guardando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
+// AddPersonaDialog — router
 // ============================================================
 
 function AddPersonaDialog({
@@ -387,69 +611,10 @@ function AddPersonaDialog({
   onOpenChange: (v: boolean) => void;
   tipo: PersonaTipo;
 }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [nombre, setNombre] = useState("");
-  const [fechaPrimerContacto, setFechaPrimerContacto] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-
-  const createMutation = useMutation({
-    mutationFn: (data: { nombre: string; tipo: PersonaTipo; fechaPrimerContacto: string }) =>
-      apiRequest("POST", "/api/mission/personas", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
-      toast({ title: "Persona agregada" });
-      setNombre("");
-      onOpenChange(false);
-    },
-    onError: (e: any) => {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombre.trim()) return;
-    createMutation.mutate({ nombre: nombre.trim(), tipo, fechaPrimerContacto });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Agregar miembro</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Nombre completo</Label>
-            <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Nombre completo"
-              autoFocus
-            />
-          </div>
-          <div>
-            <Label>Fecha de primer contacto</Label>
-            <Input
-              type="date"
-              value={fechaPrimerContacto}
-              onChange={(e) => setFechaPrimerContacto(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={createMutation.isPending || !nombre.trim()}>
-              {createMutation.isPending ? "Guardando..." : "Agregar"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+  if (tipo === "enseñando") {
+    return <AddEnsenandoDialog open={open} onOpenChange={onOpenChange} />;
+  }
+  return <AddFromDirectoryDialog open={open} onOpenChange={onOpenChange} tipo={tipo} />;
 }
 
 // ============================================================
@@ -1279,25 +1444,21 @@ function TabContent({
   return (
     <div>
       {/* Controls bar */}
-      {(tipo === "regresando" || tipo === "enseñando") && (
-        <div className="flex items-center gap-2 mb-4">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-          {tipo === "regresando" && (
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Agregar miembro
-            </Button>
-          )}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
         </div>
-      )}
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          {tipo === "enseñando" ? "Agregar persona" : "Agregar miembro"}
+        </Button>
+      </div>
 
       {/* Table */}
       {isLoading ? (
