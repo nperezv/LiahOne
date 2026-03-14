@@ -883,6 +883,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             nombre: c.nombre,
             orden: c.orden,
             fechaInvitado: null,
+            fechaCumplido: null,
           }));
           rows = await db.insert(missionCompromisoBautismo).values(inserts).returning();
           rows.sort((a, b) => a.orden - b.orden);
@@ -904,12 +905,23 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const user = (req as any).user;
         if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
 
-        const schema = z.object({ fecha_invitado: z.string().nullable() });
-        const { fecha_invitado } = schema.parse(req.body);
+        const schema = z.object({
+          fecha_invitado: z.string().nullable().optional(),
+          fecha_cumplido: z.string().nullable().optional(),
+        });
+        const { fecha_invitado, fecha_cumplido } = schema.parse(req.body);
+
+        const payload: { fechaInvitado?: string | null; fechaCumplido?: string | null } = {};
+        if (fecha_invitado !== undefined) payload.fechaInvitado = fecha_invitado;
+        if (fecha_cumplido !== undefined) payload.fechaCumplido = fecha_cumplido;
+
+        if (Object.keys(payload).length === 0) {
+          return res.status(400).json({ message: "Sin cambios" });
+        }
 
         await db
           .update(missionCompromisoBautismo)
-          .set({ fechaInvitado: fecha_invitado })
+          .set(payload)
           .where(
             and(
               eq(missionCompromisoBautismo.personaId, req.params.id),
@@ -979,6 +991,38 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       } catch (err) {
         if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
         console.error("[mission sesiones PUT]", err);
+        return res.status(500).json({ message: "Error interno" });
+      }
+    }
+  );
+
+  app.delete(
+    "/api/mission/personas/:id/sesiones/:principioId/:sesionNum",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const user = (req as any).user;
+        if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+
+        const principioId = Number(req.params.principioId);
+        const sesionNum = Number(req.params.sesionNum);
+        if (!Number.isInteger(principioId) || !Number.isInteger(sesionNum)) {
+          return res.status(400).json({ message: "Parámetros inválidos" });
+        }
+
+        await db
+          .delete(missionSesionPrincipio)
+          .where(
+            and(
+              eq(missionSesionPrincipio.personaId, req.params.id),
+              eq(missionSesionPrincipio.principioId, principioId),
+              eq(missionSesionPrincipio.sesionNum, sesionNum)
+            )
+          );
+
+        return res.json({ success: true });
+      } catch (err) {
+        console.error("[mission sesiones DELETE]", err);
         return res.status(500).json({ message: "Error interno" });
       }
     }
