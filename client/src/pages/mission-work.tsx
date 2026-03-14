@@ -22,14 +22,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
@@ -59,8 +51,11 @@ interface Persona {
   tipo: PersonaTipo;
   fechaPrimerContacto: string;
   fechaBautismo?: string | null;
+  fechaConfirmacion?: string | null;
   proximoEvento?: string | null;
   notas?: string | null;
+  phone?: string | null;
+  email?: string | null;
   isArchived: boolean;
   asistencia: { fecha_domingo: string; asistio: boolean }[];
   amigosCount: number;
@@ -144,15 +139,31 @@ interface OtroCompromiso {
 // Helpers
 // ============================================================
 
-function getLastSundays(n = 6): Date[] {
+/** Sundays of the current calendar month */
+function getCurrentMonthSundays(): Date[] {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
   const sundays: Date[] = [];
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  while (d.getDay() !== 0) d.setDate(d.getDate() - 1);
-  for (let i = n - 1; i >= 0; i--) {
-    const s = new Date(d);
-    s.setDate(d.getDate() - i * 7);
-    sundays.push(s);
+  const d = new Date(year, month, 1);
+  while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
+  while (d.getMonth() === month) {
+    sundays.push(new Date(d));
+    d.setDate(d.getDate() + 7);
+  }
+  return sundays;
+}
+
+/** Sundays from Jan 1 of current year up to today (for missed-this-year counter) */
+function getSundaysThisYear(): Date[] {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const sundays: Date[] = [];
+  const d = new Date(now.getFullYear(), 0, 1);
+  while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
+  while (d <= now) {
+    sundays.push(new Date(d));
+    d.setDate(d.getDate() + 7);
   }
   return sundays;
 }
@@ -167,16 +178,28 @@ function formatShortDate(d: Date): string {
   return `${day} ${month}.`;
 }
 
-function formatMemberTime(dateStr: string): string {
-  const start = new Date(dateStr);
+/** "Miembro por X días / meses / X año(s) Y mes(es)" from confirmation date */
+function formatMemberTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  const start = new Date(dateStr + "T12:00:00");
   const now = new Date();
   const diffMs = now.getTime() - start.getTime();
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (days < 30) return `${days}d`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months} mes${months !== 1 ? "es" : ""}`;
-  const years = Math.floor(months / 12);
-  return `${years} año${years !== 1 ? "s" : ""}`;
+  if (days < 30) return `Miembro por ${days} día${days !== 1 ? "s" : ""}`;
+  const totalMonths = Math.floor(days / 30.44);
+  if (totalMonths < 12) return `Miembro por ${totalMonths} mes${totalMonths !== 1 ? "es" : ""}`;
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  if (months === 0) return `Miembro por ${years} año${years !== 1 ? "s" : ""}`;
+  return `Miembro por ${years} año${years !== 1 ? "s" : ""} y ${months} mes${months !== 1 ? "es" : ""}`;
+}
+
+/** Months since confirmation date */
+function monthsSince(dateStr: string | null | undefined): number {
+  if (!dateStr) return 0;
+  const start = new Date(dateStr + "T12:00:00");
+  const now = new Date();
+  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
 }
 
 function formatDisplayDate(dateStr: string | null | undefined): string {
@@ -1324,96 +1347,134 @@ function PersonaDetailSheet({
 }
 
 // ============================================================
-// PersonaTable
+// PersonaCard
 // ============================================================
 
-function PersonaTable({
-  personas,
+function PersonaCard({
+  persona,
   sundays,
+  sundaysThisYear,
   onSelect,
   tipo,
 }: {
-  personas: Persona[];
+  persona: Persona;
   sundays: Date[];
+  sundaysThisYear: Date[];
   onSelect: (p: Persona) => void;
   tipo: PersonaTipo;
 }) {
+  const qc = useQueryClient();
+
+  const attendedSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const a of persona.asistencia) if (a.asistio) s.add(a.fecha_domingo);
+    return s;
+  }, [persona.asistencia]);
+
+  // Current month stats (only past/today sundays count)
+  const today = toISODate(new Date());
+  const pastSundays = sundays.filter((s) => toISODate(s) <= today);
+  const attendedThisMonth = pastSundays.filter((s) => attendedSet.has(toISODate(s))).length;
+  const missedThisMonth = pastSundays.length - attendedThisMonth;
+  const isPositiveMonth = pastSundays.length > 0 && attendedThisMonth >= 3;
+
+  // Missed this year (regresando)
+  const missedThisYear = sundaysThisYear.filter((s) => !attendedSet.has(toISODate(s))).length;
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ fecha, asistio }: { fecha: string; asistio: boolean }) => {
+      if (!asistio) {
+        await apiRequest("DELETE", `/api/mission/personas/${persona.id}/asistencia/${fecha}`);
+      } else {
+        await apiRequest("POST", `/api/mission/personas/${persona.id}/asistencia`, { fecha_domingo: fecha, asistio: true });
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] }),
+  });
+
+  const initials = persona.nombre.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+  const memberTime = formatMemberTime(persona.fechaConfirmacion);
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Persona</TableHead>
-          <TableHead>Asistencia</TableHead>
-          <TableHead>Amigos / Info</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {personas.map((p) => (
-          <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50">
-            {/* Col 1: Name */}
-            <TableCell>
-              <div className="flex flex-col">
-                <span className="font-medium">{p.nombre}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatMemberTime(p.fechaPrimerContacto)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onSelect(p)}
-                  className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 mt-0.5 w-fit"
-                >
-                  Ver detalles
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              </div>
-            </TableCell>
+    <Card className="flex flex-col gap-0">
+      {/* Header — clickable for detail */}
+      <button
+        type="button"
+        onClick={() => onSelect(persona)}
+        className="flex items-center gap-3 p-4 pb-3 text-left hover:bg-muted/30 transition-colors rounded-t-lg"
+      >
+        <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold leading-tight truncate">{persona.nombre}</p>
+          {memberTime && (
+            <p className="text-xs text-muted-foreground mt-0.5">{memberTime}</p>
+          )}
+        </div>
+        <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
 
-            {/* Col 2: Attendance */}
-            <TableCell>
-              <AttendanceGrid asistencia={p.asistencia} sundays={sundays} />
-            </TableCell>
+      <CardContent className="px-4 pb-4 pt-0 space-y-3">
+        {/* Attendance */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+            Reunión sacramental
+          </p>
+          <div className="flex gap-1.5 flex-wrap">
+            {sundays.map((s) => {
+              const iso = toISODate(s);
+              const isFuture = iso > today;
+              const attended = attendedSet.has(iso);
+              return (
+                <div key={iso} className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px] text-muted-foreground leading-none">
+                    {formatShortDate(s)}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isFuture}
+                    onClick={(e) => { e.stopPropagation(); toggleMutation.mutate({ fecha: iso, asistio: !attended }); }}
+                    className={`focus:outline-none ${isFuture ? "opacity-30 cursor-default" : "cursor-pointer"}`}
+                    title={isFuture ? "Domingo futuro" : attended ? "Marcar ausente" : "Marcar presente"}
+                  >
+                    {attended
+                      ? <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-100" />
+                      : <Circle className="h-5 w-5 text-muted-foreground" />}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {pastSundays.length > 0 && (
+            <p className={`text-xs mt-1 font-medium ${isPositiveMonth ? "text-green-600" : "text-destructive"}`}>
+              {isPositiveMonth
+                ? `Asistió ${attendedThisMonth} de ${pastSundays.length} reunión${pastSundays.length !== 1 ? "es" : ""}`
+                : `${missedThisMonth} domingo${missedThisMonth !== 1 ? "s" : ""} sin asistir este mes`}
+            </p>
+          )}
+          {tipo === "regresando" && sundaysThisYear.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {missedThisYear} domingo{missedThisYear !== 1 ? "s" : ""} sin asistir este año
+            </p>
+          )}
+        </div>
 
-            {/* Col 3: Friends + extra */}
-            <TableCell>
-              <div className="flex flex-col gap-1">
-                <span
-                  className={
-                    p.amigosCount === 0
-                      ? "text-sm font-semibold text-destructive"
-                      : "text-sm font-semibold"
-                  }
-                >
-                  <Users className="inline h-3 w-3 mr-1" />
-                  {p.amigosCount} amigo{p.amigosCount !== 1 ? "s" : ""}
-                </span>
-                {tipo === "enseñando" && (
-                  <>
-                    {p.fechaBautismo && (
-                      <span className="text-xs text-muted-foreground">
-                        <CalendarDays className="inline h-3 w-3 mr-1" />
-                        Bautismo: {formatDisplayDate(p.fechaBautismo)}
-                      </span>
-                    )}
-                    {p.proximoEvento && (
-                      <span className="text-xs text-muted-foreground">
-                        Próx. evento: {formatDisplayDate(p.proximoEvento)}
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-        {personas.length === 0 && (
-          <TableRow>
-            <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-              No hay personas en esta lista
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
+        {/* Friends */}
+        <div className="flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          {persona.amigosCount > 0 ? (
+            <span className="text-sm">
+              {persona.amigosCount} amigo{persona.amigosCount !== 1 ? "s" : ""} identificado{persona.amigosCount !== 1 ? "s" : ""} en la Iglesia
+            </span>
+          ) : (
+            <span className="text-sm text-destructive font-medium">
+              Amigos en la Iglesia no identificados
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1423,52 +1484,52 @@ function PersonaTable({
 
 function TabContent({
   tipo,
-  sundays,
   onSelect,
 }: {
   tipo: PersonaTipo;
-  sundays: Date[];
   onSelect: (p: Persona) => void;
 }) {
-  const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const { data, isLoading } = usePersonas(tipo);
 
-  const filtered = useMemo(() => {
-    if (!data) return [];
-    if (!search.trim()) return data;
-    const q = search.toLowerCase();
-    return data.filter((p) => p.nombre.toLowerCase().includes(q));
-  }, [data, search]);
+  const sundays = useMemo(() => getCurrentMonthSundays(), []);
+  const sundaysThisYear = useMemo(() => getSundaysThisYear(), []);
 
   return (
     <div>
       {/* Controls bar */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
+      <div className="flex justify-end mb-4">
         <Button size="sm" onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
           {tipo === "enseñando" ? "Agregar persona" : "Agregar miembro"}
         </Button>
       </div>
 
-      {/* Table */}
+      {/* Cards */}
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded" />
+            <Skeleton key={i} className="h-44 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : data && data.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {data.map((p) => (
+            <PersonaCard
+              key={p.id}
+              persona={p}
+              sundays={sundays}
+              sundaysThisYear={sundaysThisYear}
+              onSelect={onSelect}
+              tipo={tipo}
+            />
           ))}
         </div>
       ) : (
-        <PersonaTable personas={filtered} sundays={sundays} onSelect={onSelect} tipo={tipo} />
+        <div className="text-center text-muted-foreground py-16">
+          <Users className="h-8 w-8 mx-auto mb-3 opacity-40" />
+          <p className="text-sm">No hay personas en esta sección todavía.</p>
+        </div>
       )}
 
       <AddPersonaDialog open={addOpen} onOpenChange={setAddOpen} tipo={tipo} />
@@ -1499,8 +1560,6 @@ export default function MissionWork() {
   const [section, setSection] = useState<PersonaTipo | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-
-  const sundays = useMemo(() => getLastSundays(6), []);
 
   const accessQuery = useQuery<{ allowed: boolean }>({
     queryKey: ["/api/mission/access"],
@@ -1554,7 +1613,7 @@ export default function MissionWork() {
           </div>
         </div>
 
-        <TabContent tipo={section} sundays={sundays} onSelect={handleSelect} />
+        <TabContent tipo={section} onSelect={handleSelect} />
 
         <PersonaDetailSheet
           persona={selectedPersona}

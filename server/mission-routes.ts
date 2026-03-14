@@ -217,6 +217,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         phone: z.string().nullable().optional(),
         email: z.string().nullable().optional(),
         memberId: z.string().nullable().optional(),
+        fechaConfirmacion: z.string().nullable().optional(),
       });
 
       const data = schema.parse(req.body);
@@ -229,6 +230,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           tipo: data.tipo,
           fechaPrimerContacto: data.fechaPrimerContacto,
           fechaBautismo: data.fechaBautismo || null,
+          fechaConfirmacion: data.fechaConfirmacion || null,
           proximoEvento: data.proximoEvento || null,
           notas: data.notas || null,
           fotoUrl: data.fotoUrl || null,
