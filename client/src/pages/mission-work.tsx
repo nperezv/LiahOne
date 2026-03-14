@@ -397,7 +397,7 @@ function AttendanceGrid({
                 title={attended ? "Marcar ausente" : "Marcar presente"}
               >
                 {attended ? (
-                  <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-500" />
+                  <CheckCircle2 className="h-5 w-5 text-primary fill-primary" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground" />
                 )}
@@ -405,7 +405,7 @@ function AttendanceGrid({
             ) : (
               <span title={iso}>
                 {attended ? (
-                  <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-500" />
+                  <CheckCircle2 className="h-5 w-5 text-primary fill-primary" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground" />
                 )}
@@ -735,7 +735,7 @@ function PersonaDetailSheet({
   const ministracionQuery = usePersonaMinistracion(tipo !== "enseñando" ? id : null);
   const otrosCompromisosQuery = usePersonaOtrosCompromisos(tipo === "enseñando" ? id : null);
 
-  const sundays = useMemo(() => getLastSundays(6), []);
+  const sundays = useMemo(() => getCurrentMonthSundays(), []);
 
   // Amigo add state
   const [selectedFriend, setSelectedFriend] = useState<DirectoryMember | null>(null);
@@ -1248,7 +1248,7 @@ function PersonaDetailSheet({
                   </Button>
                 </div>
                 <div className="space-y-1.5 text-sm">
-                  <label className="inline-flex items-center gap-2">
+                  <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={otrosCompromisos.conocerObispo}
@@ -1263,7 +1263,7 @@ function PersonaDetailSheet({
                     />
                     <span>Conocer al obispo</span>
                   </label>
-                  <label className="inline-flex items-center gap-2">
+                  <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={otrosCompromisos.historiaFamiliar}
