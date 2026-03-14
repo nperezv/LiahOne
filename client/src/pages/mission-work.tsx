@@ -168,6 +168,26 @@ function getSundaysThisYear(): Date[] {
   return sundays;
 }
 
+/** Last N Sundays (including today if today is Sunday), oldest -> newest */
+function getLastSundays(count: number): Date[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const currentOrLastSunday = new Date(today);
+  while (currentOrLastSunday.getDay() !== 0) {
+    currentOrLastSunday.setDate(currentOrLastSunday.getDate() - 1);
+  }
+
+  const sundays: Date[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(currentOrLastSunday);
+    d.setDate(currentOrLastSunday.getDate() - i * 7);
+    sundays.push(d);
+  }
+
+  return sundays;
+}
+
 function toISODate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
