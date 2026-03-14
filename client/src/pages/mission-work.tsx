@@ -2215,6 +2215,34 @@ function ContactSheet({
                 )}
 
                 <Separator />
+                <ProgressSection
+                  merged={mergedProgress}
+                  loading={templateItems.isLoading || progress.isLoading}
+                  onLesson={(id, s) =>
+                    updateLesson.mutate({ itemId: id, status: s })
+                  }
+                  onCommitment={(id, r) =>
+                    updateCommitment.mutate({ itemId: id, result: r })
+                  }
+                  onMilestone={(id, s) =>
+                    updateMilestone.mutate({ itemId: id, status: s })
+                  }
+                />
+
+                {showFriendProgress && (
+                  <>
+                    <Separator />
+                    <FriendProgressSection
+                      sections={friendProgress.data || []}
+                      loading={friendProgress.isLoading}
+                      onSaveSection={(key, data) =>
+                        saveFriendSection.mutate({ sectionKey: key, data })
+                      }
+                    />
+                  </>
+                )}
+
+                <Separator />
                 <NotesSection
                   notes={notes.data || []}
                   loading={notes.isLoading}
@@ -4008,6 +4036,90 @@ const FRIEND_BASIC_COMMITMENT_LABELS: Record<string, string> = {
   desiresFollowChrist: "Desea seguir a Cristo",
 };
 
+function PickFriendDialog({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onSelect: (name: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const members = useQuery<Array<{ id: string; name: string; role: string }>>({
+    queryKey: ["/api/mission/directory-members", "friend", debouncedSearch],
+    queryFn: () =>
+      apiRequest(
+        "GET",
+        `/api/mission/directory-members?personType=friend&q=${encodeURIComponent(debouncedSearch)}`,
+      ),
+    enabled: open,
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) setSearch("");
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Seleccionar amigo miembro</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre…"
+            className="h-9"
+            autoFocus
+          />
+          <div className="max-h-56 overflow-y-auto space-y-1 rounded border">
+            {members.isLoading && (
+              <p className="p-3 text-sm text-muted-foreground">Buscando…</p>
+            )}
+            {!members.isLoading && (members.data || []).length === 0 && (
+              <p className="p-3 text-sm text-muted-foreground">
+                Sin resultados.
+              </p>
+            )}
+            {(members.data || []).map((m) => (
+              <button
+                key={m.id}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors"
+                onClick={() => {
+                  onSelect(m.name);
+                  onOpenChange(false);
+                  setSearch("");
+                }}
+              >
+                <span className="font-medium">{m.name}</span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {m.role}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FriendDashboard({
   contact,
   sections,
@@ -4025,6 +4137,8 @@ function FriendDashboard({
   onAddAttendance: (date: string) => void;
   onRemoveAttendance: (date: string) => void;
 }) {
+  const [pickFriendOpen, setPickFriendOpen] = useState(false);
+
   const sectionMap = useMemo(
     () => new Map(sections.map((s) => [s.sectionKey, s.data ?? {}])),
     [sections],
@@ -4081,6 +4195,19 @@ function FriendDashboard({
 
   return (
     <div className="space-y-5">
+      <PickFriendDialog
+        open={pickFriendOpen}
+        onOpenChange={setPickFriendOpen}
+        onSelect={(name) => {
+          const slot = !s1.friendMember1
+            ? "friendMember1"
+            : !s1.friendMember2
+              ? "friendMember2"
+              : "friendMember1";
+          onSaveSection("s1_friendship", { ...s1, [slot]: name });
+        }}
+      />
+
       {/* Breadcrumb */}
       <div className="space-y-0.5">
         <p className="text-[11px] text-muted-foreground uppercase tracking-widest font-medium">
@@ -4127,13 +4254,7 @@ function FriendDashboard({
             action={
               <button
                 className="flex items-center gap-1 text-[11px] text-primary hover:underline"
-                onClick={() => {
-                  const updated = {
-                    ...s1,
-                    friendMember1: s1.friendMember1 || "Nuevo amigo",
-                  };
-                  onSaveSection("s1_friendship", updated);
-                }}
+                onClick={() => setPickFriendOpen(true)}
               >
                 <Plus className="h-3 w-3" /> Agregar amigo
               </button>
