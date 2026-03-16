@@ -1615,11 +1615,13 @@ function PersonaCard({
   }, [asistenciaData]);
 
   const today = toISODate(new Date());
-  // Show all current-month sundays up to today
-  const visibleSundays = sundays.filter((s) => toISODate(s) <= today);
+  // Show all current-month sundays
+  const visibleSundays = sundays;
 
   const attendedCount = visibleSundays.filter((s) => attendedSet.has(toISODate(s))).length;
-  const missedCount = visibleSundays.length - attendedCount;
+  // Only count missed sundays that have already passed
+  const pastSundays = visibleSundays.filter((s) => toISODate(s) <= today);
+  const missedCount = pastSundays.length - pastSundays.filter((s) => attendedSet.has(toISODate(s))).length;
 
   const initials = persona.nombre.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
   const memberTime = formatMemberTime(persona.fechaConfirmacion);
@@ -1663,8 +1665,8 @@ function PersonaCard({
                   </span>
                   <span title={iso}>
                     {attended
-                      ? <CheckCircle2 className="h-5 w-5 text-green-500 fill-green-100" />
-                      : <Circle className="h-5 w-5 text-muted-foreground" />}
+                      ? <CheckCircle2 className="h-5 w-5 text-primary" />
+                      : <Circle className="h-5 w-5 text-primary/70" />}
                   </span>
                 </div>
               );
