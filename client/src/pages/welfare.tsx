@@ -28,6 +28,7 @@ import {
   useDeleteWelfareRequest,
   useOrganizations,
   useMembers,
+  useOrganizationMembers,
   useUsers,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
@@ -233,7 +234,6 @@ export default function WelfarePage() {
   const { user } = useAuth();
   const { data: requests = [] as WelfareRequest[], isLoading: requestsLoading } = useWelfareRequests();
   const { data: organizations = [] as any[] } = useOrganizations();
-  const { data: allMembers = [] as any[] } = useMembers();
   const { data: allUsers = [] as any[] } = useUsers();
 
   const createMutation = useCreateWelfareRequest();
@@ -250,9 +250,17 @@ export default function WelfarePage() {
   const isWelfareOrg = userOrg?.type === "sociedad_socorro" || userOrg?.type === "cuorum_elderes";
   const canCreate = isObispo || (isOrgPresident && isWelfareOrg);
 
+  // Obispo uses full member list; org presidents use their own organization members
+  const { data: allMembers = [] as any[] } = useMembers({ enabled: isObispo });
+  const { data: orgMembers = [] as any[] } = useOrganizationMembers(
+    isOrgPresident ? user?.organizationId : undefined
+  );
+
   const memberOptions = useMemo(
-    () => (allMembers as any[]).map((m: any) => m.nameSurename ?? m.name ?? "").filter(Boolean) as string[],
-    [allMembers]
+    () => (isObispo ? allMembers : orgMembers)
+      .map((m: any) => m.nameSurename ?? m.name ?? "")
+      .filter(Boolean) as string[],
+    [isObispo, allMembers, orgMembers]
   );
 
   const welfareOrgPresidents = useMemo(() => {
