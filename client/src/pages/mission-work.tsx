@@ -686,7 +686,7 @@ function LessonStatusIcon({
   }
 
   if (exists) {
-    return <span className="block h-5 w-5 rounded-full border-2 border-primary/80" />;
+    return <span className="block h-5 w-5 rounded-full bg-primary/80" />;
   }
 
   return <span className="block h-5 w-5 rounded-full border-2 border-white/55 bg-transparent" />;
