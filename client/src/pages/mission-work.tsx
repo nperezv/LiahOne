@@ -1721,6 +1721,17 @@ export default function MissionWork() {
   const totalRegresando = regresandoQuery.data?.length ?? 0;
   const totalEnsenando = ensenandoQuery.data?.length ?? 0;
 
+  // Always read the up-to-date persona from the list cache (must be before early returns)
+  const livePersona = useMemo(() => {
+    if (!selectedPersona) return null;
+    const all = [
+      ...(nuevoQuery.data ?? []),
+      ...(regresandoQuery.data ?? []),
+      ...(ensenandoQuery.data ?? []),
+    ];
+    return all.find((p) => p.id === selectedPersona.id) ?? selectedPersona;
+  }, [selectedPersona, nuevoQuery.data, regresandoQuery.data, ensenandoQuery.data]);
+
   if (accessQuery.isLoading) {
     return (
       <div className="p-8">
@@ -1738,17 +1749,6 @@ export default function MissionWork() {
       </div>
     );
   }
-
-  // Always read the up-to-date persona from the list cache
-  const livePersona = useMemo(() => {
-    if (!selectedPersona) return null;
-    const all = [
-      ...(nuevoQuery.data ?? []),
-      ...(regresandoQuery.data ?? []),
-      ...(ensenandoQuery.data ?? []),
-    ];
-    return all.find((p) => p.id === selectedPersona.id) ?? selectedPersona;
-  }, [selectedPersona, nuevoQuery.data, regresandoQuery.data, ensenandoQuery.data]);
 
   const handleSelect = (p: Persona) => {
     setSelectedPersona(p);
