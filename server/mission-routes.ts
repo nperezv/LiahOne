@@ -307,6 +307,54 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         .returning();
 
       if (!updated) return res.status(404).json({ message: "No encontrado" });
+
+      // Auto-create draft baptism service when fechaBautismo is set for the first time
+      if (data.fechaBautismo && updated.tipo === "enseñando") {
+        try {
+          const existing = await db.execute(sql`
+            SELECT id FROM baptism_services
+            WHERE candidate_persona_id = ${req.params.id}
+            AND status NOT IN ('archived')
+            LIMIT 1
+          `);
+          if (existing.rows.length === 0) {
+            const serviceAt = new Date(`${data.fechaBautismo}T12:00:00Z`);
+            const prepDeadline = new Date(serviceAt);
+            prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
+            await db.execute(sql`
+              INSERT INTO baptism_services
+                (unit_id, candidate_persona_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
+              VALUES
+                (${user.organizationId}, ${req.params.id}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${user.id})
+            `);
+            // Notify mission_leader and create their assignment
+            const [missionLeader] = await db
+              .select({ id: users.id, name: users.name })
+              .from(users)
+              .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, user.organizationId)))
+              .limit(1);
+            if (missionLeader) {
+              const deadline = new Date();
+              deadline.setDate(deadline.getDate() + 3);
+              await db.execute(sql`
+                INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
+                VALUES (
+                  ${'Programa del Servicio Bautismal'},
+                  ${'Crear el programa del servicio bautismal de ' + updated.nombre + ' antes de la fecha límite.'},
+                  ${missionLeader.id},
+                  ${user.id},
+                  ${deadline.toISOString()},
+                  'pendiente'
+                )
+              `);
+            }
+          }
+        } catch (autoErr) {
+          console.error("[mission/personas/:id PUT] auto-create baptism service error:", autoErr);
+          // Non-blocking — don't fail the main request
+        }
+      }
+
       return res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
@@ -1037,4 +1085,155 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       }
     }
   );
+
+  // -------------------------------------------------------
+  // Baptism services (persona-based)
+  // -------------------------------------------------------
+
+  // GET /api/mission/baptism-services — list all for the unit
+  app.get("/api/mission/baptism-services", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const result = await db.execute(sql`
+        SELECT bs.*, mp.nombre AS persona_nombre, mp.fecha_bautismo
+        FROM baptism_services bs
+        LEFT JOIN mission_personas mp ON mp.id = bs.candidate_persona_id
+        WHERE bs.unit_id = ${user.organizationId}
+          AND bs.candidate_persona_id IS NOT NULL
+          AND bs.status != 'archived'
+        ORDER BY bs.service_at ASC
+      `);
+      return res.json(result.rows);
+    } catch (err) {
+      console.error("[mission/baptism-services GET]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // GET /api/mission/personas/:id/baptism-service — get service for a persona
+  app.get("/api/mission/personas/:id/baptism-service", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const result = await db.execute(sql`
+        SELECT bs.*,
+          (SELECT json_agg(pi ORDER BY pi.order)
+           FROM baptism_program_items pi WHERE pi.service_id = bs.id) AS program_items,
+          (SELECT json_agg(a)
+           FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
+        FROM baptism_services bs
+        WHERE bs.candidate_persona_id = ${req.params.id}
+          AND bs.status != 'archived'
+        ORDER BY bs.created_at DESC
+        LIMIT 1
+      `);
+      if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
+      return res.json(result.rows[0]);
+    } catch (err) {
+      console.error("[mission/personas/:id/baptism-service GET]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // PATCH /api/mission/baptism-services/:id — update service info
+  app.patch("/api/mission/baptism-services/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const schema = z.object({
+        locationName: z.string().min(1).optional(),
+        locationAddress: z.string().nullable().optional(),
+        mapsUrl: z.string().nullable().optional(),
+        serviceAt: z.string().optional(),
+      });
+      const data = schema.parse(req.body);
+      const sets: string[] = ["updated_at = now()"];
+      if (data.locationName) sets.push(`location_name = '${data.locationName.replace(/'/g, "''")}'`);
+      if (data.locationAddress !== undefined) sets.push(`location_address = ${data.locationAddress ? `'${data.locationAddress.replace(/'/g, "''")}'` : "NULL"}`);
+      if (data.mapsUrl !== undefined) sets.push(`maps_url = ${data.mapsUrl ? `'${data.mapsUrl.replace(/'/g, "''")}'` : "NULL"}`);
+      if (data.serviceAt) {
+        const serviceAt = new Date(data.serviceAt);
+        const prepDeadline = new Date(serviceAt);
+        prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
+        sets.push(`service_at = '${serviceAt.toISOString()}'`);
+        sets.push(`prep_deadline_at = '${prepDeadline.toISOString()}'`);
+      }
+      await db.execute(sql`
+        UPDATE baptism_services
+        SET ${sql.raw(sets.join(", "))}
+        WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+      `);
+      const result = await db.execute(sql`SELECT * FROM baptism_services WHERE id = ${req.params.id}`);
+      return res.json(result.rows[0]);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
+      console.error("[mission/baptism-services/:id PATCH]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // PUT /api/mission/baptism-services/:id/program-items — upsert a program item
+  app.put("/api/mission/baptism-services/:id/program-items", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const schema = z.object({
+        type: z.enum(["opening_prayer", "hymn", "talk", "special_music", "ordinance_baptism", "closing_prayer"]),
+        order: z.number().int().default(0),
+        title: z.string().nullable().optional(),
+        participantDisplayName: z.string().nullable().optional(),
+        notes: z.string().nullable().optional(),
+        publicVisibility: z.boolean().default(true),
+      });
+      const data = schema.parse(req.body);
+      await db.execute(sql`
+        INSERT INTO baptism_program_items
+          (service_id, "order", type, title, participant_display_name, notes, public_visibility, updated_by, updated_at)
+        VALUES
+          (${req.params.id}, ${data.order}, ${data.type}, ${data.title ?? null},
+           ${data.participantDisplayName ?? null}, ${data.notes ?? null}, ${data.publicVisibility}, ${user.id}, now())
+        ON CONFLICT DO NOTHING
+      `);
+      const result = await db.execute(sql`
+        SELECT * FROM baptism_program_items WHERE service_id = ${req.params.id} ORDER BY "order"
+      `);
+      return res.json(result.rows);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
+      console.error("[mission/baptism-services/:id/program-items PUT]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // PATCH /api/mission/baptism-program-items/:itemId — update a program item
+  app.patch("/api/mission/baptism-program-items/:itemId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const schema = z.object({
+        title: z.string().nullable().optional(),
+        participantDisplayName: z.string().nullable().optional(),
+        notes: z.string().nullable().optional(),
+        publicVisibility: z.boolean().optional(),
+      });
+      const data = schema.parse(req.body);
+      await db.execute(sql`
+        UPDATE baptism_program_items SET
+          title = ${data.title ?? null},
+          participant_display_name = ${data.participantDisplayName ?? null},
+          notes = ${data.notes ?? null},
+          public_visibility = ${data.publicVisibility ?? true},
+          updated_by = ${user.id},
+          updated_at = now()
+        WHERE id = ${req.params.itemId}
+      `);
+      const result = await db.execute(sql`SELECT * FROM baptism_program_items WHERE id = ${req.params.itemId}`);
+      return res.json(result.rows[0]);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
+      console.error("[mission/baptism-program-items/:itemId PATCH]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
 }

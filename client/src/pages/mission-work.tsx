@@ -1843,8 +1843,24 @@ const SECTION_META: Record<PersonaTipo, { label: string; subtitle: string }> = {
   },
 };
 
+type SectionType = PersonaTipo | "servicios_bautismales";
+
+interface BaptismService {
+  id: string;
+  candidate_persona_id: string;
+  persona_nombre: string;
+  fecha_bautismo: string | null;
+  service_at: string;
+  location_name: string;
+  location_address: string | null;
+  maps_url: string | null;
+  status: string;
+  approval_status: string;
+  prep_deadline_at: string;
+}
+
 export default function MissionWork() {
-  const [section, setSection] = useState<PersonaTipo | null>(null);
+  const [section, setSection] = useState<SectionType | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -1856,9 +1872,15 @@ export default function MissionWork() {
   const regresandoQuery = usePersonas("regresando");
   const ensenandoQuery = usePersonas("enseñando");
 
+  const baptismServicesQuery = useQuery<BaptismService[]>({
+    queryKey: ["/api/mission/baptism-services"],
+    queryFn: () => missionFetch("/api/mission/baptism-services"),
+  });
+
   const totalNuevo = nuevoQuery.data?.length ?? 0;
   const totalRegresando = regresandoQuery.data?.length ?? 0;
   const totalEnsenando = ensenandoQuery.data?.length ?? 0;
+  const totalBautismos = baptismServicesQuery.data?.length ?? 0;
 
   // Always read the up-to-date persona from the list cache (must be before early returns)
   const livePersona = useMemo(() => {
@@ -1894,9 +1916,74 @@ export default function MissionWork() {
     setSheetOpen(true);
   };
 
-  // ── Section view ──────────────────────────────────────────
+  // ── Baptism services section ──────────────────────────────
+  if (section === "servicios_bautismales") {
+    const services = baptismServicesQuery.data ?? [];
+    return (
+      <div className="p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="ghost" size="icon" onClick={() => setSection(null)}>
+            <ChevronRight className="h-4 w-4 rotate-180" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold mb-1">Servicios Bautismales</h1>
+            <p className="text-sm text-muted-foreground">Planificación y programa de los servicios bautismales</p>
+          </div>
+        </div>
+
+        {baptismServicesQuery.isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44 w-full rounded-lg" />)}
+          </div>
+        ) : services.length === 0 ? (
+          <div className="text-center text-muted-foreground py-16">
+            <Waves className="h-8 w-8 mx-auto mb-3 opacity-40" />
+            <p className="text-sm">No hay servicios bautismales programados.</p>
+            <p className="text-xs mt-1">Se crean automáticamente al registrar una fecha bautismal.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {services.map((svc) => (
+              <Card key={svc.id} className="hover:bg-muted/50 transition-colors">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <p className="font-semibold text-base leading-tight">{svc.persona_nombre}</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 font-medium ${
+                      svc.approval_status === "approved" ? "bg-green-100 text-green-700" :
+                      svc.approval_status === "pending_approval" ? "bg-yellow-100 text-yellow-700" :
+                      "bg-muted text-muted-foreground"
+                    }`}>
+                      {svc.approval_status === "approved" ? "Aprobado" :
+                       svc.approval_status === "pending_approval" ? "Pendiente" : "Borrador"}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Waves className="h-3.5 w-3.5 shrink-0" />
+                      <span>{formatDisplayDate(svc.service_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                      <span>{svc.location_name}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      Preparación antes del {formatDisplayDate(svc.prep_deadline_at)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Persona section view ───────────────────────────────────
   if (section) {
-    const meta = SECTION_META[section];
+    const meta = SECTION_META[section as PersonaTipo];
     return (
       <div className="p-8">
         <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
@@ -1911,7 +1998,7 @@ export default function MissionWork() {
           </div>
         </div>
 
-        <TabContent tipo={section} onSelect={handleSelect} />
+        <TabContent tipo={section as PersonaTipo} onSelect={handleSelect} />
 
         <PersonaDetailSheet
           persona={livePersona}
@@ -1920,7 +2007,7 @@ export default function MissionWork() {
             setSheetOpen(v);
             if (!v) setSelectedPersona(null);
           }}
-          tipo={selectedPersona?.tipo ?? section}
+          tipo={selectedPersona?.tipo ?? (section as PersonaTipo)}
         />
       </div>
     );
@@ -1936,7 +2023,7 @@ export default function MissionWork() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {(
           [
             { tipo: "nuevo" as PersonaTipo, count: totalNuevo, loading: nuevoQuery.isLoading },
@@ -1966,6 +2053,24 @@ export default function MissionWork() {
             </Card>
           );
         })}
+        {/* Baptism services card */}
+        <Card
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setSection("servicios_bautismales")}
+        >
+          <CardContent className="p-6">
+            {baptismServicesQuery.isLoading ? (
+              <Skeleton className="h-8 w-12 mb-2" />
+            ) : (
+              <p className="text-3xl font-bold mb-1">{totalBautismos}</p>
+            )}
+            <p className="font-medium mb-1">Servicios Bautismales</p>
+            <p className="text-xs text-muted-foreground">Planificación y programa de bautismos</p>
+            <div className="flex items-center gap-1 mt-4 text-xs text-primary">
+              Ver lista <ChevronRight className="h-3 w-3" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
