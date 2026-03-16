@@ -793,11 +793,21 @@ function PersonaDetailSheet({
   // Text field local values — synced from server data
   const [llamamientoVal, setLlamamientoVal] = useState("");
   const [ministracionVal, setMinistracionVal] = useState("");
+  const [fechaPrimerContactoVal, setFechaPrimerContactoVal] = useState("");
   const [fechaBautismoVal, setFechaBautismoVal] = useState("");
   const [fechaEntrevistaVal, setFechaEntrevistaVal] = useState("");
   const [fechaVisitaVal, setFechaVisitaVal] = useState("");
   const [proximoEventoVal, setProximoEventoVal] = useState("");
   const [proximoEventoDescVal, setProximoEventoDescVal] = useState("");
+
+  const fechaPrimerContactoMutation = useMutation({
+    mutationFn: (fecha: string | null) =>
+      apiRequest("PUT", `/api/mission/personas/${id}`, { fechaPrimerContacto: fecha }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   const fechaBautismoMutation = useMutation({
     mutationFn: (fecha: string | null) =>
@@ -924,6 +934,9 @@ function PersonaDetailSheet({
     setMinistracionVal(ministracion?.descripcion ?? "");
   }, [ministracion?.descripcion]);
   React.useEffect(() => {
+    setFechaPrimerContactoVal(persona?.fechaPrimerContacto ?? "");
+  }, [persona?.fechaPrimerContacto]);
+  React.useEffect(() => {
     setFechaBautismoVal(persona?.fechaBautismo ?? "");
   }, [persona?.fechaBautismo]);
   React.useEffect(() => {
@@ -1007,15 +1020,28 @@ function PersonaDetailSheet({
                       ? <><Check className="h-2.5 w-2.5" />Listo</>
                       : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
                   </button>
-                  <div className="mt-3 flex gap-8 flex-wrap">
+                  <div className="mt-3 flex gap-8 flex-wrap items-start">
                     <div>
                       <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primera enseñanza</p>
-                      <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
+                      {editMode ? (
+                        <Input
+                          type="date"
+                          value={fechaPrimerContactoVal}
+                          onChange={(e) => {
+                            setFechaPrimerContactoVal(e.target.value);
+                            fechaPrimerContactoMutation.mutate(e.target.value || null);
+                          }}
+                          className="h-7 text-sm w-40 mt-1"
+                        />
+                      ) : (
+                        <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
+                      )}
                     </div>
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 inline-flex items-center gap-1">
-                        <BaptismDateIcon />Fecha bautismal
-                      </p>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <BaptismDateIcon />
+                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Fecha bautismal</p>
+                      </div>
                       {editMode ? (
                         <Input
                           type="date"
