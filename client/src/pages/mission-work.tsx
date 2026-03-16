@@ -1605,11 +1605,14 @@ function PersonaCard({
   onSelect: (p: Persona) => void;
   tipo: PersonaTipo;
 }) {
+  const asistenciaQuery = usePersonaAsistencia(persona.id);
+  const asistenciaData = asistenciaQuery.data ?? persona.asistencia;
+
   const attendedSet = useMemo(() => {
     const s = new Set<string>();
-    for (const a of persona.asistencia) if (a.asistio) s.add(a.fecha_domingo);
+    for (const a of asistenciaData) if (a.asistio) s.add(a.fecha_domingo);
     return s;
-  }, [persona.asistencia]);
+  }, [asistenciaData]);
 
   const today = toISODate(new Date());
   // Show all current-month sundays up to today
