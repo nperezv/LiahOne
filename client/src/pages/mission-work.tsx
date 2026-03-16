@@ -994,7 +994,7 @@ function PersonaDetailSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
-        <SheetHeader className="mb-4">
+        <SheetHeader className="sticky top-0 z-10 bg-background -mx-6 -mt-6 px-6 pt-5 pb-4 mb-4 border-b">
           <div className="flex-1 min-w-0 text-left">
               {tipo === "enseñando" ? (
                 <>
