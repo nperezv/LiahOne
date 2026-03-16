@@ -1612,12 +1612,8 @@ function PersonaCard({
   }, [persona.asistencia]);
 
   const today = toISODate(new Date());
-  // Show current-month sundays from fechaIngreso onwards, up to today
-  const fechaBase = persona.fechaIngreso ?? today;
-  const visibleSundays = sundays.filter((s) => {
-    const iso = toISODate(s);
-    return iso >= fechaBase && iso <= today;
-  });
+  // Show all current-month sundays up to today
+  const visibleSundays = sundays.filter((s) => toISODate(s) <= today);
 
   const attendedCount = visibleSundays.filter((s) => attendedSet.has(toISODate(s))).length;
   const missedCount = visibleSundays.length - attendedCount;
