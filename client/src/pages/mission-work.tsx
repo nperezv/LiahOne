@@ -1006,9 +1006,9 @@ function PersonaDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto p-0">
-        {/* Name + button — sticky only in edit mode */}
-        <div className={editMode ? "px-6 pt-5 pb-4 sticky top-0 z-10 bg-background border-b" : "px-6 pt-5 pb-4"}>
+      <SheetContent side="right" className={`w-full max-w-4xl p-0${editMode ? " flex flex-col" : " overflow-y-auto"}`}>
+        {/* Name + button — fixed header when editing, scrolls normally otherwise */}
+        <div className={editMode ? "px-6 pt-5 pb-4 shrink-0 border-b bg-background" : "px-6 pt-5 pb-4"}>
           <div className="text-left">
             {tipo === "enseñando" ? (
               <>
@@ -1043,8 +1043,9 @@ function PersonaDetailSheet({
           </div>
         </div>
 
-        {/* Metadata — dates/events, always scrollable */}
-        <div className="px-6 pt-3 pb-4 border-b">
+        <div className={editMode ? "flex-1 overflow-y-auto px-6 pb-6" : "px-6 pb-6"}>
+        {/* Metadata — dates/events */}
+        <div className="pt-3 pb-4 border-b">
           {tipo === "enseñando" ? (
             <>
               <div className="flex gap-8 flex-wrap items-start">
@@ -1186,7 +1187,6 @@ function PersonaDetailSheet({
           )}
         </div>
 
-        <div className="px-6 pb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
           {/* ─── LEFT COLUMN ─── */}
           <div className="divide-y">
