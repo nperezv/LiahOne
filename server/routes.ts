@@ -8008,12 +8008,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ========================================
+  // BAPTISM SERVICE REMINDERS (2 weeks before)
+  // ========================================
+
+  let lastBaptismReminderDate: string | null = null;
+  const sentBaptismReminderKeys = new Set<string>();
+
+  async function sendAutomaticBaptismServiceReminders() {
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+      if (currentHour !== birthdaySendHour) return;
+
+      const todayKey = getServerDayKey(now);
+      if (lastBaptismReminderDate !== todayKey) {
+        sentBaptismReminderKeys.clear();
+        lastBaptismReminderDate = todayKey;
+      }
+
+      // Find personas with fecha_bautismo exactly 14 days from today
+      const target = new Date(now);
+      target.setUTCDate(target.getUTCDate() + 14);
+      const targetDateStr = target.toISOString().split("T")[0]; // YYYY-MM-DD
+
+      const result = await db.execute(sql`
+        SELECT mp.id, mp.nombre, mp.fecha_bautismo, mp.organization_id
+        FROM mission_personas mp
+        WHERE mp.fecha_bautismo = ${targetDateStr}
+          AND mp.is_archived = false
+      `);
+
+      if (result.rows.length === 0) return;
+
+      const BAPTISM_REMINDER_ROLES = new Set([
+        "obispo",
+        "consejero_obispo",
+        "mission_leader",
+        "ward_missionary",
+        "full_time_missionary",
+      ]);
+
+      let sent = 0;
+      for (const persona of result.rows as any[]) {
+        const dedupeKey = `baptism_reminder:${todayKey}:${persona.id}`;
+        if (sentBaptismReminderKeys.has(dedupeKey)) continue;
+
+        const unitUsers = await storage.getAllUsers();
+        const recipients = unitUsers.filter(
+          (u: any) =>
+            u.organizationId === persona.unit_id &&
+            BAPTISM_REMINDER_ROLES.has(u.role),
+        );
+
+        for (const recipient of recipients) {
+          const title = "Servicio Bautismal en 2 semanas";
+          const body = `El servicio bautismal de ${persona.nombre} está programado para el ${persona.fecha_bautismo}. Recuerda preparar el programa.`;
+
+          const notification = await storage.createNotification({
+            userId: recipient.id,
+            type: "reminder",
+            title,
+            description: body,
+            relatedId: persona.id,
+            isRead: false,
+          });
+
+          if (isPushConfigured()) {
+            await sendPushNotification(recipient.id, {
+              title,
+              body,
+              url: "/mission-work",
+              notificationId: notification.id,
+            });
+          }
+        }
+
+        sentBaptismReminderKeys.add(dedupeKey);
+        sent += 1;
+      }
+
+      if (sent > 0) {
+        console.log(`[Baptism Reminders] Sent reminders for ${sent} upcoming baptism(s)`);
+      }
+    } catch (error) {
+      console.error("[Baptism Reminders] Error:", error);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
   startHourlyAlignedTask(sendAutomaticSacramentalAssignmentReminders);
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
   startHourlyAlignedTask(sendAgendaDailyBriefing);
+  startHourlyAlignedTask(sendAutomaticBaptismServiceReminders);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);
