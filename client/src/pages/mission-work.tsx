@@ -91,6 +91,7 @@ interface CompromisoBautismo {
   nombre: string;
   orden: number;
   fechaInvitado?: string | null;
+  fechaCumplido?: string | null;
 }
 
 interface Sacerdocio {
@@ -155,6 +156,26 @@ function getCurrentMonthSundays(): Date[] {
   return sundays;
 }
 
+
+/** Last N Sundays (including today if today is Sunday), oldest -> newest */
+function getLastSundays(count: number): Date[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const currentOrLastSunday = new Date(today);
+  while (currentOrLastSunday.getDay() !== 0) {
+    currentOrLastSunday.setDate(currentOrLastSunday.getDate() - 1);
+  }
+
+  const sundays: Date[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(currentOrLastSunday);
+    d.setDate(currentOrLastSunday.getDate() - i * 7);
+    sundays.push(d);
+  }
+
+  return sundays;
+}
 
 function toISODate(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -364,17 +385,17 @@ function AttendanceGrid({
                 title={attended ? "Marcar ausente" : "Marcar presente"}
               >
                 {attended ? (
-                  <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-500" />
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground" />
+                  <Circle className="h-5 w-5 text-primary/70" />
                 )}
               </button>
             ) : (
               <span title={iso}>
                 {attended ? (
-                  <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-500" />
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground" />
+                  <Circle className="h-5 w-5 text-primary/70" />
                 )}
               </span>
             )}
@@ -649,6 +670,41 @@ function BooleanRow({
   );
 }
 
+function LessonStatusIcon({
+  present,
+  exists,
+}: {
+  present: boolean;
+  exists: boolean;
+}) {
+  if (present) {
+    return (
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <User2 className="h-3 w-3" />
+      </span>
+    );
+  }
+
+  if (exists) {
+    return <span className="block h-5 w-5 rounded-full border-2 border-primary/80" />;
+  }
+
+  return <span className="block h-5 w-5 rounded-full border-2 border-white/55 bg-transparent" />;
+}
+
+function BaptismDateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary/70" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M8.42519 8.92249C6.84619 8.92249 5.56219 7.59449 5.56219 5.96149C5.56219 4.32849 6.84619 3.00049 8.42519 3.00049C10.0042 3.00049 11.2882 4.32849 11.2882 5.96149C11.2882 7.59449 10.0042 8.92249 8.42519 8.92249ZM16.516 21.6798C15.4003 21.6798 14.7854 21.2118 14.2418 20.7982L14.24 20.7968L14.2372 20.7947C13.7265 20.4057 13.3223 20.0978 12.406 20.0978C11.933 20.0978 11.628 20.3258 11.167 20.6708L11.1662 20.6714C10.5653 21.1203 9.81641 21.6798 8.53699 21.6798C7.45287 21.6798 6.7681 21.1417 6.21734 20.7088L6.21599 20.7078C5.75899 20.3468 5.42999 20.0878 4.93199 20.0878C3.89687 20.0878 3.48493 20.5201 3.47036 20.5354L3.46999 20.5358C3.33299 20.7128 3.11999 20.8178 2.88799 20.8178C2.72299 20.8178 2.56699 20.7638 2.43499 20.6628C2.27899 20.5418 2.17799 20.3668 2.15399 20.1708C2.12799 19.9738 2.18099 19.7798 2.30299 19.6228C2.38299 19.5188 3.14399 18.6058 4.93199 18.6058C5.94299 18.6058 6.57399 19.1018 7.12999 19.5398C7.61499 19.9228 7.96399 20.1978 8.53699 20.1978C9.32262 20.1978 9.74459 19.8831 10.2792 19.4843L10.28 19.4838C10.825 19.0768 11.441 18.6168 12.406 18.6168C13.823 18.6168 14.552 19.1708 15.137 19.6168C15.596 19.9668 15.899 20.1978 16.516 20.1978C17.2309 20.1978 17.549 19.9318 17.9889 19.5639L17.989 19.5638L17.9893 19.5635C18.4663 19.1635 19.1183 18.6168 20.295 18.6168C21.626 18.6168 22.24 19.1258 22.732 19.5338C22.884 19.6608 22.979 19.8398 22.996 20.0368C23.015 20.2348 22.955 20.4268 22.828 20.5788C22.687 20.7478 22.48 20.8458 22.258 20.8458C22.086 20.8458 21.918 20.7848 21.786 20.6748L21.7847 20.6737C21.3814 20.3393 21.0901 20.0978 20.295 20.0978C19.658 20.0978 19.372 20.3378 18.942 20.6998L18.9412 20.7004C18.4193 21.1373 17.7714 21.6798 16.516 21.6798ZM13.1062 5.96149C13.1062 7.59449 14.3902 8.92249 15.9692 8.92249C17.5482 8.92249 18.8332 7.59449 18.8332 5.96149C18.8332 4.32849 17.5482 3.00049 15.9692 3.00049C14.3902 3.00049 13.1062 4.32849 13.1062 5.96149ZM8.53749 18.6925C7.96349 18.6925 7.61449 18.4175 7.13249 18.0365C6.57349 17.5965 5.94249 17.1005 4.93249 17.1005C4.86652 17.1005 4.80355 17.1025 4.74057 17.1045L4.74049 17.1045L4.75949 13.3545C4.75949 13.3545 1.00049 12.6665 1.00049 9.49449L1.17449 4.52449C1.17449 4.02049 1.50649 3.61049 1.91649 3.61049C2.32549 3.61049 2.65949 4.02049 2.65949 4.52449L2.82749 8.85649C2.91649 9.92149 3.89649 10.3905 4.61449 10.3905L10.9745 10.3885C10.9745 10.3885 10.3335 10.7295 10.1005 11.3125C9.93749 11.7205 9.86949 12.1505 9.86949 12.5795V18.2735C9.48749 18.5265 9.10549 18.6925 8.53749 18.6925ZM15.137 18.1115C15.596 18.4615 15.899 18.6925 16.516 18.6925C17.2302 18.6925 17.5474 18.4278 17.9867 18.0612L17.99 18.0585C18.466 17.6585 19.12 17.1105 20.295 17.1105C20.403 17.1105 20.505 17.1145 20.603 17.1205V12.5795C20.603 11.3715 19.62 10.3885 18.412 10.3885H13.527C12.319 10.3885 11.336 11.3715 11.336 12.5795V17.3255C11.682 17.1815 12.035 17.1105 12.406 17.1105C13.823 17.1105 14.552 17.6655 15.137 18.1115Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 // ============================================================
 // PersonaDetailSheet
 // ============================================================
@@ -683,8 +739,21 @@ function PersonaDetailSheet({
   const sundays = useMemo(() => getCurrentMonthSundays(), []);
 
   // Amigo add state
-  const [newAmigoName, setNewAmigoName] = useState("");
-  const [newAmigoMiembro, setNewAmigoMiembro] = useState(true);
+  const [selectedFriend, setSelectedFriend] = useState<DirectoryMember | null>(null);
+  const [friendSearch, setFriendSearch] = useState("");
+
+  const membersQuery = useQuery<DirectoryMember[]>({
+    queryKey: ["/api/members"],
+    enabled: open,
+  });
+
+  const filteredFriends = useMemo(() => {
+    const q = friendSearch.trim().toLowerCase();
+    if (!q) return [] as DirectoryMember[];
+    return (membersQuery.data ?? [])
+      .filter((m) => m.nameSurename.toLowerCase().includes(q))
+      .slice(0, 12);
+  }, [friendSearch, membersQuery.data]);
 
   const addAmigoMutation = useMutation({
     mutationFn: (data: { nombre: string; es_miembro: boolean }) =>
@@ -692,7 +761,8 @@ function PersonaDetailSheet({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "amigos"] });
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
-      setNewAmigoName("");
+      setSelectedFriend(null);
+      setFriendSearch("");
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -708,13 +778,30 @@ function PersonaDetailSheet({
 
   // Sesion edit state
   const [editSesiones, setEditSesiones] = useState(false);
+  const [editAsistencia, setEditAsistencia] = useState(false);
+  const [editAmigos, setEditAmigos] = useState(false);
+  const [editOtrosCompromisos, setEditOtrosCompromisos] = useState(false);
+  const [editCompromisosBautismo, setEditCompromisosBautismo] = useState(false);
 
   const toggleSesionMutation = useMutation({
     mutationFn: (data: {
       principio_id: number;
       sesion_num: number;
-      miembro_presente: boolean;
-    }) => apiRequest("PUT", `/api/mission/personas/${id}/sesiones`, data),
+      miembro_presente?: boolean;
+      action: "set" | "delete";
+    }) => {
+      if (data.action === "delete") {
+        return apiRequest(
+          "DELETE",
+          `/api/mission/personas/${id}/sesiones/${data.principio_id}/${data.sesion_num}`
+        );
+      }
+      return apiRequest("PUT", `/api/mission/personas/${id}/sesiones`, {
+        principio_id: data.principio_id,
+        sesion_num: data.sesion_num,
+        miembro_presente: !!data.miembro_presente,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "sesiones"] });
     },
@@ -785,9 +872,18 @@ function PersonaDetailSheet({
 
   // Compromisos bautismo
   const compBautismoMutation = useMutation({
-    mutationFn: ({ key, fecha }: { key: string; fecha: string | null }) =>
+    mutationFn: ({
+      key,
+      fechaInvitado,
+      fechaCumplido,
+    }: {
+      key: string;
+      fechaInvitado?: string | null;
+      fechaCumplido?: string | null;
+    }) =>
       apiRequest("PUT", `/api/mission/personas/${id}/compromisos-bautismo/${key}`, {
-        fecha_invitado: fecha,
+        fecha_invitado: fechaInvitado,
+        fecha_cumplido: fechaCumplido,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "compromisos-bautismo"] });
@@ -833,21 +929,40 @@ function PersonaDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
         <SheetHeader className="mb-4">
-          <SheetTitle className="flex items-center gap-2">
-            <User2 className="h-5 w-5 text-muted-foreground" />
-            {persona.nombre}
-            <Badge variant="outline" className="ml-2 text-xs">
-              {tipo === "nuevo"
-                ? "Nuevo"
-                : tipo === "regresando"
-                ? "Regresando"
-                : "Enseñando"}
-            </Badge>
-          </SheetTitle>
-          <p className="text-sm text-muted-foreground">
-            Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
-            {formatMemberTime(persona.fechaPrimerContacto)}
-          </p>
+          {tipo === "enseñando" ? (
+            <>
+              <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
+              <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
+                <div className="min-w-[220px]">
+                  <p className="font-semibold">Se le enseñó por primera vez</p>
+                  <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
+                </div>
+                <div className="min-w-[220px]">
+                  <p className="font-semibold inline-flex items-center gap-1"><BaptismDateIcon />Fecha bautismal</p>
+                  <p className="text-muted-foreground">{formatDisplayDate(persona.fechaBautismo)}</p>
+                </div>
+              </div>
+              <p className="text-base font-semibold text-left">Próximo evento programado</p>
+            </>
+          ) : (
+            <>
+              <SheetTitle className="flex items-center gap-2">
+                <User2 className="h-5 w-5 text-muted-foreground" />
+                {persona.nombre}
+                <Badge variant="outline" className="ml-2 text-xs">
+                  {tipo === "nuevo"
+                    ? "Nuevo"
+                    : tipo === "regresando"
+                    ? "Regresando"
+                    : "Enseñando"}
+                </Badge>
+              </SheetTitle>
+              <p className="text-sm text-muted-foreground">
+                Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
+                {formatMemberTime(persona.fechaPrimerContacto)}
+              </p>
+            </>
+          )}
         </SheetHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -855,22 +970,46 @@ function PersonaDetailSheet({
           <div className="space-y-5">
             {/* Asistencia */}
             <section>
-              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
-                Asistencia
-              </h3>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Asistencia
+                </h3>
+                {tipo === "enseñando" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setEditAsistencia((v) => !v)}
+                  >
+                    {editAsistencia ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
+                  </Button>
+                )}
+              </div>
               <AttendanceGrid
                 asistencia={asistencia}
                 sundays={sundays}
                 personaId={id ?? undefined}
-                editable
+                editable={tipo === "enseñando" ? editAsistencia : true}
               />
             </section>
 
             {/* Amigos */}
             <section>
-              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
-                Amigos ({amigos.length})
-              </h3>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Amigos ({amigos.length})
+                </h3>
+                {tipo === "enseñando" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setEditAmigos((v) => !v)}
+                  >
+                    {editAmigos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
+                  </Button>
+                )}
+              </div>
               <div className="space-y-1 mb-2">
                 {amigos.map((a) => (
                   <div key={a.id} className="flex items-center justify-between">
@@ -882,48 +1021,78 @@ function PersonaDetailSheet({
                         </Badge>
                       )}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => deleteAmigoMutation.mutate(a.id)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    {editAmigos && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => deleteAmigoMutation.mutate(a.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2 items-center">
-                <Input
-                  placeholder="Nombre del amigo"
-                  value={newAmigoName}
-                  onChange={(e) => setNewAmigoName(e.target.value)}
-                  className="h-8 text-sm"
-                />
-                <label className="flex items-center gap-1 text-xs whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={newAmigoMiembro}
-                    onChange={(e) => setNewAmigoMiembro(e.target.checked)}
-                    className="h-3 w-3"
-                  />
-                  miembro
-                </label>
-                <Button
-                  size="sm"
-                  className="h-8"
-                  disabled={!newAmigoName.trim()}
-                  onClick={() => {
-                    addAmigoMutation.mutate({
-                      nombre: newAmigoName.trim(),
-                      es_miembro: newAmigoMiembro,
-                    });
-                  }}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add
-                </Button>
-              </div>
+              {editAmigos && <div className="space-y-2 rounded-md border p-3">
+                <Label className="text-xs text-muted-foreground">Agregar amigo (Dentro de la estaca)</Label>
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar en el directorio..."
+                      value={friendSearch}
+                      onChange={(e) => {
+                        setFriendSearch(e.target.value);
+                        setSelectedFriend(null);
+                      }}
+                      className="h-8 text-sm pl-8"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    disabled={!selectedFriend}
+                    onClick={() => {
+                      if (!selectedFriend) return;
+                      addAmigoMutation.mutate({
+                        nombre: selectedFriend.nameSurename,
+                        es_miembro: true,
+                      });
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Asignar amigo
+                  </Button>
+                </div>
+
+                <div className="max-h-40 overflow-y-auto rounded-md border p-1">
+                  {!friendSearch.trim() ? null : membersQuery.isLoading ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">Cargando...</p>
+                  ) : filteredFriends.length === 0 ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">Sin resultados.</p>
+                  ) : (
+                    filteredFriends.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted ${
+                          selectedFriend?.id === m.id ? "bg-primary/10" : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedFriend(m);
+                          setFriendSearch(m.nameSurename);
+                        }}
+                      >
+                        <span className="font-medium">{m.nameSurename}</span>
+                        {selectedFriend?.id === m.id && (
+                          <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-primary" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>}
             </section>
 
             {/* Sacerdocio (nuevo/regresando only) */}
@@ -1098,23 +1267,57 @@ function PersonaDetailSheet({
             {/* Otros compromisos (enseñando only) */}
             {tipo === "enseñando" && otrosCompromisos && (
               <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
-                  Otros compromisos
-                </h3>
-                <BooleanRow
-                  label="Conocer al obispo"
-                  value={otrosCompromisos.conocerObispo}
-                  onToggle={(v) =>
-                    otrosCompromisosMutation.mutate({ ...otrosCompromisos, conocerObispo: v })
-                  }
-                />
-                <BooleanRow
-                  label="Historia familiar"
-                  value={otrosCompromisos.historiaFamiliar}
-                  onToggle={(v) =>
-                    otrosCompromisosMutation.mutate({ ...otrosCompromisos, historiaFamiliar: v })
-                  }
-                />
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Otros compromisos
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setEditOtrosCompromisos((v) => !v)}
+                  >
+                    {editOtrosCompromisos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
+                  </Button>
+                </div>
+                <div className="space-y-1.5 text-sm">
+                  <button
+                    type="button"
+                    disabled={!editOtrosCompromisos}
+                    className="flex items-center gap-2 disabled:cursor-default"
+                    onClick={() =>
+                      otrosCompromisosMutation.mutate({
+                        ...otrosCompromisos,
+                        conocerObispo: !otrosCompromisos.conocerObispo,
+                      })
+                    }
+                  >
+                    {otrosCompromisos.conocerObispo ? (
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-primary/70" />
+                    )}
+                    <span>Conocer al obispo</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!editOtrosCompromisos}
+                    className="flex items-center gap-2 disabled:cursor-default"
+                    onClick={() =>
+                      otrosCompromisosMutation.mutate({
+                        ...otrosCompromisos,
+                        historiaFamiliar: !otrosCompromisos.historiaFamiliar,
+                      })
+                    }
+                  >
+                    {otrosCompromisos.historiaFamiliar ? (
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-primary/70" />
+                    )}
+                    <span>Participar en la historia familiar</span>
+                  </button>
+                </div>
               </section>
             )}
           </div>
@@ -1176,13 +1379,17 @@ function PersonaDetailSheet({
                   Principios
                 </h3>
                 <Button
-                  variant="ghost"
+                  variant={editSesiones ? "default" : "outline"}
                   size="sm"
-                  className="h-6 px-2 text-xs"
+                  className="h-6 px-1 text-[11px]"
                   onClick={() => setEditSesiones((v) => !v)}
                 >
                   {editSesiones ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
                 </Button>
+              </div>
+              <div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1"><LessonStatusIcon present exists />Miembro presente</span>
+                <span className="inline-flex items-center gap-1"><LessonStatusIcon present={false} exists />Lección sin miembro</span>
               </div>
               <div className="space-y-2">
                 {principios.map((p) => {
@@ -1195,7 +1402,7 @@ function PersonaDetailSheet({
                           {done}/{p.maxSesiones}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-0.5">
                         {Array.from({ length: p.maxSesiones }, (_, i) => {
                           const sesNum = i + 1;
                           const key = `${p.id}-${sesNum}`;
@@ -1207,33 +1414,39 @@ function PersonaDetailSheet({
                             <button
                               key={sesNum}
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
+                                if (!exists) {
+                                  toggleSesionMutation.mutate({
+                                    action: "set",
+                                    principio_id: p.id,
+                                    sesion_num: sesNum,
+                                    miembro_presente: true,
+                                  });
+                                  return;
+                                }
+                                if (present) {
+                                  toggleSesionMutation.mutate({
+                                    action: "set",
+                                    principio_id: p.id,
+                                    sesion_num: sesNum,
+                                    miembro_presente: false,
+                                  });
+                                  return;
+                                }
                                 toggleSesionMutation.mutate({
+                                  action: "delete",
                                   principio_id: p.id,
                                   sesion_num: sesNum,
-                                  miembro_presente: !present,
-                                })
-                              }
-                              className="focus:outline-none"
+                                });
+                              }}
+                              className="focus:outline-none p-0.5"
                               title={`Sesión ${sesNum}`}
                             >
-                              {present ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-500 fill-green-500" />
-                              ) : exists ? (
-                                <CheckCircle2 className="h-4 w-4 text-blue-400 fill-blue-200" />
-                              ) : (
-                                <Circle className="h-4 w-4 text-muted-foreground" />
-                              )}
+                              <LessonStatusIcon present={present} exists={exists} />
                             </button>
                           ) : (
                             <span key={sesNum} title={`Sesión ${sesNum}`}>
-                              {present ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-500 fill-green-500" />
-                              ) : exists ? (
-                                <CheckCircle2 className="h-4 w-4 text-blue-400 fill-blue-200" />
-                              ) : (
-                                <Circle className="h-4 w-4 text-muted-foreground" />
-                              )}
+                              <LessonStatusIcon present={present} exists={exists} />
                             </span>
                           );
                         })}
@@ -1291,24 +1504,67 @@ function PersonaDetailSheet({
             {/* Compromisos bautismales (enseñando) */}
             {tipo === "enseñando" && compromisosBautismo.length > 0 && (
               <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
-                  Compromisos bautismales
-                </h3>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Compromisos bautismales
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setEditCompromisosBautismo((v) => !v)}
+                  >
+                    {editCompromisosBautismo ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   {compromisosBautismo.map((c) => (
-                    <div key={c.commitmentKey} className="flex items-center justify-between gap-2">
-                      <span className="text-sm flex-1">{c.nombre}</span>
-                      <Input
-                        type="date"
-                        className="h-7 text-xs w-36"
-                        value={c.fechaInvitado || ""}
-                        onChange={(e) =>
-                          compBautismoMutation.mutate({
-                            key: c.commitmentKey,
-                            fecha: e.target.value || null,
-                          })
-                        }
-                      />
+                    <div
+                      key={c.commitmentKey}
+                      className={editCompromisosBautismo ? "rounded-md border p-2" : "py-1"}
+                    >
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="text-sm">{c.nombre}</span>
+                        {c.fechaCumplido && !editCompromisosBautismo && (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                        )}
+                      </div>
+                      {editCompromisosBautismo ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Invitado</Label>
+                            <Input
+                              type="date"
+                              className="h-7 text-xs"
+                              value={c.fechaInvitado || ""}
+                              onChange={(e) =>
+                                compBautismoMutation.mutate({
+                                  key: c.commitmentKey,
+                                  fechaInvitado: e.target.value || null,
+                                })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Cumplido</Label>
+                            <Input
+                              type="date"
+                              className="h-7 text-xs"
+                              value={c.fechaCumplido || ""}
+                              onChange={(e) =>
+                                compBautismoMutation.mutate({
+                                  key: c.commitmentKey,
+                                  fechaCumplido: e.target.value || null,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Invitado: {c.fechaInvitado ? formatDisplayDate(c.fechaInvitado) : "—"}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
