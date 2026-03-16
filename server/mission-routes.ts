@@ -1136,7 +1136,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     }
   });
 
-  // PATCH /api/mission/baptism-services/:id — update service info
+  // PATCH /api/mission/baptism-services/:id — update service info or approval status
   app.patch("/api/mission/baptism-services/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -1146,8 +1146,17 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         locationAddress: z.string().nullable().optional(),
         mapsUrl: z.string().nullable().optional(),
         serviceAt: z.string().optional(),
+        approvalStatus: z.enum(["draft", "pending_approval", "approved", "needs_revision"]).optional(),
+        approvalComment: z.string().nullable().optional(),
       });
       const data = schema.parse(req.body);
+
+      // Only obispo/consejero can change approval status
+      if (data.approvalStatus !== undefined) {
+        const isObispo = user.role === "obispo" || user.role === "consejero_obispo";
+        if (!isObispo) return res.status(403).json({ message: "Solo el obispado puede cambiar el estado de aprobación" });
+      }
+
       const sets: string[] = ["updated_at = now()"];
       if (data.locationName) sets.push(`location_name = '${data.locationName.replace(/'/g, "''")}'`);
       if (data.locationAddress !== undefined) sets.push(`location_address = ${data.locationAddress ? `'${data.locationAddress.replace(/'/g, "''")}'` : "NULL"}`);
@@ -1159,6 +1168,20 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         sets.push(`service_at = '${serviceAt.toISOString()}'`);
         sets.push(`prep_deadline_at = '${prepDeadline.toISOString()}'`);
       }
+      if (data.approvalStatus) {
+        sets.push(`approval_status = '${data.approvalStatus}'`);
+        if (data.approvalStatus === "approved") {
+          sets.push(`approved_by = '${user.id}'`);
+          sets.push(`approved_at = now()`);
+        } else {
+          sets.push(`approved_by = NULL`);
+          sets.push(`approved_at = NULL`);
+        }
+      }
+      if (data.approvalComment !== undefined) {
+        sets.push(`approval_comment = ${data.approvalComment ? `'${data.approvalComment.replace(/'/g, "''")}'` : "NULL"}`);
+      }
+
       await db.execute(sql`
         UPDATE baptism_services
         SET ${sql.raw(sets.join(", "))}

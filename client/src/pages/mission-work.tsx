@@ -1859,6 +1859,7 @@ interface ProgramItem {
 }
 
 interface BaptismServiceDetail extends BaptismService {
+  approval_comment: string | null;
   program_items: ProgramItem[] | null;
   assignments: any[] | null;
 }
@@ -1867,10 +1868,12 @@ function BaptismalServiceSheet({
   service,
   open,
   onOpenChange,
+  userRole,
 }: {
   service: BaptismService | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  userRole?: string;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -1878,6 +1881,8 @@ function BaptismalServiceSheet({
   const [locationVal, setLocationVal] = useState("");
   const [locationAddrVal, setLocationAddrVal] = useState("");
   const [serviceAtVal, setServiceAtVal] = useState("");
+  const [approvalComment, setApprovalComment] = useState("");
+  const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
 
   const detailQuery = useQuery<BaptismServiceDetail>({
     queryKey: ["/api/mission/baptism-services", service?.id],
@@ -1887,8 +1892,10 @@ function BaptismalServiceSheet({
 
   const detail = detailQuery.data;
   const programItems: ProgramItem[] = detail?.program_items ?? [];
+  // Merge fresh detail data so approval status reflects server state without closing the sheet
+  const liveService = detail ? { ...service, approval_status: detail.approval_status, approval_comment: detail.approval_comment } : service;
 
-  React.useEffect(() => { setEditMode(false); }, [service?.id, open]);
+  React.useEffect(() => { setEditMode(false); setApprovalComment(""); }, [service?.id, open]);
   React.useEffect(() => { setLocationVal(service?.location_name ?? ""); }, [service?.location_name]);
   React.useEffect(() => { setLocationAddrVal(service?.location_address ?? ""); }, [service?.location_address]);
   React.useEffect(() => {
@@ -1927,11 +1934,35 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const approvalMutation = useMutation({
+    mutationFn: (data: { approvalStatus: string; approvalComment?: string | null }) =>
+      apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      toast({ title: "Estado actualizado" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Non-obispo: request approval
+  const requestApprovalMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, { approvalStatus: "pending_approval" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      toast({ title: "Solicitud enviada al obispado" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   if (!service) return null;
 
   const approvalBadge = () => {
-    if (service.approval_status === "approved") return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Aprobado</span>;
-    if (service.approval_status === "pending_approval") return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Pendiente aprobación</span>;
+    const status = liveService?.approval_status;
+    if (status === "approved") return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Aprobado</span>;
+    if (status === "needs_revision") return <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Necesita revisión</span>;
+    if (status === "pending_approval") return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Pendiente aprobación</span>;
     return <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">Borrador</span>;
   };
 
@@ -2046,6 +2077,92 @@ function BaptismalServiceSheet({
             </div>
           )}
         </section>
+
+        {/* Approval section */}
+        <section className="mt-6 pt-6 border-t">
+          <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Aprobación del obispado</h3>
+
+          {/* Non-bishop: show status + request button if still draft */}
+          {!isObispo && (
+            <div className="flex items-center gap-3">
+              {approvalBadge()}
+              {liveService?.approval_status === "draft" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7"
+                  onClick={() => requestApprovalMutation.mutate()}
+                  disabled={requestApprovalMutation.isPending}
+                >
+                  Solicitar aprobación
+                </Button>
+              )}
+              {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
+                <p className="text-xs text-red-600 mt-1">{liveService.approval_comment}</p>
+              )}
+            </div>
+          )}
+
+          {/* Bishop: full approval controls */}
+          {isObispo && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                {approvalBadge()}
+              </div>
+              {liveService?.approval_status !== "approved" && (
+                <>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Comentario (opcional)</Label>
+                    <Textarea
+                      value={approvalComment}
+                      onChange={(e) => setApprovalComment(e.target.value)}
+                      placeholder="Añade un comentario para el líder misional..."
+                      className="text-sm min-h-[60px] resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                      onClick={() => approvalMutation.mutate({
+                        approvalStatus: "approved",
+                        approvalComment: approvalComment || null,
+                      })}
+                      disabled={approvalMutation.isPending}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Aprobar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs border-red-300 text-red-600 hover:bg-red-50"
+                      onClick={() => approvalMutation.mutate({
+                        approvalStatus: "needs_revision",
+                        approvalComment: approvalComment || null,
+                      })}
+                      disabled={approvalMutation.isPending}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Necesita revisión
+                    </Button>
+                  </div>
+                </>
+              )}
+              {liveService?.approval_status === "approved" && (
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => approvalMutation.mutate({ approvalStatus: "draft", approvalComment: null })}
+                    disabled={approvalMutation.isPending}
+                  >
+                    Revocar aprobación
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       </SheetContent>
     </Sheet>
   );
@@ -2081,10 +2198,12 @@ interface BaptismService {
   maps_url: string | null;
   status: string;
   approval_status: string;
+  approval_comment: string | null;
   prep_deadline_at: string;
 }
 
 export default function MissionWork() {
+  const { user } = useAuth();
   const [section, setSection] = useState<SectionType | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -2216,6 +2335,7 @@ export default function MissionWork() {
             setServiceSheetOpen(v);
             if (!v) setSelectedService(null);
           }}
+          userRole={user?.role}
         />
       </div>
     );
