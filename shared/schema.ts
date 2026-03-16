@@ -374,6 +374,7 @@ export const missionPersonas = pgTable("mission_personas", {
   email: text("email"),
   memberId: varchar("member_id").references(() => members.id, { onDelete: "set null" }),
   fechaConfirmacion: date("fecha_confirmacion"),
+  fechaIngreso: date("fecha_ingreso").notNull().default(sql`CURRENT_DATE`),
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

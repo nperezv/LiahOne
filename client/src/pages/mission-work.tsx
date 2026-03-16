@@ -1611,12 +1611,16 @@ function PersonaCard({
     return s;
   }, [persona.asistencia]);
 
-  // Only show sundays from fechaIngreso onwards, up to today
   const today = toISODate(new Date());
+  // Show current-month sundays from fechaIngreso onwards, up to today
+  const fechaBase = persona.fechaIngreso ?? today;
   const visibleSundays = sundays.filter((s) => {
     const iso = toISODate(s);
-    return iso >= persona.fechaIngreso && iso <= today;
+    return iso >= fechaBase && iso <= today;
   });
+
+  const attendedCount = visibleSundays.filter((s) => attendedSet.has(toISODate(s))).length;
+  const missedCount = visibleSundays.length - attendedCount;
 
   const initials = persona.nombre.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
   const memberTime = formatMemberTime(persona.fechaConfirmacion);
@@ -1649,7 +1653,7 @@ function PersonaCard({
           </p>
           <div className="flex gap-1.5 flex-wrap">
             {visibleSundays.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">Sin domingos registrados aún</p>
+              <p className="text-xs text-muted-foreground italic">Sin domingos este mes aún</p>
             ) : visibleSundays.map((s) => {
               const iso = toISODate(s);
               const attended = attendedSet.has(iso);
@@ -1667,6 +1671,11 @@ function PersonaCard({
               );
             })}
           </div>
+          {visibleSundays.length > 0 && (
+            attendedCount >= 3
+              ? <p className="text-xs font-medium text-green-600 mt-1">Asistió {attendedCount} domingo{attendedCount !== 1 ? "s" : ""} este mes</p>
+              : <p className="text-xs font-medium text-destructive mt-1">{missedCount} domingo{missedCount !== 1 ? "s" : ""} sin asistir</p>
+          )}
         </div>
 
         {/* Friends */}

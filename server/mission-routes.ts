@@ -206,6 +206,12 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const unitId = user.unitId || user.organizationId;
       if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
 
+      // Nearest past Sunday (or today if Sunday) = attendance start date
+      const ingresoDate = new Date();
+      ingresoDate.setHours(0, 0, 0, 0);
+      while (ingresoDate.getDay() !== 0) ingresoDate.setDate(ingresoDate.getDate() - 1);
+      const fechaIngreso = ingresoDate.toISOString().split("T")[0];
+
       const schema = z.object({
         nombre: z.string().min(1),
         tipo: z.enum(["nuevo", "regresando", "enseñando"]),
@@ -231,6 +237,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           fechaPrimerContacto: data.fechaPrimerContacto,
           fechaBautismo: data.fechaBautismo || null,
           fechaConfirmacion: data.fechaConfirmacion || null,
+          fechaIngreso,
           proximoEvento: data.proximoEvento || null,
           notas: data.notas || null,
           fotoUrl: data.fotoUrl || null,
