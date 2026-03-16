@@ -52,6 +52,7 @@ interface Persona {
   fechaPrimerContacto: string;
   fechaBautismo?: string | null;
   fechaConfirmacion?: string | null;
+  fechaIngreso: string;
   proximoEvento?: string | null;
   notas?: string | null;
   phone?: string | null;
@@ -154,19 +155,6 @@ function getCurrentMonthSundays(): Date[] {
   return sundays;
 }
 
-/** Sundays from Jan 1 of current year up to today (for missed-this-year counter) */
-function getSundaysThisYear(): Date[] {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const sundays: Date[] = [];
-  const d = new Date(now.getFullYear(), 0, 1);
-  while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
-  while (d <= now) {
-    sundays.push(new Date(d));
-    d.setDate(d.getDate() + 7);
-  }
-  return sundays;
-}
 
 function toISODate(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -692,7 +680,7 @@ function PersonaDetailSheet({
   const ministracionQuery = usePersonaMinistracion(tipo !== "enseñando" ? id : null);
   const otrosCompromisosQuery = usePersonaOtrosCompromisos(tipo === "enseñando" ? id : null);
 
-  const sundays = useMemo(() => getLastSundays(6), []);
+  const sundays = useMemo(() => getCurrentMonthSundays(), []);
 
   // Amigo add state
   const [newAmigoName, setNewAmigoName] = useState("");
@@ -1353,43 +1341,25 @@ function PersonaDetailSheet({
 function PersonaCard({
   persona,
   sundays,
-  sundaysThisYear,
   onSelect,
   tipo,
 }: {
   persona: Persona;
   sundays: Date[];
-  sundaysThisYear: Date[];
   onSelect: (p: Persona) => void;
   tipo: PersonaTipo;
 }) {
-  const qc = useQueryClient();
-
   const attendedSet = useMemo(() => {
     const s = new Set<string>();
     for (const a of persona.asistencia) if (a.asistio) s.add(a.fecha_domingo);
     return s;
   }, [persona.asistencia]);
 
-  // Current month stats (only past/today sundays count)
+  // Only show sundays from fechaIngreso onwards, up to today
   const today = toISODate(new Date());
-  const pastSundays = sundays.filter((s) => toISODate(s) <= today);
-  const attendedThisMonth = pastSundays.filter((s) => attendedSet.has(toISODate(s))).length;
-  const missedThisMonth = pastSundays.length - attendedThisMonth;
-  const isPositiveMonth = pastSundays.length > 0 && attendedThisMonth >= 3;
-
-  // Missed this year (regresando)
-  const missedThisYear = sundaysThisYear.filter((s) => !attendedSet.has(toISODate(s))).length;
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ fecha, asistio }: { fecha: string; asistio: boolean }) => {
-      if (!asistio) {
-        await apiRequest("DELETE", `/api/mission/personas/${persona.id}/asistencia/${fecha}`);
-      } else {
-        await apiRequest("POST", `/api/mission/personas/${persona.id}/asistencia`, { fecha_domingo: fecha, asistio: true });
-      }
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] }),
+  const visibleSundays = sundays.filter((s) => {
+    const iso = toISODate(s);
+    return iso >= persona.fechaIngreso && iso <= today;
   });
 
   const initials = persona.nombre.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
@@ -1422,42 +1392,25 @@ function PersonaCard({
             Reunión sacramental
           </p>
           <div className="flex gap-1.5 flex-wrap">
-            {sundays.map((s) => {
+            {visibleSundays.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">Sin domingos registrados aún</p>
+            ) : visibleSundays.map((s) => {
               const iso = toISODate(s);
-              const isFuture = iso > today;
               const attended = attendedSet.has(iso);
               return (
                 <div key={iso} className="flex flex-col items-center gap-0.5">
                   <span className="text-[10px] text-muted-foreground leading-none">
                     {formatShortDate(s)}
                   </span>
-                  <button
-                    type="button"
-                    disabled={isFuture}
-                    onClick={(e) => { e.stopPropagation(); toggleMutation.mutate({ fecha: iso, asistio: !attended }); }}
-                    className={`focus:outline-none ${isFuture ? "opacity-30 cursor-default" : "cursor-pointer"}`}
-                    title={isFuture ? "Domingo futuro" : attended ? "Marcar ausente" : "Marcar presente"}
-                  >
+                  <span title={iso}>
                     {attended
-                      ? <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-100" />
+                      ? <CheckCircle2 className="h-5 w-5 text-green-500 fill-green-100" />
                       : <Circle className="h-5 w-5 text-muted-foreground" />}
-                  </button>
+                  </span>
                 </div>
               );
             })}
           </div>
-          {pastSundays.length > 0 && (
-            <p className={`text-xs mt-1 font-medium ${isPositiveMonth ? "text-green-600" : "text-destructive"}`}>
-              {isPositiveMonth
-                ? `Asistió ${attendedThisMonth} de ${pastSundays.length} reunión${pastSundays.length !== 1 ? "es" : ""}`
-                : `${missedThisMonth} domingo${missedThisMonth !== 1 ? "s" : ""} sin asistir este mes`}
-            </p>
-          )}
-          {tipo === "regresando" && sundaysThisYear.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {missedThisYear} domingo{missedThisYear !== 1 ? "s" : ""} sin asistir este año
-            </p>
-          )}
         </div>
 
         {/* Friends */}
@@ -1493,7 +1446,6 @@ function TabContent({
   const { data, isLoading } = usePersonas(tipo);
 
   const sundays = useMemo(() => getCurrentMonthSundays(), []);
-  const sundaysThisYear = useMemo(() => getSundaysThisYear(), []);
 
   return (
     <div>
@@ -1519,7 +1471,6 @@ function TabContent({
               key={p.id}
               persona={p}
               sundays={sundays}
-              sundaysThisYear={sundaysThisYear}
               onSelect={onSelect}
               tipo={tipo}
             />
