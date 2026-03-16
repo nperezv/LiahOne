@@ -1128,18 +1128,14 @@ function PersonaDetailSheet({
                     Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
                     {formatMemberTime(persona.fechaPrimerContacto)}
                   </p>
-                  <div className="mt-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-6 px-2"
-                      onClick={() => setEditMode((v) => !v)}
-                    >
-                      {editMode
-                        ? <><Check className="h-3 w-3 mr-1" />Listo</>
-                        : <><TrendingUp className="h-3 w-3 mr-1" />Actualizar progreso</>}
-                    </Button>
-                  </div>
+                  <button
+                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                    onClick={() => setEditMode((v) => !v)}
+                  >
+                    {editMode
+                      ? <><Check className="h-2.5 w-2.5" />Listo</>
+                      : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
+                  </button>
                 </>
               )}
             </div>

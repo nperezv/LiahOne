@@ -78,6 +78,7 @@ import {
   sendSacramentalAssignmentEmail,
   sendBirthdayGreetingEmail,
   sendAgendaReminderEmail,
+  sendBaptismReminderEmail,
   verifyAccessToken,
 } from "./auth";
 
@@ -8033,7 +8034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const targetDateStr = target.toISOString().split("T")[0]; // YYYY-MM-DD
 
       const result = await db.execute(sql`
-        SELECT mp.id, mp.nombre, mp.fecha_bautismo, mp.organization_id
+        SELECT mp.id, mp.nombre, mp.fecha_bautismo, mp.unit_id
         FROM mission_personas mp
         WHERE mp.fecha_bautismo = ${targetDateStr}
           AND mp.is_archived = false
@@ -8054,12 +8055,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const dedupeKey = `baptism_reminder:${todayKey}:${persona.id}`;
         if (sentBaptismReminderKeys.has(dedupeKey)) continue;
 
-        const unitUsers = await storage.getAllUsers();
-        const recipients = unitUsers.filter(
+        const allUsers = await storage.getAllUsers();
+
+        // Core mission roles (organizationId = ward/unit)
+        const missionRecipients = allUsers.filter(
           (u: any) =>
             u.organizationId === persona.unit_id &&
             BAPTISM_REMINDER_ROLES.has(u.role),
         );
+
+        // Cuórum elders president and SS president (organizationId = their org, not the ward)
+        const orgPresidentIds = await db.execute(sql`
+          SELECT u.id FROM users u
+          JOIN organizations o ON o.id = u.organization_id
+          WHERE u.role = 'presidente_organizacion'
+            AND o.type IN ('cuorum_elderes', 'sociedad_socorro')
+        `);
+        const orgPresidents = allUsers.filter((u: any) =>
+          (orgPresidentIds.rows as any[]).some((r) => r.id === u.id),
+        );
+
+        const recipients = [
+          ...missionRecipients,
+          ...orgPresidents.filter((u: any) => !missionRecipients.find((m: any) => m.id === u.id)),
+        ];
+
+        const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
 
         for (const recipient of recipients) {
           const title = "Servicio Bautismal en 2 semanas";
@@ -8080,6 +8101,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               body,
               url: "/mission-work",
               notificationId: notification.id,
+            });
+          }
+
+          if (recipient.email) {
+            await sendBaptismReminderEmail({
+              toEmail: recipient.email,
+              recipientName: recipient.name,
+              candidateName: persona.nombre,
+              baptismDate: persona.fecha_bautismo,
+              wardName,
             });
           }
         }

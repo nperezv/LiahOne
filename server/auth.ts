@@ -1069,3 +1069,47 @@ export async function sendBirthdayGreetingEmail(payload: {
     ].join("\n"),
   });
 }
+
+export async function sendBaptismReminderEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  candidateName: string;
+  baptismDate: string;
+  wardName?: string | null;
+}) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = getSmtpFromHeader(payload.wardName);
+
+  if (!host || !port || !user || !pass) {
+    console.warn("[Baptism Email] SMTP not configured, skipping:", payload.toEmail);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: payload.toEmail,
+    subject: `Servicio bautismal de ${payload.candidateName} — quedan 2 semanas`,
+    text: [
+      `Estimado/a ${payload.recipientName},`,
+      "",
+      `Te recordamos que el servicio bautismal de ${payload.candidateName} está programado para el ${payload.baptismDate}.`,
+      "",
+      "Faltan aproximadamente 2 semanas. Por favor, asegúrate de que el programa esté preparado y que todos los participantes estén confirmados.",
+      "",
+      "Puedes revisar y editar el programa desde la sección 'Obra Misional > Servicios Bautismales' en la aplicación.",
+      "",
+      "Atentamente,",
+      payload.wardName?.trim() || "Tu barrio",
+    ].join("\n"),
+  });
+}
