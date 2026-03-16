@@ -1151,10 +1151,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       });
       const data = schema.parse(req.body);
 
-      // Only obispo/consejero can change approval status
-      if (data.approvalStatus !== undefined) {
+      // Only obispo/consejero can approve or mark as needs_revision
+      if (data.approvalStatus === "approved" || data.approvalStatus === "needs_revision") {
         const isObispo = user.role === "obispo" || user.role === "consejero_obispo";
-        if (!isObispo) return res.status(403).json({ message: "Solo el obispado puede cambiar el estado de aprobación" });
+        if (!isObispo) return res.status(403).json({ message: "Solo el obispado puede aprobar o rechazar" });
       }
 
       const sets: string[] = ["updated_at = now()"];
