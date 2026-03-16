@@ -1031,6 +1031,7 @@ function PersonaDetailSheet({
                       )}
                     </div>
                   </div>
+                  <div className="border-t mt-4" />
                   {/* Próximos eventos — solo los que tienen fecha, o todos en modo edición */}
                   {(() => {
                     const eventos = [
