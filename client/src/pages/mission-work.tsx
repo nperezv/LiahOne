@@ -1180,7 +1180,7 @@ function PersonaDetailSheet({
             <div className="flex gap-8 flex-wrap">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primer contacto</p>
-                <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)} · {formatMemberTime(persona.fechaPrimerContacto)}</p>
+                <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)} · {formatMemberTime(persona.fechaConfirmacion)}</p>
               </div>
             </div>
           )}
