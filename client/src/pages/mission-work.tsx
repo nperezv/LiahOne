@@ -783,6 +783,21 @@ function PersonaDetailSheet({
   const [editOtrosCompromisos, setEditOtrosCompromisos] = useState(false);
   const [editCompromisosBautismo, setEditCompromisosBautismo] = useState(false);
 
+  // Fecha bautismal edit
+  const [editFechaBautismo, setEditFechaBautismo] = useState(false);
+  const [fechaBautismoVal, setFechaBautismoVal] = useState("");
+
+  const fechaBautismoMutation = useMutation({
+    mutationFn: (fecha: string | null) =>
+      apiRequest("PUT", `/api/mission/personas/${id}`, { fechaBautismo: fecha }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+      setEditFechaBautismo(false);
+      toast({ title: "Fecha bautismal guardada" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const toggleSesionMutation = useMutation({
     mutationFn: (data: {
       principio_id: number;
@@ -938,8 +953,41 @@ function PersonaDetailSheet({
                   <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
                 </div>
                 <div className="min-w-[220px]">
-                  <p className="font-semibold inline-flex items-center gap-1"><BaptismDateIcon />Fecha bautismal</p>
-                  <p className="text-muted-foreground">{formatDisplayDate(persona.fechaBautismo)}</p>
+                  <p className="font-semibold inline-flex items-center gap-1">
+                    <BaptismDateIcon />Fecha bautismal
+                    <button
+                      type="button"
+                      className="ml-1 text-muted-foreground hover:text-foreground focus:outline-none"
+                      onClick={() => {
+                        setFechaBautismoVal(persona.fechaBautismo ?? "");
+                        setEditFechaBautismo((v) => !v);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </p>
+                  {editFechaBautismo ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Input
+                        type="date"
+                        value={fechaBautismoVal}
+                        onChange={(e) => setFechaBautismoVal(e.target.value)}
+                        className="h-7 text-sm w-40"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => fechaBautismoMutation.mutate(fechaBautismoVal || null)}
+                        disabled={fechaBautismoMutation.isPending}
+                      >
+                        Guardar
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      {persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}
+                    </p>
+                  )}
                 </div>
               </div>
               <p className="text-base font-semibold text-left">Próximo evento programado</p>
