@@ -368,6 +368,8 @@ export const missionPersonas = pgTable("mission_personas", {
   tipo: missionPersonaTipoEnum("tipo").notNull(),
   fechaPrimerContacto: date("fecha_primer_contacto").notNull(),
   fechaBautismo: date("fecha_bautismo"),
+  fechaEntrevistaBautismal: date("fecha_entrevista_bautismal"),
+  fechaVisitaMisioneros: date("fecha_visita_misioneros"),
   proximoEvento: date("proximo_evento"),
   notas: text("notas"),
   phone: text("phone"),

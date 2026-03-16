@@ -38,6 +38,9 @@ import {
   ChevronRight,
   Check,
   TrendingUp,
+  CalendarCheck,
+  UserCheck,
+  Waves,
 } from "lucide-react";
 
 // ============================================================
@@ -53,6 +56,8 @@ interface Persona {
   tipo: PersonaTipo;
   fechaPrimerContacto: string;
   fechaBautismo?: string | null;
+  fechaEntrevistaBautismal?: string | null;
+  fechaVisitaMisioneros?: string | null;
   fechaConfirmacion?: string | null;
   fechaIngreso: string;
   proximoEvento?: string | null;
@@ -788,10 +793,30 @@ function PersonaDetailSheet({
   const [llamamientoVal, setLlamamientoVal] = useState("");
   const [ministracionVal, setMinistracionVal] = useState("");
   const [fechaBautismoVal, setFechaBautismoVal] = useState("");
+  const [fechaEntrevistaVal, setFechaEntrevistaVal] = useState("");
+  const [fechaVisitaVal, setFechaVisitaVal] = useState("");
 
   const fechaBautismoMutation = useMutation({
     mutationFn: (fecha: string | null) =>
       apiRequest("PUT", `/api/mission/personas/${id}`, { fechaBautismo: fecha }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const fechaEntrevistaMutation = useMutation({
+    mutationFn: (fecha: string | null) =>
+      apiRequest("PUT", `/api/mission/personas/${id}`, { fechaEntrevistaBautismal: fecha }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const fechaVisitaMutation = useMutation({
+    mutationFn: (fecha: string | null) =>
+      apiRequest("PUT", `/api/mission/personas/${id}`, { fechaVisitaMisioneros: fecha }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
     },
@@ -889,6 +914,12 @@ function PersonaDetailSheet({
   React.useEffect(() => {
     setFechaBautismoVal(persona?.fechaBautismo ?? "");
   }, [persona?.fechaBautismo]);
+  React.useEffect(() => {
+    setFechaEntrevistaVal(persona?.fechaEntrevistaBautismal ?? "");
+  }, [persona?.fechaEntrevistaBautismal]);
+  React.useEffect(() => {
+    setFechaVisitaVal(persona?.fechaVisitaMisioneros ?? "");
+  }, [persona?.fechaVisitaMisioneros]);
 
   // Otros compromisos
   const otrosCompromisosMutation = useMutation({
@@ -988,7 +1019,59 @@ function PersonaDetailSheet({
                       )}
                     </div>
                   </div>
-                  <p className="text-base font-semibold text-left mt-2">Próximo evento programado</p>
+                  <div className="mt-3 flex flex-wrap gap-6">
+                    {/* Entrevista Bautismal */}
+                    <div className="min-w-[200px]">
+                      <p className="font-semibold inline-flex items-center gap-1 text-sm">
+                        <UserCheck className="h-3.5 w-3.5" />Entrevista Bautismal
+                      </p>
+                      {editMode ? (
+                        <Input
+                          type="date"
+                          value={fechaEntrevistaVal}
+                          onChange={(e) => {
+                            setFechaEntrevistaVal(e.target.value);
+                            fechaEntrevistaMutation.mutate(e.target.value || null);
+                          }}
+                          className="h-7 text-sm w-40 mt-1"
+                        />
+                      ) : (
+                        <p className="text-muted-foreground text-sm">
+                          {persona.fechaEntrevistaBautismal ? formatDisplayDate(persona.fechaEntrevistaBautismal) : "—"}
+                        </p>
+                      )}
+                    </div>
+                    {/* Visita de los misioneros */}
+                    <div className="min-w-[200px]">
+                      <p className="font-semibold inline-flex items-center gap-1 text-sm">
+                        <CalendarCheck className="h-3.5 w-3.5" />Visita de los misioneros
+                      </p>
+                      {editMode ? (
+                        <Input
+                          type="date"
+                          value={fechaVisitaVal}
+                          onChange={(e) => {
+                            setFechaVisitaVal(e.target.value);
+                            fechaVisitaMutation.mutate(e.target.value || null);
+                          }}
+                          className="h-7 text-sm w-40 mt-1"
+                        />
+                      ) : (
+                        <p className="text-muted-foreground text-sm">
+                          {persona.fechaVisitaMisioneros ? formatDisplayDate(persona.fechaVisitaMisioneros) : "—"}
+                        </p>
+                      )}
+                    </div>
+                    {/* Servicio Bautismal — derivado de fechaBautismo */}
+                    <div className="min-w-[200px]">
+                      <p className="font-semibold inline-flex items-center gap-1 text-sm">
+                        <Waves className="h-3.5 w-3.5" />Servicio Bautismal
+                      </p>
+                      <p className="text-muted-foreground text-sm">
+                        {persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}
+                      </p>
+                    </div>
+                  </div>
                 </>
               ) : (
                 <>

@@ -290,6 +290,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         tipo: z.enum(["nuevo", "regresando", "enseñando"]).optional(),
         fechaPrimerContacto: z.string().optional(),
         fechaBautismo: z.string().nullable().optional(),
+        fechaEntrevistaBautismal: z.string().nullable().optional(),
+        fechaVisitaMisioneros: z.string().nullable().optional(),
         proximoEvento: z.string().nullable().optional(),
         notas: z.string().nullable().optional(),
         fotoUrl: z.string().nullable().optional(),
