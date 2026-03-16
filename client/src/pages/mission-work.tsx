@@ -37,6 +37,7 @@ import {
   X,
   ChevronRight,
   Check,
+  TrendingUp,
 } from "lucide-react";
 
 // ============================================================
@@ -953,12 +954,12 @@ function PersonaDetailSheet({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="shrink-0 text-xs text-muted-foreground h-7 px-2"
+                      className="shrink-0 text-xs h-6 px-2"
                       onClick={() => setEditMode((v) => !v)}
                     >
                       {editMode
                         ? <><Check className="h-3 w-3 mr-1" />Listo</>
-                        : <><Pencil className="h-3 w-3 mr-1" />Actualizar</>}
+                        : <><TrendingUp className="h-3 w-3 mr-1" />Actualizar progreso</>}
                     </Button>
                   </div>
                   <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
@@ -1006,12 +1007,12 @@ function PersonaDetailSheet({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs text-muted-foreground h-7 px-2"
+                      className="text-xs h-6 px-2"
                       onClick={() => setEditMode((v) => !v)}
                     >
                       {editMode
                         ? <><Check className="h-3 w-3 mr-1" />Listo</>
-                        : <><Pencil className="h-3 w-3 mr-1" />Actualizar</>}
+                        : <><TrendingUp className="h-3 w-3 mr-1" />Actualizar progreso</>}
                     </Button>
                   </div>
                 </>
