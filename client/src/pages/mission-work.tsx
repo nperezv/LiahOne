@@ -1069,7 +1069,9 @@ function PersonaDetailSheet({
                     const visibles = editMode ? eventos : eventos.filter((e) => e.fecha);
                     if (visibles.length === 0 && !editMode) return null;
                     return (
-                      <div className="mt-3 flex flex-wrap gap-6">
+                      <div className="mt-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Próximos eventos</p>
+                      <div className="flex flex-wrap gap-6">
                         {visibles.map((ev) => (
                           <div key={ev.key} className="min-w-[180px]">
                             <p className="font-semibold inline-flex items-center gap-1 text-sm">
@@ -1112,24 +1114,25 @@ function PersonaDetailSheet({
                           </div>
                         )}
                       </div>
+                      </div>
                     );
                   })()}
                 </>
               ) : (
                 <>
-                  <SheetTitle className="flex items-center gap-2">
+                  <SheetTitle className="flex items-center gap-2 text-left">
                     <User2 className="h-5 w-5 text-muted-foreground" />
                     {persona.nombre}
                     <Badge variant="outline" className="ml-2 text-xs">
                       {tipo === "nuevo" ? "Nuevo" : "Regresando"}
                     </Badge>
                   </SheetTitle>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground text-left">
                     Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
                     {formatMemberTime(persona.fechaPrimerContacto)}
                   </p>
                   <button
-                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors text-left"
                     onClick={() => setEditMode((v) => !v)}
                   >
                     {editMode
