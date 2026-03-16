@@ -1603,20 +1603,24 @@ function PersonaDetailSheet({
                 <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Compromisos bautismales
                 </h3>
-                <div className="space-y-2">
+                <div className="divide-y">
                   {compromisosBautismo.map((c) => (
-                    <div
-                      key={c.commitmentKey}
-                      className={editMode ? "rounded-md border p-2" : "py-1"}
-                    >
-                      <div className="mb-1 flex items-center gap-2">
-                        <span className="text-sm">{c.nombre}</span>
-                        {c.fechaCumplido && !editMode && (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                    <div key={c.commitmentKey} className="py-2">
+                      <div className="flex items-center gap-2">
+                        {c.fechaCumplido ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                        ) : (
+                          <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                        )}
+                        <span className="text-sm flex-1">{c.nombre}</span>
+                        {!editMode && (
+                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                            {c.fechaInvitado ? `Invitado ${formatDisplayDate(c.fechaInvitado)}` : "—"}
+                          </span>
                         )}
                       </div>
-                      {editMode ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {editMode && (
+                        <div className="ml-6 mt-1.5 grid grid-cols-2 gap-2">
                           <div>
                             <Label className="text-[11px] text-muted-foreground">Invitado</Label>
                             <Input
@@ -1646,10 +1650,6 @@ function PersonaDetailSheet({
                             />
                           </div>
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Invitado: {c.fechaInvitado ? formatDisplayDate(c.fechaInvitado) : "—"}
-                        </p>
                       )}
                     </div>
                   ))}
