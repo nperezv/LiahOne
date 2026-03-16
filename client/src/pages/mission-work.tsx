@@ -948,17 +948,17 @@ function PersonaDetailSheet({
           <div className="flex-1 min-w-0">
               {tipo === "enseñando" ? (
                 <>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
                     <Button
-                      variant={editMode ? "default" : "outline"}
+                      variant="ghost"
                       size="sm"
-                      className="shrink-0"
+                      className="shrink-0 text-xs text-muted-foreground h-7 px-2"
                       onClick={() => setEditMode((v) => !v)}
                     >
                       {editMode
-                        ? <><Check className="h-3.5 w-3.5 mr-1" />Listo</>
-                        : <><Pencil className="h-3.5 w-3.5 mr-1" />Editar</>}
+                        ? <><Check className="h-3 w-3 mr-1" />Listo</>
+                        : <><Pencil className="h-3 w-3 mr-1" />Actualizar</>}
                     </Button>
                   </div>
                   <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
@@ -1002,15 +1002,16 @@ function PersonaDetailSheet({
                     Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
                     {formatMemberTime(persona.fechaPrimerContacto)}
                   </p>
-                  <div className="mt-2">
+                  <div className="mt-1">
                     <Button
-                      variant={editMode ? "default" : "outline"}
+                      variant="ghost"
                       size="sm"
+                      className="text-xs text-muted-foreground h-7 px-2"
                       onClick={() => setEditMode((v) => !v)}
                     >
                       {editMode
-                        ? <><Check className="h-3.5 w-3.5 mr-1" />Listo</>
-                        : <><Pencil className="h-3.5 w-3.5 mr-1" />Editar</>}
+                        ? <><Check className="h-3 w-3 mr-1" />Listo</>
+                        : <><Pencil className="h-3 w-3 mr-1" />Actualizar</>}
                     </Button>
                   </div>
                 </>
