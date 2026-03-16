@@ -993,8 +993,8 @@ function PersonaDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
-        <SheetHeader className="sticky top-0 z-10 bg-background -mx-6 -mt-6 px-6 pt-5 pb-4 mb-4 border-b">
+      <SheetContent side="right" className="w-full max-w-4xl flex flex-col p-0">
+        <SheetHeader className={`px-6 pt-5 pb-4 shrink-0 border-b${editMode ? " bg-background" : ""}`}>
           <div className="flex-1 min-w-0 text-left">
               {tipo === "enseñando" ? (
                 <>
@@ -1149,6 +1149,7 @@ function PersonaDetailSheet({
             </div>
         </SheetHeader>
 
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
           {/* ─── LEFT COLUMN ─── */}
           <div className="divide-y">
@@ -1670,6 +1671,7 @@ function PersonaDetailSheet({
           >
             {archiveMutation.isPending ? "Archivando..." : "Archivar persona"}
           </Button>
+        </div>
         </div>
       </SheetContent>
     </Sheet>
