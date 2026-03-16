@@ -945,11 +945,22 @@ function PersonaDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
         <SheetHeader className="mb-4">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
               {tipo === "enseñando" ? (
                 <>
-                  <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
+                    <Button
+                      variant={editMode ? "default" : "outline"}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setEditMode((v) => !v)}
+                    >
+                      {editMode
+                        ? <><Check className="h-3.5 w-3.5 mr-1" />Listo</>
+                        : <><Pencil className="h-3.5 w-3.5 mr-1" />Editar</>}
+                    </Button>
+                  </div>
                   <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
                     <div className="min-w-[220px]">
                       <p className="font-semibold">Se le enseñó por primera vez</p>
@@ -991,20 +1002,20 @@ function PersonaDetailSheet({
                     Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
                     {formatMemberTime(persona.fechaPrimerContacto)}
                   </p>
+                  <div className="mt-2">
+                    <Button
+                      variant={editMode ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setEditMode((v) => !v)}
+                    >
+                      {editMode
+                        ? <><Check className="h-3.5 w-3.5 mr-1" />Listo</>
+                        : <><Pencil className="h-3.5 w-3.5 mr-1" />Editar</>}
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
-            <Button
-              variant={editMode ? "default" : "outline"}
-              size="sm"
-              className="shrink-0"
-              onClick={() => setEditMode((v) => !v)}
-            >
-              {editMode
-                ? <><Check className="h-3.5 w-3.5 mr-1" />Listo</>
-                : <><Pencil className="h-3.5 w-3.5 mr-1" />Editar</>}
-            </Button>
-          </div>
         </SheetHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
