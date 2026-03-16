@@ -1428,7 +1428,7 @@ function PersonaDetailSheet({
           </div>
 
           {/* ─── RIGHT COLUMN ─── */}
-          <div className="divide-y">
+          <div className="divide-y border-t md:border-t-0">
             {/* Templo ordinanzas (nuevo/regresando) */}
             {tipo !== "enseñando" && templo && (
               <section className="py-5 first:pt-3">
@@ -1608,9 +1608,9 @@ function PersonaDetailSheet({
                     <div key={c.commitmentKey} className="py-2">
                       <div className="flex items-center gap-2">
                         {c.fechaCumplido ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                         ) : (
-                          <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                          <Circle className="h-4 w-4 text-primary/70 shrink-0" />
                         )}
                         <span className="text-sm flex-1">{c.nombre}</span>
                         {!editMode && (
