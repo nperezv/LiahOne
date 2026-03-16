@@ -1007,13 +1007,13 @@ function PersonaDetailSheet({
                       ? <><Check className="h-2.5 w-2.5" />Listo</>
                       : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
                   </button>
-                  <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
-                    <div className="min-w-[220px]">
-                      <p className="font-semibold">Se le enseñó por primera vez</p>
-                      <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
+                  <div className="mt-3 flex gap-8 flex-wrap">
+                    <div>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primera enseñanza</p>
+                      <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
                     </div>
-                    <div className="min-w-[220px]">
-                      <p className="font-semibold inline-flex items-center gap-1">
+                    <div>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5 inline-flex items-center gap-1">
                         <BaptismDateIcon />Fecha bautismal
                       </p>
                       {editMode ? (
@@ -1027,9 +1027,7 @@ function PersonaDetailSheet({
                           className="h-7 text-sm w-40 mt-1"
                         />
                       ) : (
-                        <p className="text-muted-foreground">
-                          {persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}
-                        </p>
+                        <p className="text-sm">{persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}</p>
                       )}
                     </div>
                   </div>
@@ -1070,67 +1068,68 @@ function PersonaDetailSheet({
                     if (visibles.length === 0 && !editMode) return null;
                     return (
                       <div className="mt-3">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Próximos eventos</p>
-                      <div className="flex flex-wrap gap-6">
-                        {visibles.map((ev) => (
-                          <div key={ev.key} className="min-w-[180px]">
-                            <p className="font-semibold inline-flex items-center gap-1 text-sm">
-                              {ev.icon}{ev.label}
-                            </p>
-                            {editMode && ev.editEl
-                              ? ev.editEl
-                              : <p className="text-muted-foreground text-sm">{ev.fecha ? formatDisplayDate(ev.fecha) : "—"}</p>
-                            }
-                          </div>
-                        ))}
-                        {/* Evento Otros */}
-                        {(editMode || (persona.proximoEvento && persona.proximoEventoDescripcion)) && (
-                          <div className="min-w-[180px]">
-                            <p className="font-semibold inline-flex items-center gap-1 text-sm">
-                              <CalendarDays className="h-3.5 w-3.5" />Otros
-                            </p>
-                            {editMode ? (
-                              <div className="flex flex-col gap-1 mt-1">
-                                <Input
-                                  placeholder="Descripción del evento"
-                                  value={proximoEventoDescVal}
-                                  onChange={(e) => setProximoEventoDescVal(e.target.value)}
-                                  onBlur={() => proximoEventoMutation.mutate({ proximoEventoDescripcion: proximoEventoDescVal || null })}
-                                  className="h-7 text-sm w-48"
-                                />
-                                <Input
-                                  type="date"
-                                  value={proximoEventoVal}
-                                  onChange={(e) => { setProximoEventoVal(e.target.value); proximoEventoMutation.mutate({ proximoEvento: e.target.value || null }); }}
-                                  className="h-7 text-sm w-40"
-                                />
+                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Próximos eventos</p>
+                        <div className="flex flex-col gap-2">
+                          {visibles.map((ev) => (
+                            <div key={ev.key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-muted/30">
+                              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                                {ev.icon}
                               </div>
-                            ) : (
-                              <div>
-                                <p className="text-muted-foreground text-sm">{persona.proximoEventoDescripcion}</p>
-                                <p className="text-muted-foreground text-sm">{persona.proximoEvento ? formatDisplayDate(persona.proximoEvento) : ""}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] text-muted-foreground">{ev.label}</p>
+                                {editMode && ev.editEl
+                                  ? ev.editEl
+                                  : <p className="text-sm font-medium">{ev.fecha ? formatDisplayDate(ev.fecha) : "—"}</p>
+                                }
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          ))}
+                          {/* Evento Otros */}
+                          {(editMode || (persona.proximoEvento && persona.proximoEventoDescripcion)) && (
+                            <div className="flex items-start gap-3 px-3 py-2.5 rounded-lg border bg-muted/30">
+                              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary mt-0.5">
+                                <CalendarDays className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] text-muted-foreground">Otros</p>
+                                {editMode ? (
+                                  <div className="flex flex-col gap-1 mt-1">
+                                    <Input
+                                      placeholder="Descripción del evento"
+                                      value={proximoEventoDescVal}
+                                      onChange={(e) => setProximoEventoDescVal(e.target.value)}
+                                      onBlur={() => proximoEventoMutation.mutate({ proximoEventoDescripcion: proximoEventoDescVal || null })}
+                                      className="h-7 text-sm w-48"
+                                    />
+                                    <Input
+                                      type="date"
+                                      value={proximoEventoVal}
+                                      onChange={(e) => { setProximoEventoVal(e.target.value); proximoEventoMutation.mutate({ proximoEvento: e.target.value || null }); }}
+                                      className="h-7 text-sm w-40"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <p className="text-sm font-medium">{persona.proximoEventoDescripcion}</p>
+                                    <p className="text-xs text-muted-foreground">{persona.proximoEvento ? formatDisplayDate(persona.proximoEvento) : ""}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
                 </>
               ) : (
                 <>
-                  <SheetTitle className="flex items-center gap-2">
-                    <User2 className="h-5 w-5 text-muted-foreground" />
-                    {persona.nombre}
-                    <Badge variant="outline" className="ml-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <p className="text-2xl font-medium">{persona.nombre}</p>
+                    <Badge variant="outline" className="text-xs">
                       {tipo === "nuevo" ? "Nuevo" : "Regresando"}
                     </Badge>
-                  </SheetTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
-                    {formatMemberTime(persona.fechaPrimerContacto)}
-                  </p>
+                  </div>
                   <button
                     className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
                     onClick={() => setEditMode((v) => !v)}
@@ -1139,18 +1138,27 @@ function PersonaDetailSheet({
                       ? <><Check className="h-2.5 w-2.5" />Listo</>
                       : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
                   </button>
+                  <div className="mt-3 flex gap-8 flex-wrap">
+                    <div>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primer contacto</p>
+                      <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)} · {formatMemberTime(persona.fechaPrimerContacto)}</p>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
         </SheetHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
           {/* ─── LEFT COLUMN ─── */}
-          <div className="space-y-5">
+          <div className="divide-y">
             {/* Asistencia */}
-            <section>
-              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
-                Asistencia
+            <section className="py-5 first:pt-3">
+              <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                {(() => {
+                  const now = new Date();
+                  return `Asistencia — ${now.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}`;
+                })()}
               </h3>
               <AttendanceGrid
                 asistencia={asistencia}
@@ -1158,11 +1166,20 @@ function PersonaDetailSheet({
                 personaId={id ?? undefined}
                 editable={editMode}
               />
+              {(() => {
+                const now = new Date();
+                const count = asistencia.filter((a) => {
+                  const d = new Date(a.fecha_domingo);
+                  return a.asistio && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                }).length;
+                if (count === 0) return null;
+                return <p className="text-xs text-green-600 mt-2">Asistió {count} domingo{count !== 1 ? "s" : ""} este mes</p>;
+              })()}
             </section>
 
             {/* Amigos */}
-            <section>
-              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+            <section className="py-5">
+              <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                 Amigos ({amigos.length})
               </h3>
               <div className="space-y-1 mb-2">
@@ -1252,8 +1269,8 @@ function PersonaDetailSheet({
 
             {/* Sacerdocio (nuevo/regresando only) */}
             {tipo !== "enseñando" && sacerdocio && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Sacerdocio
                 </h3>
                 <div className="space-y-2">
@@ -1317,8 +1334,8 @@ function PersonaDetailSheet({
 
             {/* Llamamiento (nuevo/regresando) */}
             {tipo !== "enseñando" && llamamiento !== undefined && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Llamamiento
                 </h3>
                 {editMode ? (
@@ -1339,8 +1356,8 @@ function PersonaDetailSheet({
 
             {/* Ministración (nuevo/regresando) */}
             {tipo !== "enseñando" && ministracion !== undefined && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Ministración
                 </h3>
                 {editMode ? (
@@ -1364,8 +1381,8 @@ function PersonaDetailSheet({
 
             {/* Otros compromisos (enseñando only) */}
             {tipo === "enseñando" && otrosCompromisos && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Otros compromisos
                 </h3>
                 <div className="space-y-1.5 text-sm">
@@ -1411,11 +1428,11 @@ function PersonaDetailSheet({
           </div>
 
           {/* ─── RIGHT COLUMN ─── */}
-          <div className="space-y-5">
+          <div className="divide-y">
             {/* Templo ordinanzas (nuevo/regresando) */}
             {tipo !== "enseñando" && templo && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5 first:pt-3">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Ordenanzas del templo
                 </h3>
                 <BooleanRow
@@ -1467,8 +1484,8 @@ function PersonaDetailSheet({
             )}
 
             {/* Principios grid */}
-            <section>
-              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+            <section className="py-5 first:pt-3">
+              <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                 Principios
               </h3>
               <div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
@@ -1543,8 +1560,8 @@ function PersonaDetailSheet({
 
             {/* Self-reliance (nuevo/regresando) */}
             {tipo !== "enseñando" && selfReliance && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Autosuficiencia
                 </h3>
                 <BooleanRow
@@ -1582,8 +1599,8 @@ function PersonaDetailSheet({
 
             {/* Compromisos bautismales (enseñando) */}
             {tipo === "enseñando" && compromisosBautismo.length > 0 && (
-              <section>
-                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+              <section className="py-5 first:pt-3">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
                   Compromisos bautismales
                 </h3>
                 <div className="space-y-2">
