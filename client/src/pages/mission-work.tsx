@@ -849,6 +849,19 @@ function PersonaDetailSheet({
     },
   });
 
+  // Derived data — declared before mutations/effects that reference them
+  const sacerdocio = sacerdocioQuery.data;
+  const templo = temploQuery.data;
+  const selfReliance = selfRelianceQuery.data;
+  const llamamiento = llamamientoQuery.data;
+  const ministracion = ministracionQuery.data;
+  const otrosCompromisos = otrosCompromisosQuery.data;
+  const principios = principiosQuery.data ?? [];
+  const sesiones = sesionesQuery.data ?? [];
+  const compromisosBautismo = compBautismoQuery.data ?? [];
+  const amigos = amigosQuery.data ?? [];
+  const asistencia = asistenciaQuery.data ?? [];
+
   // Llamamiento
   const llamamientoMutation = useMutation({
     mutationFn: (nombre: string | null) =>
@@ -914,18 +927,6 @@ function PersonaDetailSheet({
       toast({ title: "Persona archivada" });
     },
   });
-
-  const sacerdocio = sacerdocioQuery.data;
-  const templo = temploQuery.data;
-  const selfReliance = selfRelianceQuery.data;
-  const llamamiento = llamamientoQuery.data;
-  const ministracion = ministracionQuery.data;
-  const otrosCompromisos = otrosCompromisosQuery.data;
-  const principios = principiosQuery.data ?? [];
-  const sesiones = sesionesQuery.data ?? [];
-  const compromisosBautismo = compBautismoQuery.data ?? [];
-  const amigos = amigosQuery.data ?? [];
-  const asistencia = asistenciaQuery.data ?? [];
 
   const sesionMap = useMemo(() => {
     const m: Record<string, boolean> = {};
