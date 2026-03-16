@@ -995,7 +995,7 @@ function PersonaDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
         <SheetHeader className="mb-4">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
               {tipo === "enseñando" ? (
                 <>
                   <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
@@ -1120,19 +1120,19 @@ function PersonaDetailSheet({
                 </>
               ) : (
                 <>
-                  <SheetTitle className="flex items-center gap-2 text-left">
+                  <SheetTitle className="flex items-center gap-2">
                     <User2 className="h-5 w-5 text-muted-foreground" />
                     {persona.nombre}
                     <Badge variant="outline" className="ml-2 text-xs">
                       {tipo === "nuevo" ? "Nuevo" : "Regresando"}
                     </Badge>
                   </SheetTitle>
-                  <p className="text-sm text-muted-foreground text-left">
+                  <p className="text-sm text-muted-foreground">
                     Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
                     {formatMemberTime(persona.fechaPrimerContacto)}
                   </p>
                   <button
-                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors text-left"
+                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
                     onClick={() => setEditMode((v) => !v)}
                   >
                     {editMode
