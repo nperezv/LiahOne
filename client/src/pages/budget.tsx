@@ -1564,7 +1564,7 @@ export default function BudgetPage() {
                                     onChange={(e) => field.onChange(e.target.files?.[0] ?? undefined)}
                                     onBlur={field.onBlur}
                                     ref={field.ref}
-                                    className="hidden"
+                                    className="sr-only"
                                     data-testid="input-bank-justificante"
                                   />
                                   <Button

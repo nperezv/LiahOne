@@ -321,6 +321,7 @@ export default function WelfarePage() {
     const response = await fetch("/api/uploads", {
       method: "POST",
       headers: getAuthHeaders(),
+      credentials: "include",
       body: formData,
     });
     if (!response.ok) throw new Error("No se pudo subir el archivo");
@@ -983,7 +984,7 @@ export default function WelfarePage() {
                                       type="file"
                                       accept=".jpg,.jpeg,.pdf"
                                       onChange={(e) => field.onChange(e.target.files?.[0])}
-                                      className="hidden"
+                                      className="sr-only"
                                     />
                                     <Button
                                       type="button"
