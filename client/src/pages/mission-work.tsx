@@ -1006,177 +1006,187 @@ function PersonaDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-4xl flex flex-col p-0">
-        <SheetHeader className={`px-6 pt-5 pb-4 shrink-0 border-b${editMode ? " bg-background" : ""}`}>
-          <div className="flex-1 min-w-0 text-left">
-              {tipo === "enseñando" ? (
-                <>
-                  <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
-                  <button
-                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
-                    onClick={() => setEditMode((v) => !v)}
-                  >
-                    {editMode
-                      ? <><Check className="h-2.5 w-2.5" />Listo</>
-                      : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
-                  </button>
-                  <div className="mt-3 flex gap-8 flex-wrap items-start">
-                    <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primera enseñanza</p>
-                      {editMode ? (
-                        <Input
-                          type="date"
-                          value={fechaPrimerContactoVal}
-                          onChange={(e) => {
-                            setFechaPrimerContactoVal(e.target.value);
-                            fechaPrimerContactoMutation.mutate(e.target.value || null);
-                          }}
-                          className="h-7 text-sm w-40 mt-1"
-                        />
-                      ) : (
-                        <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <BaptismDateIcon />
-                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Fecha bautismal</p>
-                      </div>
-                      {editMode ? (
-                        <Input
-                          type="date"
-                          value={fechaBautismoVal}
-                          onChange={(e) => {
-                            setFechaBautismoVal(e.target.value);
-                            fechaBautismoMutation.mutate(e.target.value || null);
-                          }}
-                          className="h-7 text-sm w-40 mt-1"
-                        />
-                      ) : (
-                        <p className="text-sm">{persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="border-t mt-4" />
-                  {/* Próximos eventos — solo los que tienen fecha, o todos en modo edición */}
-                  {(() => {
-                    const eventos = [
-                      {
-                        key: "entrevista",
-                        label: "Entrevista Bautismal",
-                        icon: <UserCheck className="h-3.5 w-3.5" />,
-                        fecha: persona.fechaEntrevistaBautismal,
-                        editEl: (
-                          <Input type="date" value={fechaEntrevistaVal}
-                            onChange={(e) => { setFechaEntrevistaVal(e.target.value); fechaEntrevistaMutation.mutate(e.target.value || null); }}
-                            className="h-7 text-sm w-40 mt-1" />
-                        ),
-                      },
-                      {
-                        key: "visita",
-                        label: "Visita de los misioneros",
-                        icon: <CalendarCheck className="h-3.5 w-3.5" />,
-                        fecha: persona.fechaVisitaMisioneros,
-                        editEl: (
-                          <Input type="date" value={fechaVisitaVal}
-                            onChange={(e) => { setFechaVisitaVal(e.target.value); fechaVisitaMutation.mutate(e.target.value || null); }}
-                            className="h-7 text-sm w-40 mt-1" />
-                        ),
-                      },
-                      {
-                        key: "bautismo",
-                        label: "Servicio Bautismal",
-                        icon: <Waves className="h-3.5 w-3.5" />,
-                        fecha: persona.fechaBautismo,
-                        editEl: null, // solo lectura — se edita desde Fecha bautismal
-                      },
-                    ];
-                    const visibles = editMode ? eventos : eventos.filter((e) => e.fecha);
-                    if (visibles.length === 0 && !editMode) return null;
-                    return (
-                      <div className="mt-3">
-                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Próximos eventos</p>
-                        <div className="flex flex-col gap-2">
-                          {visibles.map((ev) => (
-                            <div key={ev.key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-muted/30">
-                              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                                {ev.icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[11px] text-muted-foreground">{ev.label}</p>
-                                {editMode && ev.editEl
-                                  ? ev.editEl
-                                  : <p className="text-sm font-medium">{ev.fecha ? formatDisplayDate(ev.fecha) : "—"}</p>
-                                }
-                              </div>
-                            </div>
-                          ))}
-                          {/* Evento Otros */}
-                          {(editMode || (persona.proximoEvento && persona.proximoEventoDescripcion)) && (
-                            <div className="flex items-start gap-3 px-3 py-2.5 rounded-lg border bg-muted/30">
-                              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary mt-0.5">
-                                <CalendarDays className="h-3.5 w-3.5" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[11px] text-muted-foreground">Otros</p>
-                                {editMode ? (
-                                  <div className="flex flex-col gap-1 mt-1">
-                                    <Input
-                                      placeholder="Descripción del evento"
-                                      value={proximoEventoDescVal}
-                                      onChange={(e) => setProximoEventoDescVal(e.target.value)}
-                                      onBlur={() => proximoEventoMutation.mutate({ proximoEventoDescripcion: proximoEventoDescVal || null })}
-                                      className="h-7 text-sm w-48"
-                                    />
-                                    <Input
-                                      type="date"
-                                      value={proximoEventoVal}
-                                      onChange={(e) => { setProximoEventoVal(e.target.value); proximoEventoMutation.mutate({ proximoEvento: e.target.value || null }); }}
-                                      className="h-7 text-sm w-40"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <p className="text-sm font-medium">{persona.proximoEventoDescripcion}</p>
-                                    <p className="text-xs text-muted-foreground">{persona.proximoEvento ? formatDisplayDate(persona.proximoEvento) : ""}</p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2">
-                    <p className="text-2xl font-medium">{persona.nombre}</p>
-                    <Badge variant="outline" className="text-xs">
-                      {tipo === "nuevo" ? "Nuevo" : "Regresando"}
-                    </Badge>
-                  </div>
-                  <button
-                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
-                    onClick={() => setEditMode((v) => !v)}
-                  >
-                    {editMode
-                      ? <><Check className="h-2.5 w-2.5" />Listo</>
-                      : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
-                  </button>
-                  <div className="mt-3 flex gap-8 flex-wrap">
-                    <div>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primer contacto</p>
-                      <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)} · {formatMemberTime(persona.fechaPrimerContacto)}</p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-        </SheetHeader>
+      <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto p-0">
+        {/* Name + button — sticky only in edit mode */}
+        <div className={editMode ? "px-6 pt-5 pb-4 sticky top-0 z-10 bg-background border-b" : "px-6 pt-5 pb-4"}>
+          <div className="text-left">
+            {tipo === "enseñando" ? (
+              <>
+                <p className="text-2xl sm:text-3xl font-medium">{persona.nombre}</p>
+                <button
+                  className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                  onClick={() => setEditMode((v) => !v)}
+                >
+                  {editMode
+                    ? <><Check className="h-2.5 w-2.5" />Listo</>
+                    : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-medium">{persona.nombre}</p>
+                  <Badge variant="outline" className="text-xs">
+                    {tipo === "nuevo" ? "Nuevo" : "Regresando"}
+                  </Badge>
+                </div>
+                <button
+                  className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                  onClick={() => setEditMode((v) => !v)}
+                >
+                  {editMode
+                    ? <><Check className="h-2.5 w-2.5" />Listo</>
+                    : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6">
+        {/* Metadata — dates/events, always scrollable */}
+        <div className="px-6 pt-3 pb-4 border-b">
+          {tipo === "enseñando" ? (
+            <>
+              <div className="flex gap-8 flex-wrap items-start">
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primera enseñanza</p>
+                  {editMode ? (
+                    <Input
+                      type="date"
+                      value={fechaPrimerContactoVal}
+                      onChange={(e) => {
+                        setFechaPrimerContactoVal(e.target.value);
+                        fechaPrimerContactoMutation.mutate(e.target.value || null);
+                      }}
+                      className="h-7 text-sm w-40 mt-1"
+                    />
+                  ) : (
+                    <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <BaptismDateIcon />
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Fecha bautismal</p>
+                  </div>
+                  {editMode ? (
+                    <Input
+                      type="date"
+                      value={fechaBautismoVal}
+                      onChange={(e) => {
+                        setFechaBautismoVal(e.target.value);
+                        fechaBautismoMutation.mutate(e.target.value || null);
+                      }}
+                      className="h-7 text-sm w-40 mt-1"
+                    />
+                  ) : (
+                    <p className="text-sm">{persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}</p>
+                  )}
+                </div>
+              </div>
+              <div className="border-t mt-4" />
+              {/* Próximos eventos — solo los que tienen fecha, o todos en modo edición */}
+              {(() => {
+                const eventos = [
+                  {
+                    key: "entrevista",
+                    label: "Entrevista Bautismal",
+                    icon: <UserCheck className="h-3.5 w-3.5" />,
+                    fecha: persona.fechaEntrevistaBautismal,
+                    editEl: (
+                      <Input type="date" value={fechaEntrevistaVal}
+                        onChange={(e) => { setFechaEntrevistaVal(e.target.value); fechaEntrevistaMutation.mutate(e.target.value || null); }}
+                        className="h-7 text-sm w-40 mt-1" />
+                    ),
+                  },
+                  {
+                    key: "visita",
+                    label: "Visita de los misioneros",
+                    icon: <CalendarCheck className="h-3.5 w-3.5" />,
+                    fecha: persona.fechaVisitaMisioneros,
+                    editEl: (
+                      <Input type="date" value={fechaVisitaVal}
+                        onChange={(e) => { setFechaVisitaVal(e.target.value); fechaVisitaMutation.mutate(e.target.value || null); }}
+                        className="h-7 text-sm w-40 mt-1" />
+                    ),
+                  },
+                  {
+                    key: "bautismo",
+                    label: "Servicio Bautismal",
+                    icon: <Waves className="h-3.5 w-3.5" />,
+                    fecha: persona.fechaBautismo,
+                    editEl: null,
+                  },
+                ];
+                const visibles = editMode ? eventos : eventos.filter((e) => e.fecha);
+                if (visibles.length === 0 && !editMode) return null;
+                return (
+                  <div className="mt-3">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Próximos eventos</p>
+                    <div className="flex flex-col gap-2">
+                      {visibles.map((ev) => (
+                        <div key={ev.key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-muted/30">
+                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                            {ev.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-muted-foreground">{ev.label}</p>
+                            {editMode && ev.editEl
+                              ? ev.editEl
+                              : <p className="text-sm font-medium">{ev.fecha ? formatDisplayDate(ev.fecha) : "—"}</p>
+                            }
+                          </div>
+                        </div>
+                      ))}
+                      {/* Evento Otros */}
+                      {(editMode || (persona.proximoEvento && persona.proximoEventoDescripcion)) && (
+                        <div className="flex items-start gap-3 px-3 py-2.5 rounded-lg border bg-muted/30">
+                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary mt-0.5">
+                            <CalendarDays className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-muted-foreground">Otros</p>
+                            {editMode ? (
+                              <div className="flex flex-col gap-1 mt-1">
+                                <Input
+                                  placeholder="Descripción del evento"
+                                  value={proximoEventoDescVal}
+                                  onChange={(e) => setProximoEventoDescVal(e.target.value)}
+                                  onBlur={() => proximoEventoMutation.mutate({ proximoEventoDescripcion: proximoEventoDescVal || null })}
+                                  className="h-7 text-sm w-48"
+                                />
+                                <Input
+                                  type="date"
+                                  value={proximoEventoVal}
+                                  onChange={(e) => { setProximoEventoVal(e.target.value); proximoEventoMutation.mutate({ proximoEvento: e.target.value || null }); }}
+                                  className="h-7 text-sm w-40"
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-sm font-medium">{persona.proximoEventoDescripcion}</p>
+                                <p className="text-xs text-muted-foreground">{persona.proximoEvento ? formatDisplayDate(persona.proximoEvento) : ""}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          ) : (
+            <div className="flex gap-8 flex-wrap">
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primer contacto</p>
+                <p className="text-sm">{formatDisplayDate(persona.fechaPrimerContacto)} · {formatMemberTime(persona.fechaPrimerContacto)}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 pb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
           {/* ─── LEFT COLUMN ─── */}
           <div className="divide-y">
