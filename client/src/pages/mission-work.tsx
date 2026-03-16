@@ -36,6 +36,7 @@ import {
   Circle,
   X,
   ChevronRight,
+  Check,
 } from "lucide-react";
 
 // ============================================================
@@ -657,15 +658,17 @@ function BooleanRow({
   label,
   value,
   onToggle,
+  disabled = false,
 }: {
   label: string;
   value: boolean;
   onToggle: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-sm">{label}</span>
-      <Switch checked={value} onCheckedChange={onToggle} />
+      <Switch checked={value} onCheckedChange={onToggle} disabled={disabled} />
     </div>
   );
 }
@@ -776,15 +779,13 @@ function PersonaDetailSheet({
     },
   });
 
-  // Sesion edit state
-  const [editSesiones, setEditSesiones] = useState(false);
-  const [editAsistencia, setEditAsistencia] = useState(false);
-  const [editAmigos, setEditAmigos] = useState(false);
-  const [editOtrosCompromisos, setEditOtrosCompromisos] = useState(false);
-  const [editCompromisosBautismo, setEditCompromisosBautismo] = useState(false);
+  // Global edit mode (reset when persona changes or sheet closes)
+  const [editMode, setEditMode] = useState(false);
+  React.useEffect(() => { setEditMode(false); }, [id, open]);
 
-  // Fecha bautismal edit
-  const [editFechaBautismo, setEditFechaBautismo] = useState(false);
+  // Text field local values — synced from server data
+  const [llamamientoVal, setLlamamientoVal] = useState("");
+  const [ministracionVal, setMinistracionVal] = useState("");
   const [fechaBautismoVal, setFechaBautismoVal] = useState("");
 
   const fechaBautismoMutation = useMutation({
@@ -792,8 +793,6 @@ function PersonaDetailSheet({
       apiRequest("PUT", `/api/mission/personas/${id}`, { fechaBautismo: fecha }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
-      setEditFechaBautismo(false);
-      toast({ title: "Fecha bautismal guardada" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -851,30 +850,31 @@ function PersonaDetailSheet({
   });
 
   // Llamamiento
-  const [llamamientoEdit, setLlamamientoEdit] = useState(false);
-  const [llamamientoVal, setLlamamientoVal] = useState("");
   const llamamientoMutation = useMutation({
     mutationFn: (nombre: string | null) =>
       apiRequest("PUT", `/api/mission/personas/${id}/llamamiento`, { nombre }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "llamamiento"] });
-      setLlamamientoEdit(false);
-      toast({ title: "Guardado" });
     },
   });
+  React.useEffect(() => {
+    setLlamamientoVal(llamamiento?.nombre ?? "");
+  }, [llamamiento?.nombre]);
 
   // Ministración
-  const [ministracionEdit, setMinistracionEdit] = useState(false);
-  const [ministracionVal, setMinistracionVal] = useState("");
   const ministracionMutation = useMutation({
     mutationFn: (descripcion: string | null) =>
       apiRequest("PUT", `/api/mission/personas/${id}/ministracion`, { descripcion }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "ministracion"] });
-      setMinistracionEdit(false);
-      toast({ title: "Guardado" });
     },
   });
+  React.useEffect(() => {
+    setMinistracionVal(ministracion?.descripcion ?? "");
+  }, [ministracion?.descripcion]);
+  React.useEffect(() => {
+    setFechaBautismoVal(persona?.fechaBautismo ?? "");
+  }, [persona?.fechaBautismo]);
 
   // Otros compromisos
   const otrosCompromisosMutation = useMutation({
@@ -944,73 +944,66 @@ function PersonaDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
         <SheetHeader className="mb-4">
-          {tipo === "enseñando" ? (
-            <>
-              <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
-              <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
-                <div className="min-w-[220px]">
-                  <p className="font-semibold">Se le enseñó por primera vez</p>
-                  <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
-                </div>
-                <div className="min-w-[220px]">
-                  <p className="font-semibold inline-flex items-center gap-1">
-                    <BaptismDateIcon />Fecha bautismal
-                    <button
-                      type="button"
-                      className="ml-1 text-muted-foreground hover:text-foreground focus:outline-none"
-                      onClick={() => {
-                        setFechaBautismoVal(persona.fechaBautismo ?? "");
-                        setEditFechaBautismo((v) => !v);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                  </p>
-                  {editFechaBautismo ? (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Input
-                        type="date"
-                        value={fechaBautismoVal}
-                        onChange={(e) => setFechaBautismoVal(e.target.value)}
-                        className="h-7 text-sm w-40"
-                      />
-                      <Button
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => fechaBautismoMutation.mutate(fechaBautismoVal || null)}
-                        disabled={fechaBautismoMutation.isPending}
-                      >
-                        Guardar
-                      </Button>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {tipo === "enseñando" ? (
+                <>
+                  <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
+                  <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
+                    <div className="min-w-[220px]">
+                      <p className="font-semibold">Se le enseñó por primera vez</p>
+                      <p className="text-muted-foreground">{formatDisplayDate(persona.fechaPrimerContacto)}</p>
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground">
-                      {persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <p className="text-base font-semibold text-left">Próximo evento programado</p>
-            </>
-          ) : (
-            <>
-              <SheetTitle className="flex items-center gap-2">
-                <User2 className="h-5 w-5 text-muted-foreground" />
-                {persona.nombre}
-                <Badge variant="outline" className="ml-2 text-xs">
-                  {tipo === "nuevo"
-                    ? "Nuevo"
-                    : tipo === "regresando"
-                    ? "Regresando"
-                    : "Enseñando"}
-                </Badge>
-              </SheetTitle>
-              <p className="text-sm text-muted-foreground">
-                Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
-                {formatMemberTime(persona.fechaPrimerContacto)}
-              </p>
-            </>
-          )}
+                    <div className="min-w-[220px]">
+                      <p className="font-semibold inline-flex items-center gap-1">
+                        <BaptismDateIcon />Fecha bautismal
+                      </p>
+                      {editMode ? (
+                        <Input
+                          type="date"
+                          value={fechaBautismoVal}
+                          onChange={(e) => {
+                            setFechaBautismoVal(e.target.value);
+                            fechaBautismoMutation.mutate(e.target.value || null);
+                          }}
+                          className="h-7 text-sm w-40 mt-1"
+                        />
+                      ) : (
+                        <p className="text-muted-foreground">
+                          {persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-base font-semibold text-left mt-2">Próximo evento programado</p>
+                </>
+              ) : (
+                <>
+                  <SheetTitle className="flex items-center gap-2">
+                    <User2 className="h-5 w-5 text-muted-foreground" />
+                    {persona.nombre}
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {tipo === "nuevo" ? "Nuevo" : "Regresando"}
+                    </Badge>
+                  </SheetTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Primer contacto: {formatDisplayDate(persona.fechaPrimerContacto)} ·{" "}
+                    {formatMemberTime(persona.fechaPrimerContacto)}
+                  </p>
+                </>
+              )}
+            </div>
+            <Button
+              variant={editMode ? "default" : "outline"}
+              size="sm"
+              className="shrink-0"
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode
+                ? <><Check className="h-3.5 w-3.5 mr-1" />Listo</>
+                : <><Pencil className="h-3.5 w-3.5 mr-1" />Editar</>}
+            </Button>
+          </div>
         </SheetHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1018,46 +1011,22 @@ function PersonaDetailSheet({
           <div className="space-y-5">
             {/* Asistencia */}
             <section>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Asistencia
-                </h3>
-                {tipo === "enseñando" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setEditAsistencia((v) => !v)}
-                  >
-                    {editAsistencia ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
-                  </Button>
-                )}
-              </div>
+              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                Asistencia
+              </h3>
               <AttendanceGrid
                 asistencia={asistencia}
                 sundays={sundays}
                 personaId={id ?? undefined}
-                editable={tipo === "enseñando" ? editAsistencia : true}
+                editable={editMode}
               />
             </section>
 
             {/* Amigos */}
             <section>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Amigos ({amigos.length})
-                </h3>
-                {tipo === "enseñando" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setEditAmigos((v) => !v)}
-                  >
-                    {editAmigos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
-                  </Button>
-                )}
-              </div>
+              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                Amigos ({amigos.length})
+              </h3>
               <div className="space-y-1 mb-2">
                 {amigos.map((a) => (
                   <div key={a.id} className="flex items-center justify-between">
@@ -1069,7 +1038,7 @@ function PersonaDetailSheet({
                         </Badge>
                       )}
                     </span>
-                    {editAmigos && (
+                    {editMode && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1082,7 +1051,7 @@ function PersonaDetailSheet({
                   </div>
                 ))}
               </div>
-              {editAmigos && <div className="space-y-2 rounded-md border p-3">
+              {editMode && <div className="space-y-2 rounded-md border p-3">
                 <Label className="text-xs text-muted-foreground">Agregar amigo (Dentro de la estaca)</Label>
                 <div className="flex gap-2 items-center">
                   <div className="relative flex-1">
@@ -1155,6 +1124,7 @@ function PersonaDetailSheet({
                     <select
                       className="w-full border rounded px-2 py-1 text-sm mt-1"
                       value={sacerdocio.oficio || ""}
+                      disabled={!editMode}
                       onChange={(e) =>
                         sacerdocioMutation.mutate({
                           ...sacerdocio,
@@ -1175,6 +1145,7 @@ function PersonaDetailSheet({
                     <select
                       className="w-full border rounded px-2 py-1 text-sm mt-1"
                       value={sacerdocio.estado || "pendiente"}
+                      disabled={!editMode}
                       onChange={(e) =>
                         sacerdocioMutation.mutate({
                           ...sacerdocio,
@@ -1193,6 +1164,7 @@ function PersonaDetailSheet({
                       type="date"
                       className="h-8 text-sm"
                       value={sacerdocio.fechaOrdenacion || ""}
+                      disabled={!editMode}
                       onChange={(e) =>
                         sacerdocioMutation.mutate({
                           ...sacerdocio,
@@ -1211,47 +1183,18 @@ function PersonaDetailSheet({
                 <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
                   Llamamiento
                 </h3>
-                {llamamientoEdit ? (
-                  <div className="flex gap-2">
-                    <Input
-                      className="h-8 text-sm"
-                      value={llamamientoVal}
-                      onChange={(e) => setLlamamientoVal(e.target.value)}
-                      placeholder="Nombre del llamamiento"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-8"
-                      onClick={() => llamamientoMutation.mutate(llamamientoVal || null)}
-                    >
-                      Guardar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8"
-                      onClick={() => setLlamamientoEdit(false)}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
+                {editMode ? (
+                  <Input
+                    className="h-8 text-sm"
+                    value={llamamientoVal}
+                    onChange={(e) => setLlamamientoVal(e.target.value)}
+                    onBlur={() => llamamientoMutation.mutate(llamamientoVal || null)}
+                    placeholder="Nombre del llamamiento"
+                  />
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">
-                      {llamamiento.nombre || <span className="text-muted-foreground">Sin llamamiento</span>}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => {
-                        setLlamamientoVal(llamamiento.nombre || "");
-                        setLlamamientoEdit(true);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <span className="text-sm">
+                    {llamamiento.nombre || <span className="text-muted-foreground">Sin llamamiento</span>}
+                  </span>
                 )}
               </section>
             )}
@@ -1262,52 +1205,21 @@ function PersonaDetailSheet({
                 <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
                   Ministración
                 </h3>
-                {ministracionEdit ? (
-                  <div className="space-y-1">
-                    <Textarea
-                      className="text-sm"
-                      value={ministracionVal}
-                      onChange={(e) => setMinistracionVal(e.target.value)}
-                      placeholder="Descripción de ministración"
-                      rows={2}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="h-8"
-                        onClick={() => ministracionMutation.mutate(ministracionVal || null)}
-                      >
-                        Guardar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8"
-                        onClick={() => setMinistracionEdit(false)}
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
+                {editMode ? (
+                  <Textarea
+                    className="text-sm"
+                    value={ministracionVal}
+                    onChange={(e) => setMinistracionVal(e.target.value)}
+                    onBlur={() => ministracionMutation.mutate(ministracionVal || null)}
+                    placeholder="Descripción de ministración"
+                    rows={2}
+                  />
                 ) : (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm">
-                      {ministracion.descripcion || (
-                        <span className="text-muted-foreground">Sin descripción</span>
-                      )}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 shrink-0"
-                      onClick={() => {
-                        setMinistracionVal(ministracion.descripcion || "");
-                        setMinistracionEdit(true);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <span className="text-sm">
+                    {ministracion.descripcion || (
+                      <span className="text-muted-foreground">Sin descripción</span>
+                    )}
+                  </span>
                 )}
               </section>
             )}
@@ -1315,23 +1227,13 @@ function PersonaDetailSheet({
             {/* Otros compromisos (enseñando only) */}
             {tipo === "enseñando" && otrosCompromisos && (
               <section>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    Otros compromisos
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setEditOtrosCompromisos((v) => !v)}
-                  >
-                    {editOtrosCompromisos ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
-                  </Button>
-                </div>
+                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                  Otros compromisos
+                </h3>
                 <div className="space-y-1.5 text-sm">
                   <button
                     type="button"
-                    disabled={!editOtrosCompromisos}
+                    disabled={!editMode}
                     className="flex items-center gap-2 disabled:cursor-default"
                     onClick={() =>
                       otrosCompromisosMutation.mutate({
@@ -1349,7 +1251,7 @@ function PersonaDetailSheet({
                   </button>
                   <button
                     type="button"
-                    disabled={!editOtrosCompromisos}
+                    disabled={!editMode}
                     className="flex items-center gap-2 disabled:cursor-default"
                     onClick={() =>
                       otrosCompromisosMutation.mutate({
@@ -1382,26 +1284,31 @@ function PersonaDetailSheet({
                   label="Nombre familiar preparado"
                   value={templo.nombreFamiliarPreparado}
                   onToggle={(v) => temploMutation.mutate({ ...templo, nombreFamiliarPreparado: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Bautismo por antepasados"
                   value={templo.bautismoAntepasados}
                   onToggle={(v) => temploMutation.mutate({ ...templo, bautismoAntepasados: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Investido"
                   value={templo.investido}
                   onToggle={(v) => temploMutation.mutate({ ...templo, investido: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Sellado a padres"
                   value={templo.selladoPadres}
                   onToggle={(v) => temploMutation.mutate({ ...templo, selladoPadres: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Sellado a cónyuge"
                   value={templo.selladoConyuge}
                   onToggle={(v) => temploMutation.mutate({ ...templo, selladoConyuge: v })}
+                  disabled={!editMode}
                 />
                 <div className="mt-2">
                   <Label className="text-xs">Fecha califica investidura</Label>
@@ -1409,6 +1316,7 @@ function PersonaDetailSheet({
                     type="date"
                     className="h-8 text-sm mt-1"
                     value={templo.fechaCalificaInvestidura || ""}
+                    disabled={!editMode}
                     onChange={(e) =>
                       temploMutation.mutate({
                         ...templo,
@@ -1422,19 +1330,9 @@ function PersonaDetailSheet({
 
             {/* Principios grid */}
             <section>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Principios
-                </h3>
-                <Button
-                  variant={editSesiones ? "default" : "ghost"}
-                  size="sm"
-                  className="h-6 px-1 text-[11px]"
-                  onClick={() => setEditSesiones((v) => !v)}
-                >
-                  {editSesiones ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
-                </Button>
-              </div>
+              <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                Principios
+              </h3>
               <div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><LessonStatusIcon present exists />Miembro presente</span>
                 <span className="inline-flex items-center gap-1"><LessonStatusIcon present={false} exists />Lección sin miembro</span>
@@ -1458,7 +1356,7 @@ function PersonaDetailSheet({
                           const exists = sesiones.some(
                             (s) => s.principioId === p.id && s.sesionNum === sesNum
                           );
-                          return editSesiones ? (
+                          return editMode ? (
                             <button
                               key={sesNum}
                               type="button"
@@ -1514,37 +1412,32 @@ function PersonaDetailSheet({
                 <BooleanRow
                   label="Resiliencia emocional"
                   value={selfReliance.resilienciaEmocional}
-                  onToggle={(v) =>
-                    selfRelianceMutation.mutate({ ...selfReliance, resilienciaEmocional: v })
-                  }
+                  onToggle={(v) => selfRelianceMutation.mutate({ ...selfReliance, resilienciaEmocional: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Finanzas personales"
                   value={selfReliance.finanzasPersonales}
-                  onToggle={(v) =>
-                    selfRelianceMutation.mutate({ ...selfReliance, finanzasPersonales: v })
-                  }
+                  onToggle={(v) => selfRelianceMutation.mutate({ ...selfReliance, finanzasPersonales: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Negocio"
                   value={selfReliance.negocio}
-                  onToggle={(v) =>
-                    selfRelianceMutation.mutate({ ...selfReliance, negocio: v })
-                  }
+                  onToggle={(v) => selfRelianceMutation.mutate({ ...selfReliance, negocio: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Educación y empleo"
                   value={selfReliance.educacionEmpleo}
-                  onToggle={(v) =>
-                    selfRelianceMutation.mutate({ ...selfReliance, educacionEmpleo: v })
-                  }
+                  onToggle={(v) => selfRelianceMutation.mutate({ ...selfReliance, educacionEmpleo: v })}
+                  disabled={!editMode}
                 />
                 <BooleanRow
                   label="Buscar empleo"
                   value={selfReliance.buscarEmpleo}
-                  onToggle={(v) =>
-                    selfRelianceMutation.mutate({ ...selfReliance, buscarEmpleo: v })
-                  }
+                  onToggle={(v) => selfRelianceMutation.mutate({ ...selfReliance, buscarEmpleo: v })}
+                  disabled={!editMode}
                 />
               </section>
             )}
@@ -1552,32 +1445,22 @@ function PersonaDetailSheet({
             {/* Compromisos bautismales (enseñando) */}
             {tipo === "enseñando" && compromisosBautismo.length > 0 && (
               <section>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    Compromisos bautismales
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setEditCompromisosBautismo((v) => !v)}
-                  >
-                    {editCompromisosBautismo ? "Listo" : <><Pencil className="h-3 w-3 mr-1" />Editar</>}
-                  </Button>
-                </div>
+                <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                  Compromisos bautismales
+                </h3>
                 <div className="space-y-2">
                   {compromisosBautismo.map((c) => (
                     <div
                       key={c.commitmentKey}
-                      className={editCompromisosBautismo ? "rounded-md border p-2" : "py-1"}
+                      className={editMode ? "rounded-md border p-2" : "py-1"}
                     >
                       <div className="mb-1 flex items-center gap-2">
                         <span className="text-sm">{c.nombre}</span>
-                        {c.fechaCumplido && !editCompromisosBautismo && (
+                        {c.fechaCumplido && !editMode && (
                           <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
                         )}
                       </div>
-                      {editCompromisosBautismo ? (
+                      {editMode ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <Label className="text-[11px] text-muted-foreground">Invitado</Label>
