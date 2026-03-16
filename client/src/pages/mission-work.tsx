@@ -1828,6 +1828,231 @@ function TabContent({
 // Main Page
 // ============================================================
 
+// ── Baptism Service Sheet ─────────────────────────────────────────────────────
+
+const PROGRAM_ITEM_LABELS: Record<string, string> = {
+  opening_prayer: "Oración de apertura",
+  hymn: "Cántico",
+  talk: "Discurso",
+  special_music: "Música especial",
+  ordinance_baptism: "Bautismo",
+  closing_prayer: "Oración de cierre",
+};
+
+const PROGRAM_ORDER = [
+  "opening_prayer",
+  "hymn",
+  "talk",
+  "special_music",
+  "ordinance_baptism",
+  "closing_prayer",
+];
+
+interface ProgramItem {
+  id: string;
+  type: string;
+  order: number;
+  title: string | null;
+  participant_display_name: string | null;
+  notes: string | null;
+  public_visibility: boolean;
+}
+
+interface BaptismServiceDetail extends BaptismService {
+  program_items: ProgramItem[] | null;
+  assignments: any[] | null;
+}
+
+function BaptismalServiceSheet({
+  service,
+  open,
+  onOpenChange,
+}: {
+  service: BaptismService | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [editMode, setEditMode] = useState(false);
+  const [locationVal, setLocationVal] = useState("");
+  const [locationAddrVal, setLocationAddrVal] = useState("");
+  const [serviceAtVal, setServiceAtVal] = useState("");
+
+  const detailQuery = useQuery<BaptismServiceDetail>({
+    queryKey: ["/api/mission/baptism-services", service?.id],
+    queryFn: () => missionFetch(`/api/mission/personas/${service?.candidate_persona_id}/baptism-service`),
+    enabled: open && !!service?.candidate_persona_id,
+  });
+
+  const detail = detailQuery.data;
+  const programItems: ProgramItem[] = detail?.program_items ?? [];
+
+  React.useEffect(() => { setEditMode(false); }, [service?.id, open]);
+  React.useEffect(() => { setLocationVal(service?.location_name ?? ""); }, [service?.location_name]);
+  React.useEffect(() => { setLocationAddrVal(service?.location_address ?? ""); }, [service?.location_address]);
+  React.useEffect(() => {
+    if (service?.service_at) setServiceAtVal(service.service_at.split("T")[0]);
+  }, [service?.service_at]);
+
+  const updateServiceMutation = useMutation({
+    mutationFn: (data: { locationName?: string; locationAddress?: string; serviceAt?: string }) =>
+      apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateItemMutation = useMutation({
+    mutationFn: ({ itemId, data }: { itemId: string; data: Partial<ProgramItem> }) =>
+      apiRequest("PATCH", `/api/mission/baptism-program-items/${itemId}`, {
+        title: data.title,
+        participantDisplayName: data.participant_display_name,
+        notes: data.notes,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const addItemMutation = useMutation({
+    mutationFn: (type: string) =>
+      apiRequest("PUT", `/api/mission/baptism-services/${service?.id}/program-items`, {
+        type,
+        order: PROGRAM_ORDER.indexOf(type),
+        publicVisibility: true,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (!service) return null;
+
+  const approvalBadge = () => {
+    if (service.approval_status === "approved") return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Aprobado</span>;
+    if (service.approval_status === "pending_approval") return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Pendiente aprobación</span>;
+    return <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">Borrador</span>;
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full max-w-2xl overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-2xl font-medium">{service.persona_nombre}</p>
+              {approvalBadge()}
+            </div>
+            <button
+              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode
+                ? <><Check className="h-2.5 w-2.5" />Listo</>
+                : <><TrendingUp className="h-2.5 w-2.5" />Editar servicio</>}
+            </button>
+          </div>
+        </SheetHeader>
+
+        {/* Service info */}
+        <section className="mb-6">
+          <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Información del servicio</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Fecha</p>
+              {editMode ? (
+                <Input type="date" value={serviceAtVal}
+                  onChange={(e) => setServiceAtVal(e.target.value)}
+                  onBlur={() => updateServiceMutation.mutate({ serviceAt: serviceAtVal })}
+                  className="h-8 text-sm" />
+              ) : (
+                <p className="text-sm">{formatDisplayDate(service.service_at)}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Lugar</p>
+              {editMode ? (
+                <Input value={locationVal}
+                  onChange={(e) => setLocationVal(e.target.value)}
+                  onBlur={() => updateServiceMutation.mutate({ locationName: locationVal })}
+                  className="h-8 text-sm" placeholder="Nombre del lugar" />
+              ) : (
+                <p className="text-sm">{service.location_name}</p>
+              )}
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs text-muted-foreground mb-1">Dirección</p>
+              {editMode ? (
+                <Input value={locationAddrVal}
+                  onChange={(e) => setLocationAddrVal(e.target.value)}
+                  onBlur={() => updateServiceMutation.mutate({ locationAddress: locationAddrVal || undefined })}
+                  className="h-8 text-sm" placeholder="Dirección (opcional)" />
+              ) : (
+                <p className="text-sm text-muted-foreground">{service.location_address || "—"}</p>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Preparación antes del {formatDisplayDate(service.prep_deadline_at)}
+          </p>
+        </section>
+
+        {/* Program */}
+        <section>
+          <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Programa</h3>
+          {detailQuery.isLoading ? (
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+          ) : (
+            <div className="space-y-2">
+              {PROGRAM_ORDER.map((type) => {
+                const item = programItems.find((p) => p.type === type);
+                if (!item && !editMode) return null;
+                return (
+                  <div key={type} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-muted-foreground mb-1">{PROGRAM_ITEM_LABELS[type]}</p>
+                      {item ? (
+                        editMode ? (
+                          <Input
+                            defaultValue={item.participant_display_name ?? ""}
+                            placeholder="Nombre del participante"
+                            className="h-7 text-sm"
+                            onBlur={(e) => updateItemMutation.mutate({
+                              itemId: item.id,
+                              data: { ...item, participant_display_name: e.target.value || null },
+                            })}
+                          />
+                        ) : (
+                          <p className="text-sm">{item.participant_display_name || <span className="text-muted-foreground">Sin asignar</span>}</p>
+                        )
+                      ) : (
+                        editMode ? (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground px-2"
+                            onClick={() => addItemMutation.mutate(type)}>
+                            <Plus className="h-3 w-3 mr-1" /> Añadir
+                          </Button>
+                        ) : null
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {programItems.length === 0 && !editMode && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  El programa está vacío. Activa "Editar servicio" para añadir participantes.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ============================================================
+
 const SECTION_META: Record<PersonaTipo, { label: string; subtitle: string }> = {
   nuevo: {
     label: "Miembros nuevos",
@@ -1863,6 +2088,8 @@ export default function MissionWork() {
   const [section, setSection] = useState<SectionType | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<BaptismService | null>(null);
+  const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
 
   const accessQuery = useQuery<{ allowed: boolean }>({
     queryKey: ["/api/mission/access"],
@@ -1944,7 +2171,11 @@ export default function MissionWork() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {services.map((svc) => (
-              <Card key={svc.id} className="hover:bg-muted/50 transition-colors">
+              <Card
+                key={svc.id}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => { setSelectedService(svc); setServiceSheetOpen(true); }}
+              >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <p className="font-semibold text-base leading-tight">{svc.persona_nombre}</p>
@@ -1977,6 +2208,15 @@ export default function MissionWork() {
             ))}
           </div>
         )}
+
+        <BaptismalServiceSheet
+          service={selectedService}
+          open={serviceSheetOpen}
+          onOpenChange={(v) => {
+            setServiceSheetOpen(v);
+            if (!v) setSelectedService(null);
+          }}
+        />
       </div>
     );
   }
