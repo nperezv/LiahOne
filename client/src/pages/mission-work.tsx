@@ -61,6 +61,7 @@ interface Persona {
   fechaConfirmacion?: string | null;
   fechaIngreso: string;
   proximoEvento?: string | null;
+  proximoEventoDescripcion?: string | null;
   notas?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -795,6 +796,8 @@ function PersonaDetailSheet({
   const [fechaBautismoVal, setFechaBautismoVal] = useState("");
   const [fechaEntrevistaVal, setFechaEntrevistaVal] = useState("");
   const [fechaVisitaVal, setFechaVisitaVal] = useState("");
+  const [proximoEventoVal, setProximoEventoVal] = useState("");
+  const [proximoEventoDescVal, setProximoEventoDescVal] = useState("");
 
   const fechaBautismoMutation = useMutation({
     mutationFn: (fecha: string | null) =>
@@ -817,6 +820,15 @@ function PersonaDetailSheet({
   const fechaVisitaMutation = useMutation({
     mutationFn: (fecha: string | null) =>
       apiRequest("PUT", `/api/mission/personas/${id}`, { fechaVisitaMisioneros: fecha }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const proximoEventoMutation = useMutation({
+    mutationFn: (data: { proximoEvento?: string | null; proximoEventoDescripcion?: string | null }) =>
+      apiRequest("PUT", `/api/mission/personas/${id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
     },
@@ -920,6 +932,12 @@ function PersonaDetailSheet({
   React.useEffect(() => {
     setFechaVisitaVal(persona?.fechaVisitaMisioneros ?? "");
   }, [persona?.fechaVisitaMisioneros]);
+  React.useEffect(() => {
+    setProximoEventoVal(persona?.proximoEvento ?? "");
+  }, [persona?.proximoEvento]);
+  React.useEffect(() => {
+    setProximoEventoDescVal(persona?.proximoEventoDescripcion ?? "");
+  }, [persona?.proximoEventoDescripcion]);
 
   // Otros compromisos
   const otrosCompromisosMutation = useMutation({
@@ -980,19 +998,15 @@ function PersonaDetailSheet({
           <div className="flex-1 min-w-0">
               {tipo === "enseñando" ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-xs h-6 px-2"
-                      onClick={() => setEditMode((v) => !v)}
-                    >
-                      {editMode
-                        ? <><Check className="h-3 w-3 mr-1" />Listo</>
-                        : <><TrendingUp className="h-3 w-3 mr-1" />Actualizar progreso</>}
-                    </Button>
-                  </div>
+                  <p className="text-2xl sm:text-3xl font-medium text-left">{persona.nombre}</p>
+                  <button
+                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                    onClick={() => setEditMode((v) => !v)}
+                  >
+                    {editMode
+                      ? <><Check className="h-2.5 w-2.5" />Listo</>
+                      : <><TrendingUp className="h-2.5 w-2.5" />Actualizar progreso</>}
+                  </button>
                   <div className="mt-1 flex flex-wrap items-start gap-8 text-base text-left">
                     <div className="min-w-[220px]">
                       <p className="font-semibold">Se le enseñó por primera vez</p>
@@ -1019,59 +1033,87 @@ function PersonaDetailSheet({
                       )}
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-6">
-                    {/* Entrevista Bautismal */}
-                    <div className="min-w-[200px]">
-                      <p className="font-semibold inline-flex items-center gap-1 text-sm">
-                        <UserCheck className="h-3.5 w-3.5" />Entrevista Bautismal
-                      </p>
-                      {editMode ? (
-                        <Input
-                          type="date"
-                          value={fechaEntrevistaVal}
-                          onChange={(e) => {
-                            setFechaEntrevistaVal(e.target.value);
-                            fechaEntrevistaMutation.mutate(e.target.value || null);
-                          }}
-                          className="h-7 text-sm w-40 mt-1"
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-sm">
-                          {persona.fechaEntrevistaBautismal ? formatDisplayDate(persona.fechaEntrevistaBautismal) : "—"}
-                        </p>
-                      )}
-                    </div>
-                    {/* Visita de los misioneros */}
-                    <div className="min-w-[200px]">
-                      <p className="font-semibold inline-flex items-center gap-1 text-sm">
-                        <CalendarCheck className="h-3.5 w-3.5" />Visita de los misioneros
-                      </p>
-                      {editMode ? (
-                        <Input
-                          type="date"
-                          value={fechaVisitaVal}
-                          onChange={(e) => {
-                            setFechaVisitaVal(e.target.value);
-                            fechaVisitaMutation.mutate(e.target.value || null);
-                          }}
-                          className="h-7 text-sm w-40 mt-1"
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-sm">
-                          {persona.fechaVisitaMisioneros ? formatDisplayDate(persona.fechaVisitaMisioneros) : "—"}
-                        </p>
-                      )}
-                    </div>
-                    {/* Servicio Bautismal — derivado de fechaBautismo */}
-                    <div className="min-w-[200px]">
-                      <p className="font-semibold inline-flex items-center gap-1 text-sm">
-                        <Waves className="h-3.5 w-3.5" />Servicio Bautismal
-                      </p>
-                      <p className="text-muted-foreground text-sm">
-                        {persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}
-                      </p>
-                    </div>
-                  </div>
+                  {/* Próximos eventos — solo los que tienen fecha, o todos en modo edición */}
+                  {(() => {
+                    const eventos = [
+                      {
+                        key: "entrevista",
+                        label: "Entrevista Bautismal",
+                        icon: <UserCheck className="h-3.5 w-3.5" />,
+                        fecha: persona.fechaEntrevistaBautismal,
+                        editEl: (
+                          <Input type="date" value={fechaEntrevistaVal}
+                            onChange={(e) => { setFechaEntrevistaVal(e.target.value); fechaEntrevistaMutation.mutate(e.target.value || null); }}
+                            className="h-7 text-sm w-40 mt-1" />
+                        ),
+                      },
+                      {
+                        key: "visita",
+                        label: "Visita de los misioneros",
+                        icon: <CalendarCheck className="h-3.5 w-3.5" />,
+                        fecha: persona.fechaVisitaMisioneros,
+                        editEl: (
+                          <Input type="date" value={fechaVisitaVal}
+                            onChange={(e) => { setFechaVisitaVal(e.target.value); fechaVisitaMutation.mutate(e.target.value || null); }}
+                            className="h-7 text-sm w-40 mt-1" />
+                        ),
+                      },
+                      {
+                        key: "bautismo",
+                        label: "Servicio Bautismal",
+                        icon: <Waves className="h-3.5 w-3.5" />,
+                        fecha: persona.fechaBautismo,
+                        editEl: null, // solo lectura — se edita desde Fecha bautismal
+                      },
+                    ];
+                    const visibles = editMode ? eventos : eventos.filter((e) => e.fecha);
+                    if (visibles.length === 0 && !editMode) return null;
+                    return (
+                      <div className="mt-3 flex flex-wrap gap-6">
+                        {visibles.map((ev) => (
+                          <div key={ev.key} className="min-w-[180px]">
+                            <p className="font-semibold inline-flex items-center gap-1 text-sm">
+                              {ev.icon}{ev.label}
+                            </p>
+                            {editMode && ev.editEl
+                              ? ev.editEl
+                              : <p className="text-muted-foreground text-sm">{ev.fecha ? formatDisplayDate(ev.fecha) : "—"}</p>
+                            }
+                          </div>
+                        ))}
+                        {/* Evento Otros */}
+                        {(editMode || (persona.proximoEvento && persona.proximoEventoDescripcion)) && (
+                          <div className="min-w-[180px]">
+                            <p className="font-semibold inline-flex items-center gap-1 text-sm">
+                              <CalendarDays className="h-3.5 w-3.5" />Otros
+                            </p>
+                            {editMode ? (
+                              <div className="flex flex-col gap-1 mt-1">
+                                <Input
+                                  placeholder="Descripción del evento"
+                                  value={proximoEventoDescVal}
+                                  onChange={(e) => setProximoEventoDescVal(e.target.value)}
+                                  onBlur={() => proximoEventoMutation.mutate({ proximoEventoDescripcion: proximoEventoDescVal || null })}
+                                  className="h-7 text-sm w-48"
+                                />
+                                <Input
+                                  type="date"
+                                  value={proximoEventoVal}
+                                  onChange={(e) => { setProximoEventoVal(e.target.value); proximoEventoMutation.mutate({ proximoEvento: e.target.value || null }); }}
+                                  className="h-7 text-sm w-40"
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-muted-foreground text-sm">{persona.proximoEventoDescripcion}</p>
+                                <p className="text-muted-foreground text-sm">{persona.proximoEvento ? formatDisplayDate(persona.proximoEvento) : ""}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <>

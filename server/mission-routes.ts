@@ -293,6 +293,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         fechaEntrevistaBautismal: z.string().nullable().optional(),
         fechaVisitaMisioneros: z.string().nullable().optional(),
         proximoEvento: z.string().nullable().optional(),
+        proximoEventoDescripcion: z.string().nullable().optional(),
         notas: z.string().nullable().optional(),
         fotoUrl: z.string().nullable().optional(),
       });

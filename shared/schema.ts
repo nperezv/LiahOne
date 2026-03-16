@@ -371,6 +371,7 @@ export const missionPersonas = pgTable("mission_personas", {
   fechaEntrevistaBautismal: date("fecha_entrevista_bautismal"),
   fechaVisitaMisioneros: date("fecha_visita_misioneros"),
   proximoEvento: date("proximo_evento"),
+  proximoEventoDescripcion: text("proximo_evento_descripcion"),
   notas: text("notas"),
   phone: text("phone"),
   email: text("email"),
