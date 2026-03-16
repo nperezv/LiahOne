@@ -1169,11 +1169,8 @@ function PersonaDetailSheet({
                 editable={editMode}
               />
               {(() => {
-                const now = new Date();
-                const nowYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-                const count = asistencia.filter((a) =>
-                  a.asistio && String(a.fecha_domingo).substring(0, 7) === nowYM
-                ).length;
+                const attendedSet = new Set(asistencia.filter((a) => a.asistio).map((a) => a.fecha_domingo));
+                const count = sundays.filter((s) => attendedSet.has(toISODate(s))).length;
                 if (count === 0) return null;
                 return <p className="text-xs text-green-600 mt-2">Asistió {count} domingo{count !== 1 ? "s" : ""} este mes</p>;
               })()}
