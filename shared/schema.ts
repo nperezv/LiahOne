@@ -199,6 +199,22 @@ export const agendaReminderStatusEnum = pgEnum("agenda_reminder_status", ["pendi
 
 export const taskPlanStatusEnum = pgEnum("task_plan_status", ["planned", "done", "bumped", "canceled"]);
 
+export const activityTypeEnum = pgEnum("activity_type", [
+  "servicio_bautismal",
+  "deportiva",
+  "capacitacion",
+  "fiesta",
+  "hermanamiento",
+  "otro",
+]);
+
+export const activityStatusEnum = pgEnum("activity_status", [
+  "borrador",
+  "en_preparacion",
+  "listo",
+  "realizado",
+]);
+
 export const taskPlanGeneratedByEnum = pgEnum("task_plan_generated_by", ["planner", "manual"]);
 
 
@@ -829,9 +845,26 @@ export const activities = pgTable("activities", {
   description: text("description"),
   date: timestamp("date").notNull(),
   location: text("location"),
+  type: activityTypeEnum("type").notNull().default("otro"),
+  status: activityStatusEnum("status").notNull().default("borrador"),
+  // baptism_service_id FK exists in DB but baptism_services has no Drizzle table object
+  baptismServiceId: varchar("baptism_service_id"),
   organizationId: varchar("organization_id").references(() => organizations.id),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const activityChecklistItems = pgTable("activity_checklist_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  activityId: varchar("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  itemKey: text("item_key").notNull(),
+  label: text("label").notNull(),
+  completed: boolean("completed").notNull().default(false),
+  completedBy: varchar("completed_by").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").notNull().default(0),
 });
 
 export const agendaEvents = pgTable("agenda_events", {
@@ -1189,13 +1222,25 @@ export const assignmentsRelations = relations(assignments, ({ one }) => ({
   }),
 }));
 
-export const activitiesRelations = relations(activities, ({ one }) => ({
+export const activitiesRelations = relations(activities, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [activities.organizationId],
     references: [organizations.id],
   }),
   creator: one(users, {
     fields: [activities.createdBy],
+    references: [users.id],
+  }),
+  checklistItems: many(activityChecklistItems),
+}));
+
+export const activityChecklistItemsRelations = relations(activityChecklistItems, ({ one }) => ({
+  activity: one(activities, {
+    fields: [activityChecklistItems.activityId],
+    references: [activities.id],
+  }),
+  completedByUser: one(users, {
+    fields: [activityChecklistItems.completedBy],
     references: [users.id],
   }),
 }));
@@ -1509,9 +1554,21 @@ export const insertActivitySchema = createInsertSchema(activities, {
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const selectActivitySchema = createSelectSchema(activities);
+
+export const insertActivityChecklistItemSchema = createInsertSchema(activityChecklistItems).omit({
+  id: true,
+});
+
+export const selectActivityChecklistItemSchema = createSelectSchema(activityChecklistItems);
+
+export const updateActivityChecklistItemSchema = z.object({
+  completed: z.boolean().optional(),
+  notes: z.string().optional(),
+});
 
 export const insertAgendaEventSchema = createInsertSchema(agendaEvents).omit({
   id: true,
@@ -2015,6 +2072,9 @@ export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;
 
 export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
+
+export type ActivityChecklistItem = typeof activityChecklistItems.$inferSelect;
+export type InsertActivityChecklistItem = z.infer<typeof insertActivityChecklistItemSchema>;
 
 export type AgendaEvent = typeof agendaEvents.$inferSelect;
 export type InsertAgendaEvent = z.infer<typeof insertAgendaEventSchema>;

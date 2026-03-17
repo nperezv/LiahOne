@@ -2,6 +2,7 @@ import type { Express, Request, Response, RequestHandler } from "express";
 import { randomBytes, createHash } from "node:crypto";
 import {
   and,
+  asc,
   desc,
   eq,
   gt,
@@ -14,6 +15,7 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { storage } from "./storage";
 import { sendPushNotification, isPushConfigured } from "./push-service";
 import { computeMinimumReady } from "./mission-baptism-readiness";
 import {
@@ -34,6 +36,8 @@ import {
   nextSessionPayload,
 } from "./mission-baptism-link-session";
 import {
+  activities,
+  activityChecklistItems,
   baptismAssignments,
   baptismNotificationDeliveries,
   baptismProgramItems,
@@ -51,6 +55,7 @@ import {
   missionCoordinationTasks,
   missionCovenantPathProgress,
   missionFriendSectionData,
+  missionPersonas,
   missionTemplateItems,
   missionTrackTemplates,
   notifications,
@@ -716,6 +721,92 @@ async function getActivePublicLink(slug: string, code?: string) {
     return code && code !== active.code ? ("invalid_code" as const) : null;
   }
   return active;
+}
+
+/**
+ * Finds the activity linked to a baptism service and auto-syncs the
+ * entrevista_bautismal checklist item based on whether the candidate
+ * has fecha_entrevista_bautismal set in mission_personas.
+ */
+async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Promise<void> {
+  try {
+    // Find the linked activity
+    const [activity] = await db
+      .select({ id: activities.id })
+      .from(activities)
+      .where(eq(activities.baptismServiceId, baptismServiceId))
+      .limit(1);
+    if (!activity) return;
+
+    // Find the interview checklist item
+    const [interviewItem] = await db
+      .select()
+      .from(activityChecklistItems)
+      .where(
+        and(
+          eq(activityChecklistItems.activityId, activity.id),
+          eq(activityChecklistItems.itemKey, "entrevista_bautismal"),
+        ),
+      )
+      .limit(1);
+    if (!interviewItem) return;
+
+    // Check if the candidate has the interview date set in mission_personas
+    const serviceRow = await db.execute(
+      sql`SELECT candidate_persona_id FROM baptism_services WHERE id = ${baptismServiceId} LIMIT 1`,
+    );
+    const personaId = (serviceRow.rows[0] as any)?.candidate_persona_id;
+    if (!personaId) return;
+
+    const personaRow = await db.execute(
+      sql`SELECT fecha_entrevista_bautismal FROM mission_personas WHERE id = ${personaId} LIMIT 1`,
+    );
+    const interviewDate = (personaRow.rows[0] as any)?.fecha_entrevista_bautismal;
+    const interviewDone = !!interviewDate;
+
+    // Only update if state differs
+    if (interviewItem.completed !== interviewDone) {
+      await db
+        .update(activityChecklistItems)
+        .set({
+          completed: interviewDone,
+          completedAt: interviewDone ? new Date() : null,
+          notes: interviewDone ? `Fecha de entrevista: ${interviewDate}` : null,
+        })
+        .where(eq(activityChecklistItems.id, interviewItem.id));
+    }
+  } catch (err) {
+    console.error("[syncBaptismInterviewChecklistItem]", err);
+  }
+}
+
+/**
+ * Returns the checklist for the activity linked to a baptism service,
+ * after syncing the interview item. Returns null if no activity is linked.
+ */
+async function getBaptismActivityChecklist(
+  baptismServiceId: string,
+): Promise<{ items: any[]; completedCount: number; totalCount: number } | null> {
+  await syncBaptismInterviewChecklistItem(baptismServiceId);
+
+  const [activity] = await db
+    .select({ id: activities.id })
+    .from(activities)
+    .where(eq(activities.baptismServiceId, baptismServiceId))
+    .limit(1);
+  if (!activity) return null;
+
+  const items = await db
+    .select()
+    .from(activityChecklistItems)
+    .where(eq(activityChecklistItems.activityId, activity.id))
+    .orderBy(asc(activityChecklistItems.sortOrder));
+
+  return {
+    items,
+    completedCount: items.filter((i) => i.completed).length,
+    totalCount: items.length,
+  };
 }
 
 export function registerMissionBaptismRoutes(
@@ -1505,6 +1596,20 @@ export function registerMissionBaptismRoutes(
 
   // ── Approval flow ────────────────────────────────────────────────────────────
 
+  app.get(
+    "/api/baptisms/services/:id/activity-checklist",
+    requireAuth,
+    async (req, res) => {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+
+      const checklist = await getBaptismActivityChecklist(req.params.id);
+      if (!checklist) return res.status(404).json({ error: "No hay actividad vinculada a este servicio" });
+
+      res.json(checklist);
+    },
+  );
+
   app.post(
     "/api/baptisms/services/:id/submit-for-approval",
     requireAuth,
@@ -1531,6 +1636,10 @@ export function registerMissionBaptismRoutes(
               "Solo se puede enviar a aprobación desde estado borrador o necesita revisión",
           });
       }
+
+      // Sync interview checklist item before submitting
+      await syncBaptismInterviewChecklistItem(service.id);
+
       const [updated] = await db
         .update(baptismServices)
         .set({
@@ -1541,7 +1650,14 @@ export function registerMissionBaptismRoutes(
         .where(eq(baptismServices.id, service.id))
         .returning();
 
-      // Notify bishops in the unit
+      // Get checklist status to include in response (bishop will see it)
+      const checklist = await getBaptismActivityChecklist(service.id);
+
+      // Notify bishops in the unit — include checklist summary in message
+      const checklistSummary = checklist
+        ? ` (Checklist: ${checklist.completedCount}/${checklist.totalCount} ítems completados)`
+        : "";
+
       const bishops = await db
         .select({ id: users.id })
         .from(users)
@@ -1557,11 +1673,11 @@ export function registerMissionBaptismRoutes(
           .values({
             userId: bishop.id,
             title: "Agenda bautismal pendiente de aprobación",
-            message: `El servicio en ${service.locationName} necesita tu aprobación.`,
+            message: `El servicio en ${service.locationName} necesita tu aprobación.${checklistSummary}`,
             type: "reminder",
           });
       }
-      res.json(updated);
+      res.json({ ...updated, checklist });
     },
   );
 
@@ -1717,7 +1833,28 @@ export function registerMissionBaptismRoutes(
         ),
       )
       .orderBy(baptismServices.serviceAt);
-    res.json(rows);
+
+    // Enrich each service with checklist summary (syncs interview item as side-effect)
+    const enriched = await Promise.all(
+      rows.map(async (row) => {
+        const checklist = await getBaptismActivityChecklist(row.id);
+        return {
+          ...row,
+          checklist: checklist
+            ? {
+                completedCount: checklist.completedCount,
+                totalCount: checklist.totalCount,
+                allDone: checklist.completedCount === checklist.totalCount,
+                incompleteItems: checklist.items
+                  .filter((i) => !i.completed)
+                  .map((i) => ({ key: i.itemKey, label: i.label })),
+              }
+            : null,
+        };
+      }),
+    );
+
+    res.json(enriched);
   });
 
   app.post(

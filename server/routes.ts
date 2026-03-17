@@ -26,6 +26,7 @@ import {
   insertMemberSchema,
   insertMemberCallingSchema,
   insertActivitySchema,
+  updateActivityChecklistItemSchema,
   insertAssignmentSchema,
   insertPdfTemplateSchema,
   insertWardBudgetSchema,
@@ -7084,6 +7085,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteActivity(id);
       res.status(204).send();
     } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/activities/:activityId/checklist/:itemId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { activityId, itemId } = req.params;
+
+      const activity = await storage.getActivity(activityId);
+      if (!activity) {
+        return res.status(404).json({ error: "Activity not found" });
+      }
+
+      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
+      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "lider_actividades", "mission_leader"].includes(user.role);
+      const canEdit = isObispado || isOrgMember || ["secretario", "secretario_ejecutivo"].includes(user.role);
+
+      if (!canEdit) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const data = updateActivityChecklistItemSchema.parse(req.body);
+      const updatedItem = await storage.updateChecklistItem(itemId, data, user.id);
+
+      if (!updatedItem) {
+        return res.status(404).json({ error: "Checklist item not found" });
+      }
+
+      res.json(updatedItem);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });

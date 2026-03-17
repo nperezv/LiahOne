@@ -2,6 +2,9 @@ import type { Express, Request, Response, RequestHandler } from "express";
 import { and, eq, ilike, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { storage } from "./storage";
+import { sendBaptismReminderEmail } from "./auth";
+import { isPushConfigured, sendPushNotification } from "./push-service";
 import {
   organizations,
   users,
@@ -308,7 +311,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       if (!updated) return res.status(404).json({ message: "No encontrado" });
 
-      // Auto-create draft baptism service when fechaBautismo is set for the first time
+      // Auto-create draft baptism service + activity when fechaBautismo is set for the first time
       if (data.fechaBautismo && updated.tipo === "enseñando") {
         try {
           const existing = await db.execute(sql`
@@ -321,12 +324,35 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             const serviceAt = new Date(`${data.fechaBautismo}T12:00:00Z`);
             const prepDeadline = new Date(serviceAt);
             prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
-            await db.execute(sql`
+
+            // Create the baptism service and get its ID
+            const serviceResult = await db.execute(sql`
               INSERT INTO baptism_services
                 (unit_id, candidate_persona_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
               VALUES
                 (${user.organizationId}, ${req.params.id}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${user.id})
+              RETURNING id
             `);
+            const baptismServiceId = (serviceResult.rows[0] as any)?.id as string | undefined;
+
+            // Auto-create the linked ward activity
+            if (baptismServiceId) {
+              await storage.createActivity({
+                title: `Servicio bautismal de ${updated.nombre}`,
+                date: serviceAt,
+                type: "servicio_bautismal",
+                status: "borrador",
+                baptismServiceId,
+                organizationId: user.organizationId,
+                createdBy: user.id,
+              });
+            }
+
+            // Check if baptism date is less than 14 days away (exception case)
+            const now = new Date();
+            const daysUntil = Math.ceil((serviceAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            const isException = daysUntil < 14;
+
             // Notify mission_leader and create their assignment
             const [missionLeader] = await db
               .select({ id: users.id, name: users.name })
@@ -334,8 +360,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
               .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, user.organizationId)))
               .limit(1);
             if (missionLeader) {
+              const assignmentDeadlineDays = isException ? 1 : 3;
               const deadline = new Date();
-              deadline.setDate(deadline.getDate() + 3);
+              deadline.setDate(deadline.getDate() + assignmentDeadlineDays);
               await db.execute(sql`
                 INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
                 VALUES (
@@ -347,6 +374,75 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
                   'pendiente'
                 )
               `);
+            }
+
+            // If exception (<14 days): send notifications immediately to all relevant roles
+            if (isException) {
+              const BAPTISM_REMINDER_ROLES = new Set([
+                "obispo",
+                "consejero_obispo",
+                "mission_leader",
+                "ward_missionary",
+                "full_time_missionary",
+              ]);
+
+              const allUsers = await storage.getAllUsers();
+              const missionRecipients = allUsers.filter(
+                (u: any) => u.organizationId === user.organizationId && BAPTISM_REMINDER_ROLES.has(u.role),
+              );
+
+              const orgPresidentIds = await db.execute(sql`
+                SELECT u.id FROM users u
+                JOIN organizations o ON o.id = u.organization_id
+                WHERE u.role = 'presidente_organizacion'
+                  AND o.type IN ('cuorum_elderes', 'sociedad_socorro')
+              `);
+              const orgPresidents = allUsers.filter((u: any) =>
+                (orgPresidentIds.rows as any[]).some((r) => r.id === u.id),
+              );
+              const recipients = [
+                ...missionRecipients,
+                ...orgPresidents.filter((u: any) => !missionRecipients.find((m: any) => m.id === u.id)),
+              ];
+
+              const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
+
+              for (const recipient of recipients) {
+                const title = `⚠️ URGENTE — Servicio Bautismal en ${daysUntil} día(s)`;
+                const body = `El servicio bautismal de ${updated.nombre} está programado para el ${data.fechaBautismo}. Quedan solo ${daysUntil} día(s) — se requiere acción inmediata.`;
+
+                const notification = await storage.createNotification({
+                  userId: recipient.id,
+                  type: "reminder",
+                  title,
+                  description: body,
+                  relatedId: req.params.id,
+                  isRead: false,
+                });
+
+                if (isPushConfigured()) {
+                  await sendPushNotification(recipient.id, {
+                    title,
+                    body,
+                    url: "/mission-work",
+                    notificationId: notification.id,
+                  });
+                }
+
+                if (recipient.email) {
+                  await sendBaptismReminderEmail({
+                    toEmail: recipient.email,
+                    recipientName: recipient.name,
+                    candidateName: updated.nombre,
+                    baptismDate: data.fechaBautismo,
+                    wardName,
+                    isException: true,
+                    daysUntil,
+                  });
+                }
+              }
+
+              console.log(`[mission/personas] EXCEPTION baptism reminder sent for ${updated.nombre}, ${daysUntil} days until baptism`);
             }
           }
         } catch (autoErr) {

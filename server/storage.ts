@@ -1,6 +1,6 @@
 // Reference: javascript_database blueprint
 import { db } from "./db";
-import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, type SQLWrapper } from "drizzle-orm";
+import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, inArray, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   users,
@@ -22,6 +22,7 @@ import {
   memberCallings,
   memberOrganizations,
   activities,
+  activityChecklistItems,
   agendaEvents,
   agendaTasks,
   agendaReminders,
@@ -81,6 +82,8 @@ import {
   type InsertMemberCalling,
   type Activity,
   type InsertActivity,
+  type ActivityChecklistItem,
+  type InsertActivityChecklistItem,
   type AgendaEvent,
   type InsertAgendaEvent,
   type AgendaTask,
@@ -429,6 +432,27 @@ export interface IStorage {
   createAccessRequest(data: InsertAccessRequest): Promise<AccessRequest>;
   getAccessRequest(id: string): Promise<AccessRequest | undefined>;
   updateAccessRequest(id: string, data: Partial<InsertAccessRequest & { status?: AccessRequest["status"] }>): Promise<AccessRequest | undefined>;
+}
+
+const BASE_CHECKLIST_ITEMS = [
+  { key: "programa", label: "Programa de la actividad", sort: 0 },
+  { key: "espacio_calendario", label: "Espacio reservado en calendario de la iglesia", sort: 1 },
+  { key: "equipo_tecnologia", label: "Equipo y tecnología coordinado con líderes", sort: 2 },
+  { key: "presupuesto_refrigerio", label: "Solicitud de presupuesto para refrigerio (si aplica)", sort: 3 },
+  { key: "limpieza", label: "Limpieza de ambientes al terminar el servicio", sort: 4 },
+];
+
+const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
+  { key: "ropa_bautismal", label: "Designado recojo de ropa bautismal", sort: 5 },
+  { key: "entrevista_bautismal", label: "Candidatos han completado la entrevista bautismal", sort: 6 },
+];
+
+function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
+  const items = [...BASE_CHECKLIST_ITEMS];
+  if (activityType === "servicio_bautismal") {
+    items.push(...BAPTISM_EXTRA_CHECKLIST_ITEMS);
+  }
+  return items;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1475,24 +1499,66 @@ export class DatabaseStorage implements IStorage {
   // ACTIVITIES
   // ========================================
 
-  async getAllActivities(): Promise<Activity[]> {
-    return await db.select().from(activities).orderBy(desc(activities.date));
+  async getAllActivities(): Promise<Array<Activity & { checklistItems: ActivityChecklistItem[] }>> {
+    const allActivities = await db.select().from(activities).orderBy(desc(activities.date));
+    if (allActivities.length === 0) return [];
+
+    const activityIds = allActivities.map((a) => a.id);
+    const allItems = await db
+      .select()
+      .from(activityChecklistItems)
+      .where(inArray(activityChecklistItems.activityId, activityIds))
+      .orderBy(asc(activityChecklistItems.sortOrder));
+
+    const itemsByActivityId = allItems.reduce(
+      (acc, item) => {
+        if (!acc[item.activityId]) acc[item.activityId] = [];
+        acc[item.activityId].push(item);
+        return acc;
+      },
+      {} as Record<string, ActivityChecklistItem[]>,
+    );
+
+    return allActivities.map((a) => ({ ...a, checklistItems: itemsByActivityId[a.id] ?? [] }));
   }
 
-  async getActivity(id: string): Promise<Activity | undefined> {
+  async getActivity(id: string): Promise<(Activity & { checklistItems: ActivityChecklistItem[] }) | undefined> {
     const [activity] = await db.select().from(activities).where(eq(activities.id, id));
-    return activity || undefined;
+    if (!activity) return undefined;
+
+    const checklistItems = await db
+      .select()
+      .from(activityChecklistItems)
+      .where(eq(activityChecklistItems.activityId, id))
+      .orderBy(asc(activityChecklistItems.sortOrder));
+
+    return { ...activity, checklistItems };
   }
 
-  async createActivity(insertActivity: InsertActivity): Promise<Activity> {
+  async createActivity(insertActivity: InsertActivity): Promise<Activity & { checklistItems: ActivityChecklistItem[] }> {
     const [activity] = await db.insert(activities).values(insertActivity).returning();
-    return activity;
+
+    const checklistDefs = getDefaultChecklistItems(activity.type ?? "otro");
+    const checklistValues = checklistDefs.map((item) => ({
+      activityId: activity.id,
+      itemKey: item.key,
+      label: item.label,
+      sortOrder: item.sort,
+      completed: false,
+    }));
+
+    const checklistItems =
+      checklistValues.length > 0
+        ? await db.insert(activityChecklistItems).values(checklistValues).returning()
+        : [];
+
+    return { ...activity, checklistItems };
   }
 
   async updateActivity(id: string, data: Partial<InsertActivity>): Promise<Activity | undefined> {
     const [activity] = await db
       .update(activities)
-      .set(data)
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(activities.id, id))
       .returning();
     return activity || undefined;
@@ -1501,6 +1567,28 @@ export class DatabaseStorage implements IStorage {
   async deleteActivity(id: string): Promise<void> {
     await this.deleteNotificationsByRelatedId(id);
     await db.delete(activities).where(eq(activities.id, id));
+  }
+
+  async updateChecklistItem(
+    checklistItemId: string,
+    data: { completed?: boolean; notes?: string },
+    completedByUserId?: string,
+  ): Promise<ActivityChecklistItem | undefined> {
+    const updateData: Partial<InsertActivityChecklistItem> = { ...data };
+    if (data.completed === true && completedByUserId) {
+      updateData.completedBy = completedByUserId;
+      updateData.completedAt = new Date();
+    } else if (data.completed === false) {
+      updateData.completedBy = null;
+      updateData.completedAt = null;
+    }
+
+    const [item] = await db
+      .update(activityChecklistItems)
+      .set(updateData)
+      .where(eq(activityChecklistItems.id, checklistItemId))
+      .returning();
+    return item || undefined;
   }
 
   // ========================================

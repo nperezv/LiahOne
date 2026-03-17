@@ -1076,6 +1076,8 @@ export async function sendBaptismReminderEmail(payload: {
   candidateName: string;
   baptismDate: string;
   wardName?: string | null;
+  isException?: boolean;
+  daysUntil?: number;
 }) {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
@@ -1095,21 +1097,50 @@ export async function sendBaptismReminderEmail(payload: {
     auth: { user, pass },
   });
 
+  const subject = payload.isException
+    ? `URGENTE — Servicio bautismal de ${payload.candidateName} en ${payload.daysUntil} día(s)`
+    : `Servicio bautismal de ${payload.candidateName} — quedan 2 semanas`;
+
+  const body = payload.isException
+    ? [
+        `Estimado/a ${payload.recipientName},`,
+        "",
+        `NOTA: Este aviso se envía como excepción a la pauta habitual de 2 semanas.`,
+        "",
+        `El servicio bautismal de ${payload.candidateName} está programado para el ${payload.baptismDate}, es decir, en tan solo ${payload.daysUntil} día(s).`,
+        "",
+        "Dada la fecha tan avanzada, es necesario acelerar el proceso de preparación del servicio. Por favor, verifica urgentemente que se haya cubierto lo siguiente a nivel espiritual y logístico:",
+        "",
+        "  • Los candidatos al bautismo han completado la entrevista bautismal",
+        "  • El programa del servicio está completo y enviado a aprobación",
+        "  • El espacio está reservado en el calendario de la iglesia",
+        "  • El equipo o material tecnológico ha sido coordinado con el líder de actividades",
+        "  • Se ha gestionado la solicitud de presupuesto para el refrigerio (si aplica)",
+        "  • Está designado el recojo de la ropa bautismal al terminar el servicio",
+        "  • Está designada la limpieza de los ambientes al finalizar",
+        "",
+        "Puedes gestionar el checklist desde 'Obra Misional > Servicios Bautismales' y desde la sección 'Actividades' en la aplicación.",
+        "",
+        "Atentamente,",
+        payload.wardName?.trim() || "Tu barrio",
+      ].join("\n")
+    : [
+        `Estimado/a ${payload.recipientName},`,
+        "",
+        `Te recordamos que el servicio bautismal de ${payload.candidateName} está programado para el ${payload.baptismDate}.`,
+        "",
+        "Faltan aproximadamente 2 semanas. Por favor, asegúrate de que el programa esté preparado y que todos los participantes estén confirmados.",
+        "",
+        "Puedes revisar y editar el programa desde la sección 'Obra Misional > Servicios Bautismales' en la aplicación.",
+        "",
+        "Atentamente,",
+        payload.wardName?.trim() || "Tu barrio",
+      ].join("\n");
+
   await transporter.sendMail({
     from,
     to: payload.toEmail,
-    subject: `Servicio bautismal de ${payload.candidateName} — quedan 2 semanas`,
-    text: [
-      `Estimado/a ${payload.recipientName},`,
-      "",
-      `Te recordamos que el servicio bautismal de ${payload.candidateName} está programado para el ${payload.baptismDate}.`,
-      "",
-      "Faltan aproximadamente 2 semanas. Por favor, asegúrate de que el programa esté preparado y que todos los participantes estén confirmados.",
-      "",
-      "Puedes revisar y editar el programa desde la sección 'Obra Misional > Servicios Bautismales' en la aplicación.",
-      "",
-      "Atentamente,",
-      payload.wardName?.trim() || "Tu barrio",
-    ].join("\n"),
+    subject,
+    text: body,
   });
 }

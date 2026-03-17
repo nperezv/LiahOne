@@ -1209,17 +1209,33 @@ export function useUsers() {
 // ACTIVITIES
 // ========================================
 
+export interface ActivityChecklistItem {
+  id: string;
+  activityId: string;
+  itemKey: string;
+  label: string;
+  completed: boolean;
+  completedBy?: string | null;
+  completedAt?: string | null;
+  notes?: string | null;
+  sortOrder: number;
+}
+
 export interface Activity {
   id: string;
   title: string;
   description?: string;
   date: string;
   location?: string;
+  type: "servicio_bautismal" | "deportiva" | "capacitacion" | "fiesta" | "hermanamiento" | "otro";
+  status: "borrador" | "en_preparacion" | "listo" | "realizado";
+  baptismServiceId?: string | null;
   organizationId?: string | null;
   responsiblePerson?: string | null;
   createdBy?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  checklistItems?: ActivityChecklistItem[];
 }
 
 export function useActivities() {
@@ -1590,6 +1606,25 @@ export function useDeleteActivity() {
         description: "No se pudo eliminar la actividad. Intenta nuevamente.",
         variant: "destructive",
       });
+    },
+  });
+}
+
+export function useUpdateActivityChecklistItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      activityId,
+      itemId,
+      data,
+    }: {
+      activityId: string;
+      itemId: string;
+      data: { completed?: boolean; notes?: string };
+    }) => apiRequest("PATCH", `/api/activities/${activityId}/checklist/${itemId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
     },
   });
 }
