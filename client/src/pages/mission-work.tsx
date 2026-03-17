@@ -2241,7 +2241,7 @@ function BaptismalServiceSheet({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
-      setEditMode(false);
+      onOpenChange(false);
       toast({ title: "Programa guardado" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
