@@ -2094,6 +2094,13 @@ interface BaptismServiceDetail extends BaptismService {
   candidates: Array<{ id: string; nombre: string }> | null;
 }
 
+const ProgramRow = ({ type, children }: { type: string; children: React.ReactNode }) => (
+  <div className="grid grid-cols-[160px_1fr] items-center gap-3 py-2 border-b last:border-b-0">
+    <p className="text-xs text-muted-foreground leading-tight">{PROGRAM_ITEM_LABELS[type as keyof typeof PROGRAM_ITEM_LABELS]}</p>
+    {children}
+  </div>
+);
+
 function BaptismalServiceSheet({
   service,
   open,
@@ -2290,14 +2297,6 @@ function BaptismalServiceSheet({
 
   const setProgramField = (type: string, value: string) =>
     setProgramDraft((d) => ({ ...d, [type]: value }));
-
-  // Helper: render a program row
-  const ProgramRow = ({ type, children }: { type: string; children: React.ReactNode }) => (
-    <div className="grid grid-cols-[160px_1fr] items-center gap-3 py-2 border-b last:border-b-0">
-      <p className="text-xs text-muted-foreground leading-tight">{PROGRAM_ITEM_LABELS[type]}</p>
-      {children}
-    </div>
-  );
 
   const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
   const formatServiceDate = (iso: string) => {
