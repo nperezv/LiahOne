@@ -128,14 +128,26 @@ export default function ActivitiesPage() {
   const deleteMutation = useDeleteActivity();
 
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
+  const isObispado = user?.role === "obispo" || user?.role === "consejero_obispo";
+  const isLiderActividades = user?.role === "lider_actividades";
   const canManage =
-    user?.role === "obispo" ||
-    user?.role === "consejero_obispo" ||
+    isObispado ||
     user?.role === "secretario" ||
     user?.role === "secretario_ejecutivo" ||
-    user?.role === "lider_actividades" ||
+    isLiderActividades ||
     isOrgMember;
-  const canDelete = user?.role === "obispo" || user?.role === "consejero_obispo" || isOrgMember;
+  const canDelete = isObispado || isOrgMember;
+
+  // Per-activity: only owning org, lider_actividades, and bishopric see the checklist
+  const canSeeChecklist = (activity: any) =>
+    isObispado ||
+    isLiderActividades ||
+    (isOrgMember && activity.organizationId === user?.organizationId);
+
+  const canEditChecklist = (activity: any) =>
+    isObispado ||
+    isLiderActividades ||
+    (isOrgMember && activity.organizationId === user?.organizationId);
 
   // Filter activities based on user role
   const filteredActivities = isOrgMember
@@ -388,7 +400,7 @@ export default function ActivitiesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Todas las Actividades</CardTitle>
-          <CardDescription>Actividades programadas y realizadas — haz clic en una fila para ver el checklist</CardDescription>
+          <CardDescription>Actividades programadas y realizadas — haz clic en una fila para ver los detalles</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -411,6 +423,9 @@ export default function ActivitiesPage() {
                   const isExpanded = expandedActivityId === activity.id;
                   const statusLabel = activity.status ? ACTIVITY_STATUS_LABELS[activity.status] : isPast ? "Realizada" : "Próxima";
                   const statusVariant = activity.status === "realizado" || isPast ? "secondary" : activity.status === "listo" ? "default" : "outline";
+
+                  const showChecklist = canSeeChecklist(activity);
+                  const canEdit = canEditChecklist(activity);
 
                   return (
                     <>
@@ -473,14 +488,25 @@ export default function ActivitiesPage() {
                           </TableCell>
                         )}
                       </TableRow>
-                      {isExpanded && activity.checklistItems && activity.checklistItems.length > 0 && (
-                        <TableRow key={`${activity.id}-checklist`}>
+                      {isExpanded && (
+                        <TableRow key={`${activity.id}-detail`}>
                           <TableCell colSpan={colSpan} className="bg-muted/30 px-8 py-4">
-                            <ChecklistPanel
-                              items={activity.checklistItems}
-                              activityId={activity.id}
-                              canEdit={canManage}
-                            />
+                            {showChecklist && activity.checklistItems && activity.checklistItems.length > 0 ? (
+                              <ChecklistPanel
+                                items={activity.checklistItems}
+                                activityId={activity.id}
+                                canEdit={canEdit}
+                              />
+                            ) : (
+                              <div className="space-y-1 text-sm text-muted-foreground">
+                                {activity.description && (
+                                  <p>{activity.description}</p>
+                                )}
+                                {!activity.description && (
+                                  <p className="italic">Sin detalles adicionales</p>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
