@@ -2166,6 +2166,18 @@ function BaptismalServiceSheet({
   const normalizeText = (v: string) => v.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
   const isMusicDirectorCalling = (v: string) => { const n = normalizeText(v); return n.includes("director de musica") || n.includes("directora de musica") || n.includes("director de coro") || n.includes("directora de coro"); };
   const isPianistCalling = (v: string) => normalizeText(v).startsWith("pianista");
+  const isQuorumPresidencyCalling = (v: string) => { const n = normalizeText(v); return n.includes("presidente del cuorum") || n.includes("consejero de la presidencia del cuorum") || n.includes("secretario del cuorum"); };
+
+  const dirigenteOptions = useMemo(() => {
+    // Mission leaders from users table
+    const leaderNames = misionLeadersOptions;
+    // Quorum presidency from callings
+    const callingNames = (memberCallings as any[])
+      .filter((c) => c.memberName && c.isActive && isQuorumPresidencyCalling(c.callingName || ""))
+      .map((c) => normalizeMemberName(c.memberName) || c.memberName);
+    const all = Array.from(new Set([...leaderNames, ...callingNames].filter(Boolean))) as string[];
+    return all.map((value) => ({ value }));
+  }, [misionLeadersOptions, memberCallings]);
 
   const musicDirectorOptions = useMemo(() => {
     const names = (memberCallings as any[]).filter((c) => c.memberName && c.isActive && isMusicDirectorCalling(c.callingName || "")).map((c) => normalizeMemberName(c.memberName) || c.memberName);
@@ -2400,13 +2412,7 @@ function BaptismalServiceSheet({
                     {/* Dirige */}
                     <ProgramRow type="dirige">
                       {editMode ? (
-                        <Select value={programDraft["dirige"] ?? ""} onValueChange={(v) => setProgramField("dirige", v)}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                          <SelectContent>
-                            {misionLeadersOptions.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                            {misionLeadersOptions.length === 0 && memberOptions.slice(0, 20).map((o) => <SelectItem key={o.value} value={o.value}>{o.value}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <MemberAutocomplete value={programDraft["dirige"] ?? ""} options={dirigenteOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige", v)} className="h-8 text-sm" />
                       ) : (
                         <p className="text-sm">{programDraft["dirige"] || <span className="text-muted-foreground/60">—</span>}</p>
                       )}
