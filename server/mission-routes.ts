@@ -1648,6 +1648,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const programComplete =
         programItemsRows.rows.length > 0 &&
         (programItemsRows.rows as any[]).every((r) => r.participant_display_name?.trim());
+      console.log(`[checklist sync] service=${req.params.id} activity=${activity.id} programRows=${programItemsRows.rows.length} programComplete=${programComplete}`, (programItemsRows.rows as any[]).map(r => r.participant_display_name));
       if (programComplete) {
         await db.execute(sql`
           UPDATE activity_checklist_items
