@@ -2321,9 +2321,11 @@ function BaptismalServiceSheet({
                 <span className="text-xs text-muted-foreground">{formatServiceDate(service.service_at)}</span>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditMode((v) => !v)}>
-              {editMode ? <><Check className="h-3.5 w-3.5 mr-1.5" />Listo</> : <><Pencil className="h-3.5 w-3.5 mr-1.5" />Editar</>}
-            </Button>
+            {editMode && (
+              <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditMode(false)}>
+                <Check className="h-3.5 w-3.5 mr-1.5" />Listo
+              </Button>
+            )}
           </div>
 
           {/* Tab navigation */}
