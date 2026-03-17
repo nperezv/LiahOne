@@ -1627,6 +1627,22 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       if (!activity) return res.json({ items: [], completedCount: 0, totalCount: 0 });
 
+      // Sync 'programa' item: mark complete if all program fields are filled
+      const programItems = await db.execute(sql`
+        SELECT participant_display_name FROM baptism_program_items WHERE service_id = ${req.params.id}
+      `);
+      const programComplete =
+        programItems.rows.length > 0 &&
+        (programItems.rows as any[]).every((r) => r.participant_display_name?.trim());
+      await db.execute(sql`
+        UPDATE activity_checklist_items
+        SET completed = ${programComplete},
+            completed_by = CASE WHEN ${programComplete} THEN ${user.id} ELSE NULL END,
+            completed_at = CASE WHEN ${programComplete} THEN NOW() ELSE NULL END
+        WHERE activity_id = ${activity.id} AND item_key = 'programa'
+          AND completed != ${programComplete}
+      `);
+
       const items = await db
         .select()
         .from(activityChecklistItems)
