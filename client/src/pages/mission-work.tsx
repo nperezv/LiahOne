@@ -819,6 +819,7 @@ function PersonaDetailSheet({
       apiRequest("PUT", `/api/mission/personas/${id}`, { fechaBautismo: fecha }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
