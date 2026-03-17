@@ -735,6 +735,8 @@ function PersonaDetailSheet({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isObispado = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "mission_leader";
   const id = persona?.id ?? null;
 
   const amigosQuery = usePersonaAmigos(id);
@@ -991,6 +993,16 @@ function PersonaDetailSheet({
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
       onOpenChange(false);
       toast({ title: "Persona archivada" });
+    },
+  });
+
+  // Permanent delete (obispado only)
+  const deleteMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/mission/personas/${id}/permanent`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+      onOpenChange(false);
+      toast({ title: "Persona eliminada permanentemente" });
     },
   });
 
@@ -1698,7 +1710,7 @@ function PersonaDetailSheet({
         </div>
 
         {/* Archive button */}
-        <div className="mt-8 pt-4 border-t">
+        <div className="mt-8 pt-4 border-t flex gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -1708,6 +1720,21 @@ function PersonaDetailSheet({
           >
             {archiveMutation.isPending ? "Archivando..." : "Archivar persona"}
           </Button>
+          {isObispado && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => {
+                if (window.confirm(`¿Eliminar permanentemente a ${persona?.nombre}? Esta acción no se puede deshacer.`)) {
+                  deleteMutation.mutate();
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Eliminando..." : "Eliminar permanentemente"}
+            </Button>
+          )}
         </div>
         </div>
       </SheetContent>

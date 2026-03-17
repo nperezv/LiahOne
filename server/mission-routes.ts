@@ -479,6 +479,21 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     }
   });
 
+  // Permanent delete (obispado only)
+  app.delete("/api/mission/personas/:id/permanent", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
+      if (!isObispado) return res.status(403).json({ message: "Sin acceso" });
+
+      await db.execute(sql`DELETE FROM mission_personas WHERE id = ${req.params.id}`);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[mission/personas/:id/permanent DELETE]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
   // -------------------------------------------------------
   // Asistencia
   // -------------------------------------------------------
