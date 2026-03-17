@@ -2116,7 +2116,7 @@ function BaptismalServiceSheet({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"programa" | "aprobacion">("programa");
+  const [activeTab, setActiveTab] = useState<"agenda" | "checklist" | "aprobacion">("agenda");
   const [editMode, setEditMode] = useState(false);
 
   React.useEffect(() => {
@@ -2127,7 +2127,6 @@ function BaptismalServiceSheet({
   const [serviceAtVal, setServiceAtVal] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
   const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
-  const [showApprovalDialog, setShowApprovalDialog] = React.useState(false);
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
 
   // Data hooks
@@ -2209,7 +2208,7 @@ function BaptismalServiceSheet({
   }, [service?.service_at, service?.location_name, service?.location_address]);
 
   React.useEffect(() => {
-    if (!open) { setEditMode(false); setActiveTab("programa"); }
+    if (!open) { setEditMode(false); setActiveTab("agenda"); }
   }, [open]);
 
   React.useEffect(() => {
@@ -2242,15 +2241,13 @@ function BaptismalServiceSheet({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
-      const programComplete = PROGRAM_ORDER.every((t) => programDraft[t]?.trim());
-      const checklist = checklistQuery.data;
-      const checklistComplete = checklist ? checklist.completedCount === checklist.totalCount && checklist.totalCount > 0 : false;
-      const isDraft = !service?.approval_status || service.approval_status === "draft";
-      if (programComplete && checklistComplete && isDraft) {
-        setShowApprovalDialog(true);
+      setEditMode(false);
+      const complete = PROGRAM_ORDER.every((t) => programDraft[t]?.trim());
+      if (complete) {
+        setActiveTab("checklist");
+        toast({ title: "Agenda guardada", description: "Revisa el checklist de preparación" });
       } else {
-        onOpenChange(false);
-        toast({ title: "Programa guardado" });
+        toast({ title: "Agenda guardada", description: "Completa todos los campos para continuar" });
       }
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -2326,49 +2323,71 @@ function BaptismalServiceSheet({
     return `${d.getUTCDate()} de ${MESES_ES[d.getUTCMonth()]} de ${d.getUTCFullYear()}`;
   };
 
+  const programComplete = PROGRAM_ORDER.every((t) => programDraft[t]?.trim());
+  const checklistData = checklistQuery.data;
+  const checklistComplete = checklistData
+    ? checklistData.totalCount > 0 && checklistData.completedCount === checklistData.totalCount
+    : false;
+  // Obispo can navigate freely; others need previous step done
+  const step2Locked = !isObispo && !programComplete;
+  const step3Locked = !isObispo && !checklistComplete;
+
+  const STEPS = [
+    { key: "agenda" as const, label: "Agenda", locked: false, done: programComplete },
+    { key: "checklist" as const, label: "Checklist", locked: step2Locked, done: checklistComplete },
+    { key: "aprobacion" as const, label: "Aprobación", locked: step3Locked, done: liveService?.approval_status === "approved" },
+  ];
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-lg flex flex-col p-0 gap-0">
+
         {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
-                <p key={c.id} className="text-xl font-semibold leading-tight">{c.nombre}</p>
-              )) ?? <p className="text-xl font-semibold">{service.persona_nombre}</p>}
-              <div className="flex items-center gap-2 mt-1.5">
-                {approvalBadge()}
-                <span className="text-xs text-muted-foreground">{formatServiceDate(service.service_at)}</span>
-              </div>
+        <div className="px-5 pt-5 pb-0 border-b shrink-0">
+          <div className="min-w-0 mb-4">
+            {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
+              <p key={c.id} className="text-xl font-semibold leading-tight">{c.nombre}</p>
+            )) ?? <p className="text-xl font-semibold">{service.persona_nombre}</p>}
+            <div className="flex items-center gap-2 mt-1">
+              {approvalBadge()}
+              <span className="text-xs text-muted-foreground">{formatServiceDate(service.service_at)}</span>
             </div>
           </div>
 
-          {/* Tab navigation */}
-          <div className="flex gap-0 mt-4 border-b -mb-4">
-            {(["programa", "aprobacion"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-2 text-[11px] font-semibold border-b-2 transition-colors ${
-                  activeTab === tab
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab === "programa" ? "Programa" : "Aprobación"}
-              </button>
-            ))}
+          {/* Stepper */}
+          <div className="flex items-stretch">
+            {STEPS.map((step, idx) => {
+              const isActive = activeTab === step.key;
+              const canClick = !step.locked;
+              return (
+                <button
+                  key={step.key}
+                  type="button"
+                  disabled={!canClick}
+                  onClick={() => canClick && setActiveTab(step.key)}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center
+                    ${isActive ? "border-primary" : "border-transparent"}
+                    ${!canClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
+                >
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
+                    ${step.done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    {step.done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                  </div>
+                  <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                    {step.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 py-5">
 
-          {/* ── TAB: PROGRAMA ── */}
-          {activeTab === "programa" && (
+          {/* ── PASO 1: AGENDA ── */}
+          {activeTab === "agenda" && (
             <div className="space-y-6">
-              {/* Info section */}
               {editMode && (
                 <div>
                   <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Información del servicio" />
@@ -2398,14 +2417,12 @@ function BaptismalServiceSheet({
                 </div>
               )}
 
-              {/* Autoridades */}
               <div>
                 <BaptismSectionHead icon={<UserCheck className="h-4 w-4" />} title="Autoridades" />
                 {detailQuery.isLoading ? (
                   <div className="space-y-2">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
                 ) : (
                   <div>
-                    {/* Preside */}
                     <ProgramRow type="preside">
                       {editMode ? (
                         <Select value={programDraft["preside"] ?? ""} onValueChange={(v) => setProgramField("preside", v)}>
@@ -2418,7 +2435,6 @@ function BaptismalServiceSheet({
                         <p className="text-sm">{programDraft["preside"] || <span className="text-muted-foreground/60">—</span>}</p>
                       )}
                     </ProgramRow>
-                    {/* Dirige */}
                     <ProgramRow type="dirige">
                       {editMode ? (
                         <MemberAutocomplete value={programDraft["dirige"] ?? ""} options={dirigenteOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige", v)} className="h-8 text-sm" />
@@ -2426,7 +2442,6 @@ function BaptismalServiceSheet({
                         <p className="text-sm">{programDraft["dirige"] || <span className="text-muted-foreground/60">—</span>}</p>
                       )}
                     </ProgramRow>
-                    {/* Dirige la música */}
                     <ProgramRow type="dirige_musica">
                       {editMode ? (
                         <MemberAutocomplete value={programDraft["dirige_musica"] ?? ""} options={musicDirectorOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige_musica", v)} className="h-8 text-sm" />
@@ -2434,7 +2449,6 @@ function BaptismalServiceSheet({
                         <p className="text-sm">{programDraft["dirige_musica"] || <span className="text-muted-foreground/60">—</span>}</p>
                       )}
                     </ProgramRow>
-                    {/* Acompañamiento */}
                     <ProgramRow type="acompanamiento_piano">
                       {editMode ? (
                         <MemberAutocomplete value={programDraft["acompanamiento_piano"] ?? ""} options={pianistOptions} placeholder="Nombre" onChange={(v) => setProgramField("acompanamiento_piano", v)} className="h-8 text-sm" />
@@ -2446,7 +2460,6 @@ function BaptismalServiceSheet({
                 )}
               </div>
 
-              {/* Himnos */}
               <div>
                 <BaptismSectionHead icon={<Music className="h-4 w-4" />} title="Himnos" />
                 <div>
@@ -2467,7 +2480,6 @@ function BaptismalServiceSheet({
                 </div>
               </div>
 
-              {/* Oraciones y mensajes */}
               <div>
                 <BaptismSectionHead icon={<Handshake className="h-4 w-4" />} title="Oraciones y mensajes" />
                 <div>
@@ -2483,7 +2495,6 @@ function BaptismalServiceSheet({
                 </div>
               </div>
 
-              {/* Ordenanzas */}
               <div>
                 <BaptismSectionHead icon={<Waves className="h-4 w-4" />} title="Ordenanzas" />
                 <div>
@@ -2499,69 +2510,107 @@ function BaptismalServiceSheet({
                 </div>
               </div>
 
-              {/* Save button */}
-              {editMode && (
+              {editMode ? (
                 <Button onClick={() => saveProgramMutation.mutate()} disabled={saveProgramMutation.isPending} className="w-full">
-                  {saveProgramMutation.isPending ? "Guardando..." : "Guardar programa"}
+                  {saveProgramMutation.isPending ? "Guardando..." : "Guardar agenda"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setActiveTab("checklist")}
+                  disabled={!programComplete}
+                  className="w-full"
+                  variant={programComplete ? "default" : "outline"}>
+                  {programComplete ? "Siguiente: Checklist →" : "Completa la agenda para continuar"}
                 </Button>
               )}
+            </div>
+          )}
 
-              {/* Checklist */}
-              {checklistQuery.data && (
-                <div className="pt-4 border-t">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold">Checklist de preparación</p>
-                    <span className="text-xs text-muted-foreground">{checklistQuery.data.completedCount}/{checklistQuery.data.totalCount}</span>
-                  </div>
-                  {checklistQuery.data.completedCount < checklistQuery.data.totalCount && (
-                    <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded px-2.5 py-1.5 mb-3">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                      <span>Hay ítems pendientes — completa el checklist antes de enviar a aprobación</span>
+          {/* ── PASO 2: CHECKLIST ── */}
+          {activeTab === "checklist" && (
+            <div className="space-y-4">
+              <BaptismSectionHead icon={<CheckSquare className="h-4 w-4" />} title="Checklist de preparación" />
+
+              {checklistQuery.isLoading && (
+                <div className="space-y-2">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+              )}
+
+              {checklistData && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{checklistData.completedCount} de {checklistData.totalCount} completados</span>
+                    <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-green-500 transition-all"
+                        style={{ width: checklistData.totalCount > 0 ? `${(checklistData.completedCount / checklistData.totalCount) * 100}%` : "0%" }}
+                      />
                     </div>
-                  )}
-                  <div className="space-y-1.5">
-                    {checklistQuery.data.items.map((item: any) => (
-                      <div key={item.id} className="flex items-center gap-2 text-sm">
+                  </div>
+
+                  <div className="space-y-2">
+                    {checklistData.items.map((item: any) => (
+                      <div key={item.id} className="flex items-center gap-2.5 text-sm py-1">
                         {item.completed
                           ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
                           : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
                         <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
                         {item.itemKey === "entrevista_bautismal" && (
-                          <span className="text-[10px] text-muted-foreground/60 ml-1">(auto)</span>
+                          <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
                         )}
                       </div>
                     ))}
                   </div>
-                </div>
+
+                  <Button
+                    onClick={() => setActiveTab("aprobacion")}
+                    disabled={!checklistComplete}
+                    className="w-full mt-2"
+                    variant={checklistComplete ? "default" : "outline"}>
+                    {checklistComplete ? "Siguiente: Aprobación →" : "Completa el checklist para continuar"}
+                  </Button>
+                </>
+              )}
+
+              {!checklistData && !checklistQuery.isLoading && (
+                <p className="text-sm text-muted-foreground">No hay checklist vinculado a este servicio.</p>
               )}
             </div>
           )}
 
-          {/* ── TAB: APROBACIÓN ── */}
+          {/* ── PASO 3: APROBACIÓN ── */}
           {activeTab === "aprobacion" && (
             <div className="space-y-4">
-              <BaptismSectionHead icon={<CheckSquare className="h-4 w-4" />} title="Aprobación del obispado" />
+              <BaptismSectionHead icon={<UserCheck className="h-4 w-4" />} title="Solicitud de aprobación" />
 
               {!isObispo && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {approvalBadge()}
-                    {liveService?.approval_status === "draft" && (
-                      <Button size="sm" variant="outline" className="text-xs h-7"
-                        onClick={() => submitForApprovalMutation.mutate()}
+                  {approvalBadge()}
+                  {(liveService?.approval_status === "draft" || liveService?.approval_status === "needs_revision") && (
+                    <>
+                      {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
+                        <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-2">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>{liveService.approval_comment}</span>
+                        </div>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        La agenda y el checklist están completos. Envía la solicitud al obispo para que apruebe el servicio bautismal.
+                      </p>
+                      <Button
+                        className="w-full"
+                        onClick={() => submitForApprovalMutation.mutate(undefined, {
+                          onSuccess: () => { onOpenChange(false); toast({ title: "Solicitud enviada al obispado" }); },
+                        })}
                         disabled={submitForApprovalMutation.isPending}>
-                        Solicitar aprobación
+                        {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo para aprobación"}
                       </Button>
-                    )}
-                    {liveService?.approval_status === "pending_approval" && (
-                      <span className="text-xs text-muted-foreground">En espera de respuesta del obispado</span>
-                    )}
-                  </div>
-                  {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
-                    <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-1.5">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span>{liveService.approval_comment}</span>
-                    </div>
+                    </>
+                  )}
+                  {liveService?.approval_status === "pending_approval" && (
+                    <p className="text-sm text-muted-foreground">Solicitud enviada. En espera de respuesta del obispado.</p>
+                  )}
+                  {liveService?.approval_status === "approved" && (
+                    <p className="text-sm text-green-700 bg-green-50 rounded px-3 py-2">Servicio aprobado por el obispado.</p>
                   )}
                 </div>
               )}
@@ -2609,33 +2658,6 @@ function BaptismalServiceSheet({
         </div>
       </SheetContent>
     </Sheet>
-
-    {/* Diálogo de confirmación de envío a aprobación */}
-    <Dialog open={showApprovalDialog} onOpenChange={(v) => { setShowApprovalDialog(v); if (!v) onOpenChange(false); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Todo está listo</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          El programa está completo y el checklist de preparación está al 100%.
-          ¿Deseas enviar el servicio bautismal al obispo para su aprobación?
-        </p>
-        <DialogFooter className="gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => { setShowApprovalDialog(false); onOpenChange(false); }}>
-            Ahora no
-          </Button>
-          <Button
-            onClick={() => {
-              submitForApprovalMutation.mutate(undefined, {
-                onSuccess: () => { setShowApprovalDialog(false); onOpenChange(false); },
-              });
-            }}
-            disabled={submitForApprovalMutation.isPending}>
-            {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
