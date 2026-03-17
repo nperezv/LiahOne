@@ -1914,21 +1914,35 @@ function TabContent({
 // ── Baptism Service Sheet ─────────────────────────────────────────────────────
 
 const PROGRAM_ITEM_LABELS: Record<string, string> = {
-  opening_prayer: "Oración de apertura",
-  hymn: "Cántico",
-  talk: "Discurso",
-  special_music: "Música especial",
-  ordinance_baptism: "Bautismo",
-  closing_prayer: "Oración de cierre",
+  preside: "Preside",
+  dirige: "Dirige",
+  dirige_musica: "Dirige la música",
+  acompanamiento_piano: "Acompañamiento en el piano",
+  primer_himno: "Primer himno",
+  oracion_apertura: "Oración de apertura",
+  primer_mensaje: "Primer mensaje",
+  numero_especial: "Número especial",
+  segundo_mensaje: "Segundo mensaje",
+  ordenanza_bautismo: "Ordenanza: Efectúa la ordenanza del Bautismo",
+  ordenanza_confirmacion: "Efectúa la ordenanza de la Confirmación",
+  ultimo_himno: "Último himno",
+  ultima_oracion: "Última oración",
 };
 
 const PROGRAM_ORDER = [
-  "opening_prayer",
-  "hymn",
-  "talk",
-  "special_music",
-  "ordinance_baptism",
-  "closing_prayer",
+  "preside",
+  "dirige",
+  "dirige_musica",
+  "acompanamiento_piano",
+  "primer_himno",
+  "oracion_apertura",
+  "primer_mensaje",
+  "numero_especial",
+  "segundo_mensaje",
+  "ordenanza_bautismo",
+  "ordenanza_confirmacion",
+  "ultimo_himno",
+  "ultima_oracion",
 ];
 
 interface ProgramItem {
@@ -1996,25 +2010,32 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const updateItemMutation = useMutation({
-    mutationFn: ({ itemId, data }: { itemId: string; data: Partial<ProgramItem> }) =>
-      apiRequest("PATCH", `/api/mission/baptism-program-items/${itemId}`, {
-        title: data.title,
-        participantDisplayName: data.participant_display_name,
-        notes: data.notes,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] }),
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
 
-  const addItemMutation = useMutation({
-    mutationFn: (type: string) =>
-      apiRequest("PUT", `/api/mission/baptism-services/${service?.id}/program-items`, {
-        type,
-        order: PROGRAM_ORDER.indexOf(type),
-        publicVisibility: true,
+  // Sync programDraft when detail loads or edit mode opens
+  React.useEffect(() => {
+    if (detail?.program_items) {
+      const values: Record<string, string> = {};
+      for (const item of detail.program_items) {
+        values[item.type] = item.participant_display_name ?? "";
+      }
+      setProgramDraft(values);
+    }
+  }, [detail?.program_items]);
+
+  const saveProgramMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("PUT", `/api/baptisms/services/${service?.id}/program`, {
+        items: PROGRAM_ORDER.map((type) => ({
+          type,
+          participantDisplayName: programDraft[type] || null,
+        })),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      setEditMode(false);
+      toast({ title: "Programa guardado" });
+    },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -2086,24 +2107,22 @@ function BaptismalServiceSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-2xl overflow-y-auto">
-        <SheetHeader className="mb-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div>
-                {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
-                  <p key={c.id} className="text-2xl font-medium leading-tight">{c.nombre}</p>
-                )) ?? <p className="text-2xl font-medium">{service.persona_nombre}</p>}
-              </div>
-              {approvalBadge()}
+        <SheetHeader className="mb-4 text-left">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
+                <p key={c.id} className="text-2xl font-semibold leading-tight">{c.nombre}</p>
+              )) ?? <p className="text-2xl font-semibold">{service.persona_nombre}</p>}
+              <div className="mt-1">{approvalBadge()}</div>
             </div>
-            <button
-              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 mt-1"
               onClick={() => setEditMode((v) => !v)}
             >
-              {editMode
-                ? <><Check className="h-2.5 w-2.5" />Listo</>
-                : <><TrendingUp className="h-2.5 w-2.5" />Editar servicio</>}
-            </button>
+              {editMode ? <><Check className="h-3.5 w-3.5 mr-1.5" />Listo</> : <><Pencil className="h-3.5 w-3.5 mr-1.5" />Editar servicio</>}
+            </Button>
           </div>
         </SheetHeader>
 
@@ -2154,48 +2173,44 @@ function BaptismalServiceSheet({
         <section>
           <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Programa</h3>
           {detailQuery.isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+            <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : (
-            <div className="space-y-2">
-              {PROGRAM_ORDER.map((type) => {
-                const item = programItems.find((p) => p.type === type);
-                if (!item && !editMode) return null;
-                return (
-                  <div key={type} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">{PROGRAM_ITEM_LABELS[type]}</p>
-                      {item ? (
-                        editMode ? (
-                          <Input
-                            defaultValue={item.participant_display_name ?? ""}
-                            placeholder="Nombre del participante"
-                            className="h-7 text-sm"
-                            onBlur={(e) => updateItemMutation.mutate({
-                              itemId: item.id,
-                              data: { ...item, participant_display_name: e.target.value || null },
-                            })}
-                          />
-                        ) : (
-                          <p className="text-sm">{item.participant_display_name || <span className="text-muted-foreground">Sin asignar</span>}</p>
-                        )
+            <>
+              <div className="space-y-2">
+                {PROGRAM_ORDER.map((type) => {
+                  const existing = programItems.find((p) => p.type === type);
+                  const value = editMode
+                    ? (programDraft[type] ?? "")
+                    : (existing?.participant_display_name ?? "");
+                  return (
+                    <div key={type} className="flex items-center gap-3 py-2 border-b last:border-b-0">
+                      <p className="text-xs text-muted-foreground w-52 shrink-0">{PROGRAM_ITEM_LABELS[type]}</p>
+                      {editMode ? (
+                        <Input
+                          value={value}
+                          onChange={(e) => setProgramDraft((d) => ({ ...d, [type]: e.target.value }))}
+                          placeholder="Nombre del participante"
+                          className="h-8 text-sm flex-1"
+                        />
                       ) : (
-                        editMode ? (
-                          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground px-2"
-                            onClick={() => addItemMutation.mutate(type)}>
-                            <Plus className="h-3 w-3 mr-1" /> Añadir
-                          </Button>
-                        ) : null
+                        <p className="text-sm flex-1">{value || <span className="text-muted-foreground/60">—</span>}</p>
                       )}
                     </div>
-                  </div>
-                );
-              })}
-              {programItems.length === 0 && !editMode && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  El programa está vacío. Activa "Editar servicio" para añadir participantes.
-                </p>
+                  );
+                })}
+              </div>
+              {editMode && (
+                <div className="mt-4">
+                  <Button
+                    size="sm"
+                    onClick={() => saveProgramMutation.mutate()}
+                    disabled={saveProgramMutation.isPending}
+                  >
+                    {saveProgramMutation.isPending ? "Guardando..." : "Guardar programa"}
+                  </Button>
+                </div>
               )}
-            </div>
+            </>
           )}
         </section>
 
