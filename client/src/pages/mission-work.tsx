@@ -2342,7 +2342,7 @@ function BaptismalServiceSheet({
   const step3Locked = !isObispo && !checklistComplete;
 
   const STEPS = [
-    { key: "agenda" as const, label: "Agenda", locked: false, done: programComplete },
+    { key: "agenda" as const, label: "Programa", locked: false, done: programComplete },
     { key: "checklist" as const, label: "Checklist", locked: step2Locked, done: checklistComplete },
     { key: "aprobacion" as const, label: "Aprobación", locked: step3Locked, done: liveService?.approval_status === "approved" },
   ];
@@ -2558,7 +2558,8 @@ function BaptismalServiceSheet({
 
                   <div className="space-y-1">
                     {(checklistData.items ?? []).map((item: any) => {
-                      const isAuto = item.item_key === "entrevista_bautismal" || item.item_key === "programa";
+                      const itemKey = item.itemKey ?? item.item_key;
+                      const isAuto = itemKey === "entrevista_bautismal" || itemKey === "programa";
                       return (
                         <button
                           key={item.id}
