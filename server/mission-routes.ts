@@ -1633,13 +1633,14 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       await db.execute(sql`
         INSERT INTO activity_checklist_items (activity_id, item_key, label, sort_order, completed)
         VALUES
-          (${activity.id}, 'programa',              'Programa de la actividad',                          0, false),
-          (${activity.id}, 'espacio_calendario',    'Espacio reservado en calendario de la iglesia',     1, false),
-          (${activity.id}, 'equipo_tecnologia',     'Equipo y tecnología coordinado con líderes',        2, false),
-          (${activity.id}, 'presupuesto_refrigerio','Solicitud de presupuesto para refrigerio (si aplica)', 3, false),
-          (${activity.id}, 'limpieza',              'Limpieza de ambientes al terminar el servicio',     4, false),
-          (${activity.id}, 'ropa_bautismal',        'Designado recojo de ropa bautismal',                5, false),
-          (${activity.id}, 'entrevista_bautismal',  'Candidatos han completado la entrevista bautismal', 6, false)
+          (${activity.id}, 'programa',              'Programa de la actividad',                            0, false),
+          (${activity.id}, 'espacio_calendario',    'Espacio reservado en calendario de la iglesia',       1, false),
+          (${activity.id}, 'arreglo_espacios',      'Arreglo de espacios (sillas, decoración, etc.)',      2, false),
+          (${activity.id}, 'equipo_tecnologia',     'Equipo y tecnología coordinado con líderes',          3, false),
+          (${activity.id}, 'presupuesto_refrigerio','Solicitud de presupuesto para refrigerio (si aplica)',4, false),
+          (${activity.id}, 'limpieza',              'Limpieza de ambientes al terminar el servicio',       5, false),
+          (${activity.id}, 'ropa_bautismal',        'Designado recojo de ropa bautismal',                  6, false),
+          (${activity.id}, 'entrevista_bautismal',  'Candidatos han completado la entrevista bautismal',   7, false)
         ON CONFLICT (activity_id, item_key) DO NOTHING
       `);
 

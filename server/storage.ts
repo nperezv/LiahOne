@@ -437,9 +437,10 @@ export interface IStorage {
 const BASE_CHECKLIST_ITEMS = [
   { key: "programa", label: "Programa de la actividad", sort: 0 },
   { key: "espacio_calendario", label: "Espacio reservado en calendario de la iglesia", sort: 1 },
-  { key: "equipo_tecnologia", label: "Equipo y tecnología coordinado con líderes", sort: 2 },
-  { key: "presupuesto_refrigerio", label: "Solicitud de presupuesto para refrigerio (si aplica)", sort: 3 },
-  { key: "limpieza", label: "Limpieza de ambientes al terminar el servicio", sort: 4 },
+  { key: "arreglo_espacios", label: "Arreglo de espacios (sillas, decoración, etc.)", sort: 2 },
+  { key: "equipo_tecnologia", label: "Equipo y tecnología coordinado con líderes", sort: 3 },
+  { key: "presupuesto_refrigerio", label: "Solicitud de presupuesto para refrigerio (si aplica)", sort: 4 },
+  { key: "limpieza", label: "Limpieza de ambientes al terminar el servicio", sort: 5 },
 ];
 
 const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
