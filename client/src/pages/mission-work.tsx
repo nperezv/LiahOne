@@ -47,6 +47,7 @@ import {
   Music,
   Handshake,
   BookOpen,
+  Trash2,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -236,7 +237,10 @@ function monthsSince(dateStr: string | null | undefined): number {
 
 function formatDisplayDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
-  const d = new Date(dateStr + "T12:00:00");
+  // Strip time component before parsing to avoid timezone issues
+  const datePart = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
+  const d = new Date(datePart + "T12:00:00");
+  if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" });
 }
 
@@ -2095,16 +2099,22 @@ function BaptismalServiceSheet({
   open,
   onOpenChange,
   userRole,
+  initialEditMode = false,
 }: {
   service: BaptismService | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   userRole?: string;
+  initialEditMode?: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"programa" | "aprobacion">("programa");
   const [editMode, setEditMode] = useState(false);
+
+  React.useEffect(() => {
+    if (open) setEditMode(initialEditMode);
+  }, [open, initialEditMode]);
   const [locationVal, setLocationVal] = useState("");
   const [locationAddrVal, setLocationAddrVal] = useState("");
   const [serviceAtVal, setServiceAtVal] = useState("");
@@ -2633,6 +2643,7 @@ export default function MissionWork() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<BaptismService | null>(null);
   const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
+  const [serviceInitialEditMode, setServiceInitialEditMode] = useState(false);
 
   const accessQuery = useQuery<{ allowed: boolean }>({
     queryKey: ["/api/mission/access"],
@@ -2645,6 +2656,17 @@ export default function MissionWork() {
   const baptismServicesQuery = useQuery<BaptismService[]>({
     queryKey: ["/api/mission/baptism-services"],
     queryFn: () => missionFetch("/api/mission/baptism-services"),
+  });
+
+  const qc = useQueryClient();
+  const deleteServiceMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/mission/baptism-services/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", "enseñando"] });
+      setServiceSheetOpen(false);
+      setSelectedService(null);
+    },
   });
 
   const totalNuevo = nuevoQuery.data?.length ?? 0;
@@ -2689,8 +2711,15 @@ export default function MissionWork() {
   // ── Baptism services section ──────────────────────────────
   if (section === "servicios_bautismales") {
     const services = baptismServicesQuery.data ?? [];
+    const canDeleteService = user?.role === "obispo" || user?.role === "consejero_obispo";
+    const MESES_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+    const parseServiceDate = (iso: string) => {
+      const d = new Date(iso.includes("T") ? iso : iso + "T12:00:00");
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="flex items-center gap-3 mb-6">
           <Button variant="ghost" size="icon" onClick={() => setSection(null)}>
             <ChevronRight className="h-4 w-4 rotate-180" />
@@ -2702,9 +2731,7 @@ export default function MissionWork() {
         </div>
 
         {baptismServicesQuery.isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44 w-full rounded-lg" />)}
-          </div>
+          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
         ) : services.length === 0 ? (
           <div className="text-center text-muted-foreground py-16">
             <Waves className="h-8 w-8 mx-auto mb-3 opacity-40" />
@@ -2712,56 +2739,85 @@ export default function MissionWork() {
             <p className="text-xs mt-1">Se crean automáticamente al registrar una fecha bautismal.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {services.map((svc) => (
-              <Card
-                key={svc.id}
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => { setSelectedService(svc); setServiceSheetOpen(true); }}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="min-w-0">
-                      {(svc.candidates && svc.candidates.length > 0 ? svc.candidates : null)?.map((c) => (
-                        <p key={c.id} className="font-semibold text-base leading-tight truncate">{c.nombre}</p>
-                      )) ?? <p className="font-semibold text-base leading-tight truncate">{svc.persona_nombre}</p>}
+          <div className="space-y-2">
+            {services.map((svc) => {
+              const d = parseServiceDate(svc.service_at);
+              const approvalColor =
+                svc.approval_status === "approved" ? "bg-green-500/10 text-green-600" :
+                svc.approval_status === "pending_approval" ? "bg-yellow-500/10 text-yellow-600" :
+                svc.approval_status === "needs_revision" ? "bg-red-500/10 text-red-600" :
+                "bg-muted/60 text-muted-foreground";
+              const approvalLabel =
+                svc.approval_status === "approved" ? "Aprobado" :
+                svc.approval_status === "pending_approval" ? "Pendiente" :
+                svc.approval_status === "needs_revision" ? "Revisión" : "Borrador";
+              const names = svc.candidates && svc.candidates.length > 0
+                ? svc.candidates.map(c => c.nombre)
+                : [svc.persona_nombre];
+
+              return (
+                <div
+                  key={svc.id}
+                  className="group flex items-stretch rounded-xl bg-card hover:bg-accent/30 transition-all cursor-pointer overflow-hidden border"
+                  onClick={() => { setSelectedService(svc); setServiceInitialEditMode(false); setServiceSheetOpen(true); }}
+                >
+                  {/* Date block */}
+                  {d ? (
+                    <div className="flex flex-col items-center justify-center px-4 py-3 min-w-[52px] shrink-0 bg-muted/20">
+                      <span className="text-lg font-black leading-none tabular-nums">{d.getUTCDate()}</span>
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{MESES_SHORT[d.getUTCMonth()]}</span>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 font-medium ${
-                      svc.approval_status === "approved" ? "bg-green-100 text-green-700" :
-                      svc.approval_status === "pending_approval" ? "bg-yellow-100 text-yellow-700" :
-                      "bg-muted text-muted-foreground"
-                    }`}>
-                      {svc.approval_status === "approved" ? "Aprobado" :
-                       svc.approval_status === "pending_approval" ? "Pendiente" : "Borrador"}
-                    </span>
-                  </div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Waves className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatDisplayDate(svc.service_at)}</span>
+                  ) : null}
+
+                  {/* Body */}
+                  <div className="flex-1 px-3.5 py-2.5 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${approvalColor}`}>
+                        {approvalLabel}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                      <span>{svc.location_name}</span>
-                    </div>
+                    {names.map((n, i) => (
+                      <p key={i} className="text-sm font-semibold truncate leading-tight">{n}</p>
+                    ))}
+                    <p className="text-[11px] text-muted-foreground/70 truncate mt-0.5">{svc.location_name}</p>
                   </div>
-                  <div className="mt-3 pt-3 border-t">
-                    <p className="text-xs text-muted-foreground">
-                      Preparación antes del {formatDisplayDate(svc.prep_deadline_at)}
-                    </p>
+
+                  {/* Actions */}
+                  <div className="flex flex-col items-center justify-center gap-0.5 px-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
+                      title="Editar"
+                      onClick={() => { setSelectedService(svc); setServiceInitialEditMode(true); setServiceSheetOpen(true); }}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    {canDeleteService && (
+                      <button
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
+                        title="Eliminar"
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar el servicio bautismal de ${names.join(", ")}? Se borrará el programa y se eliminará la fecha de bautismo de los candidatos.`)) {
+                            deleteServiceMutation.mutate(svc.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
 
         <BaptismalServiceSheet
           service={selectedService}
           open={serviceSheetOpen}
+          initialEditMode={serviceInitialEditMode}
           onOpenChange={(v) => {
             setServiceSheetOpen(v);
-            if (!v) setSelectedService(null);
+            if (!v) { setSelectedService(null); setServiceInitialEditMode(false); }
           }}
           userRole={user?.role}
         />

@@ -1333,6 +1333,33 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     }
   });
 
+  // DELETE /api/mission/baptism-services/:id — delete service + clear fechaBautismo on personas (obispado only)
+  app.delete("/api/mission/baptism-services/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const canDelete = user.role === "obispo" || user.role === "consejero_obispo";
+      if (!canDelete) return res.status(403).json({ message: "Sin acceso" });
+
+      const serviceId = req.params.id;
+
+      // Clear fecha_bautismo on all associated personas before deleting
+      await db.execute(sql`
+        UPDATE mission_personas SET fecha_bautismo = NULL, updated_at = NOW()
+        WHERE id IN (
+          SELECT persona_id FROM baptism_service_candidates WHERE service_id = ${serviceId}
+        )
+      `);
+
+      // Delete the service (CASCADE handles candidates, program_items, assignments, etc.)
+      await db.execute(sql`DELETE FROM baptism_services WHERE id = ${serviceId}`);
+
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[mission/baptism-services/:id DELETE]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
   // PATCH /api/mission/baptism-services/:id — update service info or approval status
   app.patch("/api/mission/baptism-services/:id", requireAuth, async (req: Request, res: Response) => {
     try {
