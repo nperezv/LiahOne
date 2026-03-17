@@ -2127,6 +2127,7 @@ function BaptismalServiceSheet({
   const [serviceAtVal, setServiceAtVal] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
   const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
+  const [showApprovalDialog, setShowApprovalDialog] = React.useState(false);
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
 
   // Data hooks
@@ -2241,8 +2242,16 @@ function BaptismalServiceSheet({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
-      onOpenChange(false);
-      toast({ title: "Programa guardado" });
+      const programComplete = PROGRAM_ORDER.every((t) => programDraft[t]?.trim());
+      const checklist = checklistQuery.data;
+      const checklistComplete = checklist ? checklist.completedCount === checklist.totalCount && checklist.totalCount > 0 : false;
+      const isDraft = !service?.approval_status || service.approval_status === "draft";
+      if (programComplete && checklistComplete && isDraft) {
+        setShowApprovalDialog(true);
+      } else {
+        onOpenChange(false);
+        toast({ title: "Programa guardado" });
+      }
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -2600,6 +2609,33 @@ function BaptismalServiceSheet({
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* Diálogo de confirmación de envío a aprobación */}
+    <Dialog open={showApprovalDialog} onOpenChange={(v) => { setShowApprovalDialog(v); if (!v) onOpenChange(false); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Todo está listo</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          El programa está completo y el checklist de preparación está al 100%.
+          ¿Deseas enviar el servicio bautismal al obispo para su aprobación?
+        </p>
+        <DialogFooter className="gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={() => { setShowApprovalDialog(false); onOpenChange(false); }}>
+            Ahora no
+          </Button>
+          <Button
+            onClick={() => {
+              submitForApprovalMutation.mutate(undefined, {
+                onSuccess: () => { setShowApprovalDialog(false); onOpenChange(false); },
+              });
+            }}
+            disabled={submitForApprovalMutation.isPending}>
+            {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

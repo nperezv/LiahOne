@@ -1,5 +1,5 @@
 import type { Express, Request, Response, RequestHandler } from "express";
-import { and, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -20,6 +20,9 @@ import {
   missionSelfReliance,
   missionLlamamiento,
   missionMinistracion,
+  activities,
+  activityChecklistItems,
+  notifications,
 } from "@shared/schema";
 
 const MISSION_ROLES = new Set([
@@ -1520,6 +1523,80 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       return res.json(updated.rows);
     } catch (err) {
       console.error("[baptisms/services/:id/program PUT]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // Checklist de actividad vinculada al servicio bautismal
+  app.get("/api/baptisms/services/:id/activity-checklist", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+
+      const [activity] = await db
+        .select({ id: activities.id })
+        .from(activities)
+        .where(eq(activities.baptismServiceId, req.params.id))
+        .limit(1);
+      if (!activity) return res.status(404).json({ message: "No hay actividad vinculada a este servicio" });
+
+      const items = await db
+        .select()
+        .from(activityChecklistItems)
+        .where(eq(activityChecklistItems.activityId, activity.id))
+        .orderBy(asc(activityChecklistItems.sortOrder));
+
+      return res.json({
+        items,
+        completedCount: items.filter((i) => i.completed).length,
+        totalCount: items.length,
+      });
+    } catch (err) {
+      console.error("[baptisms/services/:id/activity-checklist GET]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // Enviar servicio bautismal a aprobación del obispo
+  app.post("/api/baptisms/services/:id/submit-for-approval", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+
+      const svcResult = await db.execute(sql`
+        SELECT id, location_name, approval_status, unit_id
+        FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+      `);
+      if (!svcResult.rows.length) return res.status(404).json({ message: "Servicio no encontrado" });
+      const service = svcResult.rows[0] as any;
+
+      if (!["draft", "needs_revision"].includes(service.approval_status)) {
+        return res.status(400).json({ message: "Solo se puede enviar desde borrador o necesita revisión" });
+      }
+
+      await db.execute(sql`
+        UPDATE baptism_services SET approval_status = 'pending_approval', approval_comment = NULL, updated_at = NOW()
+        WHERE id = ${req.params.id}
+      `);
+
+      // Notify bishops
+      const bishops = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.organizationId, user.organizationId), eq(users.role, "obispo" as any)));
+
+      for (const bishop of bishops) {
+        await db.insert(notifications).values({
+          userId: bishop.id,
+          title: "Agenda bautismal pendiente de aprobación",
+          message: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
+          type: "reminder",
+        });
+      }
+
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[baptisms/services/:id/submit-for-approval POST]", err);
       return res.status(500).json({ message: "Error interno" });
     }
   });
