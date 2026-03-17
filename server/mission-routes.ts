@@ -1627,6 +1627,20 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       if (!activity) return res.json({ items: [], completedCount: 0, totalCount: 0 });
 
+      // Ensure all default checklist items exist for this activity (in case activity was created before checklist system)
+      await db.execute(sql`
+        INSERT INTO activity_checklist_items (activity_id, item_key, label, sort_order, completed)
+        VALUES
+          (${activity.id}, 'programa',              'Programa de la actividad',                          0, false),
+          (${activity.id}, 'espacio_calendario',    'Espacio reservado en calendario de la iglesia',     1, false),
+          (${activity.id}, 'equipo_tecnologia',     'Equipo y tecnología coordinado con líderes',        2, false),
+          (${activity.id}, 'presupuesto_refrigerio','Solicitud de presupuesto para refrigerio (si aplica)', 3, false),
+          (${activity.id}, 'limpieza',              'Limpieza de ambientes al terminar el servicio',     4, false),
+          (${activity.id}, 'ropa_bautismal',        'Designado recojo de ropa bautismal',                5, false),
+          (${activity.id}, 'entrevista_bautismal',  'Candidatos han completado la entrevista bautismal', 6, false)
+        ON CONFLICT (activity_id, item_key) DO NOTHING
+      `);
+
       // Sync 'programa' item: mark complete if all program fields are filled
       const programItemsRows = await db.execute(sql`
         SELECT participant_display_name FROM baptism_program_items WHERE service_id = ${req.params.id}

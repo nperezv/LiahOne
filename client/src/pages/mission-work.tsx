@@ -2559,7 +2559,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-1">
                     {(checklistData.items ?? []).map((item: any) => {
                       const itemKey = item.itemKey ?? item.item_key;
-                      const isAuto = itemKey === "entrevista_bautismal" || itemKey === "programa";
+                      const isAuto = itemKey === "entrevista_bautismal";
                       return (
                         <button
                           key={item.id}
