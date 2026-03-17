@@ -41,6 +41,9 @@ import {
   CalendarCheck,
   UserCheck,
   Waves,
+  CheckSquare,
+  Square,
+  AlertTriangle,
 } from "lucide-react";
 
 // ============================================================
@@ -1986,24 +1989,57 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const approvalMutation = useMutation({
-    mutationFn: (data: { approvalStatus: string; approvalComment?: string | null }) =>
-      apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, data),
+  // Checklist query (syncs entrevista bautismal automatically on fetch)
+  const checklistQuery = useQuery<{ items: any[]; completedCount: number; totalCount: number }>({
+    queryKey: ["/api/baptisms/services", service?.id, "checklist"],
+    queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/activity-checklist`),
+    enabled: open && !!service?.id,
+  });
+
+  // Non-obispo: submit for approval (new endpoint)
+  const submitForApprovalMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/baptisms/services/${service?.id}/submit-for-approval`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
-      toast({ title: "Estado actualizado" });
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
+      toast({ title: "Solicitud enviada al obispado" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Non-obispo: request approval
-  const requestApprovalMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, { approvalStatus: "pending_approval" }),
+  // Bishop: approve (new endpoint)
+  const approveMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/baptisms/services/${service?.id}/approve`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
-      toast({ title: "Solicitud enviada al obispado" });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      toast({ title: "Servicio aprobado" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Bishop: reject / request revision (new endpoint — comment required)
+  const rejectMutation = useMutation({
+    mutationFn: (comment: string) =>
+      apiRequest("POST", `/api/baptisms/services/${service?.id}/reject`, { comment }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      setApprovalComment("");
+      toast({ title: "Se solicitaron cambios al líder misional" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Bishop: revoke approval (old PATCH — no dedicated new endpoint)
+  const revokeMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, { approvalStatus: "draft", approvalComment: null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      toast({ title: "Aprobación revocada" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -2130,27 +2166,68 @@ function BaptismalServiceSheet({
           )}
         </section>
 
+        {/* Checklist section */}
+        {checklistQuery.data && (
+          <section className="mt-6 pt-6 border-t">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Checklist de preparación
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                {checklistQuery.data.completedCount}/{checklistQuery.data.totalCount} completados
+              </span>
+            </div>
+            {checklistQuery.data.completedCount < checklistQuery.data.totalCount && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded px-2.5 py-1.5 mb-3">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>Hay ítems pendientes — completa el checklist antes de enviar a aprobación</span>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              {checklistQuery.data.items.map((item: any) => (
+                <div key={item.id} className="flex items-center gap-2 text-sm">
+                  {item.completed
+                    ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                    : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                  {item.itemKey === "entrevista_bautismal" && (
+                    <span className="text-[10px] text-muted-foreground/60 ml-1">(auto)</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Approval section */}
         <section className="mt-6 pt-6 border-t">
           <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Aprobación del obispado</h3>
 
-          {/* Non-bishop: show status + request button if still draft */}
+          {/* Non-bishop: show status + request button */}
           {!isObispo && (
-            <div className="flex items-center gap-3">
-              {approvalBadge()}
-              {liveService?.approval_status === "draft" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs h-7"
-                  onClick={() => requestApprovalMutation.mutate()}
-                  disabled={requestApprovalMutation.isPending}
-                >
-                  Solicitar aprobación
-                </Button>
-              )}
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                {approvalBadge()}
+                {liveService?.approval_status === "draft" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => submitForApprovalMutation.mutate()}
+                    disabled={submitForApprovalMutation.isPending}
+                  >
+                    Solicitar aprobación
+                  </Button>
+                )}
+                {liveService?.approval_status === "pending_approval" && (
+                  <span className="text-xs text-muted-foreground">En espera de respuesta del obispado</span>
+                )}
+              </div>
               {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
-                <p className="text-xs text-red-600 mt-1">{liveService.approval_comment}</p>
+                <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>{liveService.approval_comment}</span>
+                </div>
               )}
             </div>
           )}
@@ -2164,11 +2241,13 @@ function BaptismalServiceSheet({
               {liveService?.approval_status !== "approved" && (
                 <>
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">Comentario (opcional)</Label>
+                    <Label className="text-xs text-muted-foreground mb-1 block">
+                      Comentario <span className="text-red-500">*requerido para solicitar revisión</span>
+                    </Label>
                     <Textarea
                       value={approvalComment}
                       onChange={(e) => setApprovalComment(e.target.value)}
-                      placeholder="Añade un comentario para el líder misional..."
+                      placeholder="Añade indicaciones para el líder misional..."
                       className="text-sm min-h-[60px] resize-none"
                     />
                   </div>
@@ -2176,11 +2255,8 @@ function BaptismalServiceSheet({
                     <Button
                       size="sm"
                       className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                      onClick={() => approvalMutation.mutate({
-                        approvalStatus: "approved",
-                        approvalComment: approvalComment || null,
-                      })}
-                      disabled={approvalMutation.isPending}
+                      onClick={() => approveMutation.mutate()}
+                      disabled={approveMutation.isPending || rejectMutation.isPending}
                     >
                       <Check className="h-3.5 w-3.5 mr-1" /> Aprobar
                     </Button>
@@ -2188,11 +2264,14 @@ function BaptismalServiceSheet({
                       size="sm"
                       variant="outline"
                       className="text-xs border-red-300 text-red-600 hover:bg-red-50"
-                      onClick={() => approvalMutation.mutate({
-                        approvalStatus: "needs_revision",
-                        approvalComment: approvalComment || null,
-                      })}
-                      disabled={approvalMutation.isPending}
+                      onClick={() => {
+                        if (!approvalComment.trim()) {
+                          toast({ title: "Se requiere un comentario para solicitar revisión", variant: "destructive" });
+                          return;
+                        }
+                        rejectMutation.mutate(approvalComment.trim());
+                      }}
+                      disabled={approveMutation.isPending || rejectMutation.isPending}
                     >
                       <X className="h-3.5 w-3.5 mr-1" /> Necesita revisión
                     </Button>
@@ -2200,17 +2279,15 @@ function BaptismalServiceSheet({
                 </>
               )}
               {liveService?.approval_status === "approved" && (
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-xs text-muted-foreground"
-                    onClick={() => approvalMutation.mutate({ approvalStatus: "draft", approvalComment: null })}
-                    disabled={approvalMutation.isPending}
-                  >
-                    Revocar aprobación
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-muted-foreground"
+                  onClick={() => revokeMutation.mutate()}
+                  disabled={revokeMutation.isPending}
+                >
+                  Revocar aprobación
+                </Button>
               )}
             </div>
           )}
