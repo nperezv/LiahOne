@@ -2548,7 +2548,7 @@ function BaptismalServiceSheet({
                   </div>
 
                   <div className="space-y-2">
-                    {checklistData.items.map((item: any) => (
+                    {(checklistData.items ?? []).map((item: any) => (
                       <div key={item.id} className="flex items-center gap-2.5 text-sm py-1">
                         {item.completed
                           ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />

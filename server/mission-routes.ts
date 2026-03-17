@@ -1315,18 +1315,24 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
       const result = await db.execute(sql`
         SELECT bs.*,
-          json_agg(DISTINCT jsonb_build_object('id', mp.id, 'nombre', mp.nombre) ORDER BY jsonb_build_object('id', mp.id, 'nombre', mp.nombre)) AS candidates,
-          string_agg(DISTINCT mp.nombre ORDER BY mp.nombre) AS persona_nombre,
-          (SELECT json_agg(pi ORDER BY pi.order)
+          (SELECT json_agg(c ORDER BY c->>'nombre')
+           FROM (
+             SELECT jsonb_build_object('id', mp2.id, 'nombre', mp2.nombre) AS c
+             FROM baptism_service_candidates bsc2
+             JOIN mission_personas mp2 ON mp2.id = bsc2.persona_id
+             WHERE bsc2.service_id = bs.id
+           ) sub) AS candidates,
+          (SELECT string_agg(mp2.nombre, ', ' ORDER BY mp2.nombre)
+           FROM baptism_service_candidates bsc2
+           JOIN mission_personas mp2 ON mp2.id = bsc2.persona_id
+           WHERE bsc2.service_id = bs.id) AS persona_nombre,
+          (SELECT json_agg(pi ORDER BY pi."order")
            FROM baptism_program_items pi WHERE pi.service_id = bs.id) AS program_items,
           (SELECT json_agg(a)
            FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
         FROM baptism_services bs
-        JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
-        JOIN mission_personas mp ON mp.id = bsc.persona_id
         WHERE bs.id = ${req.params.id}
           AND bs.unit_id = ${user.organizationId}
-        GROUP BY bs.id
       `);
       if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
       return res.json(result.rows[0]);
@@ -1533,12 +1539,43 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
 
-      const [activity] = await db
+      let [activity] = await db
         .select({ id: activities.id })
         .from(activities)
         .where(eq(activities.baptismServiceId, req.params.id))
         .limit(1);
-      if (!activity) return res.status(404).json({ message: "No hay actividad vinculada a este servicio" });
+
+      // Fallback: find orphaned servicio_bautismal activity for same unit and re-link it
+      if (!activity) {
+        const svcRow = await db.execute(sql`
+          SELECT service_at, unit_id FROM baptism_services WHERE id = ${req.params.id}
+        `);
+        if (svcRow.rows.length > 0) {
+          const svc = svcRow.rows[0] as any;
+          const orphan = await db.execute(sql`
+            SELECT id FROM activities
+            WHERE type = 'servicio_bautismal'
+              AND organization_id = ${svc.unit_id}
+              AND (baptism_service_id IS NULL OR baptism_service_id = ${req.params.id})
+              AND DATE(date) = DATE(${svc.service_at})
+            ORDER BY created_at ASC
+            LIMIT 1
+          `);
+          if (orphan.rows.length > 0) {
+            const orphanId = (orphan.rows[0] as any).id;
+            await db.execute(sql`
+              UPDATE activities SET baptism_service_id = ${req.params.id} WHERE id = ${orphanId}
+            `);
+            [activity] = await db
+              .select({ id: activities.id })
+              .from(activities)
+              .where(eq(activities.baptismServiceId, req.params.id))
+              .limit(1);
+          }
+        }
+      }
+
+      if (!activity) return res.json({ items: [], completedCount: 0, totalCount: 0 });
 
       const items = await db
         .select()
