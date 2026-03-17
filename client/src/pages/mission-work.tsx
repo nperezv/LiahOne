@@ -1945,6 +1945,7 @@ interface BaptismServiceDetail extends BaptismService {
   approval_comment: string | null;
   program_items: ProgramItem[] | null;
   assignments: any[] | null;
+  candidates: Array<{ id: string; nombre: string }> | null;
 }
 
 function BaptismalServiceSheet({
@@ -1969,8 +1970,8 @@ function BaptismalServiceSheet({
 
   const detailQuery = useQuery<BaptismServiceDetail>({
     queryKey: ["/api/mission/baptism-services", service?.id],
-    queryFn: () => missionFetch(`/api/mission/personas/${service?.candidate_persona_id}/baptism-service`),
-    enabled: open && !!service?.candidate_persona_id,
+    queryFn: () => missionFetch(`/api/mission/baptism-services/${service?.id}`),
+    enabled: open && !!service?.id,
   });
 
   const detail = detailQuery.data;
@@ -2088,7 +2089,11 @@ function BaptismalServiceSheet({
         <SheetHeader className="mb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-2xl font-medium">{service.persona_nombre}</p>
+              <div>
+                {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
+                  <p key={c.id} className="text-2xl font-medium leading-tight">{c.nombre}</p>
+                )) ?? <p className="text-2xl font-medium">{service.persona_nombre}</p>}
+              </div>
               {approvalBadge()}
             </div>
             <button
@@ -2346,8 +2351,9 @@ type SectionType = PersonaTipo | "servicios_bautismales";
 
 interface BaptismService {
   id: string;
-  candidate_persona_id: string;
+  candidate_persona_id: string | null;
   persona_nombre: string;
+  candidates: Array<{ id: string; nombre: string }> | null;
   fecha_bautismo: string | null;
   service_at: string;
   location_name: string;
@@ -2454,7 +2460,11 @@ export default function MissionWork() {
               >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <p className="font-semibold text-base leading-tight">{svc.persona_nombre}</p>
+                    <div className="min-w-0">
+                      {(svc.candidates && svc.candidates.length > 0 ? svc.candidates : null)?.map((c) => (
+                        <p key={c.id} className="font-semibold text-base leading-tight truncate">{c.nombre}</p>
+                      )) ?? <p className="font-semibold text-base leading-tight truncate">{svc.persona_nombre}</p>}
+                    </div>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 font-medium ${
                       svc.approval_status === "approved" ? "bg-green-100 text-green-700" :
                       svc.approval_status === "pending_approval" ? "bg-yellow-100 text-yellow-700" :

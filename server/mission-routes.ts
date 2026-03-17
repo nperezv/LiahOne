@@ -311,41 +311,84 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       if (!updated) return res.status(404).json({ message: "No encontrado" });
 
-      // Auto-create draft baptism service + activity when fechaBautismo is set for the first time
+      // Auto-create/join draft baptism service + activity when fechaBautismo is set for the first time
       if (data.fechaBautismo && updated.tipo === "enseñando") {
         try {
-          const existing = await db.execute(sql`
-            SELECT id FROM baptism_services
-            WHERE candidate_persona_id = ${req.params.id}
-            AND status NOT IN ('archived')
+          // Check if this persona already belongs to a service
+          const existingForPersona = await db.execute(sql`
+            SELECT bs.id FROM baptism_services bs
+            JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+            WHERE bsc.persona_id = ${req.params.id}
+              AND bs.status != 'archived'
             LIMIT 1
           `);
-          if (existing.rows.length === 0) {
+
+          if (existingForPersona.rows.length === 0) {
             const serviceAt = new Date(`${data.fechaBautismo}T12:00:00Z`);
             const prepDeadline = new Date(serviceAt);
             prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
 
-            // Create the baptism service and get its ID
-            const serviceResult = await db.execute(sql`
-              INSERT INTO baptism_services
-                (unit_id, candidate_persona_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
-              VALUES
-                (${user.organizationId}, ${req.params.id}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${user.id})
-              RETURNING id
+            // Check if there's already a service for this date + unit
+            const existingForDate = await db.execute(sql`
+              SELECT id FROM baptism_services
+              WHERE unit_id = ${user.organizationId}
+                AND DATE(service_at AT TIME ZONE 'UTC') = DATE(${serviceAt.toISOString()}::timestamptz AT TIME ZONE 'UTC')
+                AND status != 'archived'
+              LIMIT 1
             `);
-            const baptismServiceId = (serviceResult.rows[0] as any)?.id as string | undefined;
 
-            // Auto-create the linked ward activity
-            if (baptismServiceId) {
-              await storage.createActivity({
-                title: `Servicio bautismal de ${updated.nombre}`,
-                date: serviceAt,
-                type: "servicio_bautismal",
-                status: "borrador",
-                baptismServiceId,
-                organizationId: user.organizationId,
-                createdBy: user.id,
-              });
+            let baptismServiceId: string | undefined;
+            let isNewService = false;
+
+            if (existingForDate.rows.length > 0) {
+              // Join existing service — add this persona as a candidate
+              baptismServiceId = (existingForDate.rows[0] as any).id;
+              await db.execute(sql`
+                INSERT INTO baptism_service_candidates (service_id, persona_id)
+                VALUES (${baptismServiceId}, ${req.params.id})
+                ON CONFLICT DO NOTHING
+              `);
+              // Update activity title to list all candidates
+              const allCandidates = await db.execute(sql`
+                SELECT mp.nombre FROM baptism_service_candidates bsc
+                JOIN mission_personas mp ON mp.id = bsc.persona_id
+                WHERE bsc.service_id = ${baptismServiceId}
+                ORDER BY mp.nombre
+              `);
+              const allNames = (allCandidates.rows as any[]).map((r) => r.nombre).join(", ");
+              await db.execute(sql`
+                UPDATE activities SET title = ${"Servicio bautismal: " + allNames}
+                WHERE baptism_service_id = ${baptismServiceId}
+              `);
+            } else {
+              // Create a new service
+              const serviceResult = await db.execute(sql`
+                INSERT INTO baptism_services
+                  (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
+                VALUES
+                  (${user.organizationId}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${user.id})
+                RETURNING id
+              `);
+              baptismServiceId = (serviceResult.rows[0] as any)?.id as string | undefined;
+              isNewService = true;
+
+              if (baptismServiceId) {
+                // Add persona as first candidate
+                await db.execute(sql`
+                  INSERT INTO baptism_service_candidates (service_id, persona_id)
+                  VALUES (${baptismServiceId}, ${req.params.id})
+                `);
+                // Create linked ward activity
+                await storage.createActivity({
+                  title: `Servicio bautismal de ${updated.nombre}`,
+                  date: serviceAt,
+                  type: "servicio_bautismal",
+                  status: "borrador",
+                  baptismServiceId,
+                  organizationId: user.organizationId,
+                  createdBy: user.id,
+                });
+              }
             }
 
             // Check if baptism date is less than 14 days away (exception case)
@@ -353,27 +396,29 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             const daysUntil = Math.ceil((serviceAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             const isException = daysUntil < 14;
 
-            // Notify mission_leader and create their assignment
-            const [missionLeader] = await db
-              .select({ id: users.id, name: users.name })
-              .from(users)
-              .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, user.organizationId)))
-              .limit(1);
-            if (missionLeader) {
-              const assignmentDeadlineDays = isException ? 1 : 3;
-              const deadline = new Date();
-              deadline.setDate(deadline.getDate() + assignmentDeadlineDays);
-              await db.execute(sql`
-                INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
-                VALUES (
-                  ${'Programa del Servicio Bautismal'},
-                  ${'Crear el programa del servicio bautismal de ' + updated.nombre + ' antes de la fecha límite.'},
-                  ${missionLeader.id},
-                  ${user.id},
-                  ${deadline.toISOString()},
-                  'pendiente'
-                )
-              `);
+            // Notify mission_leader and create their assignment (only for new services)
+            if (isNewService) {
+              const [missionLeader] = await db
+                .select({ id: users.id, name: users.name })
+                .from(users)
+                .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, user.organizationId)))
+                .limit(1);
+              if (missionLeader) {
+                const assignmentDeadlineDays = isException ? 1 : 3;
+                const deadline = new Date();
+                deadline.setDate(deadline.getDate() + assignmentDeadlineDays);
+                await db.execute(sql`
+                  INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
+                  VALUES (
+                    ${'Programa del Servicio Bautismal'},
+                    ${'Crear el programa del servicio bautismal de ' + updated.nombre + ' antes de la fecha límite.'},
+                    ${missionLeader.id},
+                    ${user.id},
+                    ${deadline.toISOString()},
+                    'pendiente'
+                  )
+                `);
+              }
             }
 
             // If exception (<14 days): send notifications immediately to all relevant roles
@@ -1210,12 +1255,15 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
       const result = await db.execute(sql`
-        SELECT bs.*, mp.nombre AS persona_nombre, mp.fecha_bautismo
+        SELECT bs.*,
+          json_agg(json_build_object('id', mp.id, 'nombre', mp.nombre) ORDER BY mp.nombre) AS candidates,
+          string_agg(mp.nombre, ', ' ORDER BY mp.nombre) AS persona_nombre
         FROM baptism_services bs
-        LEFT JOIN mission_personas mp ON mp.id = bs.candidate_persona_id
+        JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
         WHERE bs.unit_id = ${user.organizationId}
-          AND bs.candidate_persona_id IS NOT NULL
           AND bs.status != 'archived'
+        GROUP BY bs.id
         ORDER BY bs.service_at ASC
       `);
       return res.json(result.rows);
@@ -1232,20 +1280,55 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
       const result = await db.execute(sql`
         SELECT bs.*,
+          json_agg(DISTINCT jsonb_build_object('id', mp.id, 'nombre', mp.nombre) ORDER BY jsonb_build_object('id', mp.id, 'nombre', mp.nombre)) AS candidates,
+          string_agg(DISTINCT mp.nombre ORDER BY mp.nombre) AS persona_nombre,
           (SELECT json_agg(pi ORDER BY pi.order)
            FROM baptism_program_items pi WHERE pi.service_id = bs.id) AS program_items,
           (SELECT json_agg(a)
            FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
         FROM baptism_services bs
-        WHERE bs.candidate_persona_id = ${req.params.id}
-          AND bs.status != 'archived'
-        ORDER BY bs.created_at DESC
-        LIMIT 1
+        JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bs.id = (
+          SELECT bs2.id FROM baptism_services bs2
+          JOIN baptism_service_candidates bsc2 ON bsc2.service_id = bs2.id
+          WHERE bsc2.persona_id = ${req.params.id} AND bs2.status != 'archived'
+          ORDER BY bs2.created_at DESC LIMIT 1
+        )
+        GROUP BY bs.id
       `);
       if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
       return res.json(result.rows[0]);
     } catch (err) {
       console.error("[mission/personas/:id/baptism-service GET]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // GET /api/mission/baptism-services/:id — get service detail by service ID
+  app.get("/api/mission/baptism-services/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const result = await db.execute(sql`
+        SELECT bs.*,
+          json_agg(DISTINCT jsonb_build_object('id', mp.id, 'nombre', mp.nombre) ORDER BY jsonb_build_object('id', mp.id, 'nombre', mp.nombre)) AS candidates,
+          string_agg(DISTINCT mp.nombre ORDER BY mp.nombre) AS persona_nombre,
+          (SELECT json_agg(pi ORDER BY pi.order)
+           FROM baptism_program_items pi WHERE pi.service_id = bs.id) AS program_items,
+          (SELECT json_agg(a)
+           FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
+        FROM baptism_services bs
+        JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bs.id = ${req.params.id}
+          AND bs.unit_id = ${user.organizationId}
+        GROUP BY bs.id
+      `);
+      if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
+      return res.json(result.rows[0]);
+    } catch (err) {
+      console.error("[mission/baptism-services/:id GET]", err);
       return res.status(500).json({ message: "Error interno" });
     }
   });
