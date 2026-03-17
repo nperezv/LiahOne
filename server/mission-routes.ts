@@ -1527,8 +1527,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         SELECT * FROM baptism_program_items WHERE service_id = ${req.params.id} ORDER BY "order"
       `);
 
-      // Auto-mark "programa" checklist item if all program fields are filled
-      const programComplete = items.every((it) => it.participantDisplayName?.trim());
+      // Auto-mark "programa" checklist item if all required program fields are filled
+      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
+      const savedMap = new Map(items.map((it) => [it.type, it.participantDisplayName]));
+      const programComplete = PROGRAM_ORDER.every((t) => savedMap.get(t)?.trim());
       if (programComplete) {
         const activityRow = await db
           .select({ id: activities.id })
@@ -1642,13 +1644,17 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       `);
 
       // Sync 'programa' item: mark complete if all program fields are filled
+      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
       const programItemsRows = await db.execute(sql`
-        SELECT participant_display_name FROM baptism_program_items WHERE service_id = ${req.params.id}
+        SELECT type, participant_display_name FROM baptism_program_items
+        WHERE service_id = ${req.params.id} AND type = ANY(${PROGRAM_ORDER})
       `);
-      const programComplete =
-        programItemsRows.rows.length > 0 &&
-        (programItemsRows.rows as any[]).every((r) => r.participant_display_name?.trim());
-      console.log(`[checklist sync] service=${req.params.id} activity=${activity.id} programRows=${programItemsRows.rows.length} programComplete=${programComplete}`, (programItemsRows.rows as any[]).map(r => r.participant_display_name));
+      const filledTypes = new Set(
+        (programItemsRows.rows as any[])
+          .filter((r) => r.participant_display_name?.trim())
+          .map((r) => r.type)
+      );
+      const programComplete = PROGRAM_ORDER.every((t) => filledTypes.has(t));
       if (programComplete) {
         await db.execute(sql`
           UPDATE activity_checklist_items
