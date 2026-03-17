@@ -3105,6 +3105,48 @@ export function registerMissionBaptismRoutes(
     const count = await runBaptismReadinessCheck();
     res.json({ ok: true, notificationsSent: count });
   });
+
+  // One-time backfill: create missing activities for existing baptism services
+  app.post("/api/baptisms/jobs/backfill-activities", requireAuth, async (req, res) => {
+    const user = (req as any).user;
+    if (!canApproveBaptism(user)) return res.status(403).json({ error: "Forbidden" });
+
+    const services = await db.execute(sql`
+      SELECT bs.id, bs.service_at, bs.unit_id, bs.created_by,
+             mp.nombre AS persona_nombre
+      FROM baptism_services bs
+      LEFT JOIN mission_personas mp ON mp.id = bs.candidate_persona_id
+      WHERE bs.status NOT IN ('archived')
+    `);
+
+    let created = 0;
+    for (const row of services.rows as any[]) {
+      // Skip if activity already linked
+      const existing = await db
+        .select({ id: activities.id })
+        .from(activities)
+        .where(eq(activities.baptismServiceId, row.id))
+        .limit(1);
+      if (existing.length > 0) continue;
+
+      const title = row.persona_nombre
+        ? `Servicio bautismal de ${row.persona_nombre}`
+        : "Servicio bautismal";
+
+      await storage.createActivity({
+        title,
+        date: new Date(row.service_at),
+        type: "servicio_bautismal",
+        status: "borrador",
+        baptismServiceId: row.id,
+        organizationId: row.unit_id,
+        createdBy: row.created_by,
+      });
+      created++;
+    }
+
+    res.json({ ok: true, created, total: services.rows.length });
+  });
 }
 
 export async function runMissionProgressTransitions(): Promise<{
