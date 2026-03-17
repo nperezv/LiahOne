@@ -1486,4 +1486,41 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       return res.status(500).json({ message: "Error interno" });
     }
   });
+
+  // Bulk upsert all program items at once
+  app.put("/api/baptisms/services/:id/program", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+
+      const items: Array<{ type: string; participantDisplayName?: string | null }> = req.body.items ?? [];
+      if (!Array.isArray(items)) return res.status(400).json({ message: "items debe ser un array" });
+
+      const svcCheck = await db.execute(sql`
+        SELECT id FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+      `);
+      if (!svcCheck.rows.length) return res.status(404).json({ message: "Servicio no encontrado" });
+
+      for (let i = 0; i < items.length; i++) {
+        const { type, participantDisplayName } = items[i];
+        await db.execute(sql`
+          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, updated_by, updated_at)
+          VALUES (${req.params.id}, ${type}, ${i}, ${participantDisplayName ?? null}, ${user.id}, NOW())
+          ON CONFLICT (service_id, type) DO UPDATE SET
+            participant_display_name = EXCLUDED.participant_display_name,
+            "order" = EXCLUDED."order",
+            updated_by = EXCLUDED.updated_by,
+            updated_at = EXCLUDED.updated_at
+        `);
+      }
+
+      const updated = await db.execute(sql`
+        SELECT * FROM baptism_program_items WHERE service_id = ${req.params.id} ORDER BY "order"
+      `);
+      return res.json(updated.rows);
+    } catch (err) {
+      console.error("[baptisms/services/:id/program PUT]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
 }
