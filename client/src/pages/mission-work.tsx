@@ -44,7 +44,19 @@ import {
   CheckSquare,
   Square,
   AlertTriangle,
+  Music,
+  Handshake,
+  BookOpen,
 } from "lucide-react";
+import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { normalizeMemberName } from "@/lib/utils";
 
 // ============================================================
 // Types
@@ -1911,6 +1923,122 @@ function TabContent({
 // Main Page
 // ============================================================
 
+// ── Baptism Sheet Helpers ─────────────────────────────────────────────────────
+
+type HymnOption = { value: string; number: number; title: string };
+type MemberOption = { value: string };
+
+const filterHymnOptions = (options: HymnOption[], query: string) => {
+  const trimmed = query.trim();
+  if (!trimmed) return options;
+  const lowerQuery = trimmed.toLowerCase();
+  return options.filter((o) => String(o.number).startsWith(trimmed) || o.value.toLowerCase().includes(lowerQuery));
+};
+
+const HymnAutocomplete = ({
+  value, options, placeholder, onChange, onBlur, onNormalize, testId, className,
+}: {
+  value: string; options: HymnOption[]; placeholder?: string;
+  onChange: (v: string) => void; onBlur: () => void; onNormalize: (v: string) => void;
+  testId?: string; className?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
+
+  const handleSelect = (o: HymnOption) => {
+    onChange(o.value);
+    onNormalize(o.value);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        data-testid={testId}
+        className={className}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setOpen(false); onBlur(); onNormalize(value); }}
+      />
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 20).map((o) => (
+            <li
+              key={o.number}
+              className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(o); }}
+            >
+              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.number}</span>
+              <span className="truncate">{o.title}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const filterMemberOptions = (options: MemberOption[], query: string) => {
+  const trimmed = query.trim();
+  if (!trimmed) return options;
+  return options.filter((o) => o.value.toLowerCase().includes(trimmed.toLowerCase()));
+};
+
+const MemberAutocomplete = ({
+  value, options, placeholder, onChange, onBlur, testId, className,
+}: {
+  value: string; options: MemberOption[]; placeholder?: string;
+  onChange: (v: string) => void; onBlur?: () => void; testId?: string; className?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
+
+  const handleSelect = (o: MemberOption) => {
+    onChange(o.value);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        data-testid={testId}
+        className={className}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setOpen(false); onBlur?.(); }}
+      />
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 15).map((o) => (
+            <li
+              key={o.value}
+              className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(o); }}
+            >
+              {o.value}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const BaptismSectionHead = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
+  <div className="flex items-center gap-2 mb-4">
+    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+      {icon}
+    </div>
+    <p className="text-sm font-semibold">{title}</p>
+  </div>
+);
+
 // ── Baptism Service Sheet ─────────────────────────────────────────────────────
 
 const PROGRAM_ITEM_LABELS: Record<string, string> = {
@@ -1975,12 +2103,64 @@ function BaptismalServiceSheet({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"programa" | "aprobacion">("programa");
   const [editMode, setEditMode] = useState(false);
   const [locationVal, setLocationVal] = useState("");
   const [locationAddrVal, setLocationAddrVal] = useState("");
   const [serviceAtVal, setServiceAtVal] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
+  const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
+
+  // Data hooks
+  const { data: members = [] } = useMembers();
+  const { data: usersData = [] as any[] } = useUsers();
+  const { data: hymns = [] as any[] } = useHymns();
+  const { data: memberCallings = [] } = useAllMemberCallings();
+
+  const memberOptions = useMemo(
+    () => Array.from(new Set(
+      members.map((m: any) => normalizeMemberName(m.nameSurename)).filter((n): n is string => Boolean(n))
+    )).map((value) => ({ value })),
+    [members]
+  );
+
+  const hymnOptions = useMemo(
+    () => hymns.map((h: any) => ({ value: `${h.number} - ${h.title}`, number: h.number, title: h.title })),
+    [hymns]
+  );
+
+  const bishopricOptions = useMemo(
+    () => (usersData as any[])
+      .filter((u) => u.role === "obispo" || u.role === "consejero_obispo")
+      .map((u) => u.fullName || u.name || u.email || "")
+      .filter(Boolean),
+    [usersData]
+  );
+
+  const misionLeadersOptions = useMemo(
+    () => (usersData as any[])
+      .filter((u) => u.role === "mission_leader" || u.role === "ward_missionary")
+      .map((u) => u.fullName || u.name || u.email || "")
+      .filter(Boolean),
+    [usersData]
+  );
+
+  const normalizeText = (v: string) => v.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  const isMusicDirectorCalling = (v: string) => { const n = normalizeText(v); return n.includes("director de musica") || n.includes("directora de musica") || n.includes("director de coro") || n.includes("directora de coro"); };
+  const isPianistCalling = (v: string) => normalizeText(v).startsWith("pianista");
+
+  const musicDirectorOptions = useMemo(() => {
+    const names = (memberCallings as any[]).filter((c) => c.memberName && c.isActive && isMusicDirectorCalling(c.callingName || "")).map((c) => normalizeMemberName(c.memberName) || c.memberName);
+    const unique = Array.from(new Set(names.filter(Boolean))) as string[];
+    return unique.length > 0 ? unique.map((value) => ({ value })) : memberOptions;
+  }, [memberCallings, memberOptions]);
+
+  const pianistOptions = useMemo(() => {
+    const names = (memberCallings as any[]).filter((c) => c.memberName && c.isActive && isPianistCalling(c.callingName || "")).map((c) => normalizeMemberName(c.memberName) || c.memberName);
+    const unique = Array.from(new Set(names.filter(Boolean))) as string[];
+    return unique.length > 0 ? unique.map((value) => ({ value })) : memberOptions;
+  }, [memberCallings, memberOptions]);
 
   const detailQuery = useQuery<BaptismServiceDetail>({
     queryKey: ["/api/mission/baptism-services", service?.id],
@@ -1990,15 +2170,27 @@ function BaptismalServiceSheet({
 
   const detail = detailQuery.data;
   const programItems: ProgramItem[] = detail?.program_items ?? [];
-  // Merge fresh detail data so approval status reflects server state without closing the sheet
   const liveService = detail ? { ...service, approval_status: detail.approval_status, approval_comment: detail.approval_comment } : service;
 
-  React.useEffect(() => { setEditMode(false); setApprovalComment(""); }, [service?.id, open]);
-  React.useEffect(() => { setLocationVal(service?.location_name ?? ""); }, [service?.location_name]);
-  React.useEffect(() => { setLocationAddrVal(service?.location_address ?? ""); }, [service?.location_address]);
   React.useEffect(() => {
     if (service?.service_at) setServiceAtVal(service.service_at.split("T")[0]);
-  }, [service?.service_at]);
+    if (service?.location_name) setLocationVal(service.location_name);
+    if (service?.location_address) setLocationAddrVal(service.location_address ?? "");
+  }, [service?.service_at, service?.location_name, service?.location_address]);
+
+  React.useEffect(() => {
+    if (!open) { setEditMode(false); setActiveTab("programa"); }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (detail?.program_items) {
+      const values: Record<string, string> = {};
+      for (const item of detail.program_items) {
+        values[item.type] = item.participant_display_name ?? "";
+      }
+      setProgramDraft(values);
+    }
+  }, [detail?.program_items]);
 
   const updateServiceMutation = useMutation({
     mutationFn: (data: { locationName?: string; locationAddress?: string; serviceAt?: string }) =>
@@ -2009,19 +2201,6 @@ function BaptismalServiceSheet({
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
-
-  const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
-
-  // Sync programDraft when detail loads or edit mode opens
-  React.useEffect(() => {
-    if (detail?.program_items) {
-      const values: Record<string, string> = {};
-      for (const item of detail.program_items) {
-        values[item.type] = item.participant_display_name ?? "";
-      }
-      setProgramDraft(values);
-    }
-  }, [detail?.program_items]);
 
   const saveProgramMutation = useMutation({
     mutationFn: () =>
@@ -2039,14 +2218,12 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Checklist query (syncs entrevista bautismal automatically on fetch)
   const checklistQuery = useQuery<{ items: any[]; completedCount: number; totalCount: number }>({
     queryKey: ["/api/baptisms/services", service?.id, "checklist"],
     queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/activity-checklist`),
     enabled: open && !!service?.id,
   });
 
-  // Non-obispo: submit for approval (new endpoint)
   const submitForApprovalMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/baptisms/services/${service?.id}/submit-for-approval`),
     onSuccess: () => {
@@ -2058,7 +2235,6 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Bishop: approve (new endpoint)
   const approveMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/baptisms/services/${service?.id}/approve`),
     onSuccess: () => {
@@ -2069,7 +2245,6 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Bishop: reject / request revision (new endpoint — comment required)
   const rejectMutation = useMutation({
     mutationFn: (comment: string) =>
       apiRequest("POST", `/api/baptisms/services/${service?.id}/reject`, { comment }),
@@ -2082,7 +2257,6 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Bishop: revoke approval (old PATCH — no dedicated new endpoint)
   const revokeMutation = useMutation({
     mutationFn: () =>
       apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, { approvalStatus: "draft", approvalComment: null }),
@@ -2104,242 +2278,314 @@ function BaptismalServiceSheet({
     return <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">Borrador</span>;
   };
 
+  const setProgramField = (type: string, value: string) =>
+    setProgramDraft((d) => ({ ...d, [type]: value }));
+
+  // Helper: render a program row
+  const ProgramRow = ({ type, children }: { type: string; children: React.ReactNode }) => (
+    <div className="grid grid-cols-[160px_1fr] items-center gap-3 py-2 border-b last:border-b-0">
+      <p className="text-xs text-muted-foreground leading-tight">{PROGRAM_ITEM_LABELS[type]}</p>
+      {children}
+    </div>
+  );
+
+  const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const formatServiceDate = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return `${d.getUTCDate()} de ${MESES_ES[d.getUTCMonth()]} de ${d.getUTCFullYear()}`;
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-2xl overflow-y-auto">
-        <SheetHeader className="mb-4 text-left">
+      <SheetContent side="right" className="w-full max-w-lg flex flex-col p-0 gap-0">
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
-                <p key={c.id} className="text-2xl font-semibold leading-tight">{c.nombre}</p>
-              )) ?? <p className="text-2xl font-semibold">{service.persona_nombre}</p>}
-              <div className="mt-1">{approvalBadge()}</div>
+                <p key={c.id} className="text-xl font-semibold leading-tight">{c.nombre}</p>
+              )) ?? <p className="text-xl font-semibold">{service.persona_nombre}</p>}
+              <div className="flex items-center gap-2 mt-1.5">
+                {approvalBadge()}
+                <span className="text-xs text-muted-foreground">{formatServiceDate(service.service_at)}</span>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 mt-1"
-              onClick={() => setEditMode((v) => !v)}
-            >
-              {editMode ? <><Check className="h-3.5 w-3.5 mr-1.5" />Listo</> : <><Pencil className="h-3.5 w-3.5 mr-1.5" />Editar servicio</>}
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditMode((v) => !v)}>
+              {editMode ? <><Check className="h-3.5 w-3.5 mr-1.5" />Listo</> : <><Pencil className="h-3.5 w-3.5 mr-1.5" />Editar</>}
             </Button>
           </div>
-        </SheetHeader>
 
-        {/* Service info */}
-        <section className="mb-6">
-          <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Información del servicio</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Fecha</p>
-              {editMode ? (
-                <Input type="date" value={serviceAtVal}
-                  onChange={(e) => setServiceAtVal(e.target.value)}
-                  onBlur={() => updateServiceMutation.mutate({ serviceAt: serviceAtVal })}
-                  className="h-8 text-sm" />
-              ) : (
-                <p className="text-sm">{formatDisplayDate(service.service_at)}</p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Lugar</p>
-              {editMode ? (
-                <Input value={locationVal}
-                  onChange={(e) => setLocationVal(e.target.value)}
-                  onBlur={() => updateServiceMutation.mutate({ locationName: locationVal })}
-                  className="h-8 text-sm" placeholder="Nombre del lugar" />
-              ) : (
-                <p className="text-sm">{service.location_name}</p>
-              )}
-            </div>
-            <div className="sm:col-span-2">
-              <p className="text-xs text-muted-foreground mb-1">Dirección</p>
-              {editMode ? (
-                <Input value={locationAddrVal}
-                  onChange={(e) => setLocationAddrVal(e.target.value)}
-                  onBlur={() => updateServiceMutation.mutate({ locationAddress: locationAddrVal || undefined })}
-                  className="h-8 text-sm" placeholder="Dirección (opcional)" />
-              ) : (
-                <p className="text-sm text-muted-foreground">{service.location_address || "—"}</p>
-              )}
-            </div>
+          {/* Tab navigation */}
+          <div className="flex gap-0 mt-4 border-b -mb-4">
+            {(["programa", "aprobacion"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-2 text-[11px] font-semibold border-b-2 transition-colors ${
+                  activeTab === tab
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "programa" ? "Programa" : "Aprobación"}
+              </button>
+            ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Preparación antes del {formatDisplayDate(service.prep_deadline_at)}
-          </p>
-        </section>
+        </div>
 
-        {/* Program */}
-        <section>
-          <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Programa</h3>
-          {detailQuery.isLoading ? (
-            <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {PROGRAM_ORDER.map((type) => {
-                  const existing = programItems.find((p) => p.type === type);
-                  const value = editMode
-                    ? (programDraft[type] ?? "")
-                    : (existing?.participant_display_name ?? "");
-                  return (
-                    <div key={type} className="flex items-center gap-3 py-2 border-b last:border-b-0">
-                      <p className="text-xs text-muted-foreground w-52 shrink-0">{PROGRAM_ITEM_LABELS[type]}</p>
-                      {editMode ? (
-                        <Input
-                          value={value}
-                          onChange={(e) => setProgramDraft((d) => ({ ...d, [type]: e.target.value }))}
-                          placeholder="Nombre del participante"
-                          className="h-8 text-sm flex-1"
-                        />
-                      ) : (
-                        <p className="text-sm flex-1">{value || <span className="text-muted-foreground/60">—</span>}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+
+          {/* ── TAB: PROGRAMA ── */}
+          {activeTab === "programa" && (
+            <div className="space-y-6">
+              {/* Info section */}
               {editMode && (
-                <div className="mt-4">
-                  <Button
-                    size="sm"
-                    onClick={() => saveProgramMutation.mutate()}
-                    disabled={saveProgramMutation.isPending}
-                  >
-                    {saveProgramMutation.isPending ? "Guardando..." : "Guardar programa"}
-                  </Button>
+                <div>
+                  <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Información del servicio" />
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                      <Input type="date" value={serviceAtVal}
+                        onChange={(e) => setServiceAtVal(e.target.value)}
+                        onBlur={() => updateServiceMutation.mutate({ serviceAt: serviceAtVal })}
+                        className="h-8 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Lugar</Label>
+                      <Input value={locationVal}
+                        onChange={(e) => setLocationVal(e.target.value)}
+                        onBlur={() => updateServiceMutation.mutate({ locationName: locationVal })}
+                        className="h-8 text-sm" placeholder="Nombre del lugar" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Dirección</Label>
+                      <Input value={locationAddrVal}
+                        onChange={(e) => setLocationAddrVal(e.target.value)}
+                        onBlur={() => updateServiceMutation.mutate({ locationAddress: locationAddrVal || undefined })}
+                        className="h-8 text-sm" placeholder="Dirección (opcional)" />
+                    </div>
+                  </div>
                 </div>
               )}
-            </>
-          )}
-        </section>
 
-        {/* Checklist section */}
-        {checklistQuery.data && (
-          <section className="mt-6 pt-6 border-t">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Checklist de preparación
-              </h3>
-              <span className="text-xs text-muted-foreground">
-                {checklistQuery.data.completedCount}/{checklistQuery.data.totalCount} completados
-              </span>
-            </div>
-            {checklistQuery.data.completedCount < checklistQuery.data.totalCount && (
-              <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded px-2.5 py-1.5 mb-3">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                <span>Hay ítems pendientes — completa el checklist antes de enviar a aprobación</span>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              {checklistQuery.data.items.map((item: any) => (
-                <div key={item.id} className="flex items-center gap-2 text-sm">
-                  {item.completed
-                    ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                    : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                  <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                  {item.itemKey === "entrevista_bautismal" && (
-                    <span className="text-[10px] text-muted-foreground/60 ml-1">(auto)</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Approval section */}
-        <section className="mt-6 pt-6 border-t">
-          <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Aprobación del obispado</h3>
-
-          {/* Non-bishop: show status + request button */}
-          {!isObispo && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                {approvalBadge()}
-                {liveService?.approval_status === "draft" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7"
-                    onClick={() => submitForApprovalMutation.mutate()}
-                    disabled={submitForApprovalMutation.isPending}
-                  >
-                    Solicitar aprobación
-                  </Button>
-                )}
-                {liveService?.approval_status === "pending_approval" && (
-                  <span className="text-xs text-muted-foreground">En espera de respuesta del obispado</span>
-                )}
-              </div>
-              {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
-                <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>{liveService.approval_comment}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Bishop: full approval controls */}
-          {isObispo && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                {approvalBadge()}
-              </div>
-              {liveService?.approval_status !== "approved" && (
-                <>
+              {/* Autoridades */}
+              <div>
+                <BaptismSectionHead icon={<UserCheck className="h-4 w-4" />} title="Autoridades" />
+                {detailQuery.isLoading ? (
+                  <div className="space-y-2">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+                ) : (
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      Comentario <span className="text-red-500">*requerido para solicitar revisión</span>
-                    </Label>
-                    <Textarea
-                      value={approvalComment}
-                      onChange={(e) => setApprovalComment(e.target.value)}
-                      placeholder="Añade indicaciones para el líder misional..."
-                      className="text-sm min-h-[60px] resize-none"
-                    />
+                    {/* Preside */}
+                    <ProgramRow type="preside">
+                      {editMode ? (
+                        <Select value={programDraft["preside"] ?? ""} onValueChange={(v) => setProgramField("preside", v)}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>
+                            {bishopricOptions.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm">{programDraft["preside"] || <span className="text-muted-foreground/60">—</span>}</p>
+                      )}
+                    </ProgramRow>
+                    {/* Dirige */}
+                    <ProgramRow type="dirige">
+                      {editMode ? (
+                        <Select value={programDraft["dirige"] ?? ""} onValueChange={(v) => setProgramField("dirige", v)}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>
+                            {misionLeadersOptions.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                            {misionLeadersOptions.length === 0 && memberOptions.slice(0, 20).map((o) => <SelectItem key={o.value} value={o.value}>{o.value}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm">{programDraft["dirige"] || <span className="text-muted-foreground/60">—</span>}</p>
+                      )}
+                    </ProgramRow>
+                    {/* Dirige la música */}
+                    <ProgramRow type="dirige_musica">
+                      {editMode ? (
+                        <MemberAutocomplete value={programDraft["dirige_musica"] ?? ""} options={musicDirectorOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige_musica", v)} className="h-8 text-sm" />
+                      ) : (
+                        <p className="text-sm">{programDraft["dirige_musica"] || <span className="text-muted-foreground/60">—</span>}</p>
+                      )}
+                    </ProgramRow>
+                    {/* Acompañamiento */}
+                    <ProgramRow type="acompanamiento_piano">
+                      {editMode ? (
+                        <MemberAutocomplete value={programDraft["acompanamiento_piano"] ?? ""} options={pianistOptions} placeholder="Nombre" onChange={(v) => setProgramField("acompanamiento_piano", v)} className="h-8 text-sm" />
+                      ) : (
+                        <p className="text-sm">{programDraft["acompanamiento_piano"] || <span className="text-muted-foreground/60">—</span>}</p>
+                      )}
+                    </ProgramRow>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                      onClick={() => approveMutation.mutate()}
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
-                    >
-                      <Check className="h-3.5 w-3.5 mr-1" /> Aprobar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs border-red-300 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        if (!approvalComment.trim()) {
-                          toast({ title: "Se requiere un comentario para solicitar revisión", variant: "destructive" });
-                          return;
-                        }
-                        rejectMutation.mutate(approvalComment.trim());
-                      }}
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" /> Necesita revisión
-                    </Button>
-                  </div>
-                </>
-              )}
-              {liveService?.approval_status === "approved" && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs text-muted-foreground"
-                  onClick={() => revokeMutation.mutate()}
-                  disabled={revokeMutation.isPending}
-                >
-                  Revocar aprobación
+                )}
+              </div>
+
+              {/* Himnos */}
+              <div>
+                <BaptismSectionHead icon={<Music className="h-4 w-4" />} title="Himnos" />
+                <div>
+                  <ProgramRow type="primer_himno">
+                    {editMode ? (
+                      <HymnAutocomplete value={programDraft["primer_himno"] ?? ""} options={hymnOptions} placeholder="Número o nombre" onChange={(v) => setProgramField("primer_himno", v)} onBlur={() => {}} onNormalize={(v) => setProgramField("primer_himno", v)} className="h-8 text-sm" />
+                    ) : (
+                      <p className="text-sm">{programDraft["primer_himno"] || <span className="text-muted-foreground/60">—</span>}</p>
+                    )}
+                  </ProgramRow>
+                  <ProgramRow type="ultimo_himno">
+                    {editMode ? (
+                      <HymnAutocomplete value={programDraft["ultimo_himno"] ?? ""} options={hymnOptions} placeholder="Número o nombre" onChange={(v) => setProgramField("ultimo_himno", v)} onBlur={() => {}} onNormalize={(v) => setProgramField("ultimo_himno", v)} className="h-8 text-sm" />
+                    ) : (
+                      <p className="text-sm">{programDraft["ultimo_himno"] || <span className="text-muted-foreground/60">—</span>}</p>
+                    )}
+                  </ProgramRow>
+                </div>
+              </div>
+
+              {/* Oraciones y mensajes */}
+              <div>
+                <BaptismSectionHead icon={<Handshake className="h-4 w-4" />} title="Oraciones y mensajes" />
+                <div>
+                  {["oracion_apertura", "primer_mensaje", "numero_especial", "segundo_mensaje", "ultima_oracion"].map((type) => (
+                    <ProgramRow key={type} type={type}>
+                      {editMode ? (
+                        <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
+                      ) : (
+                        <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
+                      )}
+                    </ProgramRow>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ordenanzas */}
+              <div>
+                <BaptismSectionHead icon={<Waves className="h-4 w-4" />} title="Ordenanzas" />
+                <div>
+                  {["ordenanza_bautismo", "ordenanza_confirmacion"].map((type) => (
+                    <ProgramRow key={type} type={type}>
+                      {editMode ? (
+                        <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
+                      ) : (
+                        <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
+                      )}
+                    </ProgramRow>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save button */}
+              {editMode && (
+                <Button onClick={() => saveProgramMutation.mutate()} disabled={saveProgramMutation.isPending} className="w-full">
+                  {saveProgramMutation.isPending ? "Guardando..." : "Guardar programa"}
                 </Button>
               )}
+
+              {/* Checklist */}
+              {checklistQuery.data && (
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold">Checklist de preparación</p>
+                    <span className="text-xs text-muted-foreground">{checklistQuery.data.completedCount}/{checklistQuery.data.totalCount}</span>
+                  </div>
+                  {checklistQuery.data.completedCount < checklistQuery.data.totalCount && (
+                    <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded px-2.5 py-1.5 mb-3">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>Hay ítems pendientes — completa el checklist antes de enviar a aprobación</span>
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    {checklistQuery.data.items.map((item: any) => (
+                      <div key={item.id} className="flex items-center gap-2 text-sm">
+                        {item.completed
+                          ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                          : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                        {item.itemKey === "entrevista_bautismal" && (
+                          <span className="text-[10px] text-muted-foreground/60 ml-1">(auto)</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </section>
+
+          {/* ── TAB: APROBACIÓN ── */}
+          {activeTab === "aprobacion" && (
+            <div className="space-y-4">
+              <BaptismSectionHead icon={<CheckSquare className="h-4 w-4" />} title="Aprobación del obispado" />
+
+              {!isObispo && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {approvalBadge()}
+                    {liveService?.approval_status === "draft" && (
+                      <Button size="sm" variant="outline" className="text-xs h-7"
+                        onClick={() => submitForApprovalMutation.mutate()}
+                        disabled={submitForApprovalMutation.isPending}>
+                        Solicitar aprobación
+                      </Button>
+                    )}
+                    {liveService?.approval_status === "pending_approval" && (
+                      <span className="text-xs text-muted-foreground">En espera de respuesta del obispado</span>
+                    )}
+                  </div>
+                  {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
+                    <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{liveService.approval_comment}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isObispo && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">{approvalBadge()}</div>
+                  {liveService?.approval_status !== "approved" && (
+                    <>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">
+                          Comentario <span className="text-red-500">*requerido para solicitar revisión</span>
+                        </Label>
+                        <Textarea value={approvalComment} onChange={(e) => setApprovalComment(e.target.value)}
+                          placeholder="Añade indicaciones para el líder misional..."
+                          className="text-sm min-h-[60px] resize-none" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                          onClick={() => approveMutation.mutate()}
+                          disabled={approveMutation.isPending || rejectMutation.isPending}>
+                          <Check className="h-3.5 w-3.5 mr-1" /> Aprobar
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-xs border-red-300 text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            if (!approvalComment.trim()) { toast({ title: "Se requiere un comentario", variant: "destructive" }); return; }
+                            rejectMutation.mutate(approvalComment.trim());
+                          }}
+                          disabled={approveMutation.isPending || rejectMutation.isPending}>
+                          <X className="h-3.5 w-3.5 mr-1" /> Necesita revisión
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  {liveService?.approval_status === "approved" && (
+                    <Button size="sm" variant="ghost" className="text-xs text-muted-foreground"
+                      onClick={() => revokeMutation.mutate()} disabled={revokeMutation.isPending}>
+                      Revocar aprobación
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   );
