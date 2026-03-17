@@ -238,7 +238,7 @@ function monthsSince(dateStr: string | null | undefined): number {
 function formatDisplayDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   // Strip time component before parsing to avoid timezone issues
-  const datePart = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
+  const datePart = dateStr.split(/[T ]/)[0];
   const d = new Date(datePart + "T12:00:00");
   if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" });
@@ -2183,7 +2183,7 @@ function BaptismalServiceSheet({
   const liveService = detail ? { ...service, approval_status: detail.approval_status, approval_comment: detail.approval_comment } : service;
 
   React.useEffect(() => {
-    if (service?.service_at) setServiceAtVal(service.service_at.split("T")[0]);
+    if (service?.service_at) setServiceAtVal(service.service_at.split(/[T ]/)[0]);
     if (service?.location_name) setLocationVal(service.location_name);
     if (service?.location_address) setLocationAddrVal(service.location_address ?? "");
   }, [service?.service_at, service?.location_name, service?.location_address]);
@@ -2711,7 +2711,8 @@ export default function MissionWork() {
     const canDeleteService = user?.role === "obispo" || user?.role === "consejero_obispo";
     const MESES_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
     const parseServiceDate = (iso: string) => {
-      const d = new Date(iso.includes("T") ? iso : iso + "T12:00:00");
+      const datePart = iso.split(/[T ]/)[0];
+      const d = new Date(datePart + "T12:00:00");
       return isNaN(d.getTime()) ? null : d;
     };
 
