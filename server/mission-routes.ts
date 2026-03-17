@@ -1647,11 +1647,11 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
       const programItemsRows = await db.execute(sql`
         SELECT type, participant_display_name FROM baptism_program_items
-        WHERE service_id = ${req.params.id} AND type = ANY(${PROGRAM_ORDER})
+        WHERE service_id = ${req.params.id}
       `);
       const filledTypes = new Set(
         (programItemsRows.rows as any[])
-          .filter((r) => r.participant_display_name?.trim())
+          .filter((r) => PROGRAM_ORDER.includes(r.type) && r.participant_display_name?.trim())
           .map((r) => r.type)
       );
       const programComplete = PROGRAM_ORDER.every((t) => filledTypes.has(t));
