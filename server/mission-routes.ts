@@ -1526,9 +1526,59 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const updated = await db.execute(sql`
         SELECT * FROM baptism_program_items WHERE service_id = ${req.params.id} ORDER BY "order"
       `);
+
+      // Auto-mark "programa" checklist item if all program fields are filled
+      const programComplete = items.every((it) => it.participantDisplayName?.trim());
+      if (programComplete) {
+        const activityRow = await db
+          .select({ id: activities.id })
+          .from(activities)
+          .where(eq(activities.baptismServiceId, req.params.id))
+          .limit(1);
+        if (activityRow.length > 0) {
+          await db.execute(sql`
+            UPDATE activity_checklist_items
+            SET completed = true, completed_by = ${user.id}, completed_at = NOW()
+            WHERE activity_id = ${activityRow[0].id} AND item_key = 'programa' AND completed = false
+          `);
+        }
+      }
+
       return res.json(updated.rows);
     } catch (err) {
       console.error("[baptisms/services/:id/program PUT]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // Toggle a checklist item for a baptism service
+  app.patch("/api/baptisms/services/:id/checklist-item/:itemId", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const { completed } = req.body;
+      if (typeof completed !== "boolean") return res.status(400).json({ message: "completed requerido" });
+
+      // Verify the item belongs to an activity linked to this service
+      const check = await db.execute(sql`
+        SELECT ci.id, ci.item_key FROM activity_checklist_items ci
+        JOIN activities a ON a.id = ci.activity_id
+        WHERE ci.id = ${req.params.itemId} AND a.baptism_service_id = ${req.params.id}
+      `);
+      if (!check.rows.length) return res.status(404).json({ message: "Ítem no encontrado" });
+
+      await db.execute(sql`
+        UPDATE activity_checklist_items
+        SET completed = ${completed},
+            completed_by = ${completed ? user.id : null},
+            completed_at = ${completed ? sql`NOW()` : null}
+        WHERE id = ${req.params.itemId}
+      `);
+
+      const result = await db.execute(sql`SELECT * FROM activity_checklist_items WHERE id = ${req.params.itemId}`);
+      return res.json(result.rows[0]);
+    } catch (err) {
+      console.error("[baptisms/services/:id/checklist-item/:itemId PATCH]", err);
       return res.status(500).json({ message: "Error interno" });
     }
   });

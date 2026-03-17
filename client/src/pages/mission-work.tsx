@@ -2259,6 +2259,15 @@ function BaptismalServiceSheet({
     enabled: open && !!service?.id,
   });
 
+  const toggleChecklistItemMutation = useMutation({
+    mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
+      apiRequest("PATCH", `/api/baptisms/services/${service?.id}/checklist-item/${itemId}`, { completed }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const submitForApprovalMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/baptisms/services/${service?.id}/submit-for-approval`),
     onSuccess: () => {
@@ -2547,18 +2556,28 @@ function BaptismalServiceSheet({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    {(checklistData.items ?? []).map((item: any) => (
-                      <div key={item.id} className="flex items-center gap-2.5 text-sm py-1">
-                        {item.completed
-                          ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                          : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                        <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                        {item.itemKey === "entrevista_bautismal" && (
-                          <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
-                        )}
-                      </div>
-                    ))}
+                  <div className="space-y-1">
+                    {(checklistData.items ?? []).map((item: any) => {
+                      const isAuto = item.item_key === "entrevista_bautismal" || item.item_key === "programa";
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          disabled={isAuto || toggleChecklistItemMutation.isPending}
+                          onClick={() => !isAuto && toggleChecklistItemMutation.mutate({ itemId: item.id, completed: !item.completed })}
+                          className={`w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left transition-colors
+                            ${isAuto ? "cursor-default" : "cursor-pointer hover:bg-muted/50"}`}
+                        >
+                          {item.completed
+                            ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                            : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                          <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                          {isAuto && (
+                            <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <Button
