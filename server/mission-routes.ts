@@ -483,10 +483,13 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
   app.delete("/api/mission/personas/:id/permanent", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const isObispado = user.role === "obispo" || user.role === "consejero_obispo";
-      if (!isObispado) return res.status(403).json({ message: "Sin acceso" });
+      const canDelete = user.role === "obispo" || user.role === "consejero_obispo" || user.role === "mission_leader";
+      if (!canDelete) return res.status(403).json({ message: "Sin acceso" });
 
-      await db.execute(sql`DELETE FROM mission_personas WHERE id = ${req.params.id}`);
+      const personaId = req.params.id;
+      // Delete linked baptism services first (FK is ON DELETE SET NULL, not CASCADE)
+      await db.execute(sql`DELETE FROM baptism_services WHERE candidate_persona_id = ${personaId}`);
+      await db.execute(sql`DELETE FROM mission_personas WHERE id = ${personaId}`);
       return res.json({ success: true });
     } catch (err) {
       console.error("[mission/personas/:id/permanent DELETE]", err);
