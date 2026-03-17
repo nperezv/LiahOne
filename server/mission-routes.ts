@@ -1730,4 +1730,145 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       return res.status(500).json({ message: "Error interno" });
     }
   });
+
+  // GET /api/baptisms/services/:id/coordination — fetch logistics + baptism details
+  app.get("/api/baptisms/services/:id/coordination", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { id } = req.params;
+      const svcCheck = await db.execute(sql`
+        SELECT id FROM baptism_services WHERE id = ${id} AND unit_id = ${user.organizationId}
+      `);
+      if (!svcCheck.rows.length) return res.status(404).json({ message: "No encontrado" });
+
+      const [logRow, detRow] = await Promise.all([
+        db.execute(sql`SELECT * FROM baptism_service_logistics WHERE service_id = ${id}`),
+        db.execute(sql`SELECT * FROM baptism_service_baptism_details WHERE service_id = ${id}`),
+      ]);
+      return res.json({
+        logistics: logRow.rows[0] ?? null,
+        baptismDetails: detRow.rows[0] ?? null,
+      });
+    } catch (err) {
+      console.error("[baptisms/services/:id/coordination GET]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // PUT /api/baptisms/services/:id/coordination — upsert logistics + baptism details
+  app.put("/api/baptisms/services/:id/coordination", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { id } = req.params;
+      const svcCheck = await db.execute(sql`
+        SELECT id FROM baptism_services WHERE id = ${id} AND unit_id = ${user.organizationId}
+      `);
+      if (!svcCheck.rows.length) return res.status(404).json({ message: "No encontrado" });
+
+      const { logistics = {}, baptismDetails = {} } = req.body as {
+        logistics?: Record<string, any>;
+        baptismDetails?: Record<string, any>;
+      };
+
+      // Upsert logistics
+      if (Object.keys(logistics).length) {
+        await db.execute(sql`
+          INSERT INTO baptism_service_logistics (
+            service_id,
+            espacio_responsable, espacio_fecha, espacio_hora_inicio, espacio_hora_fin, espacio_salas, espacio_notas,
+            arreglo_responsable, arreglo_tareas, arreglo_fecha, arreglo_notas,
+            equipo_responsable, equipo_lista, equipo_fecha, equipo_notas,
+            refrigerio_responsable, refrigerio_presupuesto_solicitado, refrigerio_notas,
+            limpieza_responsable, limpieza_tareas, limpieza_fecha, limpieza_notas,
+            updated_by, updated_at
+          ) VALUES (
+            ${id},
+            ${logistics.espacio_responsable ?? null}, ${logistics.espacio_fecha ?? null},
+            ${logistics.espacio_hora_inicio ?? null}, ${logistics.espacio_hora_fin ?? null},
+            ${logistics.espacio_salas ?? null}, ${logistics.espacio_notas ?? null},
+            ${logistics.arreglo_responsable ?? null}, ${logistics.arreglo_tareas ?? null},
+            ${logistics.arreglo_fecha ?? null}, ${logistics.arreglo_notas ?? null},
+            ${logistics.equipo_responsable ?? null}, ${logistics.equipo_lista ?? null},
+            ${logistics.equipo_fecha ?? null}, ${logistics.equipo_notas ?? null},
+            ${logistics.refrigerio_responsable ?? null}, ${logistics.refrigerio_presupuesto_solicitado ?? false},
+            ${logistics.refrigerio_notas ?? null},
+            ${logistics.limpieza_responsable ?? null}, ${logistics.limpieza_tareas ?? null},
+            ${logistics.limpieza_fecha ?? null}, ${logistics.limpieza_notas ?? null},
+            ${user.id}, NOW()
+          )
+          ON CONFLICT (service_id) DO UPDATE SET
+            espacio_responsable = EXCLUDED.espacio_responsable,
+            espacio_fecha = EXCLUDED.espacio_fecha,
+            espacio_hora_inicio = EXCLUDED.espacio_hora_inicio,
+            espacio_hora_fin = EXCLUDED.espacio_hora_fin,
+            espacio_salas = EXCLUDED.espacio_salas,
+            espacio_notas = EXCLUDED.espacio_notas,
+            arreglo_responsable = EXCLUDED.arreglo_responsable,
+            arreglo_tareas = EXCLUDED.arreglo_tareas,
+            arreglo_fecha = EXCLUDED.arreglo_fecha,
+            arreglo_notas = EXCLUDED.arreglo_notas,
+            equipo_responsable = EXCLUDED.equipo_responsable,
+            equipo_lista = EXCLUDED.equipo_lista,
+            equipo_fecha = EXCLUDED.equipo_fecha,
+            equipo_notas = EXCLUDED.equipo_notas,
+            refrigerio_responsable = EXCLUDED.refrigerio_responsable,
+            refrigerio_presupuesto_solicitado = EXCLUDED.refrigerio_presupuesto_solicitado,
+            refrigerio_notas = EXCLUDED.refrigerio_notas,
+            limpieza_responsable = EXCLUDED.limpieza_responsable,
+            limpieza_tareas = EXCLUDED.limpieza_tareas,
+            limpieza_fecha = EXCLUDED.limpieza_fecha,
+            limpieza_notas = EXCLUDED.limpieza_notas,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = NOW()
+        `);
+      }
+
+      // Upsert baptism details
+      if (Object.keys(baptismDetails).length) {
+        await db.execute(sql`
+          INSERT INTO baptism_service_baptism_details (
+            service_id,
+            ropa_responsable, ropa_origen, ropa_fecha, ropa_notas,
+            prueba_confirmada, prueba_fecha, prueba_notas,
+            entrevista_fecha, entrevista_autoridad, entrevista_notas,
+            updated_by, updated_at
+          ) VALUES (
+            ${id},
+            ${baptismDetails.ropa_responsable ?? null}, ${baptismDetails.ropa_origen ?? null},
+            ${baptismDetails.ropa_fecha ?? null}, ${baptismDetails.ropa_notas ?? null},
+            ${baptismDetails.prueba_confirmada ?? false}, ${baptismDetails.prueba_fecha ?? null},
+            ${baptismDetails.prueba_notas ?? null},
+            ${baptismDetails.entrevista_fecha ?? null}, ${baptismDetails.entrevista_autoridad ?? null},
+            ${baptismDetails.entrevista_notas ?? null},
+            ${user.id}, NOW()
+          )
+          ON CONFLICT (service_id) DO UPDATE SET
+            ropa_responsable = EXCLUDED.ropa_responsable,
+            ropa_origen = EXCLUDED.ropa_origen,
+            ropa_fecha = EXCLUDED.ropa_fecha,
+            ropa_notas = EXCLUDED.ropa_notas,
+            prueba_confirmada = EXCLUDED.prueba_confirmada,
+            prueba_fecha = EXCLUDED.prueba_fecha,
+            prueba_notas = EXCLUDED.prueba_notas,
+            entrevista_fecha = EXCLUDED.entrevista_fecha,
+            entrevista_autoridad = EXCLUDED.entrevista_autoridad,
+            entrevista_notas = EXCLUDED.entrevista_notas,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = NOW()
+        `);
+      }
+
+      const [logRow, detRow] = await Promise.all([
+        db.execute(sql`SELECT * FROM baptism_service_logistics WHERE service_id = ${id}`),
+        db.execute(sql`SELECT * FROM baptism_service_baptism_details WHERE service_id = ${id}`),
+      ]);
+      return res.json({
+        logistics: logRow.rows[0] ?? null,
+        baptismDetails: detRow.rows[0] ?? null,
+      });
+    } catch (err) {
+      console.error("[baptisms/services/:id/coordination PUT]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
 }

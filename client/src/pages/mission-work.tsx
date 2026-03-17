@@ -48,6 +48,13 @@ import {
   Handshake,
   BookOpen,
   Trash2,
+  ClipboardList,
+  Shirt,
+  Mic2,
+  Utensils,
+  Sparkles,
+  Tv2,
+  ExternalLink,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -2116,7 +2123,7 @@ function BaptismalServiceSheet({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"agenda" | "checklist" | "aprobacion">("agenda");
+  const [activeTab, setActiveTab] = useState<"agenda" | "checklist" | "coordinacion" | "aprobacion">("agenda");
   const [editMode, setEditMode] = useState(false);
 
   React.useEffect(() => {
@@ -2208,7 +2215,7 @@ function BaptismalServiceSheet({
   }, [service?.service_at, service?.location_name, service?.location_address]);
 
   React.useEffect(() => {
-    if (!open) { setEditMode(false); setActiveTab("agenda"); }
+    if (!open) { setEditMode(false); setActiveTab("agenda"); setCoordDraft({ logistics: {}, baptismDetails: {} }); }
   }, [open]);
 
   React.useEffect(() => {
@@ -2258,6 +2265,35 @@ function BaptismalServiceSheet({
     queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/activity-checklist`),
     enabled: open && !!service?.id,
   });
+
+  type CoordData = { logistics: Record<string, any>; baptismDetails: Record<string, any> };
+  const [coordDraft, setCoordDraft] = React.useState<CoordData>({ logistics: {}, baptismDetails: {} });
+  const coordQuery = useQuery<CoordData>({
+    queryKey: ["/api/baptisms/services", service?.id, "coordination"],
+    queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/coordination`),
+    enabled: open && !!service?.id,
+  });
+  React.useEffect(() => {
+    if (coordQuery.data) {
+      setCoordDraft({
+        logistics: coordQuery.data.logistics ?? {},
+        baptismDetails: coordQuery.data.baptismDetails ?? {},
+      });
+    }
+  }, [coordQuery.data]);
+  const saveCoordMutation = useMutation({
+    mutationFn: (data: CoordData) =>
+      apiRequest("PUT", `/api/baptisms/services/${service?.id}/coordination`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "coordination"] });
+      toast({ title: "Coordinación guardada" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  const setLog = (field: string, value: any) =>
+    setCoordDraft((d) => ({ ...d, logistics: { ...d.logistics, [field]: value } }));
+  const setBap = (field: string, value: any) =>
+    setCoordDraft((d) => ({ ...d, baptismDetails: { ...d.baptismDetails, [field]: value } }));
 
   const toggleChecklistItemMutation = useMutation({
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
@@ -2344,6 +2380,7 @@ function BaptismalServiceSheet({
   const STEPS = [
     { key: "agenda" as const, label: "Programa", locked: false, done: programComplete },
     { key: "checklist" as const, label: "Checklist", locked: step2Locked, done: checklistComplete },
+    { key: "coordinacion" as const, label: "Coordinación", locked: false, done: false },
     { key: "aprobacion" as const, label: "Aprobación", locked: step3Locked, done: liveService?.approval_status === "approved" },
   ];
 
@@ -2672,6 +2709,245 @@ function BaptismalServiceSheet({
                     </Button>
                   )}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── PASO 3: COORDINACIÓN ── */}
+          {activeTab === "coordinacion" && (
+            <div className="space-y-6">
+              <BaptismSectionHead icon={<ClipboardList className="h-4 w-4" />} title="Coordinación del servicio" />
+
+              {coordQuery.isLoading && (
+                <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              )}
+
+              {!coordQuery.isLoading && (
+                <>
+                  {/* Espacio y calendario */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" /> Espacio y calendario
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.logistics.espacio_responsable ?? ""}
+                          onChange={(e) => setLog("espacio_responsable", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha reserva</Label>
+                        <Input type="date" className="h-8 text-sm"
+                          value={coordDraft.logistics.espacio_fecha ?? ""}
+                          onChange={(e) => setLog("espacio_fecha", e.target.value || null)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Hora inicio</Label>
+                        <Input type="time" className="h-8 text-sm"
+                          value={coordDraft.logistics.espacio_hora_inicio ?? ""}
+                          onChange={(e) => setLog("espacio_hora_inicio", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Hora fin</Label>
+                        <Input type="time" className="h-8 text-sm"
+                          value={coordDraft.logistics.espacio_hora_fin ?? ""}
+                          onChange={(e) => setLog("espacio_hora_fin", e.target.value)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Notas / enlace</Label>
+                      <Textarea className="text-sm min-h-[56px] resize-none" placeholder="URL del calendario, salas, detalles..."
+                        value={coordDraft.logistics.espacio_notas ?? ""}
+                        onChange={(e) => setLog("espacio_notas", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {/* Arreglo de espacios */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" /> Arreglo de espacios
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.logistics.arreglo_responsable ?? ""}
+                          onChange={(e) => setLog("arreglo_responsable", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                        <Input type="date" className="h-8 text-sm"
+                          value={coordDraft.logistics.arreglo_fecha ?? ""}
+                          onChange={(e) => setLog("arreglo_fecha", e.target.value || null)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
+                      <Textarea className="text-sm min-h-[56px] resize-none" placeholder="Lista de tareas, detalles..."
+                        value={coordDraft.logistics.arreglo_notas ?? ""}
+                        onChange={(e) => setLog("arreglo_notas", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {/* Equipo y tecnología */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Tv2 className="h-3.5 w-3.5" /> Equipo y tecnología
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.logistics.equipo_responsable ?? ""}
+                          onChange={(e) => setLog("equipo_responsable", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                        <Input type="date" className="h-8 text-sm"
+                          value={coordDraft.logistics.equipo_fecha ?? ""}
+                          onChange={(e) => setLog("equipo_fecha", e.target.value || null)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Lista de equipo / notas</Label>
+                      <Textarea className="text-sm min-h-[56px] resize-none" placeholder="Micrófono, proyector, pila bautismal..."
+                        value={coordDraft.logistics.equipo_lista ?? ""}
+                        onChange={(e) => setLog("equipo_lista", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {/* Refrigerio */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Utensils className="h-3.5 w-3.5" /> Refrigerio
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.logistics.refrigerio_responsable ?? ""}
+                          onChange={(e) => setLog("refrigerio_responsable", e.target.value)} />
+                      </div>
+                      <div className="flex items-end pb-0.5">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Switch
+                            checked={!!coordDraft.logistics.refrigerio_presupuesto_solicitado}
+                            onCheckedChange={(v) => setLog("refrigerio_presupuesto_solicitado", v)} />
+                          <span className="text-xs text-muted-foreground">Presupuesto solicitado</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
+                      <Textarea className="text-sm min-h-[44px] resize-none"
+                        value={coordDraft.logistics.refrigerio_notas ?? ""}
+                        onChange={(e) => setLog("refrigerio_notas", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {/* Limpieza */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" /> Limpieza
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.logistics.limpieza_responsable ?? ""}
+                          onChange={(e) => setLog("limpieza_responsable", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                        <Input type="date" className="h-8 text-sm"
+                          value={coordDraft.logistics.limpieza_fecha ?? ""}
+                          onChange={(e) => setLog("limpieza_fecha", e.target.value || null)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
+                      <Textarea className="text-sm min-h-[44px] resize-none"
+                        value={coordDraft.logistics.limpieza_notas ?? ""}
+                        onChange={(e) => setLog("limpieza_notas", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {/* Ropa bautismal */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Shirt className="h-3.5 w-3.5" /> Ropa bautismal
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.baptismDetails.ropa_responsable ?? ""}
+                          onChange={(e) => setBap("ropa_responsable", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                        <Input type="date" className="h-8 text-sm"
+                          value={coordDraft.baptismDetails.ropa_fecha ?? ""}
+                          onChange={(e) => setBap("ropa_fecha", e.target.value || null)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Origen / notas</Label>
+                      <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Procedencia de la ropa, talla, etc."
+                        value={coordDraft.baptismDetails.ropa_notas ?? ""}
+                        onChange={(e) => setBap("ropa_notas", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba de ropa</Label>
+                      <div className="flex items-center gap-3">
+                        <Input type="date" className="h-8 text-sm flex-1"
+                          value={coordDraft.baptismDetails.prueba_fecha ?? ""}
+                          onChange={(e) => setBap("prueba_fecha", e.target.value || null)} />
+                        <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                          <Switch
+                            checked={!!coordDraft.baptismDetails.prueba_confirmada}
+                            onCheckedChange={(v) => setBap("prueba_confirmada", v)} />
+                          <span className="text-xs text-muted-foreground">Confirmada</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Entrevista bautismal */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Mic2 className="h-3.5 w-3.5" /> Entrevista bautismal
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Autoridad</Label>
+                        <Input className="h-8 text-sm" placeholder="Nombre"
+                          value={coordDraft.baptismDetails.entrevista_autoridad ?? ""}
+                          onChange={(e) => setBap("entrevista_autoridad", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                        <Input type="date" className="h-8 text-sm"
+                          value={coordDraft.baptismDetails.entrevista_fecha ?? ""}
+                          onChange={(e) => setBap("entrevista_fecha", e.target.value || null)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
+                      <Textarea className="text-sm min-h-[44px] resize-none"
+                        value={coordDraft.baptismDetails.entrevista_notas ?? ""}
+                        onChange={(e) => setBap("entrevista_notas", e.target.value)} />
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={() => saveCoordMutation.mutate(coordDraft)}
+                    disabled={saveCoordMutation.isPending}>
+                    {saveCoordMutation.isPending ? "Guardando..." : "Guardar coordinación"}
+                  </Button>
+                </>
               )}
             </div>
           )}
