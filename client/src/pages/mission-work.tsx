@@ -2251,8 +2251,8 @@ function BaptismalServiceSheet({
       setEditMode(false);
       const complete = PROGRAM_ORDER.every((t) => programDraft[t]?.trim());
       if (complete) {
-        setActiveTab("checklist");
-        toast({ title: "Agenda guardada", description: "Revisa el checklist de preparación" });
+        setActiveTab("coordinacion");
+        toast({ title: "Agenda guardada", description: "Coordina los detalles del servicio" });
       } else {
         toast({ title: "Agenda guardada", description: "Completa todos los campos para continuar" });
       }
@@ -2373,15 +2373,19 @@ function BaptismalServiceSheet({
   const checklistComplete = checklistData
     ? checklistData.totalCount > 0 && checklistData.completedCount === checklistData.totalCount
     : false;
+  // Helper: find a checklist item by its key
+  const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
+
   // Obispo can navigate freely; others need previous step done
-  const step2Locked = !isObispo && !programComplete;
-  const step3Locked = !isObispo && !checklistComplete;
+  const stepCoordLocked = !isObispo && !programComplete;
+  const stepChecklistLocked = !isObispo && !programComplete;
+  const stepAprobacionLocked = !isObispo && !checklistComplete;
 
   const STEPS = [
     { key: "agenda" as const, label: "Programa", locked: false, done: programComplete },
-    { key: "checklist" as const, label: "Checklist", locked: step2Locked, done: checklistComplete },
-    { key: "coordinacion" as const, label: "Coordinación", locked: false, done: false },
-    { key: "aprobacion" as const, label: "Aprobación", locked: step3Locked, done: liveService?.approval_status === "approved" },
+    { key: "coordinacion" as const, label: "Coordinación", locked: stepCoordLocked, done: false },
+    { key: "checklist" as const, label: "Checklist", locked: stepChecklistLocked, done: checklistComplete },
+    { key: "aprobacion" as const, label: "Aprobación", locked: stepAprobacionLocked, done: liveService?.approval_status === "approved" },
   ];
 
   return (
@@ -2562,17 +2566,17 @@ function BaptismalServiceSheet({
                 </Button>
               ) : (
                 <Button
-                  onClick={() => setActiveTab("checklist")}
+                  onClick={() => setActiveTab("coordinacion")}
                   disabled={!programComplete}
                   className="w-full"
                   variant={programComplete ? "default" : "outline"}>
-                  {programComplete ? "Siguiente: Checklist →" : "Completa la agenda para continuar"}
+                  {programComplete ? "Siguiente: Coordinación →" : "Completa la agenda para continuar"}
                 </Button>
               )}
             </div>
           )}
 
-          {/* ── PASO 2: CHECKLIST ── */}
+          {/* ── PASO 3: CHECKLIST ── */}
           {activeTab === "checklist" && (
             <div className="space-y-4">
               <BaptismSectionHead icon={<CheckSquare className="h-4 w-4" />} title="Checklist de preparación" />
@@ -2713,7 +2717,7 @@ function BaptismalServiceSheet({
             </div>
           )}
 
-          {/* ── PASO 3: COORDINACIÓN ── */}
+          {/* ── PASO 2: COORDINACIÓN ── */}
           {activeTab === "coordinacion" && (
             <div className="space-y-6">
               <BaptismSectionHead icon={<ClipboardList className="h-4 w-4" />} title="Coordinación del servicio" />
@@ -2728,6 +2732,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <CalendarDays className="h-3.5 w-3.5" /> Espacio y calendario
+                      {(() => { const ci = getChkItem("espacio_calendario"); return ci ? <button type="button" className="ml-auto" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</button> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2767,6 +2772,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5" /> Arreglo de espacios
+                      {(() => { const ci = getChkItem("arreglo_espacios"); return ci ? <button type="button" className="ml-auto" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</button> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2794,6 +2800,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Tv2 className="h-3.5 w-3.5" /> Equipo y tecnología
+                      {(() => { const ci = getChkItem("equipo_tecnologia"); return ci ? <button type="button" className="ml-auto" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</button> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2821,6 +2828,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Utensils className="h-3.5 w-3.5" /> Refrigerio
+                      {(() => { const ci = getChkItem("presupuesto_refrigerio"); return ci ? <button type="button" className="ml-auto" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</button> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2850,6 +2858,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5" /> Limpieza
+                      {(() => { const ci = getChkItem("limpieza"); return ci ? <button type="button" className="ml-auto" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</button> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2877,6 +2886,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Shirt className="h-3.5 w-3.5" /> Ropa bautismal
+                      {(() => { const ci = getChkItem("ropa_bautismal"); return ci ? <button type="button" className="ml-auto" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</button> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2918,6 +2928,7 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Mic2 className="h-3.5 w-3.5" /> Entrevista bautismal
+                      {(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span className="ml-auto" title="Se marca automáticamente">{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</span> : null; })()}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2946,6 +2957,12 @@ function BaptismalServiceSheet({
                     onClick={() => saveCoordMutation.mutate(coordDraft)}
                     disabled={saveCoordMutation.isPending}>
                     {saveCoordMutation.isPending ? "Guardando..." : "Guardar coordinación"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setActiveTab("checklist")}>
+                    Siguiente: Checklist →
                   </Button>
                 </>
               )}
