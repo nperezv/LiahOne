@@ -725,8 +725,9 @@ async function getActivePublicLink(slug: string, code?: string) {
 
 /**
  * Finds the activity linked to a baptism service and auto-syncs the
- * entrevista_bautismal checklist item based on whether the candidate
- * has fecha_entrevista_bautismal set in mission_personas.
+ * entrevista_bautismal checklist item based on whether ALL candidates
+ * have fecha_entrevista_bautismal set in mission_personas.
+ * Stores candidate names + dates as JSON in the notes field.
  */
 async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Promise<void> {
   try {
@@ -751,27 +752,51 @@ async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Prom
       .limit(1);
     if (!interviewItem) return;
 
-    // Check if the candidate has the interview date set in mission_personas
-    const serviceRow = await db.execute(
-      sql`SELECT candidate_persona_id FROM baptism_services WHERE id = ${baptismServiceId} LIMIT 1`,
+    // Get all candidates from baptism_service_candidates
+    const candidatesRow = await db.execute(
+      sql`SELECT bsc.persona_id, mp.nombre, mp.fecha_entrevista_bautismal
+          FROM baptism_service_candidates bsc
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${baptismServiceId}`,
     );
-    const personaId = (serviceRow.rows[0] as any)?.candidate_persona_id;
-    if (!personaId) return;
+    let candidates = (candidatesRow.rows as Array<{
+      persona_id: string;
+      nombre: string;
+      fecha_entrevista_bautismal: string | null;
+    }>);
 
-    const personaRow = await db.execute(
-      sql`SELECT fecha_entrevista_bautismal FROM mission_personas WHERE id = ${personaId} LIMIT 1`,
+    // Fallback: use candidate_persona_id for older records
+    if (candidates.length === 0) {
+      const serviceRow = await db.execute(
+        sql`SELECT candidate_persona_id FROM baptism_services WHERE id = ${baptismServiceId} LIMIT 1`,
+      );
+      const personaId = (serviceRow.rows[0] as any)?.candidate_persona_id;
+      if (!personaId) return;
+      const personaRow = await db.execute(
+        sql`SELECT nombre, fecha_entrevista_bautismal FROM mission_personas WHERE id = ${personaId} LIMIT 1`,
+      );
+      if (personaRow.rows[0]) {
+        const r = personaRow.rows[0] as any;
+        candidates = [{ persona_id: personaId, nombre: r.nombre, fecha_entrevista_bautismal: r.fecha_entrevista_bautismal }];
+      }
+    }
+
+    if (candidates.length === 0) return;
+
+    const interviewDone = candidates.every((c) => !!c.fecha_entrevista_bautismal);
+    const notesJson = JSON.stringify(
+      candidates.map((c) => ({ nombre: c.nombre, fecha: c.fecha_entrevista_bautismal ?? null })),
     );
-    const interviewDate = (personaRow.rows[0] as any)?.fecha_entrevista_bautismal;
-    const interviewDone = !!interviewDate;
 
-    // Only update if state differs
-    if (interviewItem.completed !== interviewDone) {
+    // Update if state or notes differ
+    const notesChanged = interviewItem.notes !== notesJson;
+    if (interviewItem.completed !== interviewDone || notesChanged) {
       await db
         .update(activityChecklistItems)
         .set({
           completed: interviewDone,
           completedAt: interviewDone ? new Date() : null,
-          notes: interviewDone ? `Fecha de entrevista: ${interviewDate}` : null,
+          notes: notesJson,
         })
         .where(eq(activityChecklistItems.id, interviewItem.id));
     }

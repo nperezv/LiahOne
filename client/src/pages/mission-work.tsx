@@ -706,6 +706,61 @@ function BooleanRow({
   );
 }
 
+// Session names per principio ID (from DB seed: 2=Restauración, 3=Plan, 4=Evangelio, 5=Discípulos)
+const SESSION_NAMES: Record<number, string[]> = {
+  2: [
+    "Dios es nuestro amoroso Padre Celestial",
+    "El Evangelio bendice a las familias y a las personas en forma individual",
+    "Nuestro Padre Celestial revela Su Evangelio en cada dispensación",
+    "El ministerio terrenal y la expiación del Salvador",
+    "La Gran Apostasía",
+    "La restauración del evangelio de Jesucristo por conducto de José Smith",
+    "El Libro de Mormón: Otro Testamento de Jesucristo",
+  ],
+  3: [
+    "La vida preterrenal: el propósito y el plan de Dios para nosotros",
+    "La Creación",
+    "El albedrío y la caída de Adán y Eva",
+    "Nuestra vida en la tierra",
+    "La expiación de Jesucristo",
+    "El mundo de los espíritus",
+    "La resurrección, la salvación y la exaltación",
+    "El juicio y los grados de gloria",
+  ],
+  4: [
+    "La misión divina de Jesucristo",
+    "El evangelio de Cristo y la doctrina de Cristo",
+    "La fe en Jesucristo",
+    "El arrepentimiento mediante la expiación de Jesucristo",
+    "El bautismo: nuestro primer convenio con Dios",
+    "El don del Espíritu Santo",
+    "Perseverar hasta el fin",
+  ],
+  5: [
+    "Orar a menudo",
+    "Estudiar las escrituras",
+    "Santificar el día de reposo",
+    "Bautismo y confirmación",
+    "Seguir al profeta",
+    "Guardar los Diez Mandamientos",
+    "Vivir la ley de castidad",
+    "Obedecer la Palabra de Sabiduría",
+    "Guardar la ley del diezmo",
+    "Observar la ley del ayuno",
+    "Obedecer y honrar la ley",
+    "La obra misional",
+    "El matrimonio eterno",
+    "Los templos y la historia familiar",
+    "Servicio",
+    "La enseñanza y el aprendizaje en la Iglesia",
+    "Perseverar hasta el fin",
+  ],
+};
+
+function getSesionLabel(principioId: number, sesionNum: number): string {
+  return SESSION_NAMES[principioId]?.[sesionNum - 1] ?? `Sesión ${sesionNum}`;
+}
+
 function LessonStatusIcon({
   present,
   exists,
@@ -879,6 +934,7 @@ function PersonaDetailSheet({
       principio_id: number;
       sesion_num: number;
       miembro_presente?: boolean;
+      fecha?: string | null;
       action: "set" | "delete";
     }) => {
       if (data.action === "delete") {
@@ -891,12 +947,22 @@ function PersonaDetailSheet({
         principio_id: data.principio_id,
         sesion_num: data.sesion_num,
         miembro_presente: !!data.miembro_presente,
+        fecha: data.fecha ?? null,
       });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "sesiones"] });
     },
   });
+
+  const [sesionModal, setSesionModal] = React.useState<{
+    principioId: number;
+    principioNombre: string;
+    sesionNum: number;
+    exists: boolean;
+  } | null>(null);
+  const [modalFecha, setModalFecha] = React.useState("");
+  const [modalConMiembro, setModalConMiembro] = React.useState(true);
 
   // Sacerdocio
   const sacerdocioMutation = useMutation({
@@ -1582,45 +1648,30 @@ function PersonaDetailSheet({
                           const sesNum = i + 1;
                           const key = `${p.id}-${sesNum}`;
                           const present = sesionMap[key] ?? false;
-                          const exists = sesiones.some(
+                          const sesionData = sesiones.find(
                             (s) => s.principioId === p.id && s.sesionNum === sesNum
                           );
+                          const exists = !!sesionData;
+                          const sesionLabel = getSesionLabel(p.id, sesNum);
+                          const tooltipTitle = exists
+                            ? `${sesionLabel}${sesionData?.fecha ? ` · ${sesionData.fecha}` : ""}${exists ? (present ? " · Con miembro" : " · Sin miembro") : ""}`
+                            : sesionLabel;
                           return editMode ? (
                             <button
                               key={sesNum}
                               type="button"
                               onClick={() => {
-                                if (!exists) {
-                                  toggleSesionMutation.mutate({
-                                    action: "set",
-                                    principio_id: p.id,
-                                    sesion_num: sesNum,
-                                    miembro_presente: true,
-                                  });
-                                  return;
-                                }
-                                if (present) {
-                                  toggleSesionMutation.mutate({
-                                    action: "set",
-                                    principio_id: p.id,
-                                    sesion_num: sesNum,
-                                    miembro_presente: false,
-                                  });
-                                  return;
-                                }
-                                toggleSesionMutation.mutate({
-                                  action: "delete",
-                                  principio_id: p.id,
-                                  sesion_num: sesNum,
-                                });
+                                setSesionModal({ principioId: p.id, principioNombre: p.nombre, sesionNum: sesNum, exists });
+                                setModalFecha(sesionData?.fecha ?? "");
+                                setModalConMiembro(sesionData?.miembroPresente ?? true);
                               }}
                               className="focus:outline-none p-0.5"
-                              title={`Sesión ${sesNum}`}
+                              title={sesionLabel}
                             >
                               <LessonStatusIcon present={present} exists={exists} />
                             </button>
                           ) : (
-                            <span key={sesNum} title={`Sesión ${sesNum}`}>
+                            <span key={sesNum} title={tooltipTitle}>
                               <LessonStatusIcon present={present} exists={exists} />
                             </span>
                           );
@@ -1763,6 +1814,64 @@ function PersonaDetailSheet({
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* Mini modal para registrar sesión de principio */}
+    <Dialog open={!!sesionModal} onOpenChange={(v) => { if (!v) setSesionModal(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base leading-snug">
+            {sesionModal?.principioNombre}
+            <span className="text-muted-foreground font-normal text-sm"> — Sesión {sesionModal?.sesionNum}</span>
+          </DialogTitle>
+          {sesionModal && (
+            <p className="text-xs text-muted-foreground pt-0.5">
+              {getSesionLabel(sesionModal.principioId, sesionModal.sesionNum)}
+            </p>
+          )}
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1 block">Fecha de la lección</Label>
+            <Input type="date" value={modalFecha} onChange={(e) => setModalFecha(e.target.value)} className="h-8 text-sm" />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Switch checked={modalConMiembro} onCheckedChange={setModalConMiembro} />
+            <span className="text-sm">Con miembro presente</span>
+          </label>
+        </div>
+        <DialogFooter className="flex-row justify-between gap-2">
+          {sesionModal?.exists && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                if (!sesionModal) return;
+                toggleSesionMutation.mutate({ action: "delete", principio_id: sesionModal.principioId, sesion_num: sesionModal.sesionNum });
+                setSesionModal(null);
+              }}>
+              Eliminar
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="ml-auto"
+            onClick={() => {
+              if (!sesionModal) return;
+              toggleSesionMutation.mutate({
+                action: "set",
+                principio_id: sesionModal.principioId,
+                sesion_num: sesionModal.sesionNum,
+                miembro_presente: modalConMiembro,
+                fecha: modalFecha || null,
+              });
+              setSesionModal(null);
+            }}>
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2601,23 +2710,40 @@ function BaptismalServiceSheet({
                     {(checklistData.items ?? []).map((item: any) => {
                       const itemKey = item.itemKey ?? item.item_key;
                       const isAuto = itemKey === "entrevista_bautismal";
+                      let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
+                      if (isAuto && item.notes) {
+                        try { candidates = JSON.parse(item.notes); } catch { /* ignore */ }
+                      }
                       return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          disabled={isAuto || toggleChecklistItemMutation.isPending}
-                          onClick={() => !isAuto && toggleChecklistItemMutation.mutate({ itemId: item.id, completed: !item.completed })}
-                          className={`w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left transition-colors
-                            ${isAuto ? "cursor-default" : "cursor-pointer hover:bg-muted/50"}`}
-                        >
-                          {item.completed
-                            ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                            : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                          <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                          {isAuto && (
-                            <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
+                        <div key={item.id}>
+                          <button
+                            type="button"
+                            disabled={isAuto || toggleChecklistItemMutation.isPending}
+                            onClick={() => !isAuto && toggleChecklistItemMutation.mutate({ itemId: item.id, completed: !item.completed })}
+                            className={`w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left transition-colors
+                              ${isAuto ? "cursor-default" : "cursor-pointer hover:bg-muted/50"}`}
+                          >
+                            {item.completed
+                              ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                              : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                            <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                            {isAuto && (
+                              <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
+                            )}
+                          </button>
+                          {candidates && candidates.length > 0 && (
+                            <div className="ml-6 space-y-0.5 pb-1">
+                              {candidates.map((c, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                                  <span>{c.nombre}</span>
+                                  {c.fecha
+                                    ? <span className="text-green-700">{c.fecha}</span>
+                                    : <span className="italic">Pendiente</span>}
+                                </div>
+                              ))}
+                            </div>
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -2928,21 +3054,33 @@ function BaptismalServiceSheet({
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                       <Mic2 className="h-3.5 w-3.5" /> Entrevista bautismal
-                      {(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span className="ml-auto" title="Se marca automáticamente">{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</span> : null; })()}
+                      {(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span className="ml-auto" title="Se marca automáticamente desde el progreso de la persona">{ci.completed ? <CheckSquare className="h-3.5 w-3.5 text-green-600" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40" />}</span> : null; })()}
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Autoridad</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.baptismDetails.entrevista_autoridad ?? ""}
-                          onChange={(e) => setBap("entrevista_autoridad", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                        <Input type="date" className="h-8 text-sm"
-                          value={coordDraft.baptismDetails.entrevista_fecha ?? ""}
-                          onChange={(e) => setBap("entrevista_fecha", e.target.value || null)} />
-                      </div>
+                    {/* Candidates with interview dates — read from checklist notes (JSON) */}
+                    {(() => {
+                      const ci = getChkItem("entrevista_bautismal");
+                      if (!ci?.notes) return null;
+                      try {
+                        const candidates: Array<{ nombre: string; fecha: string | null }> = JSON.parse(ci.notes);
+                        return (
+                          <div className="space-y-1">
+                            {candidates.map((c, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/40">
+                                <span className="font-medium">{c.nombre}</span>
+                                {c.fecha
+                                  ? <span className="text-xs text-green-700 flex items-center gap-1"><CheckSquare className="h-3 w-3" />{c.fecha}</span>
+                                  : <span className="text-xs text-muted-foreground">Pendiente</span>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      } catch { return null; }
+                    })()}
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Autoridad entrevistadora</Label>
+                      <Input className="h-8 text-sm" placeholder="Nombre"
+                        value={coordDraft.baptismDetails.entrevista_autoridad ?? ""}
+                        onChange={(e) => setBap("entrevista_autoridad", e.target.value)} />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
