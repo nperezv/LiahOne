@@ -1185,21 +1185,42 @@ function PersonaDetailSheet({
                       }}
                       className="h-7 text-sm w-40 mt-1"
                     />
-                  ) : (
-                    <p className="text-sm">{persona.fechaBautismo ? formatDisplayDate(persona.fechaBautismo) : "—"}</p>
-                  )}
+                  ) : (() => {
+                    const bc = compromisosBautismo.find((c) => c.commitmentKey === "bautizado_confirmado");
+                    if (bc?.fechaCumplido) return (
+                      <div className="flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-md bg-green-50 border border-green-200 w-fit">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                        <p className="text-sm font-medium text-green-700">{formatDisplayDate(bc.fechaCumplido)}</p>
+                      </div>
+                    );
+                    if (bc?.fechaInvitado) return (
+                      <div className="flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-md bg-muted/60 border w-fit">
+                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <p className="text-sm text-foreground">{formatDisplayDate(bc.fechaInvitado)}</p>
+                      </div>
+                    );
+                    return <p className="text-sm text-muted-foreground">—</p>;
+                  })()}
                 </div>
               </div>
               <div className="border-t mt-4" />
               {/* Próximos eventos — solo los que tienen fecha, o todos en modo edición */}
               {(() => {
                 const entrevistaCommitment = compromisosBautismo.find((c) => c.commitmentKey === "entrevista_bautismo");
+                const bautizadoCommitment = compromisosBautismo.find((c) => c.commitmentKey === "bautizado_confirmado");
                 const eventos = [
-                  ...(entrevistaCommitment?.fechaInvitado ? [{
+                  ...(entrevistaCommitment?.fechaInvitado && !entrevistaCommitment.fechaCumplido ? [{
                     key: "entrevista",
                     label: "Entrevista bautismal",
                     icon: <UserCheck className="h-3.5 w-3.5" />,
                     fecha: entrevistaCommitment.fechaInvitado,
+                    editEl: null,
+                  }] : []),
+                  ...(bautizadoCommitment?.fechaInvitado && !bautizadoCommitment.fechaCumplido ? [{
+                    key: "bautismo_compromiso",
+                    label: "Servicio bautismal",
+                    icon: <Waves className="h-3.5 w-3.5" />,
+                    fecha: bautizadoCommitment.fechaInvitado,
                     editEl: null,
                   }] : []),
                   {
@@ -1212,13 +1233,6 @@ function PersonaDetailSheet({
                         onChange={(e) => { setFechaVisitaVal(e.target.value); fechaVisitaMutation.mutate(e.target.value || null); }}
                         className="h-7 text-sm w-40 mt-1" />
                     ),
-                  },
-                  {
-                    key: "bautismo",
-                    label: "Servicio Bautismal",
-                    icon: <Waves className="h-3.5 w-3.5" />,
-                    fecha: persona.fechaBautismo,
-                    editEl: null,
                   },
                 ];
                 const visibles = editMode ? eventos : eventos.filter((e) => e.fecha);
