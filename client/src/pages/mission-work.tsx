@@ -2408,6 +2408,28 @@ function BaptismalServiceSheet({
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  // Interview edit state (edit proposed + completion date from coordination tab)
+  const [interviewEdit, setInterviewEdit] = React.useState<{
+    personaId: string;
+    nombre: string;
+    fechaInvitado: string;
+    fechaCumplido: string;
+  } | null>(null);
+  const editInterviewMutation = useMutation({
+    mutationFn: ({ personaId, fechaInvitado, fechaCumplido }: { personaId: string; fechaInvitado: string; fechaCumplido: string }) =>
+      apiRequest("PUT", `/api/mission/personas/${personaId}/compromisos-bautismo/entrevista_bautismo`, {
+        fecha_invitado: fechaInvitado || null,
+        fecha_cumplido: fechaCumplido || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      setInterviewEdit(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const setLog = (field: string, value: any) =>
     setCoordDraft((d) => ({ ...d, logistics: { ...d.logistics, [field]: value } }));
   const setBap = (field: string, value: any) =>
@@ -2902,27 +2924,42 @@ function BaptismalServiceSheet({
                           <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-sm font-medium">{c.nombre}</span>
-                              {c.entrevista_fecha ? (
-                                <span className="text-xs text-green-700 flex items-center gap-1 shrink-0">
-                                  <CheckSquare className="h-3.5 w-3.5" />
-                                  {formatDisplayDate(c.entrevista_fecha)}
-                                </span>
-                              ) : c.entrevista_invitado ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                {c.entrevista_fecha ? (
+                                  <span className="text-xs text-green-700 flex items-center gap-1">
+                                    <CheckSquare className="h-3.5 w-3.5" />
+                                    {formatDisplayDate(c.entrevista_fecha)}
+                                  </span>
+                                ) : c.entrevista_invitado ? (
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                    onClick={() => setInterviewConfirm({
+                                      personaId: c.id,
+                                      nombre: c.nombre,
+                                      fechaInvitado: c.entrevista_invitado!,
+                                      step: "ask",
+                                      customDate: "",
+                                    })}
+                                  >
+                                    <Square className="h-3.5 w-3.5" />
+                                    Marcar completada
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
-                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 transition-colors"
-                                  onClick={() => setInterviewConfirm({
+                                  className="text-muted-foreground hover:text-foreground transition-colors"
+                                  title="Editar fechas de entrevista"
+                                  onClick={() => setInterviewEdit({
                                     personaId: c.id,
                                     nombre: c.nombre,
-                                    fechaInvitado: c.entrevista_invitado!,
-                                    step: "ask",
-                                    customDate: "",
+                                    fechaInvitado: c.entrevista_invitado ?? "",
+                                    fechaCumplido: c.entrevista_fecha ?? "",
                                   })}
                                 >
-                                  <Square className="h-3.5 w-3.5" />
-                                  Marcar completada
+                                  <Pencil className="h-3.5 w-3.5" />
                                 </button>
-                              ) : null}
+                              </div>
                             </div>
                             {!c.entrevista_fecha && c.entrevista_invitado && (
                               <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
@@ -3140,6 +3177,50 @@ function BaptismalServiceSheet({
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* Interview edit dialog */}
+    <Dialog open={!!interviewEdit} onOpenChange={(v) => { if (!v) setInterviewEdit(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base">{interviewEdit?.nombre}</DialogTitle>
+          <p className="text-xs text-muted-foreground pt-0.5">Entrevista bautismal</p>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1 block">Fecha propuesta</Label>
+            <Input
+              type="date"
+              className="h-8 text-sm"
+              value={interviewEdit?.fechaInvitado ?? ""}
+              onChange={(e) => setInterviewEdit((prev) => prev ? { ...prev, fechaInvitado: e.target.value } : null)}
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1 block">Fecha completada</Label>
+            <Input
+              type="date"
+              className="h-8 text-sm"
+              value={interviewEdit?.fechaCumplido ?? ""}
+              onChange={(e) => setInterviewEdit((prev) => prev ? { ...prev, fechaCumplido: e.target.value } : null)}
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex-row gap-2">
+          <Button variant="outline" size="sm" onClick={() => setInterviewEdit(null)}>Cancelar</Button>
+          <Button
+            size="sm"
+            className="flex-1"
+            disabled={editInterviewMutation.isPending}
+            onClick={() => interviewEdit && editInterviewMutation.mutate({
+              personaId: interviewEdit.personaId,
+              fechaInvitado: interviewEdit.fechaInvitado,
+              fechaCumplido: interviewEdit.fechaCumplido,
+            })}>
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* Interview completion confirmation dialog */}
     <Dialog open={!!interviewConfirm} onOpenChange={(v) => { if (!v) setInterviewConfirm(null); }}>
