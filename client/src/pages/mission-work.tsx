@@ -3030,7 +3030,7 @@ function BaptismalServiceSheet({
                         variant="outline"
                         size="sm"
                         className="flex-1 text-xs"
-                        onClick={() => window.open("https://calendars.churchofjesuschrist.org", "_blank")}
+                        onClick={() => window.open("https://www.churchofjesuschrist.org/calendar", "_blank")}
                       >
                         <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                         Ir al calendario
@@ -3068,38 +3068,6 @@ function BaptismalServiceSheet({
                         </a>
                       </div>
                     )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.logistics.espacio_responsable ?? ""}
-                          onChange={(e) => setLog("espacio_responsable", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha reserva</Label>
-                        <Input type="date" className="h-8 text-sm"
-                          value={coordDraft.logistics.espacio_fecha ?? ""}
-                          onChange={(e) => setLog("espacio_fecha", e.target.value || null)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Hora inicio</Label>
-                        <Input type="time" className="h-8 text-sm"
-                          value={coordDraft.logistics.espacio_hora_inicio ?? ""}
-                          onChange={(e) => setLog("espacio_hora_inicio", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Hora fin</Label>
-                        <Input type="time" className="h-8 text-sm"
-                          value={coordDraft.logistics.espacio_hora_fin ?? ""}
-                          onChange={(e) => setLog("espacio_hora_fin", e.target.value)} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Notas / enlace</Label>
-                      <Textarea className="text-sm min-h-[56px] resize-none" placeholder="URL del calendario, salas, detalles..."
-                        value={coordDraft.logistics.espacio_notas ?? ""}
-                        onChange={(e) => setLog("espacio_notas", e.target.value)} />
-                    </div>
                   </div>
 
                   {/* Arreglo de espacios */}
