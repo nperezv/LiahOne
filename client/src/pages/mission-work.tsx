@@ -2384,9 +2384,20 @@ function BaptismalServiceSheet({
   const saveCoordMutation = useMutation({
     mutationFn: (data: CoordData) =>
       apiRequest("PUT", `/api/baptisms/services/${service?.id}/coordination`, data),
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "coordination"] });
       toast({ title: "Coordinación guardada" });
+      // Auto-complete arreglo_espacios when at least one participant and hora are set
+      const log = variables.logistics;
+      const participantes: string[] = log.arreglo_participantes ?? [];
+      const hasParticipant = participantes.some((p: string) => p.trim().length > 0);
+      const hasHora = Boolean(log.arreglo_hora?.trim());
+      if (hasParticipant && hasHora) {
+        const ci = getChkItem("arreglo_espacios");
+        if (ci && !ci.completed) {
+          toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: true });
+        }
+      }
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
