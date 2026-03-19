@@ -929,7 +929,8 @@
 }
 
 @keyframes btn-fill {
-  0%   { width: 0%; }
-  60%  { width: 85%; }
+  0%   { width: 5%; }
+  40%  { width: 60%; }
+  75%  { width: 88%; }
   100% { width: 100%; }
 }

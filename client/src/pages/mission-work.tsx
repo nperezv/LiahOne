@@ -3052,37 +3052,34 @@ function BaptismalServiceSheet({
                   {/* Reserva de ambientes en Calendario */}
                   <div className="space-y-3">
                     <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Reserva de ambientes en Calendario" />
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-xs"
+                        className="w-full text-xs"
                         onClick={() => window.open("https://www.churchofjesuschrist.org/calendar", "_blank")}
                       >
-                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                         Ir al calendario
                       </Button>
-                      <Button
+                      <button
                         type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs relative overflow-hidden"
                         disabled={uploadingComprobante}
                         onClick={() => comprobanteRef.current?.click()}
+                        className="relative w-full overflow-hidden rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed"
                       >
-                        {uploadingComprobante && (
-                          <span
-                            className="absolute inset-y-0 left-0 bg-primary/20 rounded-sm"
-                            style={{ animation: "btn-fill 4s ease-in-out forwards" }}
-                          />
-                        )}
+                        <span
+                          className="pointer-events-none absolute inset-y-0 left-0 rounded-[5px] bg-emerald-500/25 transition-none"
+                          style={uploadingComprobante
+                            ? { animation: "btn-fill 5s ease-out forwards" }
+                            : { width: 0 }}
+                        />
                         <span className="relative z-10 flex items-center justify-center gap-1.5">
-                          {uploadingComprobante
-                            ? "Cargando..."
-                            : <><Upload className="h-3.5 w-3.5" />Cargar comprobante de la reserva</>}
+                          <Upload className="h-3.5 w-3.5 shrink-0" />
+                          {uploadingComprobante ? "Cargando..." : "Cargar comprobante de la reserva"}
                         </span>
-                      </Button>
+                      </button>
                       <input
                         ref={comprobanteRef}
                         type="file"
