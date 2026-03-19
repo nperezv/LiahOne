@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
 import { sendBaptismReminderEmail } from "./auth";
-import { syncBaptismInterviewChecklistItem } from "./mission-baptism-routes";
+import { syncBaptismInterviewChecklistItem } from "./mission-interview-sync";
 import { isPushConfigured, sendPushNotification } from "./push-service";
 import {
   organizations,
