@@ -1045,8 +1045,15 @@ function PersonaDetailSheet({
         fecha_invitado: fechaInvitado,
         fecha_cumplido: fechaCumplido,
       }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", id, "compromisos-bautismo"] });
+      if (vars.key === "bautizado_confirmado") {
+        qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+        qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      }
+      if (vars.key === "entrevista_bautismo") {
+        qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+      }
     },
   });
 
