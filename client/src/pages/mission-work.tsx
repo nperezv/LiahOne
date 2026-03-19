@@ -56,6 +56,9 @@ import {
   Tv2,
   ExternalLink,
   Clock,
+  Upload,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -2444,6 +2447,44 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const comprobanteRef = React.useRef<HTMLInputElement>(null);
+  const [uploadingComprobante, setUploadingComprobante] = React.useState(false);
+
+  const handleComprobanteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingComprobante(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const token = getAccessToken();
+      const uploadRes = await fetch("/api/uploads", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!uploadRes.ok) throw new Error("No se pudo subir el comprobante");
+      const uploaded = await uploadRes.json();
+      const updatedLogistics = {
+        ...coordDraft.logistics,
+        espacio_comprobante_url: uploaded.url,
+        espacio_comprobante_nombre: file.name,
+      };
+      setCoordDraft((d) => ({ ...d, logistics: updatedLogistics }));
+      await saveCoordMutation.mutateAsync({ logistics: updatedLogistics, baptismDetails: coordDraft.baptismDetails });
+      const ci = getChkItem("espacio_calendario");
+      if (ci && !ci.completed) {
+        toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: true });
+      }
+    } catch (err: any) {
+      toast({ title: "Error al subir", description: err.message ?? "No se pudo subir el comprobante", variant: "destructive" });
+    } finally {
+      setUploadingComprobante(false);
+      if (comprobanteRef.current) comprobanteRef.current.value = "";
+    }
+  };
+
   const submitForApprovalMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/baptisms/services/${service?.id}/submit-for-approval`),
     onSuccess: () => {
@@ -2980,9 +3021,53 @@ function BaptismalServiceSheet({
                       onChange={(e) => setBap("entrevista_notas", e.target.value)} />
                   </div>
 
-                  {/* Espacio y calendario */}
+                  {/* Reserva de ambientes en Calendario */}
                   <div className="space-y-3">
-                    <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Espacio y calendario" action={(() => { const ci = getChkItem("espacio_calendario"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
+                    <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Reserva de ambientes en Calendario" action={(() => { const ci = getChkItem("espacio_calendario"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => window.open("https://calendars.churchofjesuschrist.org", "_blank")}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        Ir al calendario
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        disabled={uploadingComprobante}
+                        onClick={() => comprobanteRef.current?.click()}
+                      >
+                        {uploadingComprobante
+                          ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Subiendo...</>
+                          : <><Upload className="h-3.5 w-3.5 mr-1.5" />Cargar comprobante de la reserva</>}
+                      </Button>
+                      <input
+                        ref={comprobanteRef}
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/jpg,image/heic,image/heif,.pdf,.jpg,.jpeg,.heic,.heif"
+                        className="hidden"
+                        onChange={handleComprobanteUpload}
+                      />
+                    </div>
+                    {coordDraft.logistics.espacio_comprobante_url && (
+                      <div className="flex items-center gap-1.5 text-xs bg-muted/50 px-2 py-1.5 rounded-md">
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                        <a
+                          href={coordDraft.logistics.espacio_comprobante_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate hover:underline text-foreground"
+                        >
+                          {coordDraft.logistics.espacio_comprobante_nombre ?? "Comprobante"}
+                        </a>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
