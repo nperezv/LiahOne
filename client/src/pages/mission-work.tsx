@@ -1054,6 +1054,8 @@ function PersonaDetailSheet({
       }
       if (vars.key === "entrevista_bautismo") {
         qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
+        qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+        qc.invalidateQueries({ queryKey: ["/api/baptisms/services"] });
       }
     },
   });
