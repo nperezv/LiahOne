@@ -3067,13 +3067,21 @@ function BaptismalServiceSheet({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-xs"
+                        className="flex-1 text-xs relative overflow-hidden"
                         disabled={uploadingComprobante}
                         onClick={() => comprobanteRef.current?.click()}
                       >
-                        {uploadingComprobante
-                          ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Subiendo...</>
-                          : <><Upload className="h-3.5 w-3.5 mr-1.5" />Cargar comprobante de la reserva</>}
+                        {uploadingComprobante && (
+                          <span
+                            className="absolute inset-y-0 left-0 bg-primary/20 rounded-sm"
+                            style={{ animation: "btn-fill 4s ease-in-out forwards" }}
+                          />
+                        )}
+                        <span className="relative z-10 flex items-center justify-center gap-1.5">
+                          {uploadingComprobante
+                            ? "Cargando..."
+                            : <><Upload className="h-3.5 w-3.5" />Cargar comprobante de la reserva</>}
+                        </span>
                       </Button>
                       <input
                         ref={comprobanteRef}

@@ -927,3 +927,9 @@
     }
   }
 }
+
+@keyframes btn-fill {
+  0%   { width: 0%; }
+  60%  { width: 85%; }
+  100% { width: 100%; }
+}
