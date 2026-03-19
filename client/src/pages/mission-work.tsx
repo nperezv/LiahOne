@@ -55,6 +55,7 @@ import {
   Sparkles,
   Tv2,
   ExternalLink,
+  Clock,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -2384,6 +2385,26 @@ function BaptismalServiceSheet({
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  // Interview completion state
+  const [interviewConfirm, setInterviewConfirm] = React.useState<{
+    personaId: string;
+    nombre: string;
+    fechaInvitado: string;
+    step: "ask" | "date";
+    customDate: string;
+  } | null>(null);
+  const markInterviewCompleteMutation = useMutation({
+    mutationFn: ({ personaId, fecha }: { personaId: string; fecha: string }) =>
+      apiRequest("PUT", `/api/mission/personas/${personaId}/compromisos-bautismo/entrevista_bautismo`, {
+        fecha_cumplido: fecha,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
+      setInterviewConfirm(null);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
   const setLog = (field: string, value: any) =>
     setCoordDraft((d) => ({ ...d, logistics: { ...d.logistics, [field]: value } }));
   const setBap = (field: string, value: any) =>
@@ -2497,6 +2518,7 @@ function BaptismalServiceSheet({
   ];
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-lg flex flex-col p-0 gap-0">
 
@@ -2870,20 +2892,50 @@ function BaptismalServiceSheet({
                 <>
                   {/* Entrevista bautismal */}
                   <div className="space-y-3">
-                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" action={(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span title="Se marca automáticamente desde el progreso de la persona">{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</span> : null; })()} />
+                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" action={(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span title="Se marca automáticamente cuando todos los candidatos completan la entrevista">{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</span> : null; })()} />
                     {(() => {
                       const ci = getChkItem("entrevista_bautismal");
                       if (!ci?.notes) return null;
                       try {
-                        const candidates: Array<{ nombre: string; fecha: string | null }> = JSON.parse(ci.notes);
+                        const candidates: Array<{ persona_id: string; nombre: string; fecha_invitado: string | null; fecha: string | null }> = JSON.parse(ci.notes);
                         return (
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             {candidates.map((c, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/40">
-                                <span className="font-medium">{c.nombre}</span>
-                                {c.fecha
-                                  ? <span className="text-xs text-green-700 flex items-center gap-1"><CheckSquare className="h-3 w-3" />{c.fecha}</span>
-                                  : <span className="text-xs text-muted-foreground">Pendiente</span>}
+                              <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-medium">{c.nombre}</span>
+                                  {c.fecha ? (
+                                    <span className="text-xs text-green-700 flex items-center gap-1 shrink-0">
+                                      <CheckSquare className="h-3.5 w-3.5" />
+                                      {formatDisplayDate(c.fecha)}
+                                    </span>
+                                  ) : c.fecha_invitado ? (
+                                    <button
+                                      type="button"
+                                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+                                      onClick={() => setInterviewConfirm({
+                                        personaId: c.persona_id,
+                                        nombre: c.nombre,
+                                        fechaInvitado: c.fecha_invitado!,
+                                        step: "ask",
+                                        customDate: "",
+                                      })}
+                                    >
+                                      <Square className="h-3.5 w-3.5" />
+                                      Marcar completada
+                                    </button>
+                                  ) : null}
+                                </div>
+                                {!c.fecha && c.fecha_invitado && (
+                                  <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                                    <Clock className="h-3 w-3 shrink-0" />
+                                    <span>Pendiente confirmación con misioneros de tiempo completo</span>
+                                    <span className="ml-auto font-medium whitespace-nowrap">{formatDisplayDate(c.fecha_invitado)}</span>
+                                  </div>
+                                )}
+                                {!c.fecha && !c.fecha_invitado && (
+                                  <p className="text-xs text-muted-foreground">Sin fecha propuesta</p>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -3101,6 +3153,75 @@ function BaptismalServiceSheet({
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* Interview completion confirmation dialog */}
+    <Dialog open={!!interviewConfirm} onOpenChange={(v) => { if (!v) setInterviewConfirm(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base">{interviewConfirm?.nombre}</DialogTitle>
+          <p className="text-xs text-muted-foreground pt-0.5">Entrevista bautismal</p>
+        </DialogHeader>
+        {interviewConfirm?.step === "ask" && (
+          <div className="space-y-4 py-1">
+            <p className="text-sm">
+              ¿Se completó la entrevista en la fecha prevista?{" "}
+              <span className="font-medium">{formatDisplayDate(interviewConfirm.fechaInvitado)}</span>
+            </p>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                size="sm"
+                onClick={() => markInterviewCompleteMutation.mutate({
+                  personaId: interviewConfirm.personaId,
+                  fecha: interviewConfirm.fechaInvitado,
+                })}
+                disabled={markInterviewCompleteMutation.isPending}>
+                Sí
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                size="sm"
+                onClick={() => setInterviewConfirm((prev) => prev ? { ...prev, step: "date" } : null)}>
+                No, ingresar fecha
+              </Button>
+            </div>
+          </div>
+        )}
+        {interviewConfirm?.step === "date" && (
+          <div className="space-y-4 py-1">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Fecha real de la entrevista</Label>
+              <Input
+                type="date"
+                className="h-8 text-sm"
+                value={interviewConfirm.customDate}
+                onChange={(e) => setInterviewConfirm((prev) => prev ? { ...prev, customDate: e.target.value } : null)}
+              />
+            </div>
+            <DialogFooter className="flex-row gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInterviewConfirm((prev) => prev ? { ...prev, step: "ask" } : null)}>
+                Atrás
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1"
+                disabled={!interviewConfirm.customDate || markInterviewCompleteMutation.isPending}
+                onClick={() => markInterviewCompleteMutation.mutate({
+                  personaId: interviewConfirm.personaId,
+                  fecha: interviewConfirm.customDate,
+                })}>
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
