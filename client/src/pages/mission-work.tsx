@@ -877,8 +877,6 @@ function PersonaDetailSheet({
   const [llamamientoVal, setLlamamientoVal] = useState("");
   const [ministracionVal, setMinistracionVal] = useState("");
   const [fechaPrimerContactoVal, setFechaPrimerContactoVal] = useState("");
-  const [fechaBautismoVal, setFechaBautismoVal] = useState("");
-  const [fechaEntrevistaVal, setFechaEntrevistaVal] = useState("");
   const [fechaVisitaVal, setFechaVisitaVal] = useState("");
   const [proximoEventoVal, setProximoEventoVal] = useState("");
   const [proximoEventoDescVal, setProximoEventoDescVal] = useState("");
@@ -892,24 +890,6 @@ function PersonaDetailSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const fechaBautismoMutation = useMutation({
-    mutationFn: (fecha: string | null) =>
-      apiRequest("PUT", `/api/mission/personas/${id}`, { fechaBautismo: fecha }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
-      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const fechaEntrevistaMutation = useMutation({
-    mutationFn: (fecha: string | null) =>
-      apiRequest("PUT", `/api/mission/personas/${id}`, { fechaEntrevistaBautismal: fecha }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
 
   const fechaVisitaMutation = useMutation({
     mutationFn: (fecha: string | null) =>
@@ -1031,12 +1011,6 @@ function PersonaDetailSheet({
   React.useEffect(() => {
     setFechaPrimerContactoVal(persona?.fechaPrimerContacto ?? "");
   }, [persona?.fechaPrimerContacto]);
-  React.useEffect(() => {
-    setFechaBautismoVal(persona?.fechaBautismo ?? "");
-  }, [persona?.fechaBautismo]);
-  React.useEffect(() => {
-    setFechaEntrevistaVal(persona?.fechaEntrevistaBautismal ?? "");
-  }, [persona?.fechaEntrevistaBautismal]);
   React.useEffect(() => {
     setFechaVisitaVal(persona?.fechaVisitaMisioneros ?? "");
   }, [persona?.fechaVisitaMisioneros]);
@@ -1175,17 +1149,7 @@ function PersonaDetailSheet({
                     <BaptismDateIcon />
                     <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Fecha bautismal</p>
                   </div>
-                  {editMode ? (
-                    <Input
-                      type="date"
-                      value={fechaBautismoVal}
-                      onChange={(e) => {
-                        setFechaBautismoVal(e.target.value);
-                        fechaBautismoMutation.mutate(e.target.value || null);
-                      }}
-                      className="h-7 text-sm w-40 mt-1"
-                    />
-                  ) : (() => {
+                  {(() => {
                     const bc = compromisosBautismo.find((c) => c.commitmentKey === "bautizado_confirmado");
                     if (bc?.fechaCumplido) return (
                       <div className="flex items-center gap-1.5 mt-0.5 px-2 py-1 rounded-md bg-green-50 border border-green-200 w-fit">

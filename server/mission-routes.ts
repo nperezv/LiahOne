@@ -284,6 +284,168 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
   });
 
   // -------------------------------------------------------
+  // Shared: auto-create/join baptism service when fecha_bautismo is set
+  // -------------------------------------------------------
+  async function autoLinkBaptismService(opts: {
+    personaId: string;
+    personaNombre: string;
+    fechaBautismo: string;
+    unitId: string;
+    userId: string;
+  }): Promise<void> {
+    const { personaId, personaNombre, fechaBautismo, unitId, userId } = opts;
+
+    const existingForPersona = await db.execute(sql`
+      SELECT bs.id FROM baptism_services bs
+      JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+      WHERE bsc.persona_id = ${personaId}
+        AND bs.status != 'archived'
+      LIMIT 1
+    `);
+    if (existingForPersona.rows.length > 0) return;
+
+    const serviceAt = new Date(`${fechaBautismo}T12:00:00Z`);
+    const prepDeadline = new Date(serviceAt);
+    prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
+
+    const existingForDate = await db.execute(sql`
+      SELECT id FROM baptism_services
+      WHERE unit_id = ${unitId}
+        AND DATE(service_at AT TIME ZONE 'UTC') = DATE(${serviceAt.toISOString()}::timestamptz AT TIME ZONE 'UTC')
+        AND status != 'archived'
+      LIMIT 1
+    `);
+
+    let baptismServiceId: string | undefined;
+    let isNewService = false;
+
+    if (existingForDate.rows.length > 0) {
+      baptismServiceId = (existingForDate.rows[0] as any).id;
+      await db.execute(sql`
+        INSERT INTO baptism_service_candidates (service_id, persona_id)
+        VALUES (${baptismServiceId}, ${personaId})
+        ON CONFLICT DO NOTHING
+      `);
+      const allCandidates = await db.execute(sql`
+        SELECT mp.nombre FROM baptism_service_candidates bsc
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bsc.service_id = ${baptismServiceId}
+        ORDER BY mp.nombre
+      `);
+      const allNames = (allCandidates.rows as any[]).map((r) => r.nombre).join(", ");
+      await db.execute(sql`
+        UPDATE activities SET title = ${"Servicio bautismal: " + allNames}
+        WHERE baptism_service_id = ${baptismServiceId}
+      `);
+    } else {
+      const serviceResult = await db.execute(sql`
+        INSERT INTO baptism_services
+          (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
+        VALUES
+          (${unitId}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${userId})
+        RETURNING id
+      `);
+      baptismServiceId = (serviceResult.rows[0] as any)?.id as string | undefined;
+      isNewService = true;
+
+      if (baptismServiceId) {
+        await db.execute(sql`
+          INSERT INTO baptism_service_candidates (service_id, persona_id)
+          VALUES (${baptismServiceId}, ${personaId})
+        `);
+        await storage.createActivity({
+          title: `Servicio bautismal de ${personaNombre}`,
+          date: serviceAt,
+          type: "servicio_bautismal",
+          status: "borrador",
+          baptismServiceId,
+          organizationId: unitId,
+          createdBy: userId,
+        });
+      }
+    }
+
+    const now = new Date();
+    const daysUntil = Math.ceil((serviceAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const isException = daysUntil < 14;
+
+    if (isNewService) {
+      const [missionLeader] = await db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, unitId)))
+        .limit(1);
+      if (missionLeader) {
+        const assignmentDeadlineDays = isException ? 1 : 3;
+        const deadline = new Date();
+        deadline.setDate(deadline.getDate() + assignmentDeadlineDays);
+        await db.execute(sql`
+          INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
+          VALUES (
+            ${'Programa del Servicio Bautismal'},
+            ${'Crear el programa del servicio bautismal de ' + personaNombre + ' antes de la fecha límite.'},
+            ${missionLeader.id},
+            ${userId},
+            ${deadline.toISOString()},
+            'pendiente'
+          )
+        `);
+      }
+    }
+
+    if (isException) {
+      const BAPTISM_REMINDER_ROLES = new Set([
+        "obispo", "consejero_obispo", "mission_leader", "ward_missionary", "full_time_missionary",
+      ]);
+      const allUsers = await storage.getAllUsers();
+      const missionRecipients = allUsers.filter(
+        (u: any) => u.organizationId === unitId && BAPTISM_REMINDER_ROLES.has(u.role),
+      );
+      const orgPresidentIds = await db.execute(sql`
+        SELECT u.id FROM users u
+        JOIN organizations o ON o.id = u.organization_id
+        WHERE u.role = 'presidente_organizacion'
+          AND o.type IN ('cuorum_elderes', 'sociedad_socorro')
+      `);
+      const orgPresidents = allUsers.filter((u: any) =>
+        (orgPresidentIds.rows as any[]).some((r) => r.id === u.id),
+      );
+      const recipients = [
+        ...missionRecipients,
+        ...orgPresidents.filter((u: any) => !missionRecipients.find((m: any) => m.id === u.id)),
+      ];
+      const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
+      for (const recipient of recipients) {
+        const title = `⚠️ URGENTE — Servicio Bautismal en ${daysUntil} día(s)`;
+        const body = `El servicio bautismal de ${personaNombre} está programado para el ${fechaBautismo}. Quedan solo ${daysUntil} día(s) — se requiere acción inmediata.`;
+        const notification = await storage.createNotification({
+          userId: recipient.id,
+          type: "reminder",
+          title,
+          description: body,
+          relatedId: personaId,
+          isRead: false,
+        });
+        if (isPushConfigured()) {
+          await sendPushNotification(recipient.id, { title, body, url: "/mission-work", notificationId: notification.id });
+        }
+        if (recipient.email) {
+          await sendBaptismReminderEmail({
+            toEmail: recipient.email,
+            recipientName: recipient.name,
+            candidateName: personaNombre,
+            baptismDate: fechaBautismo,
+            wardName,
+            isException: true,
+            daysUntil,
+          });
+        }
+      }
+      console.log(`[autoLinkBaptismService] EXCEPTION baptism reminder sent for ${personaNombre}, ${daysUntil} days until baptism`);
+    }
+  }
+
+  // -------------------------------------------------------
   // Update persona
   // -------------------------------------------------------
   app.put("/api/mission/personas/:id", requireAuth, async (req: Request, res: Response) => {
@@ -314,189 +476,15 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       if (!updated) return res.status(404).json({ message: "No encontrado" });
 
-      // Auto-create/join draft baptism service + activity when fechaBautismo is set for the first time
+      // Auto-create/join draft baptism service when fechaBautismo is set
       if (data.fechaBautismo && updated.tipo === "enseñando") {
-        try {
-          // Check if this persona already belongs to a service
-          const existingForPersona = await db.execute(sql`
-            SELECT bs.id FROM baptism_services bs
-            JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
-            WHERE bsc.persona_id = ${req.params.id}
-              AND bs.status != 'archived'
-            LIMIT 1
-          `);
-
-          if (existingForPersona.rows.length === 0) {
-            const serviceAt = new Date(`${data.fechaBautismo}T12:00:00Z`);
-            const prepDeadline = new Date(serviceAt);
-            prepDeadline.setUTCDate(prepDeadline.getUTCDate() - 14);
-
-            // Check if there's already a service for this date + unit
-            const existingForDate = await db.execute(sql`
-              SELECT id FROM baptism_services
-              WHERE unit_id = ${user.organizationId}
-                AND DATE(service_at AT TIME ZONE 'UTC') = DATE(${serviceAt.toISOString()}::timestamptz AT TIME ZONE 'UTC')
-                AND status != 'archived'
-              LIMIT 1
-            `);
-
-            let baptismServiceId: string | undefined;
-            let isNewService = false;
-
-            if (existingForDate.rows.length > 0) {
-              // Join existing service — add this persona as a candidate
-              baptismServiceId = (existingForDate.rows[0] as any).id;
-              await db.execute(sql`
-                INSERT INTO baptism_service_candidates (service_id, persona_id)
-                VALUES (${baptismServiceId}, ${req.params.id})
-                ON CONFLICT DO NOTHING
-              `);
-              // Update activity title to list all candidates
-              const allCandidates = await db.execute(sql`
-                SELECT mp.nombre FROM baptism_service_candidates bsc
-                JOIN mission_personas mp ON mp.id = bsc.persona_id
-                WHERE bsc.service_id = ${baptismServiceId}
-                ORDER BY mp.nombre
-              `);
-              const allNames = (allCandidates.rows as any[]).map((r) => r.nombre).join(", ");
-              await db.execute(sql`
-                UPDATE activities SET title = ${"Servicio bautismal: " + allNames}
-                WHERE baptism_service_id = ${baptismServiceId}
-              `);
-            } else {
-              // Create a new service
-              const serviceResult = await db.execute(sql`
-                INSERT INTO baptism_services
-                  (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
-                VALUES
-                  (${user.organizationId}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${user.id})
-                RETURNING id
-              `);
-              baptismServiceId = (serviceResult.rows[0] as any)?.id as string | undefined;
-              isNewService = true;
-
-              if (baptismServiceId) {
-                // Add persona as first candidate
-                await db.execute(sql`
-                  INSERT INTO baptism_service_candidates (service_id, persona_id)
-                  VALUES (${baptismServiceId}, ${req.params.id})
-                `);
-                // Create linked ward activity
-                await storage.createActivity({
-                  title: `Servicio bautismal de ${updated.nombre}`,
-                  date: serviceAt,
-                  type: "servicio_bautismal",
-                  status: "borrador",
-                  baptismServiceId,
-                  organizationId: user.organizationId,
-                  createdBy: user.id,
-                });
-              }
-            }
-
-            // Check if baptism date is less than 14 days away (exception case)
-            const now = new Date();
-            const daysUntil = Math.ceil((serviceAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            const isException = daysUntil < 14;
-
-            // Notify mission_leader and create their assignment (only for new services)
-            if (isNewService) {
-              const [missionLeader] = await db
-                .select({ id: users.id, name: users.name })
-                .from(users)
-                .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, user.organizationId)))
-                .limit(1);
-              if (missionLeader) {
-                const assignmentDeadlineDays = isException ? 1 : 3;
-                const deadline = new Date();
-                deadline.setDate(deadline.getDate() + assignmentDeadlineDays);
-                await db.execute(sql`
-                  INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
-                  VALUES (
-                    ${'Programa del Servicio Bautismal'},
-                    ${'Crear el programa del servicio bautismal de ' + updated.nombre + ' antes de la fecha límite.'},
-                    ${missionLeader.id},
-                    ${user.id},
-                    ${deadline.toISOString()},
-                    'pendiente'
-                  )
-                `);
-              }
-            }
-
-            // If exception (<14 days): send notifications immediately to all relevant roles
-            if (isException) {
-              const BAPTISM_REMINDER_ROLES = new Set([
-                "obispo",
-                "consejero_obispo",
-                "mission_leader",
-                "ward_missionary",
-                "full_time_missionary",
-              ]);
-
-              const allUsers = await storage.getAllUsers();
-              const missionRecipients = allUsers.filter(
-                (u: any) => u.organizationId === user.organizationId && BAPTISM_REMINDER_ROLES.has(u.role),
-              );
-
-              const orgPresidentIds = await db.execute(sql`
-                SELECT u.id FROM users u
-                JOIN organizations o ON o.id = u.organization_id
-                WHERE u.role = 'presidente_organizacion'
-                  AND o.type IN ('cuorum_elderes', 'sociedad_socorro')
-              `);
-              const orgPresidents = allUsers.filter((u: any) =>
-                (orgPresidentIds.rows as any[]).some((r) => r.id === u.id),
-              );
-              const recipients = [
-                ...missionRecipients,
-                ...orgPresidents.filter((u: any) => !missionRecipients.find((m: any) => m.id === u.id)),
-              ];
-
-              const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
-
-              for (const recipient of recipients) {
-                const title = `⚠️ URGENTE — Servicio Bautismal en ${daysUntil} día(s)`;
-                const body = `El servicio bautismal de ${updated.nombre} está programado para el ${data.fechaBautismo}. Quedan solo ${daysUntil} día(s) — se requiere acción inmediata.`;
-
-                const notification = await storage.createNotification({
-                  userId: recipient.id,
-                  type: "reminder",
-                  title,
-                  description: body,
-                  relatedId: req.params.id,
-                  isRead: false,
-                });
-
-                if (isPushConfigured()) {
-                  await sendPushNotification(recipient.id, {
-                    title,
-                    body,
-                    url: "/mission-work",
-                    notificationId: notification.id,
-                  });
-                }
-
-                if (recipient.email) {
-                  await sendBaptismReminderEmail({
-                    toEmail: recipient.email,
-                    recipientName: recipient.name,
-                    candidateName: updated.nombre,
-                    baptismDate: data.fechaBautismo,
-                    wardName,
-                    isException: true,
-                    daysUntil,
-                  });
-                }
-              }
-
-              console.log(`[mission/personas] EXCEPTION baptism reminder sent for ${updated.nombre}, ${daysUntil} days until baptism`);
-            }
-          }
-        } catch (autoErr) {
-          console.error("[mission/personas/:id PUT] auto-create baptism service error:", autoErr);
-          // Non-blocking — don't fail the main request
-        }
+        autoLinkBaptismService({
+          personaId: req.params.id,
+          personaNombre: updated.nombre,
+          fechaBautismo: data.fechaBautismo,
+          unitId: user.organizationId,
+          userId: user.id,
+        }).catch((autoErr) => console.error("[mission/personas/:id PUT] autoLinkBaptismService error:", autoErr));
       }
 
       return res.json(updated);
@@ -1154,6 +1142,28 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           await db.execute(
             sql`UPDATE mission_personas SET fecha_entrevista_bautismal = ${fecha_cumplido ?? null} WHERE id = ${req.params.id}`
           );
+        }
+
+        // Sync baptism date and trigger service auto-creation when bautizado_confirmado fecha_invitado changes
+        if (req.params.key === "bautizado_confirmado" && fecha_invitado !== undefined) {
+          await db.execute(
+            sql`UPDATE mission_personas SET fecha_bautismo = ${fecha_invitado ?? null} WHERE id = ${req.params.id}`
+          );
+          if (fecha_invitado) {
+            const personaRow = await db.execute(
+              sql`SELECT nombre, tipo FROM mission_personas WHERE id = ${req.params.id} LIMIT 1`
+            );
+            const persona = personaRow.rows[0] as any;
+            if (persona?.tipo === "enseñando") {
+              autoLinkBaptismService({
+                personaId: req.params.id,
+                personaNombre: persona.nombre,
+                fechaBautismo: fecha_invitado,
+                unitId: user.organizationId,
+                userId: user.id,
+              }).catch((err) => console.error("[compromisos-bautismo PUT] autoLinkBaptismService error:", err));
+            }
+          }
         }
 
         return res.json({ success: true });
