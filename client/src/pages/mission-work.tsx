@@ -2438,6 +2438,23 @@ function BaptismalServiceSheet({
   const setBap = (field: string, value: any) =>
     setCoordDraft((d) => ({ ...d, baptismDetails: { ...d.baptismDetails, [field]: value } }));
 
+  // ── Arreglo de espacios — task check state (local only, resets on reopen) ──
+  const [arregloTareasDone, setArregloTareasDone] = React.useState<boolean[]>([]);
+  React.useEffect(() => {
+    const tareas = coordDraft.logistics.arreglo_tareas ?? [];
+    setArregloTareasDone((prev) => tareas.map((_: any, i: number) => prev[i] ?? false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(coordDraft.logistics.arreglo_tareas ?? []).length]);
+
+  const arregloParticipantes: string[] = coordDraft.logistics.arreglo_participantes ?? [""];
+  const setArregloParticipantes = (list: string[]) => {
+    setLog("arreglo_participantes", list);
+    setLog("arreglo_responsable", list[0] ?? null);
+  };
+
+  const arregloTareas: string[] = coordDraft.logistics.arreglo_tareas ?? [];
+  const setArregloTareas = (list: string[]) => setLog("arreglo_tareas", list);
+
   const toggleChecklistItemMutation = useMutation({
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
       apiRequest("PATCH", `/api/baptisms/services/${service?.id}/checklist-item/${itemId}`, { completed }),
@@ -3072,26 +3089,90 @@ function BaptismalServiceSheet({
 
                   {/* Arreglo de espacios */}
                   <div className="space-y-3">
-                    <BaptismSectionHead icon={<Sparkles className="h-4 w-4" />} title="Arreglo de espacios" action={(() => { const ci = getChkItem("arreglo_espacios"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.logistics.arreglo_responsable ?? ""}
-                          onChange={(e) => setLog("arreglo_responsable", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                        <Input type="date" className="h-8 text-sm"
-                          value={coordDraft.logistics.arreglo_fecha ?? ""}
-                          onChange={(e) => setLog("arreglo_fecha", e.target.value || null)} />
-                      </div>
+                    <BaptismSectionHead icon={<Sparkles className="h-4 w-4" />} title="Arreglo de espacios" />
+                    {/* Participantes */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground block">Participantes</Label>
+                      {arregloParticipantes.map((name, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <MemberAutocomplete
+                            value={name}
+                            options={memberOptions}
+                            placeholder="Nombre del miembro"
+                            className="h-8 text-sm flex-1"
+                            onChange={(v) => {
+                              const updated = [...arregloParticipantes];
+                              updated[i] = v;
+                              setArregloParticipantes(updated);
+                            }}
+                          />
+                          {arregloParticipantes.length > 1 && (
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-destructive"
+                              onClick={() => setArregloParticipantes(arregloParticipantes.filter((_, j) => j !== i))}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setArregloParticipantes([...arregloParticipantes, ""])}
+                      >
+                        <Plus className="h-3 w-3" /> Añadir persona
+                      </button>
                     </div>
+                    {/* Hora de preparación */}
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
-                      <Textarea className="text-sm min-h-[56px] resize-none" placeholder="Lista de tareas, detalles..."
-                        value={coordDraft.logistics.arreglo_notas ?? ""}
-                        onChange={(e) => setLog("arreglo_notas", e.target.value)} />
+                      <Label className="text-xs text-muted-foreground mb-1 block">Hora de preparación</Label>
+                      <Input type="time" className="h-8 text-sm"
+                        value={coordDraft.logistics.arreglo_hora ?? ""}
+                        onChange={(e) => setLog("arreglo_hora", e.target.value)} />
+                    </div>
+                    {/* Lista de tareas */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground block">Tareas</Label>
+                      {arregloTareas.map((tarea, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setArregloTareasDone((prev) => { const next = [...prev]; next[i] = !next[i]; return next; })}
+                          >
+                            {arregloTareasDone[i]
+                              ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                              : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
+                          </button>
+                          <Input
+                            className={`h-7 text-sm flex-1 ${arregloTareasDone[i] ? "line-through text-muted-foreground" : ""}`}
+                            value={tarea}
+                            onChange={(e) => {
+                              const updated = [...arregloTareas];
+                              updated[i] = e.target.value;
+                              setArregloTareas(updated);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              setArregloTareas(arregloTareas.filter((_, j) => j !== i));
+                              setArregloTareasDone((prev) => prev.filter((_, j) => j !== i));
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => { setArregloTareas([...arregloTareas, ""]); setArregloTareasDone((prev) => [...prev, false]); }}
+                      >
+                        <Plus className="h-3 w-3" /> Añadir tarea
+                      </button>
                     </div>
                   </div>
 
