@@ -1822,7 +1822,6 @@ function PersonaDetailSheet({
         <DialogHeader>
           <DialogTitle className="text-base leading-snug">
             {sesionModal?.principioNombre}
-            <span className="text-muted-foreground font-normal text-sm"> — Sesión {sesionModal?.sesionNum}</span>
           </DialogTitle>
           {sesionModal && (
             <p className="text-xs text-muted-foreground pt-0.5">
