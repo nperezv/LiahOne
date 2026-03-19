@@ -729,7 +729,7 @@ async function getActivePublicLink(slug: string, code?: string) {
  * have fecha_entrevista_bautismal set in mission_personas.
  * Stores candidate names + dates as JSON in the notes field.
  */
-async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Promise<void> {
+export async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Promise<void> {
   try {
     // Find the linked activity
     const [activity] = await db

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
 import { sendBaptismReminderEmail } from "./auth";
+import { syncBaptismInterviewChecklistItem } from "./mission-baptism-routes";
 import { isPushConfigured, sendPushNotification } from "./push-service";
 import {
   organizations,
@@ -1142,6 +1143,18 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           await db.execute(
             sql`UPDATE mission_personas SET fecha_entrevista_bautismal = ${fecha_cumplido ?? null} WHERE id = ${req.params.id}`
           );
+          // Trigger checklist sync for the baptism service linked to this persona
+          const svcRow = await db.execute(
+            sql`SELECT bs.id FROM baptism_services bs
+                JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+                WHERE bsc.persona_id = ${req.params.id} AND bs.status != 'archived'
+                UNION
+                SELECT id FROM baptism_services
+                WHERE candidate_persona_id = ${req.params.id} AND status != 'archived'
+                LIMIT 1`
+          );
+          const svcId = (svcRow.rows[0] as any)?.id;
+          if (svcId) syncBaptismInterviewChecklistItem(svcId).catch((e) => console.error("[compromisos-bautismo PUT] syncInterview error:", e));
         }
 
         // Sync baptism date and trigger service auto-creation when bautizado_confirmado fecha_invitado changes
