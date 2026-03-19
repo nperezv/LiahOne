@@ -2893,7 +2893,7 @@ function BaptismalServiceSheet({
                 <>
                   {/* Entrevista bautismal */}
                   <div className="space-y-3">
-                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" action={(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span title="Se marca automáticamente cuando todos los candidatos completan la entrevista">{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</span> : null; })()} />
+                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" />
                     {serviceCandidates.length > 0 && (
                       <div className="space-y-2">
                         {serviceCandidates.map((c, idx) => (
@@ -2936,18 +2936,9 @@ function BaptismalServiceSheet({
                         ))}
                       </div>
                     )}
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Autoridad entrevistadora</Label>
-                      <Input className="h-8 text-sm" placeholder="Nombre"
-                        value={coordDraft.baptismDetails.entrevista_autoridad ?? ""}
-                        onChange={(e) => setBap("entrevista_autoridad", e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-                      <Textarea className="text-sm min-h-[44px] resize-none"
-                        value={coordDraft.baptismDetails.entrevista_notas ?? ""}
-                        onChange={(e) => setBap("entrevista_notas", e.target.value)} />
-                    </div>
+                    <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Notas (opcional)"
+                      value={coordDraft.baptismDetails.entrevista_notas ?? ""}
+                      onChange={(e) => setBap("entrevista_notas", e.target.value)} />
                   </div>
 
                   {/* Espacio y calendario */}

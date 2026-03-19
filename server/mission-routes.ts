@@ -1340,11 +1340,16 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
                'entrevista_invitado', mcb.fecha_invitado,
                'entrevista_fecha', mp2.fecha_entrevista_bautismal
              ) AS c
-             FROM baptism_service_candidates bsc2
-             JOIN mission_personas mp2 ON mp2.id = bsc2.persona_id
+             FROM (
+               SELECT persona_id FROM baptism_service_candidates WHERE service_id = bs.id
+               UNION
+               SELECT candidate_persona_id FROM baptism_services
+               WHERE id = bs.id AND candidate_persona_id IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM baptism_service_candidates WHERE service_id = bs.id)
+             ) cands
+             JOIN mission_personas mp2 ON mp2.id = cands.persona_id
              LEFT JOIN mission_compromiso_bautismo mcb
-               ON mcb.persona_id = bsc2.persona_id AND mcb.commitment_key = 'entrevista_bautismo'
-             WHERE bsc2.service_id = bs.id
+               ON mcb.persona_id = cands.persona_id AND mcb.commitment_key = 'entrevista_bautismo'
            ) sub) AS candidates,
           (SELECT string_agg(mp2.nombre, ', ' ORDER BY mp2.nombre)
            FROM baptism_service_candidates bsc2
