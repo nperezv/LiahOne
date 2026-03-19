@@ -1110,6 +1110,7 @@ function PersonaDetailSheet({
     sesiones.filter((s) => s.principioId === principioId).length;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto p-0">
         {/* Name + button — sticky only in edit mode */}
@@ -1872,6 +1873,7 @@ function PersonaDetailSheet({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
