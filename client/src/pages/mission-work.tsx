@@ -3023,7 +3023,7 @@ function BaptismalServiceSheet({
 
                   {/* Reserva de ambientes en Calendario */}
                   <div className="space-y-3">
-                    <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Reserva de ambientes en Calendario" action={(() => { const ci = getChkItem("espacio_calendario"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
+                    <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Reserva de ambientes en Calendario" />
                     <div className="flex gap-2">
                       <Button
                         type="button"
