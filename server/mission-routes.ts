@@ -1338,7 +1338,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
                'id', mp2.id,
                'nombre', mp2.nombre,
                'entrevista_invitado', mcb.fecha_invitado,
-               'entrevista_fecha', mp2.fecha_entrevista_bautismal
+               'entrevista_fecha', mcb.fecha_cumplido
              ) AS c
              FROM (
                SELECT persona_id FROM baptism_service_candidates WHERE service_id = bs.id

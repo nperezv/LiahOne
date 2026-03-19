@@ -754,8 +754,7 @@ async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Prom
 
     // Get all candidates from baptism_service_candidates
     const candidatesRow = await db.execute(
-      sql`SELECT bsc.persona_id, mp.nombre, mp.fecha_entrevista_bautismal,
-                 mcb.fecha_invitado
+      sql`SELECT bsc.persona_id, mp.nombre, mcb.fecha_invitado, mcb.fecha_cumplido
           FROM baptism_service_candidates bsc
           JOIN mission_personas mp ON mp.id = bsc.persona_id
           LEFT JOIN mission_compromiso_bautismo mcb
@@ -765,8 +764,8 @@ async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Prom
     let candidates = (candidatesRow.rows as Array<{
       persona_id: string;
       nombre: string;
-      fecha_entrevista_bautismal: string | null;
       fecha_invitado: string | null;
+      fecha_cumplido: string | null;
     }>);
 
     // Fallback: use candidate_persona_id for older records
@@ -777,7 +776,7 @@ async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Prom
       const personaId = (serviceRow.rows[0] as any)?.candidate_persona_id;
       if (!personaId) return;
       const personaRow = await db.execute(
-        sql`SELECT mp.nombre, mp.fecha_entrevista_bautismal, mcb.fecha_invitado
+        sql`SELECT mp.nombre, mcb.fecha_invitado, mcb.fecha_cumplido
             FROM mission_personas mp
             LEFT JOIN mission_compromiso_bautismo mcb
               ON mcb.persona_id = mp.id AND mcb.commitment_key = 'entrevista_bautismo'
@@ -785,19 +784,19 @@ async function syncBaptismInterviewChecklistItem(baptismServiceId: string): Prom
       );
       if (personaRow.rows[0]) {
         const r = personaRow.rows[0] as any;
-        candidates = [{ persona_id: personaId, nombre: r.nombre, fecha_entrevista_bautismal: r.fecha_entrevista_bautismal, fecha_invitado: r.fecha_invitado ?? null }];
+        candidates = [{ persona_id: personaId, nombre: r.nombre, fecha_invitado: r.fecha_invitado ?? null, fecha_cumplido: r.fecha_cumplido ?? null }];
       }
     }
 
     if (candidates.length === 0) return;
 
-    const interviewDone = candidates.every((c) => !!c.fecha_entrevista_bautismal);
+    const interviewDone = candidates.every((c) => !!c.fecha_cumplido);
     const notesJson = JSON.stringify(
       candidates.map((c) => ({
         persona_id: c.persona_id,
         nombre: c.nombre,
         fecha_invitado: c.fecha_invitado ?? null,
-        fecha: c.fecha_entrevista_bautismal ?? null,
+        fecha: c.fecha_cumplido ?? null,
       })),
     );
 
