@@ -1773,6 +1773,16 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     }
   });
 
+  // Convert JS array to PostgreSQL array literal string (e.g. ["a","b"] → '{"a","b"}')
+  // Drizzle's sql template doesn't auto-serialize JS arrays as pg text[].
+  const toDbArr = (val: any): string | null => {
+    if (!val || !Array.isArray(val)) return null;
+    const items = (val as any[]).filter((s) => s != null && String(s).trim() !== "");
+    if (items.length === 0) return null;
+    const escaped = items.map((s) => `"${String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",");
+    return `{${escaped}}`;
+  };
+
   // GET /api/baptisms/services/:id/coordination — fetch logistics + baptism details
   app.get("/api/baptisms/services/:id/coordination", requireAuth, async (req, res) => {
     try {
@@ -1828,15 +1838,15 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             ${id},
             ${logistics.espacio_responsable ?? null}, ${logistics.espacio_fecha ?? null},
             ${logistics.espacio_hora_inicio ?? null}, ${logistics.espacio_hora_fin ?? null},
-            ${logistics.espacio_salas ?? null}, ${logistics.espacio_notas ?? null},
+            CAST(${toDbArr(logistics.espacio_salas)} AS text[]), ${logistics.espacio_notas ?? null},
             ${logistics.espacio_comprobante_url ?? null}, ${logistics.espacio_comprobante_nombre ?? null},
-            ${logistics.arreglo_responsable ?? null}, ${logistics.arreglo_participantes ?? null}, ${logistics.arreglo_hora ?? null},
-            ${logistics.arreglo_tareas ?? null}, ${logistics.arreglo_fecha ?? null}, ${logistics.arreglo_notas ?? null},
+            ${logistics.arreglo_responsable ?? null}, CAST(${toDbArr(logistics.arreglo_participantes)} AS text[]), ${logistics.arreglo_hora ?? null},
+            CAST(${toDbArr(logistics.arreglo_tareas)} AS text[]), ${logistics.arreglo_fecha ?? null}, ${logistics.arreglo_notas ?? null},
             ${logistics.equipo_responsable ?? null}, ${logistics.equipo_lista ?? null},
             ${logistics.equipo_fecha ?? null}, ${logistics.equipo_notas ?? null},
             ${logistics.refrigerio_responsable ?? null}, ${logistics.refrigerio_presupuesto_solicitado ?? false},
             ${logistics.refrigerio_notas ?? null},
-            ${logistics.limpieza_responsable ?? null}, ${logistics.limpieza_tareas ?? null},
+            ${logistics.limpieza_responsable ?? null}, CAST(${toDbArr(logistics.limpieza_tareas)} AS text[]),
             ${logistics.limpieza_fecha ?? null}, ${logistics.limpieza_notas ?? null},
             ${user.id}, NOW()
           )
