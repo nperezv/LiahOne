@@ -729,7 +729,8 @@ async function getActivePublicLink(slug: string, code?: string) {
  * have fecha_entrevista_bautismal set in mission_personas.
  * Stores candidate names + dates as JSON in the notes field.
  */
-export { syncBaptismInterviewChecklistItem } from "./mission-interview-sync";
+import { syncBaptismInterviewChecklistItem } from "./mission-interview-sync";
+export { syncBaptismInterviewChecklistItem };
 
 /**
  * Returns the checklist for the activity linked to a baptism service,
