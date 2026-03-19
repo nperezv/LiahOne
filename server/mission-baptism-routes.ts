@@ -1918,6 +1918,30 @@ export function registerMissionBaptismRoutes(
         .from(baptismProgramItems)
         .where(eq(baptismProgramItems.serviceId, req.params.id))
         .orderBy(baptismProgramItems.order);
+
+      // Auto-mark "programa" checklist item when all program items are filled
+      const allFilled = items.length > 0 && items.every((it) => it.participantDisplayName?.trim());
+      try {
+        const [activity] = await db
+          .select({ id: activities.id })
+          .from(activities)
+          .where(eq(activities.baptismServiceId, req.params.id))
+          .limit(1);
+        if (activity) {
+          await db
+            .update(activityChecklistItems)
+            .set({ completed: allFilled, completedAt: allFilled ? new Date() : null })
+            .where(
+              and(
+                eq(activityChecklistItems.activityId, activity.id),
+                eq(activityChecklistItems.itemKey, "programa"),
+              ),
+            );
+        }
+      } catch (err) {
+        console.error("[program PUT] sync programa checklist item error:", err);
+      }
+
       res.json(updated);
     },
   );

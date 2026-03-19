@@ -2340,6 +2340,7 @@ function BaptismalServiceSheet({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
       setEditMode(false);
       const complete = PROGRAM_ORDER.every((t) => programDraft[t]?.trim());
       if (complete) {
