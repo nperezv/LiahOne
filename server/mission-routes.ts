@@ -1334,9 +1334,16 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         SELECT bs.*,
           (SELECT json_agg(c ORDER BY c->>'nombre')
            FROM (
-             SELECT jsonb_build_object('id', mp2.id, 'nombre', mp2.nombre) AS c
+             SELECT jsonb_build_object(
+               'id', mp2.id,
+               'nombre', mp2.nombre,
+               'entrevista_invitado', mcb.fecha_invitado,
+               'entrevista_fecha', mp2.fecha_entrevista_bautismal
+             ) AS c
              FROM baptism_service_candidates bsc2
              JOIN mission_personas mp2 ON mp2.id = bsc2.persona_id
+             LEFT JOIN mission_compromiso_bautismo mcb
+               ON mcb.persona_id = bsc2.persona_id AND mcb.commitment_key = 'entrevista_bautismo'
              WHERE bsc2.service_id = bs.id
            ) sub) AS candidates,
           (SELECT string_agg(mp2.nombre, ', ' ORDER BY mp2.nombre)

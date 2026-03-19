@@ -2192,7 +2192,7 @@ interface BaptismServiceDetail extends BaptismService {
   approval_comment: string | null;
   program_items: ProgramItem[] | null;
   assignments: any[] | null;
-  candidates: Array<{ id: string; nombre: string }> | null;
+  candidates: Array<{ id: string; nombre: string; entrevista_invitado?: string | null; entrevista_fecha?: string | null }> | null;
 }
 
 const ProgramRow = ({ type, label, children }: { type: string; label?: string; children: React.ReactNode }) => (
@@ -2401,6 +2401,7 @@ function BaptismalServiceSheet({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
       setInterviewConfirm(null);
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -2893,55 +2894,48 @@ function BaptismalServiceSheet({
                   {/* Entrevista bautismal */}
                   <div className="space-y-3">
                     <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" action={(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span title="Se marca automáticamente cuando todos los candidatos completan la entrevista">{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</span> : null; })()} />
-                    {(() => {
-                      const ci = getChkItem("entrevista_bautismal");
-                      if (!ci?.notes) return null;
-                      try {
-                        const candidates: Array<{ persona_id: string; nombre: string; fecha_invitado: string | null; fecha: string | null }> = JSON.parse(ci.notes);
-                        return (
-                          <div className="space-y-2">
-                            {candidates.map((c, idx) => (
-                              <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-medium">{c.nombre}</span>
-                                  {c.fecha ? (
-                                    <span className="text-xs text-green-700 flex items-center gap-1 shrink-0">
-                                      <CheckSquare className="h-3.5 w-3.5" />
-                                      {formatDisplayDate(c.fecha)}
-                                    </span>
-                                  ) : c.fecha_invitado ? (
-                                    <button
-                                      type="button"
-                                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 transition-colors"
-                                      onClick={() => setInterviewConfirm({
-                                        personaId: c.persona_id,
-                                        nombre: c.nombre,
-                                        fechaInvitado: c.fecha_invitado!,
-                                        step: "ask",
-                                        customDate: "",
-                                      })}
-                                    >
-                                      <Square className="h-3.5 w-3.5" />
-                                      Marcar completada
-                                    </button>
-                                  ) : null}
-                                </div>
-                                {!c.fecha && c.fecha_invitado && (
-                                  <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                                    <Clock className="h-3 w-3 shrink-0" />
-                                    <span>Pendiente confirmación con misioneros de tiempo completo</span>
-                                    <span className="ml-auto font-medium whitespace-nowrap">{formatDisplayDate(c.fecha_invitado)}</span>
-                                  </div>
-                                )}
-                                {!c.fecha && !c.fecha_invitado && (
-                                  <p className="text-xs text-muted-foreground">Sin fecha propuesta</p>
-                                )}
+                    {serviceCandidates.length > 0 && (
+                      <div className="space-y-2">
+                        {serviceCandidates.map((c, idx) => (
+                          <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium">{c.nombre}</span>
+                              {c.entrevista_fecha ? (
+                                <span className="text-xs text-green-700 flex items-center gap-1 shrink-0">
+                                  <CheckSquare className="h-3.5 w-3.5" />
+                                  {formatDisplayDate(c.entrevista_fecha)}
+                                </span>
+                              ) : c.entrevista_invitado ? (
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+                                  onClick={() => setInterviewConfirm({
+                                    personaId: c.id,
+                                    nombre: c.nombre,
+                                    fechaInvitado: c.entrevista_invitado!,
+                                    step: "ask",
+                                    customDate: "",
+                                  })}
+                                >
+                                  <Square className="h-3.5 w-3.5" />
+                                  Marcar completada
+                                </button>
+                              ) : null}
+                            </div>
+                            {!c.entrevista_fecha && c.entrevista_invitado && (
+                              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                                <Clock className="h-3 w-3 shrink-0" />
+                                <span>Pendiente confirmación con misioneros de tiempo completo</span>
+                                <span className="ml-auto font-medium whitespace-nowrap">{formatDisplayDate(c.entrevista_invitado)}</span>
                               </div>
-                            ))}
+                            )}
+                            {!c.entrevista_fecha && !c.entrevista_invitado && (
+                              <p className="text-xs text-muted-foreground italic">Sin fecha propuesta aún</p>
+                            )}
                           </div>
-                        );
-                      } catch { return null; }
-                    })()}
+                        ))}
+                      </div>
+                    )}
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1 block">Autoridad entrevistadora</Label>
                       <Input className="h-8 text-sm" placeholder="Nombre"
