@@ -2868,6 +2868,42 @@ function BaptismalServiceSheet({
 
               {!coordQuery.isLoading && (
                 <>
+                  {/* Entrevista bautismal */}
+                  <div className="space-y-3">
+                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" action={(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span title="Se marca automáticamente desde el progreso de la persona">{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</span> : null; })()} />
+                    {(() => {
+                      const ci = getChkItem("entrevista_bautismal");
+                      if (!ci?.notes) return null;
+                      try {
+                        const candidates: Array<{ nombre: string; fecha: string | null }> = JSON.parse(ci.notes);
+                        return (
+                          <div className="space-y-1">
+                            {candidates.map((c, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/40">
+                                <span className="font-medium">{c.nombre}</span>
+                                {c.fecha
+                                  ? <span className="text-xs text-green-700 flex items-center gap-1"><CheckSquare className="h-3 w-3" />{c.fecha}</span>
+                                  : <span className="text-xs text-muted-foreground">Pendiente</span>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      } catch { return null; }
+                    })()}
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Autoridad entrevistadora</Label>
+                      <Input className="h-8 text-sm" placeholder="Nombre"
+                        value={coordDraft.baptismDetails.entrevista_autoridad ?? ""}
+                        onChange={(e) => setBap("entrevista_autoridad", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
+                      <Textarea className="text-sm min-h-[44px] resize-none"
+                        value={coordDraft.baptismDetails.entrevista_notas ?? ""}
+                        onChange={(e) => setBap("entrevista_notas", e.target.value)} />
+                    </div>
+                  </div>
+
                   {/* Espacio y calendario */}
                   <div className="space-y-3">
                     <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Espacio y calendario" action={(() => { const ci = getChkItem("espacio_calendario"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
@@ -3043,43 +3079,6 @@ function BaptismalServiceSheet({
                           <span className="text-xs text-muted-foreground">Confirmada</span>
                         </label>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Entrevista bautismal */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" action={(() => { const ci = getChkItem("entrevista_bautismal"); return ci ? <span title="Se marca automáticamente desde el progreso de la persona">{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</span> : null; })()} />
-                    {/* Candidates with interview dates — read from checklist notes (JSON) */}
-                    {(() => {
-                      const ci = getChkItem("entrevista_bautismal");
-                      if (!ci?.notes) return null;
-                      try {
-                        const candidates: Array<{ nombre: string; fecha: string | null }> = JSON.parse(ci.notes);
-                        return (
-                          <div className="space-y-1">
-                            {candidates.map((c, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/40">
-                                <span className="font-medium">{c.nombre}</span>
-                                {c.fecha
-                                  ? <span className="text-xs text-green-700 flex items-center gap-1"><CheckSquare className="h-3 w-3" />{c.fecha}</span>
-                                  : <span className="text-xs text-muted-foreground">Pendiente</span>}
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      } catch { return null; }
-                    })()}
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Autoridad entrevistadora</Label>
-                      <Input className="h-8 text-sm" placeholder="Nombre"
-                        value={coordDraft.baptismDetails.entrevista_autoridad ?? ""}
-                        onChange={(e) => setBap("entrevista_autoridad", e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-                      <Textarea className="text-sm min-h-[44px] resize-none"
-                        value={coordDraft.baptismDetails.entrevista_notas ?? ""}
-                        onChange={(e) => setBap("entrevista_notas", e.target.value)} />
                     </div>
                   </div>
 
