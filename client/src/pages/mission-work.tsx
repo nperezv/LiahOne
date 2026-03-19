@@ -1193,7 +1193,15 @@ function PersonaDetailSheet({
               <div className="border-t mt-4" />
               {/* Próximos eventos — solo los que tienen fecha, o todos en modo edición */}
               {(() => {
+                const entrevistaCommitment = compromisosBautismo.find((c) => c.commitmentKey === "entrevista_bautismo");
                 const eventos = [
+                  ...(entrevistaCommitment?.fechaInvitado ? [{
+                    key: "entrevista",
+                    label: "Entrevista bautismal",
+                    icon: <UserCheck className="h-3.5 w-3.5" />,
+                    fecha: entrevistaCommitment.fechaInvitado,
+                    editEl: null,
+                  }] : []),
                   {
                     key: "visita",
                     label: "Visita de los misioneros",
