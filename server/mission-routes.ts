@@ -1149,6 +1149,13 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             )
           );
 
+        // Sync interview date to mission_personas when the entrevista_bautismo commitment changes
+        if (req.params.key === "entrevista_bautismo" && fecha_cumplido !== undefined) {
+          await db.execute(
+            sql`UPDATE mission_personas SET fecha_entrevista_bautismal = ${fecha_cumplido ?? null} WHERE id = ${req.params.id}`
+          );
+        }
+
         return res.json({ success: true });
       } catch (err) {
         if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });

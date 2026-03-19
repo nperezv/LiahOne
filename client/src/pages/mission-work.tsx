@@ -1195,17 +1195,6 @@ function PersonaDetailSheet({
               {(() => {
                 const eventos = [
                   {
-                    key: "entrevista",
-                    label: "Entrevista Bautismal",
-                    icon: <UserCheck className="h-3.5 w-3.5" />,
-                    fecha: persona.fechaEntrevistaBautismal,
-                    editEl: (
-                      <Input type="date" value={fechaEntrevistaVal}
-                        onChange={(e) => { setFechaEntrevistaVal(e.target.value); fechaEntrevistaMutation.mutate(e.target.value || null); }}
-                        className="h-7 text-sm w-40 mt-1" />
-                    ),
-                  },
-                  {
                     key: "visita",
                     label: "Visita de los misioneros",
                     icon: <CalendarCheck className="h-3.5 w-3.5" />,
