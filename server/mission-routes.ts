@@ -34,6 +34,37 @@ const MISSION_ROLES = new Set([
   "consejero_obispo",
 ]);
 
+// Returns the unit ID to use for mission queries.
+// MISSION_ROLES users may be assigned to a "barrio" org, but mission personas
+// are stored with the obispado org ID. We normalise to the obispado ID.
+async function getMissionUnitId(user: any): Promise<string | null> {
+  if (!user.organizationId) {
+    // No org assigned – fall back to the obispado org
+    const [ob] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.type, "obispado" as any))
+      .limit(1);
+    return ob?.id ?? null;
+  }
+  const [org] = await db
+    .select({ type: organizations.type })
+    .from(organizations)
+    .where(eq(organizations.id, user.organizationId))
+    .limit(1);
+  if (!org) return null;
+  // Barrio org is a satellite; personas live under the obispado unit
+  if (org.type === "barrio") {
+    const [ob] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.type, "obispado" as any))
+      .limit(1);
+    return ob?.id ?? null;
+  }
+  return user.organizationId;
+}
+
 async function canAccessMission(user: any): Promise<boolean> {
   if (!user) return false;
   if (MISSION_ROLES.has(user.role)) return true;
@@ -145,7 +176,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         return res.status(400).json({ message: "tipo inválido" });
       }
 
-      const unitId = user.unitId || user.organizationId;
+      const unitId = await getMissionUnitId(user);
       if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
 
       const rows = await db
@@ -210,7 +241,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
 
-      const unitId = user.unitId || user.organizationId;
+      const unitId = await getMissionUnitId(user);
       if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
 
       // Nearest past Sunday (or today if Sunday) = attendance start date
@@ -479,12 +510,15 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       // Auto-create/join draft baptism service when fechaBautismo is set
       if (data.fechaBautismo && updated.tipo === "enseñando") {
-        autoLinkBaptismService({
-          personaId: req.params.id,
-          personaNombre: updated.nombre,
-          fechaBautismo: data.fechaBautismo,
-          unitId: user.organizationId,
-          userId: user.id,
+        getMissionUnitId(user).then((resolvedUnitId) => {
+          if (!resolvedUnitId) return;
+          autoLinkBaptismService({
+            personaId: req.params.id,
+            personaNombre: updated.nombre,
+            fechaBautismo: data.fechaBautismo!,
+            unitId: resolvedUnitId,
+            userId: user.id,
+          });
         }).catch((autoErr) => console.error("[mission/personas/:id PUT] autoLinkBaptismService error:", autoErr));
       }
 
@@ -1168,12 +1202,15 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             );
             const persona = personaRow.rows[0] as any;
             if (persona?.tipo === "enseñando") {
-              autoLinkBaptismService({
-                personaId: req.params.id,
-                personaNombre: persona.nombre,
-                fechaBautismo: fecha_invitado,
-                unitId: user.organizationId,
-                userId: user.id,
+              getMissionUnitId(user).then((resolvedUnitId) => {
+                if (!resolvedUnitId) return;
+                autoLinkBaptismService({
+                  personaId: req.params.id,
+                  personaNombre: persona.nombre,
+                  fechaBautismo: fecha_invitado,
+                  unitId: resolvedUnitId,
+                  userId: user.id,
+                });
               }).catch((err) => console.error("[compromisos-bautismo PUT] autoLinkBaptismService error:", err));
             }
           }
@@ -1287,6 +1324,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const result = await db.execute(sql`
         SELECT bs.*,
           json_agg(json_build_object('id', mp.id, 'nombre', mp.nombre) ORDER BY mp.nombre) AS candidates,
@@ -1294,7 +1333,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         FROM baptism_services bs
         JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
         JOIN mission_personas mp ON mp.id = bsc.persona_id
-        WHERE bs.unit_id = ${user.organizationId}
+        WHERE bs.unit_id = ${unitId}
           AND bs.status != 'archived'
         GROUP BY bs.id
         ORDER BY bs.service_at ASC
@@ -1343,6 +1382,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const result = await db.execute(sql`
         SELECT bs.*,
           (SELECT json_agg(c ORDER BY c->>'nombre')
@@ -1374,7 +1415,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
            FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
         FROM baptism_services bs
         WHERE bs.id = ${req.params.id}
-          AND bs.unit_id = ${user.organizationId}
+          AND bs.unit_id = ${unitId}
       `);
       if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
       return res.json(result.rows[0]);
@@ -1419,6 +1460,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const schema = z.object({
         locationName: z.string().min(1).optional(),
         locationAddress: z.string().nullable().optional(),
@@ -1463,7 +1506,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       await db.execute(sql`
         UPDATE baptism_services
         SET ${sql.raw(sets.join(", "))}
-        WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+        WHERE id = ${req.params.id} AND unit_id = ${unitId}
       `);
       const result = await db.execute(sql`SELECT * FROM baptism_services WHERE id = ${req.params.id}`);
       return res.json(result.rows[0]);
@@ -1543,12 +1586,14 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
 
       const items: Array<{ type: string; participantDisplayName?: string | null }> = req.body.items ?? [];
       if (!Array.isArray(items)) return res.status(400).json({ message: "items debe ser un array" });
 
       const svcCheck = await db.execute(sql`
-        SELECT id FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+        SELECT id FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${unitId}
       `);
       if (!svcCheck.rows.length) return res.status(404).json({ message: "Servicio no encontrado" });
 
@@ -1734,10 +1779,12 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
 
       const svcResult = await db.execute(sql`
         SELECT id, location_name, approval_status, unit_id
-        FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+        FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${unitId}
       `);
       if (!svcResult.rows.length) return res.status(404).json({ message: "Servicio no encontrado" });
       const service = svcResult.rows[0] as any;
@@ -1755,7 +1802,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       const bishops = await db
         .select({ id: users.id })
         .from(users)
-        .where(and(eq(users.organizationId, user.organizationId), eq(users.role, "obispo" as any)));
+        .where(and(eq(users.organizationId, unitId), eq(users.role, "obispo" as any)));
 
       for (const bishop of bishops) {
         await db.insert(notifications).values({
@@ -1788,8 +1835,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       const { id } = req.params;
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const svcCheck = await db.execute(sql`
-        SELECT id FROM baptism_services WHERE id = ${id} AND unit_id = ${user.organizationId}
+        SELECT id FROM baptism_services WHERE id = ${id} AND unit_id = ${unitId}
       `);
       if (!svcCheck.rows.length) return res.status(404).json({ message: "No encontrado" });
 
@@ -1812,8 +1861,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     try {
       const user = (req as any).user;
       const { id } = req.params;
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const svcCheck = await db.execute(sql`
-        SELECT id FROM baptism_services WHERE id = ${id} AND unit_id = ${user.organizationId}
+        SELECT id FROM baptism_services WHERE id = ${id} AND unit_id = ${unitId}
       `);
       if (!svcCheck.rows.length) return res.status(404).json({ message: "No encontrado" });
 
