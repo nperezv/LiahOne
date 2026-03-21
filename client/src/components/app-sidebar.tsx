@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart } from "lucide-react";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -197,6 +197,12 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Asignaciones",
     url: "/assignments",
     icon: CheckSquare,
+  },
+  {
+    title: "Logística de actividades",
+    url: "/activity-logistics",
+    icon: ClipboardList,
+    roles: ["lider_actividades", "technology_specialist", "obispo", "consejero_obispo"],
   },
   {
     title: "Configuración",

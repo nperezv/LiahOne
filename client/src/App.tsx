@@ -57,6 +57,7 @@ const InventoryLocationDetailPage = lazy(() => import("@/pages/inventory-locatio
 const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
 const MissionWorkPage = lazy(() => import("@/pages/mission-work"));
 const BaptismPublicPage = lazy(() => import("@/pages/baptism-public"));
+const ActivityLogisticsPage = lazy(() => import("@/pages/activity-logistics"));
 
 function RouteLoadingFallback() {
   return (
@@ -202,6 +203,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/mission-work">
           <MissionWorkPage />
+        </Route>
+        <Route path="/activity-logistics">
+          <ActivityLogisticsPage />
         </Route>
         <Route path="/:rest*">
           <Redirect to="/dashboard" />
