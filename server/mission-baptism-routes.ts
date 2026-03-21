@@ -59,6 +59,7 @@ import {
   missionTemplateItems,
   missionTrackTemplates,
   notifications,
+  serviceTasks,
   users,
   organizations,
 } from "@shared/schema";
@@ -1706,6 +1707,59 @@ export function registerMissionBaptismRoutes(
           message: `El Obispo aprobó el servicio en ${service.locationName}. El enlace se activará el día del bautismo.`,
           type: "reminder",
         });
+
+      // Create a service_task for the lider_actividades
+      try {
+        // Fetch candidate name
+        let candidateName = service.locationName;
+        if (service.candidateContactId) {
+          const [contact] = await db
+            .select({ fullName: missionContacts.fullName })
+            .from(missionContacts)
+            .where(eq(missionContacts.id, service.candidateContactId))
+            .limit(1);
+          if (contact) candidateName = contact.fullName;
+        }
+
+        // Format service date as DD/MM/YYYY
+        const svcDate = new Date(service.serviceAt);
+        const dd = String(svcDate.getUTCDate()).padStart(2, "0");
+        const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
+        const yyyy = svcDate.getUTCFullYear();
+        const serviceDateStr = `${dd}/${mm}/${yyyy}`;
+
+        // Find lider_actividades in a barrio org
+        const [liderActividades] = await db
+          .select({ id: users.id, organizationId: users.organizationId })
+          .from(users)
+          .innerJoin(organizations, eq(organizations.id, users.organizationId))
+          .where(
+            and(
+              eq(users.role, "lider_actividades"),
+              eq(organizations.type, "barrio"),
+            ),
+          )
+          .limit(1);
+
+        if (liderActividades) {
+          await db.insert(serviceTasks).values({
+            baptismServiceId: service.id,
+            assignedTo: liderActividades.id,
+            assignedRole: "lider_actividades",
+            organizationId: liderActividades.organizationId,
+            title: `Servicio Bautismal — Coordinación logística: ${candidateName}`,
+            description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}`,
+            status: "pending",
+            createdBy: user.id,
+          });
+        } else {
+          console.warn("[approve] No lider_actividades found in barrio org; skipping service_task creation");
+        }
+      } catch (taskErr) {
+        console.error("[approve] Failed to create service_task:", taskErr);
+        // Do not fail the approval
+      }
+
       res.json(updated);
     },
   );
