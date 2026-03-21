@@ -2510,42 +2510,10 @@ function BaptismalServiceSheet({
     }));
   };
 
-  // Accordion open state — initialized from server data ONCE on first load
+  // Accordion open state — fully user-controlled, starts collapsed
   const [coordOpenSections, setCoordOpenSections] = React.useState<string[]>([]);
-  const coordSectionsInitialized = React.useRef(false);
-  React.useEffect(() => { coordSectionsInitialized.current = false; }, [service?.id]);
   const [arregloBudgetOpen, setArregloBudgetOpen] = React.useState(false);
   const [refrigerioBudgetOpen, setRefrigeriBudgetOpen] = React.useState(false);
-  React.useEffect(() => {
-    if (!coordQuery.data || coordSectionsInitialized.current) return;
-    coordSectionsInitialized.current = true;
-    const { logistics = {}, baptismDetails = {} } = coordQuery.data;
-    const candidates = detail?.candidates ?? [];
-    const tasks: ArregloTask[] = logistics.arreglo_tasks
-      ?? (logistics.arreglo_participantes?.length
-          ? (logistics.arreglo_participantes as string[]).map((p: string) => ({ persona: p, asignacion: "", hora: logistics.arreglo_hora ?? "" }))
-          : []);
-    const necPres = !!logistics.arreglo_necesita_presupuesto;
-    const presSol = !!logistics.arreglo_presupuesto_solicitado;
-    const arregloOpen = tasks.some((t: any) => t.persona?.trim()) && (!necPres || presSol);
-    const refNecPres = !!logistics.refrigerio_necesita_presupuesto;
-    const refPresSol = !!logistics.refrigerio_presupuesto_solicitado;
-    const refResps: string[] = (logistics.refrigerio_responsables as string[] | null)?.length
-      ? (logistics.refrigerio_responsables as string[])
-      : logistics.refrigerio_responsable ? [logistics.refrigerio_responsable] : [];
-    const refrigerioOpen = refResps.some((r: string) => r.trim()) &&
-      !!(logistics.refrigerio_detalle as string | null)?.trim() &&
-      (!refNecPres || refPresSol);
-    setCoordOpenSections([
-      (candidates.length === 0 ? !!baptismDetails.entrevista_notas?.trim() : candidates.every((c: any) => !!c.entrevista_fecha)) ? "entrevista" : null,
-      logistics.espacio_comprobante_url ? "reserva" : null,
-      arregloOpen ? "arreglo" : null,
-      logistics.equipo_responsable?.trim() ? "equipo" : null,
-      refrigerioOpen ? "refrigerio" : null,
-      logistics.limpieza_responsable?.trim() ? "limpieza" : null,
-      baptismDetails.ropa_responsable?.trim() ? "ropa" : null,
-    ].filter(Boolean) as string[]);
-  }, [coordQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleChecklistItemMutation = useMutation({
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
