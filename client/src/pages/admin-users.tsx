@@ -636,7 +636,7 @@ export default function AdminUsersPage() {
       "Maestro",
       "Maestra",
     ],
-    jas: ["Líder"],
+    jas: ["Líder de JAS"],
     as: ["Líder de AS"],
     barrio: [
       "Director de música del barrio",
