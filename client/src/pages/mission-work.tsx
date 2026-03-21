@@ -2718,6 +2718,16 @@ function BaptismalServiceSheet({
           {/* ── PASO 1: AGENDA ── */}
           {activeTab === "agenda" && (
             <div className="space-y-6">
+              {/* Progress bar */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{programComplete ? 1 : 0} de 1 listo</span>
+                  {programComplete && <span className="text-green-600 font-medium">Completo</span>}
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-green-500 transition-all" style={{ width: programComplete ? "100%" : "0%" }} />
+                </div>
+              </div>
               {editMode && (
                 <div>
                   <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Información del servicio" />
@@ -2925,72 +2935,39 @@ function BaptismalServiceSheet({
                     </div>
                   </div>
 
-                  {/* Automáticos (first 4) */}
-                  {(checklistData.items ?? []).slice(0, 4).length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Automáticos</p>
-                      <div className="space-y-1">
-                        {(checklistData.items ?? []).slice(0, 4).map((item: any) => {
-                          const itemKey = item.itemKey ?? item.item_key;
-                          const isAuto = itemKey === "entrevista_bautismal";
-                          let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
-                          if (isAuto && item.notes) {
-                            try { candidates = JSON.parse(item.notes); } catch { /* ignore */ }
-                          }
-                          return (
-                            <div key={item.id}>
-                              <button
-                                type="button"
-                                disabled={true}
-                                className="w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left cursor-default"
-                              >
-                                {item.completed
-                                  ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                                  : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                                <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                                <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
-                              </button>
-                              {candidates && candidates.length > 0 && (
-                                <div className="ml-6 space-y-0.5 pb-1">
-                                  {candidates.map((c, idx) => (
-                                    <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                                      <span>{c.nombre}</span>
-                                      {c.fecha
-                                        ? <span className="text-green-700">{c.fecha}</span>
-                                        : <span className="italic">Pendiente</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Coordinación manual (rest) */}
-                  {(checklistData.items ?? []).slice(4).length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Coordinación manual</p>
-                      <div className="space-y-1">
-                        {(checklistData.items ?? []).slice(4).map((item: any) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            disabled={toggleChecklistItemMutation.isPending}
-                            onClick={() => toggleChecklistItemMutation.mutate({ itemId: item.id, completed: !item.completed })}
-                            className="w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left transition-colors cursor-pointer hover:bg-muted/50"
-                          >
+                  {/* All checklist items — read-only, auto-driven */}
+                  <div className="space-y-1">
+                    {(checklistData.items ?? []).map((item: any) => {
+                      const itemKey = item.itemKey ?? item.item_key;
+                      const isEntrevista = itemKey === "entrevista_bautismal";
+                      let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
+                      if (isEntrevista && item.notes) {
+                        try { candidates = JSON.parse(item.notes); } catch { /* ignore */ }
+                      }
+                      return (
+                        <div key={item.id}>
+                          <div className="w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded">
                             {item.completed
                               ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
                               : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
                             <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                          </div>
+                          {candidates && candidates.length > 0 && (
+                            <div className="ml-6 space-y-0.5 pb-1">
+                              {candidates.map((c, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                                  <span>{c.nombre}</span>
+                                  {c.fecha
+                                    ? <span className="text-green-700">{c.fecha}</span>
+                                    : <span className="italic">Pendiente</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
 
                   {programComplete && checklistComplete && (
                     <Button className="w-full mt-2" onClick={() => setActiveTab("aprobacion")}>
@@ -3278,7 +3255,7 @@ function BaptismalServiceSheet({
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm font-medium">Arreglo de espacios</span>
+                            <span className="text-sm font-medium">Arreglo y preparación</span>
                             <span className="ml-auto mr-2">{dot(secArreglo)}</span>
                           </div>
                         </AccordionTrigger>
