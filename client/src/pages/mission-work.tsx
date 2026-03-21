@@ -2510,12 +2510,15 @@ function BaptismalServiceSheet({
     }));
   };
 
-  // Accordion open state — initialized from server data when it loads
+  // Accordion open state — initialized from server data ONCE on first load
   const [coordOpenSections, setCoordOpenSections] = React.useState<string[]>([]);
+  const coordSectionsInitialized = React.useRef(false);
+  React.useEffect(() => { coordSectionsInitialized.current = false; }, [service?.id]);
   const [arregloBudgetOpen, setArregloBudgetOpen] = React.useState(false);
   const [refrigerioBudgetOpen, setRefrigeriBudgetOpen] = React.useState(false);
   React.useEffect(() => {
-    if (!coordQuery.data) return;
+    if (!coordQuery.data || coordSectionsInitialized.current) return;
+    coordSectionsInitialized.current = true;
     const { logistics = {}, baptismDetails = {} } = coordQuery.data;
     const candidates = detail?.candidates ?? [];
     const tasks: ArregloTask[] = logistics.arreglo_tasks
@@ -3153,8 +3156,10 @@ function BaptismalServiceSheet({
                 const allCoordComplete = coordSectionsComplete === 7;
 
                 const dot = (done: boolean) => (
-                  <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-primary" : "bg-muted-foreground/30"}`} />
                 );
+                const accordionItemClass = (done: boolean) =>
+                  `border rounded-lg px-3 border-b-0 transition-colors ${done ? "border-primary/40 bg-primary/5" : ""}`;
 
                 return (
                   <>
@@ -3180,7 +3185,7 @@ function BaptismalServiceSheet({
                       className="space-y-1"
                     >
                       {/* Entrevista bautismal */}
-                      <AccordionItem value="entrevista" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="entrevista" className={accordionItemClass(secEntrevista)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Mic2 className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3255,7 +3260,7 @@ function BaptismalServiceSheet({
                       </AccordionItem>
 
                       {/* Reserva de ambientes */}
-                      <AccordionItem value="reserva" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="reserva" className={accordionItemClass(secReserva)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3319,7 +3324,7 @@ function BaptismalServiceSheet({
                       </AccordionItem>
 
                       {/* Arreglo y preparación */}
-                      <AccordionItem value="arreglo" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="arreglo" className={accordionItemClass(secArreglo)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3425,7 +3430,7 @@ function BaptismalServiceSheet({
                       </AccordionItem>
 
                       {/* Equipo y tecnología */}
-                      <AccordionItem value="equipo" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="equipo" className={accordionItemClass(secEquipo)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Tv2 className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3460,7 +3465,7 @@ function BaptismalServiceSheet({
                       </AccordionItem>
 
                       {/* Refrigerio */}
-                      <AccordionItem value="refrigerio" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="refrigerio" className={accordionItemClass(secRefrigerio)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Utensils className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3543,7 +3548,7 @@ function BaptismalServiceSheet({
                       </AccordionItem>
 
                       {/* Limpieza */}
-                      <AccordionItem value="limpieza" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="limpieza" className={accordionItemClass(secLimpieza)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3578,7 +3583,7 @@ function BaptismalServiceSheet({
                       </AccordionItem>
 
                       {/* Ropa bautismal */}
-                      <AccordionItem value="ropa" className="border rounded-lg px-3 border-b-0">
+                      <AccordionItem value="ropa" className={accordionItemClass(secRopa)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Shirt className="h-4 w-4 text-muted-foreground shrink-0" />
