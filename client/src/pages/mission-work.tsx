@@ -2649,7 +2649,7 @@ function BaptismalServiceSheet({
   const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
 
   // Obispo can navigate freely; others need previous step done
-  const stepAprobacionLocked = !isObispo && !checklistComplete;
+  const stepAprobacionLocked = !isObispo && !(programComplete && checklistComplete);
 
   return (
     <>
@@ -3002,8 +3002,13 @@ function BaptismalServiceSheet({
                   </div>
 
                   {programComplete && checklistComplete && (
-                    <Button className="w-full mt-2" onClick={() => setActiveTab("aprobacion")}>
-                      Enviar al obispo para aprobación →
+                    <Button
+                      className="w-full mt-2"
+                      onClick={() => submitForApprovalMutation.mutate(undefined, {
+                        onSuccess: () => { onOpenChange(false); toast({ title: "Solicitud enviada al obispado" }); },
+                      })}
+                      disabled={submitForApprovalMutation.isPending}>
+                      {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo para aprobación"}
                     </Button>
                   )}
                 </>
@@ -3023,26 +3028,11 @@ function BaptismalServiceSheet({
               {!isObispo && (
                 <div className="space-y-3">
                   {approvalBadge()}
-                  {(liveService?.approval_status === "draft" || liveService?.approval_status === "needs_revision") && (
-                    <>
-                      {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
-                        <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-2">
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                          <span>{liveService.approval_comment}</span>
-                        </div>
-                      )}
-                      <p className="text-sm text-muted-foreground">
-                        La agenda y el checklist están completos. Envía la solicitud al obispo para que apruebe el servicio bautismal.
-                      </p>
-                      <Button
-                        className="w-full"
-                        onClick={() => submitForApprovalMutation.mutate(undefined, {
-                          onSuccess: () => { onOpenChange(false); toast({ title: "Solicitud enviada al obispado" }); },
-                        })}
-                        disabled={submitForApprovalMutation.isPending}>
-                        {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo para aprobación"}
-                      </Button>
-                    </>
+                  {liveService?.approval_status === "needs_revision" && liveService?.approval_comment && (
+                    <div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 rounded px-2.5 py-2">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{liveService.approval_comment}</span>
+                    </div>
                   )}
                   {liveService?.approval_status === "pending_approval" && (
                     <p className="text-sm text-muted-foreground">Solicitud enviada. En espera de respuesta del obispado.</p>
