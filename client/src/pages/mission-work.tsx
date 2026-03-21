@@ -2238,9 +2238,9 @@ function BaptismalServiceSheet({
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
   const isLiderActividades = userRole === "lider_actividades";
-  // Obispo/consejero see everything; otherwise role-based sections
   const showMisionSections = isObispo || isMissionLeader;
-  const showLogisticsSections = isObispo || isLiderActividades;
+  const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
+  const showLogisticsStatus = isObispo || isMissionLeader; // others see a status card
 
   // Data hooks
   const { data: members = [] } = useMembers();
@@ -2371,6 +2371,16 @@ function BaptismalServiceSheet({
     queryKey: ["/api/baptisms/services", service?.id, "checklist"],
     queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/activity-checklist`),
     enabled: open && !!service?.id,
+  });
+
+  // Fetch service task for logistics status (used by obispo + mission leader)
+  const serviceTaskQuery = useQuery<{ id: string; status: string; assigned_to: string; assignedUserName?: string } | null>({
+    queryKey: ["/api/service-tasks", service?.id],
+    queryFn: async () => {
+      const tasks = await missionFetch(`/api/service-tasks`);
+      return (tasks as any[]).find((t: any) => t.baptism_service_id === service?.id) ?? null;
+    },
+    enabled: open && !!service?.id && showLogisticsStatus,
   });
 
   type CoordData = { logistics: Record<string, any>; baptismDetails: Record<string, any> };
@@ -3591,6 +3601,33 @@ function BaptismalServiceSheet({
                           </div>
                         </AccordionContent>
                       </AccordionItem>}
+
+                      {/* Logistics status card — obispo + líder misional */}
+                      {showLogisticsStatus && (() => {
+                        const task = serviceTaskQuery.data;
+                        const statusLabel = task?.status === "completed" ? "Completado"
+                          : task?.status === "in_progress" ? "En progreso"
+                          : task ? "Pendiente" : "Sin asignar";
+                        const statusColor = task?.status === "completed" ? "bg-green-500"
+                          : task?.status === "in_progress" ? "bg-primary"
+                          : "bg-muted-foreground/30";
+                        return (
+                          <div className={`border rounded-lg px-3 py-3 transition-colors ${task?.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`h-2 w-2 rounded-full shrink-0 ${statusColor}`} />
+                              <span className="text-sm font-medium flex-1">Logística de coordinación</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                task?.status === "completed" ? "bg-green-100 text-green-700"
+                                : task?.status === "in_progress" ? "bg-primary/10 text-primary"
+                                : "bg-muted text-muted-foreground"
+                              }`}>{statusLabel}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5 pl-4">
+                              Reserva de ambientes, arreglo y preparación, equipo, refrigerio y limpieza — a cargo del líder de actividades
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </Accordion>
 
                     {/* Smart save button */}
@@ -3601,7 +3638,7 @@ function BaptismalServiceSheet({
                           if (allCoordComplete) {
                             setActiveTab("checklist");
                           } else {
-                            const pending = 7 - coordSectionsComplete;
+                            const pending = totalSections - coordSectionsComplete;
                             toast({
                               title: "Coordinación guardada",
                               description: `${pending} sección${pending !== 1 ? "es" : ""} pendiente${pending !== 1 ? "s" : ""}`,
