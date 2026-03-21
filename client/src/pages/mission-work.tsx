@@ -2600,16 +2600,8 @@ function BaptismalServiceSheet({
   const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
 
   // Obispo can navigate freely; others need previous step done
-  const stepCoordLocked = !isObispo && !programComplete;
   const stepChecklistLocked = !isObispo && !programComplete;
   const stepAprobacionLocked = !isObispo && !checklistComplete;
-
-  const STEPS = [
-    { key: "agenda" as const, label: "Programa", locked: false, done: programComplete },
-    { key: "coordinacion" as const, label: "Coordinación", locked: stepCoordLocked, done: false },
-    { key: "checklist" as const, label: "Checklist", locked: stepChecklistLocked, done: checklistComplete },
-    { key: "aprobacion" as const, label: "Aprobación", locked: stepAprobacionLocked, done: liveService?.approval_status === "approved" },
-  ];
 
   return (
     <>
@@ -2628,31 +2620,80 @@ function BaptismalServiceSheet({
             </div>
           </div>
 
-          {/* Stepper */}
-          <div className="flex items-stretch">
-            {STEPS.map((step, idx) => {
-              const isActive = activeTab === step.key;
-              const canClick = !step.locked;
+          {/* Stepper: [Programa | Coordinación] → [Resumen] → [Aprobación] */}
+          <div className="flex items-stretch gap-1">
+            {/* Row 1: Programa + Coordinación (always accessible, side by side) */}
+            {(["agenda", "coordinacion"] as const).map((key, idx) => {
+              const label = key === "agenda" ? "Programa" : "Coordinación";
+              const done = key === "agenda" ? programComplete : false;
+              const isActive = activeTab === key;
               return (
                 <button
-                  key={step.key}
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTab(key)}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center cursor-pointer hover:bg-muted/40
+                    ${isActive ? "border-primary" : "border-transparent"}`}
+                >
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
+                    ${done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                  </div>
+                  <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Resumen (locked until Programa complete) */}
+            {(() => {
+              const isActive = activeTab === "checklist";
+              const canClick = !stepChecklistLocked;
+              return (
+                <button
                   type="button"
                   disabled={!canClick}
-                  onClick={() => canClick && setActiveTab(step.key)}
+                  onClick={() => canClick && setActiveTab("checklist")}
                   className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center
                     ${isActive ? "border-primary" : "border-transparent"}
                     ${!canClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
                 >
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
-                    ${step.done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {step.done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                    ${checklistComplete ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    {checklistComplete ? <Check className="h-3.5 w-3.5" /> : 3}
                   </div>
                   <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                    {step.label}
+                    Resumen
                   </span>
                 </button>
               );
-            })}
+            })()}
+
+            {/* Aprobación (locked until Resumen complete) */}
+            {(() => {
+              const isActive = activeTab === "aprobacion";
+              const canClick = !stepAprobacionLocked;
+              const done = liveService?.approval_status === "approved";
+              return (
+                <button
+                  type="button"
+                  disabled={!canClick}
+                  onClick={() => canClick && setActiveTab("aprobacion")}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center
+                    ${isActive ? "border-primary" : "border-transparent"}
+                    ${!canClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
+                >
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
+                    ${done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    {done ? <Check className="h-3.5 w-3.5" /> : 4}
+                  </div>
+                  <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                    Aprobación
+                  </span>
+                </button>
+              );
+            })()}
           </div>
         </div>
 
