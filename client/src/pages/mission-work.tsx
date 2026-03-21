@@ -2470,7 +2470,14 @@ function BaptismalServiceSheet({
 
   // New task-card model for arreglo
   type ArregloTask = { persona: string; asignacion: string; hora: string };
-  const arregloTasks: ArregloTask[] = coordDraft.logistics.arreglo_tasks ?? [{ persona: "", asignacion: "", hora: "" }];
+  const arregloTasks: ArregloTask[] = coordDraft.logistics.arreglo_tasks
+    ?? (coordDraft.logistics.arreglo_participantes?.length
+        ? (coordDraft.logistics.arreglo_participantes as string[]).map((p) => ({
+            persona: p,
+            asignacion: "",
+            hora: coordDraft.logistics.arreglo_hora ?? "",
+          }))
+        : [{ persona: "", asignacion: "", hora: "" }]);
   const setArregloTasks = (tasks: ArregloTask[]) => {
     setCoordDraft((d) => ({
       ...d,
@@ -2493,7 +2500,10 @@ function BaptismalServiceSheet({
     if (!coordQuery.data) return;
     const { logistics = {}, baptismDetails = {} } = coordQuery.data;
     const candidates = detail?.candidates ?? [];
-    const tasks: ArregloTask[] = logistics.arreglo_tasks ?? [];
+    const tasks: ArregloTask[] = logistics.arreglo_tasks
+      ?? (logistics.arreglo_participantes?.length
+          ? (logistics.arreglo_participantes as string[]).map((p: string) => ({ persona: p, asignacion: "", hora: logistics.arreglo_hora ?? "" }))
+          : []);
     const necPres = !!logistics.arreglo_necesita_presupuesto;
     const presSol = !!logistics.arreglo_presupuesto_solicitado;
     const arregloOpen = tasks.some((t: any) => t.persona?.trim()) && (!necPres || presSol);
