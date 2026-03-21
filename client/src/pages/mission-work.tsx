@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { BudgetRequestDialog } from "@/components/budget-request-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   User2,
@@ -2469,6 +2470,8 @@ function BaptismalServiceSheet({
 
   // Accordion open state — initialized from server data when it loads
   const [coordOpenSections, setCoordOpenSections] = React.useState<string[]>([]);
+  const [arregloBudgetOpen, setArregloBudgetOpen] = React.useState(false);
+  const [refrigerioBudgetOpen, setRefrigeriBudgetOpen] = React.useState(false);
   React.useEffect(() => {
     if (!coordQuery.data) return;
     const { logistics = {}, baptismDetails = {} } = coordQuery.data;
@@ -3342,6 +3345,25 @@ function BaptismalServiceSheet({
                                 <Plus className="h-3 w-3" /> Añadir tarea
                               </button>
                             </div>
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Switch
+                                  checked={!!coordDraft.logistics.arreglo_necesita_presupuesto}
+                                  onCheckedChange={(v) => setLog("arreglo_necesita_presupuesto", v)} />
+                                <span className="text-xs text-muted-foreground">Necesita solicitar presupuesto</span>
+                              </label>
+                              {coordDraft.logistics.arreglo_necesita_presupuesto && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={() => setArregloBudgetOpen(true)}
+                                >
+                                  Solicitar presupuesto
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </AccordionContent>
                       </AccordionItem>
@@ -3402,9 +3424,9 @@ function BaptismalServiceSheet({
                               <div className="flex items-end pb-0.5">
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <Switch
-                                    checked={!!coordDraft.logistics.refrigerio_presupuesto_solicitado}
-                                    onCheckedChange={(v) => setLog("refrigerio_presupuesto_solicitado", v)} />
-                                  <span className="text-xs text-muted-foreground">Presupuesto solicitado</span>
+                                    checked={!!coordDraft.logistics.refrigerio_necesita_presupuesto}
+                                    onCheckedChange={(v) => setLog("refrigerio_necesita_presupuesto", v)} />
+                                  <span className="text-xs text-muted-foreground">Necesita solicitar presupuesto</span>
                                 </label>
                               </div>
                             </div>
@@ -3414,6 +3436,17 @@ function BaptismalServiceSheet({
                                 value={coordDraft.logistics.refrigerio_notas ?? ""}
                                 onChange={(e) => setLog("refrigerio_notas", e.target.value)} />
                             </div>
+                            {coordDraft.logistics.refrigerio_necesita_presupuesto && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => setRefrigeriBudgetOpen(true)}
+                              >
+                                Solicitar presupuesto
+                              </Button>
+                            )}
                           </div>
                         </AccordionContent>
                       </AccordionItem>
@@ -3535,6 +3568,18 @@ function BaptismalServiceSheet({
         </div>
       </SheetContent>
     </Sheet>
+
+    {/* Budget request dialogs */}
+    <BudgetRequestDialog
+      open={arregloBudgetOpen}
+      onOpenChange={setArregloBudgetOpen}
+      defaultDescription="Arreglo y preparación del servicio bautismal"
+    />
+    <BudgetRequestDialog
+      open={refrigerioBudgetOpen}
+      onOpenChange={setRefrigeriBudgetOpen}
+      defaultDescription="Refrigerio para el servicio bautismal"
+    />
 
     {/* Interview edit dialog */}
     <Dialog open={!!interviewEdit} onOpenChange={(v) => { if (!v) setInterviewEdit(null); }}>
