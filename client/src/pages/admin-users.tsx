@@ -637,6 +637,7 @@ export default function AdminUsersPage() {
       "Maestra",
     ],
     jas: ["Líder"],
+    as: ["Líder de AS"],
     barrio: [
       "Director de música del barrio",
       "Directora de música del barrio",
@@ -697,15 +698,19 @@ export default function AdminUsersPage() {
         selectedOrganizationType === "hombres_jovenes" ||
         selectedOrganizationType === "mujeres_jovenes" ||
         selectedOrganizationType === "primaria" ||
-        selectedOrganizationType === "escuela_dominical" ||
-        selectedOrganizationType === "jas" ||
-        selectedOrganizationType === "as") {
+        selectedOrganizationType === "escuela_dominical") {
       return [
         { value: "presidente_organizacion", label: "Presidente de Organización" },
         { value: "secretario_organizacion", label: "Secretario de Organización" },
         { value: "consejero_organizacion", label: "Consejero de Organización" },
         { value: "technology_specialist", label: "Especialista de tecnología" },
         { value: "lider_actividades", label: "Líder de actividades" },
+      ];
+    }
+    if (selectedOrganizationType === "jas" ||
+        selectedOrganizationType === "as") {
+      return [
+        { value: "presidente_organizacion", label: "Líder" },
       ];
     }
     return [
