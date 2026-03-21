@@ -162,9 +162,10 @@ interface BudgetRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultDescription?: string;
+  onSuccess?: () => void;
 }
 
-export function BudgetRequestDialog({ open, onOpenChange, defaultDescription }: BudgetRequestDialogProps) {
+export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, onSuccess }: BudgetRequestDialogProps) {
   const { user } = useAuth();
   const { data: organizations = [] as Organization[] } = useOrganizations();
   const createMutation = useCreateBudgetRequest();
@@ -405,6 +406,7 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription }: 
       {
         onSuccess: () => {
           onOpenChange(false);
+          onSuccess?.();
           clearRequesterSignatureCanvas();
           budgetForm.reset({
             description: defaultDescription ?? "",

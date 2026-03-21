@@ -2468,6 +2468,23 @@ function BaptismalServiceSheet({
   const arregloTareas: string[] = coordDraft.logistics.arreglo_tareas ?? [];
   const setArregloTareas = (list: string[]) => setLog("arreglo_tareas", list);
 
+  // New task-card model for arreglo
+  type ArregloTask = { persona: string; asignacion: string; hora: string };
+  const arregloTasks: ArregloTask[] = coordDraft.logistics.arreglo_tasks ?? [{ persona: "", asignacion: "", hora: "" }];
+  const setArregloTasks = (tasks: ArregloTask[]) => {
+    setCoordDraft((d) => ({
+      ...d,
+      logistics: {
+        ...d.logistics,
+        arreglo_tasks: tasks,
+        // keep legacy fields in sync for saveCoordMutation auto-complete logic
+        arreglo_participantes: tasks.map((t) => t.persona).filter((p) => p.trim()),
+        arreglo_responsable: tasks[0]?.persona || null,
+        arreglo_hora: tasks.find((t) => t.hora)?.hora || null,
+      },
+    }));
+  };
+
   // Accordion open state — initialized from server data when it loads
   const [coordOpenSections, setCoordOpenSections] = React.useState<string[]>([]);
   const [arregloBudgetOpen, setArregloBudgetOpen] = React.useState(false);
@@ -2476,11 +2493,14 @@ function BaptismalServiceSheet({
     if (!coordQuery.data) return;
     const { logistics = {}, baptismDetails = {} } = coordQuery.data;
     const candidates = detail?.candidates ?? [];
-    const parts: string[] = logistics.arreglo_participantes ?? [""];
+    const tasks: ArregloTask[] = logistics.arreglo_tasks ?? [];
+    const necPres = !!logistics.arreglo_necesita_presupuesto;
+    const presSol = !!logistics.arreglo_presupuesto_solicitado;
+    const arregloOpen = tasks.some((t: any) => t.persona?.trim()) && (!necPres || presSol);
     setCoordOpenSections([
       (candidates.length === 0 ? !!baptismDetails.entrevista_notas?.trim() : candidates.every((c: any) => !!c.entrevista_fecha)) ? "entrevista" : null,
       logistics.espacio_comprobante_url ? "reserva" : null,
-      (parts.some((p: string) => p.trim()) && logistics.arreglo_hora) ? "arreglo" : null,
+      arregloOpen ? "arreglo" : null,
       logistics.equipo_responsable?.trim() ? "equipo" : null,
       logistics.refrigerio_responsable?.trim() ? "refrigerio" : null,
       logistics.limpieza_responsable?.trim() ? "limpieza" : null,
@@ -2953,7 +2973,9 @@ function BaptismalServiceSheet({
                             {item.completed
                               ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
                               : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                            <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                            <span className={item.completed ? "text-muted-foreground line-through" : ""}>
+                              {itemKey === "arreglo_espacios" ? "Arreglo y preparación" : item.label}
+                            </span>
                           </div>
                           {candidates && candidates.length > 0 && (
                             <div className="ml-6 space-y-0.5 pb-1">
@@ -3078,7 +3100,10 @@ function BaptismalServiceSheet({
                   ? !!coordDraft.baptismDetails.entrevista_notas?.trim()
                   : serviceCandidates.every((c) => !!c.entrevista_fecha);
                 const secReserva = !!coordDraft.logistics.espacio_comprobante_url;
-                const secArreglo = arregloParticipantes.some((p) => p.trim()) && !!coordDraft.logistics.arreglo_hora;
+                const arregloNecesitaPresupuesto = !!coordDraft.logistics.arreglo_necesita_presupuesto;
+                const arregloPresupuestoSolicitado = !!coordDraft.logistics.arreglo_presupuesto_solicitado;
+                const secArreglo = arregloTasks.some((t) => t.persona.trim()) &&
+                  (!arregloNecesitaPresupuesto || arregloPresupuestoSolicitado);
                 const secEquipo = !!coordDraft.logistics.equipo_responsable?.trim();
                 const secRefrigerio = !!coordDraft.logistics.refrigerio_responsable?.trim();
                 const secLimpieza = !!coordDraft.logistics.limpieza_responsable?.trim();
@@ -3253,7 +3278,7 @@ function BaptismalServiceSheet({
                         </AccordionContent>
                       </AccordionItem>
 
-                      {/* Arreglo de espacios */}
+                      {/* Arreglo y preparación */}
                       <AccordionItem value="arreglo" className="border rounded-lg px-3 border-b-0">
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
@@ -3264,105 +3289,96 @@ function BaptismalServiceSheet({
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-3 pt-1">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs text-muted-foreground block">Participantes</Label>
-                              {arregloParticipantes.map((name, i) => (
-                                <div key={i} className="flex items-center gap-1">
-                                  <MemberAutocomplete
-                                    value={name}
-                                    options={memberOptions}
-                                    placeholder="Nombre del miembro"
-                                    className="h-8 text-sm flex-1"
-                                    onChange={(v) => {
-                                      const updated = [...arregloParticipantes];
-                                      updated[i] = v;
-                                      setArregloParticipantes(updated);
-                                    }}
-                                  />
-                                  {arregloParticipantes.length > 1 && (
-                                    <button
-                                      type="button"
-                                      className="text-muted-foreground hover:text-destructive"
-                                      onClick={() => setArregloParticipantes(arregloParticipantes.filter((_, j) => j !== i))}
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                              <button
-                                type="button"
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                                onClick={() => setArregloParticipantes([...arregloParticipantes, ""])}
-                              >
-                                <Plus className="h-3 w-3" /> Añadir persona
-                              </button>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Hora de preparación</Label>
-                              <Input type="time" className="h-8 text-sm"
-                                value={coordDraft.logistics.arreglo_hora ?? ""}
-                                onChange={(e) => setLog("arreglo_hora", e.target.value)} />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs text-muted-foreground block">Tareas</Label>
-                              {arregloTareas.map((tarea, i) => (
-                                <div key={i} className="flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setArregloTareasDone((prev) => { const next = [...prev]; next[i] = !next[i]; return next; })}
-                                  >
-                                    {arregloTareasDone[i]
-                                      ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                                      : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
-                                  </button>
-                                  <Input
-                                    className={`h-7 text-sm flex-1 ${arregloTareasDone[i] ? "line-through text-muted-foreground" : ""}`}
-                                    value={tarea}
-                                    onChange={(e) => {
-                                      const updated = [...arregloTareas];
-                                      updated[i] = e.target.value;
-                                      setArregloTareas(updated);
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    className="text-muted-foreground hover:text-destructive"
-                                    onClick={() => {
-                                      setArregloTareas(arregloTareas.filter((_, j) => j !== i));
-                                      setArregloTareasDone((prev) => prev.filter((_, j) => j !== i));
-                                    }}
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                              <button
-                                type="button"
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                                onClick={() => { setArregloTareas([...arregloTareas, ""]); setArregloTareasDone((prev) => [...prev, false]); }}
-                              >
-                                <Plus className="h-3 w-3" /> Añadir tarea
-                              </button>
-                            </div>
+                            {/* Presupuesto — al inicio */}
                             <div className="space-y-2">
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <Switch
                                   checked={!!coordDraft.logistics.arreglo_necesita_presupuesto}
                                   onCheckedChange={(v) => setLog("arreglo_necesita_presupuesto", v)} />
-                                <span className="text-xs text-muted-foreground">Necesita solicitar presupuesto</span>
+                                <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
                               </label>
                               {coordDraft.logistics.arreglo_necesita_presupuesto && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-xs"
-                                  onClick={() => setArregloBudgetOpen(true)}
-                                >
-                                  Solicitar presupuesto
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant={coordDraft.logistics.arreglo_presupuesto_solicitado ? "default" : "outline"}
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => setArregloBudgetOpen(true)}
+                                  >
+                                    {coordDraft.logistics.arreglo_presupuesto_solicitado ? "✓ Presupuesto solicitado" : "Solicitar presupuesto"}
+                                  </Button>
+                                </div>
                               )}
+                            </div>
+
+                            {/* Task cards */}
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground block">Tareas</Label>
+                              {arregloTasks.map((task, i) => (
+                                <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                                  <div className="flex items-start gap-2">
+                                    <div className="flex-1 space-y-2">
+                                      <div>
+                                        <Label className="text-[11px] text-muted-foreground mb-0.5 block">Persona asignada</Label>
+                                        <MemberAutocomplete
+                                          value={task.persona}
+                                          options={memberOptions}
+                                          placeholder="Nombre del miembro"
+                                          className="h-7 text-sm"
+                                          onChange={(v) => {
+                                            const updated = [...arregloTasks];
+                                            updated[i] = { ...updated[i], persona: v };
+                                            setArregloTasks(updated);
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-[11px] text-muted-foreground mb-0.5 block">Asignación</Label>
+                                        <Input
+                                          className="h-7 text-sm"
+                                          placeholder="Ej: Decorar el salón"
+                                          value={task.asignacion}
+                                          onChange={(e) => {
+                                            const updated = [...arregloTasks];
+                                            updated[i] = { ...updated[i], asignacion: e.target.value };
+                                            setArregloTasks(updated);
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-[11px] text-muted-foreground mb-0.5 block">Hora</Label>
+                                        <Input
+                                          type="time"
+                                          className="h-7 text-sm"
+                                          value={task.hora}
+                                          onChange={(e) => {
+                                            const updated = [...arregloTasks];
+                                            updated[i] = { ...updated[i], hora: e.target.value };
+                                            setArregloTasks(updated);
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                    {arregloTasks.length > 1 && (
+                                      <button
+                                        type="button"
+                                        className="text-muted-foreground hover:text-destructive mt-0.5 shrink-0"
+                                        onClick={() => setArregloTasks(arregloTasks.filter((_, j) => j !== i))}
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => setArregloTasks([...arregloTasks, { persona: "", asignacion: "", hora: "" }])}
+                              >
+                                <Plus className="h-3 w-3" /> Añadir tarea
+                              </button>
                             </div>
                           </div>
                         </AccordionContent>
@@ -3426,7 +3442,7 @@ function BaptismalServiceSheet({
                                   <Switch
                                     checked={!!coordDraft.logistics.refrigerio_necesita_presupuesto}
                                     onCheckedChange={(v) => setLog("refrigerio_necesita_presupuesto", v)} />
-                                  <span className="text-xs text-muted-foreground">Necesita solicitar presupuesto</span>
+                                  <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
                                 </label>
                               </div>
                             </div>
@@ -3574,6 +3590,7 @@ function BaptismalServiceSheet({
       open={arregloBudgetOpen}
       onOpenChange={setArregloBudgetOpen}
       defaultDescription="Arreglo y preparación del servicio bautismal"
+      onSuccess={() => setLog("arreglo_presupuesto_solicitado", true)}
     />
     <BudgetRequestDialog
       open={refrigerioBudgetOpen}
