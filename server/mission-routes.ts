@@ -1832,7 +1832,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             arreglo_responsable, arreglo_participantes, arreglo_hora, arreglo_tareas, arreglo_fecha, arreglo_notas,
             arreglo_tasks, arreglo_necesita_presupuesto, arreglo_presupuesto_solicitado,
             equipo_responsable, equipo_lista, equipo_fecha, equipo_notas,
-            refrigerio_responsable, refrigerio_presupuesto_solicitado, refrigerio_necesita_presupuesto, refrigerio_notas,
+            refrigerio_responsable, refrigerio_responsables, refrigerio_presupuesto_solicitado, refrigerio_necesita_presupuesto, refrigerio_detalle, refrigerio_notas,
             limpieza_responsable, limpieza_tareas, limpieza_fecha, limpieza_notas,
             updated_by, updated_at
           ) VALUES (
@@ -1847,8 +1847,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             ${logistics.arreglo_necesita_presupuesto ?? false}, ${logistics.arreglo_presupuesto_solicitado ?? false},
             ${logistics.equipo_responsable ?? null}, ${logistics.equipo_lista ?? null},
             ${logistics.equipo_fecha ?? null}, ${logistics.equipo_notas ?? null},
-            ${logistics.refrigerio_responsable ?? null}, ${logistics.refrigerio_presupuesto_solicitado ?? false},
-            ${logistics.refrigerio_necesita_presupuesto ?? false}, ${logistics.refrigerio_notas ?? null},
+            ${logistics.refrigerio_responsable ?? null}, CAST(${toDbArr(logistics.refrigerio_responsables)} AS text[]),
+            ${logistics.refrigerio_presupuesto_solicitado ?? false},
+            ${logistics.refrigerio_necesita_presupuesto ?? false}, ${logistics.refrigerio_detalle ?? null}, ${logistics.refrigerio_notas ?? null},
             ${logistics.limpieza_responsable ?? null}, CAST(${toDbArr(logistics.limpieza_tareas)} AS text[]),
             ${logistics.limpieza_fecha ?? null}, ${logistics.limpieza_notas ?? null},
             ${user.id}, NOW()
@@ -1876,8 +1877,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             equipo_fecha = EXCLUDED.equipo_fecha,
             equipo_notas = EXCLUDED.equipo_notas,
             refrigerio_responsable = EXCLUDED.refrigerio_responsable,
+            refrigerio_responsables = EXCLUDED.refrigerio_responsables,
             refrigerio_presupuesto_solicitado = EXCLUDED.refrigerio_presupuesto_solicitado,
             refrigerio_necesita_presupuesto = EXCLUDED.refrigerio_necesita_presupuesto,
+            refrigerio_detalle = EXCLUDED.refrigerio_detalle,
             refrigerio_notas = EXCLUDED.refrigerio_notas,
             limpieza_responsable = EXCLUDED.limpieza_responsable,
             limpieza_tareas = EXCLUDED.limpieza_tareas,

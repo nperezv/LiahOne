@@ -2492,6 +2492,24 @@ function BaptismalServiceSheet({
     }));
   };
 
+  // Refrigerio responsables helpers
+  const refrigerioResponsables: string[] =
+    (coordDraft.logistics.refrigerio_responsables as string[] | null | undefined)?.length
+      ? (coordDraft.logistics.refrigerio_responsables as string[])
+      : coordDraft.logistics.refrigerio_responsable
+        ? [coordDraft.logistics.refrigerio_responsable as string]
+        : [""];
+  const setRefrigerioResponsables = (names: string[]) => {
+    setCoordDraft((d) => ({
+      ...d,
+      logistics: {
+        ...d.logistics,
+        refrigerio_responsables: names,
+        refrigerio_responsable: names[0] ?? null,
+      },
+    }));
+  };
+
   // Accordion open state — initialized from server data when it loads
   const [coordOpenSections, setCoordOpenSections] = React.useState<string[]>([]);
   const [arregloBudgetOpen, setArregloBudgetOpen] = React.useState(false);
@@ -2507,12 +2525,20 @@ function BaptismalServiceSheet({
     const necPres = !!logistics.arreglo_necesita_presupuesto;
     const presSol = !!logistics.arreglo_presupuesto_solicitado;
     const arregloOpen = tasks.some((t: any) => t.persona?.trim()) && (!necPres || presSol);
+    const refNecPres = !!logistics.refrigerio_necesita_presupuesto;
+    const refPresSol = !!logistics.refrigerio_presupuesto_solicitado;
+    const refResps: string[] = (logistics.refrigerio_responsables as string[] | null)?.length
+      ? (logistics.refrigerio_responsables as string[])
+      : logistics.refrigerio_responsable ? [logistics.refrigerio_responsable] : [];
+    const refrigerioOpen = refResps.some((r: string) => r.trim()) &&
+      !!(logistics.refrigerio_detalle as string | null)?.trim() &&
+      (!refNecPres || refPresSol);
     setCoordOpenSections([
       (candidates.length === 0 ? !!baptismDetails.entrevista_notas?.trim() : candidates.every((c: any) => !!c.entrevista_fecha)) ? "entrevista" : null,
       logistics.espacio_comprobante_url ? "reserva" : null,
       arregloOpen ? "arreglo" : null,
       logistics.equipo_responsable?.trim() ? "equipo" : null,
-      logistics.refrigerio_responsable?.trim() ? "refrigerio" : null,
+      refrigerioOpen ? "refrigerio" : null,
       logistics.limpieza_responsable?.trim() ? "limpieza" : null,
       baptismDetails.ropa_responsable?.trim() ? "ropa" : null,
     ].filter(Boolean) as string[]);
@@ -3115,7 +3141,11 @@ function BaptismalServiceSheet({
                 const secArreglo = arregloTasks.some((t) => t.persona.trim()) &&
                   (!arregloNecesitaPresupuesto || arregloPresupuestoSolicitado);
                 const secEquipo = !!coordDraft.logistics.equipo_responsable?.trim();
-                const secRefrigerio = !!coordDraft.logistics.refrigerio_responsable?.trim();
+                const refrigerioNecesitaPresupuesto = !!coordDraft.logistics.refrigerio_necesita_presupuesto;
+                const refrigerioPresupuestoSolicitado = !!coordDraft.logistics.refrigerio_presupuesto_solicitado;
+                const secRefrigerio = refrigerioResponsables.some((r) => r.trim()) &&
+                  !!(coordDraft.logistics.refrigerio_detalle as string | null | undefined)?.trim() &&
+                  (!refrigerioNecesitaPresupuesto || refrigerioPresupuestoSolicitado);
                 const secLimpieza = !!coordDraft.logistics.limpieza_responsable?.trim();
                 const secRopa = !!coordDraft.baptismDetails.ropa_responsable?.trim();
                 const sectionDone = [secEntrevista, secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza, secRopa];
@@ -3440,39 +3470,74 @@ function BaptismalServiceSheet({
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-3 pt-1">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                                <Input className="h-8 text-sm" placeholder="Nombre"
-                                  value={coordDraft.logistics.refrigerio_responsable ?? ""}
-                                  onChange={(e) => setLog("refrigerio_responsable", e.target.value)} />
-                              </div>
-                              <div className="flex items-end pb-0.5">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <Switch
-                                    checked={!!coordDraft.logistics.refrigerio_necesita_presupuesto}
-                                    onCheckedChange={(v) => setLog("refrigerio_necesita_presupuesto", v)} />
-                                  <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
-                                </label>
-                              </div>
+                            {/* Presupuesto — al inicio */}
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Switch
+                                  checked={!!coordDraft.logistics.refrigerio_necesita_presupuesto}
+                                  onCheckedChange={(v) => setLog("refrigerio_necesita_presupuesto", v)} />
+                                <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
+                              </label>
+                              {coordDraft.logistics.refrigerio_necesita_presupuesto && (
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant={coordDraft.logistics.refrigerio_presupuesto_solicitado ? "default" : "outline"}
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => setRefrigeriBudgetOpen(true)}
+                                  >
+                                    {coordDraft.logistics.refrigerio_presupuesto_solicitado ? "✓ Presupuesto solicitado" : "Solicitar presupuesto"}
+                                  </Button>
+                                </div>
+                              )}
                             </div>
+
+                            {/* Qué se preparará */}
                             <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-                              <Textarea className="text-sm min-h-[44px] resize-none"
-                                value={coordDraft.logistics.refrigerio_notas ?? ""}
-                                onChange={(e) => setLog("refrigerio_notas", e.target.value)} />
+                              <Label className="text-xs text-muted-foreground mb-1 block">Qué se preparará</Label>
+                              <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Ej: Pastas, refrescos, tarta..."
+                                value={(coordDraft.logistics.refrigerio_detalle as string | null | undefined) ?? ""}
+                                onChange={(e) => setLog("refrigerio_detalle", e.target.value)} />
                             </div>
-                            {coordDraft.logistics.refrigerio_necesita_presupuesto && (
-                              <Button
+
+                            {/* Responsables */}
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground block">Responsables</Label>
+                              {refrigerioResponsables.map((name, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <MemberAutocomplete
+                                      value={name}
+                                      options={memberOptions}
+                                      placeholder="Nombre del miembro"
+                                      className="h-7 text-sm"
+                                      onChange={(v) => {
+                                        const updated = [...refrigerioResponsables];
+                                        updated[i] = v;
+                                        setRefrigerioResponsables(updated);
+                                      }}
+                                    />
+                                  </div>
+                                  {refrigerioResponsables.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="text-muted-foreground hover:text-destructive shrink-0"
+                                      onClick={() => setRefrigerioResponsables(refrigerioResponsables.filter((_, j) => j !== i))}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              <button
                                 type="button"
-                                variant="outline"
-                                size="sm"
-                                className="text-xs"
-                                onClick={() => setRefrigeriBudgetOpen(true)}
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => setRefrigerioResponsables([...refrigerioResponsables, ""])}
                               >
-                                Solicitar presupuesto
-                              </Button>
-                            )}
+                                <Plus className="h-3 w-3" /> Añadir responsable
+                              </button>
+                            </div>
                           </div>
                         </AccordionContent>
                       </AccordionItem>
@@ -3606,6 +3671,7 @@ function BaptismalServiceSheet({
       open={refrigerioBudgetOpen}
       onOpenChange={setRefrigeriBudgetOpen}
       defaultDescription="Refrigerio para el servicio bautismal"
+      onSuccess={() => setLog("refrigerio_presupuesto_solicitado", true)}
     />
 
     {/* Interview edit dialog */}
