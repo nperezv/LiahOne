@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import {
   User2,
@@ -2466,6 +2467,24 @@ function BaptismalServiceSheet({
   const arregloTareas: string[] = coordDraft.logistics.arreglo_tareas ?? [];
   const setArregloTareas = (list: string[]) => setLog("arreglo_tareas", list);
 
+  // Accordion open state — initialized from server data when it loads
+  const [coordOpenSections, setCoordOpenSections] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    if (!coordQuery.data) return;
+    const { logistics = {}, baptismDetails = {} } = coordQuery.data;
+    const candidates = detail?.candidates ?? [];
+    const parts: string[] = logistics.arreglo_participantes ?? [""];
+    setCoordOpenSections([
+      (candidates.length === 0 ? !!baptismDetails.entrevista_notas?.trim() : candidates.every((c: any) => !!c.entrevista_fecha)) ? "entrevista" : null,
+      logistics.espacio_comprobante_url ? "reserva" : null,
+      (parts.some((p: string) => p.trim()) && logistics.arreglo_hora) ? "arreglo" : null,
+      logistics.equipo_responsable?.trim() ? "equipo" : null,
+      logistics.refrigerio_responsable?.trim() ? "refrigerio" : null,
+      logistics.limpieza_responsable?.trim() ? "limpieza" : null,
+      baptismDetails.ropa_responsable?.trim() ? "ropa" : null,
+    ].filter(Boolean) as string[]);
+  }, [coordQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleChecklistItemMutation = useMutation({
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
       apiRequest("PATCH", `/api/baptisms/services/${service?.id}/checklist-item/${itemId}`, { completed }),
@@ -2600,7 +2619,6 @@ function BaptismalServiceSheet({
   const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
 
   // Obispo can navigate freely; others need previous step done
-  const stepChecklistLocked = !isObispo && !programComplete;
   const stepAprobacionLocked = !isObispo && !checklistComplete;
 
   return (
@@ -2646,18 +2664,15 @@ function BaptismalServiceSheet({
               );
             })}
 
-            {/* Resumen (locked until Programa complete) */}
+            {/* Resumen (always accessible) */}
             {(() => {
               const isActive = activeTab === "checklist";
-              const canClick = !stepChecklistLocked;
               return (
                 <button
                   type="button"
-                  disabled={!canClick}
-                  onClick={() => canClick && setActiveTab("checklist")}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center
-                    ${isActive ? "border-primary" : "border-transparent"}
-                    ${!canClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
+                  onClick={() => setActiveTab("checklist")}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center cursor-pointer hover:bg-muted/40
+                    ${isActive ? "border-primary" : "border-transparent"}`}
                 >
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
                     ${checklistComplete ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
@@ -2858,13 +2873,44 @@ function BaptismalServiceSheet({
             </div>
           )}
 
-          {/* ── PASO 3: CHECKLIST ── */}
+          {/* ── RESUMEN ── */}
           {activeTab === "checklist" && (
             <div className="space-y-4">
-              <BaptismSectionHead icon={<CheckSquare className="h-4 w-4" />} title="Checklist de preparación" />
+              <BaptismSectionHead icon={<CheckSquare className="h-4 w-4" />} title="Resumen de preparación" />
 
               {checklistQuery.isLoading && (
                 <div className="space-y-2">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+              )}
+
+              {/* Warning cards */}
+              {!programComplete && (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-amber-800">Programa incompleto</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Completa el programa del servicio antes de enviar al obispo.</p>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0 text-xs h-7 border-amber-300"
+                    onClick={() => setActiveTab("agenda")}>
+                    Ir al Programa
+                  </Button>
+                </div>
+              )}
+
+              {programComplete && !checklistComplete && checklistData && (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-amber-800">Coordinación incompleta</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {checklistData.totalCount - checklistData.completedCount} sección{checklistData.totalCount - checklistData.completedCount !== 1 ? "es" : ""} pendiente{checklistData.totalCount - checklistData.completedCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0 text-xs h-7 border-amber-300"
+                    onClick={() => setActiveTab("coordinacion")}>
+                    Ir a Coordinación
+                  </Button>
+                </div>
               )}
 
               {checklistData && (
@@ -2879,55 +2925,78 @@ function BaptismalServiceSheet({
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    {(checklistData.items ?? []).map((item: any) => {
-                      const itemKey = item.itemKey ?? item.item_key;
-                      const isAuto = itemKey === "entrevista_bautismal";
-                      let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
-                      if (isAuto && item.notes) {
-                        try { candidates = JSON.parse(item.notes); } catch { /* ignore */ }
-                      }
-                      return (
-                        <div key={item.id}>
+                  {/* Automáticos (first 4) */}
+                  {(checklistData.items ?? []).slice(0, 4).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Automáticos</p>
+                      <div className="space-y-1">
+                        {(checklistData.items ?? []).slice(0, 4).map((item: any) => {
+                          const itemKey = item.itemKey ?? item.item_key;
+                          const isAuto = itemKey === "entrevista_bautismal";
+                          let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
+                          if (isAuto && item.notes) {
+                            try { candidates = JSON.parse(item.notes); } catch { /* ignore */ }
+                          }
+                          return (
+                            <div key={item.id}>
+                              <button
+                                type="button"
+                                disabled={true}
+                                className="w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left cursor-default"
+                              >
+                                {item.completed
+                                  ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                                  : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                                <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
+                              </button>
+                              {candidates && candidates.length > 0 && (
+                                <div className="ml-6 space-y-0.5 pb-1">
+                                  {candidates.map((c, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                                      <span>{c.nombre}</span>
+                                      {c.fecha
+                                        ? <span className="text-green-700">{c.fecha}</span>
+                                        : <span className="italic">Pendiente</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Coordinación manual (rest) */}
+                  {(checklistData.items ?? []).slice(4).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Coordinación manual</p>
+                      <div className="space-y-1">
+                        {(checklistData.items ?? []).slice(4).map((item: any) => (
                           <button
+                            key={item.id}
                             type="button"
-                            disabled={isAuto || toggleChecklistItemMutation.isPending}
-                            onClick={() => !isAuto && toggleChecklistItemMutation.mutate({ itemId: item.id, completed: !item.completed })}
-                            className={`w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left transition-colors
-                              ${isAuto ? "cursor-default" : "cursor-pointer hover:bg-muted/50"}`}
+                            disabled={toggleChecklistItemMutation.isPending}
+                            onClick={() => toggleChecklistItemMutation.mutate({ itemId: item.id, completed: !item.completed })}
+                            className="w-full flex items-center gap-2.5 text-sm py-1.5 px-1 rounded text-left transition-colors cursor-pointer hover:bg-muted/50"
                           >
                             {item.completed
                               ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
                               : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
                             <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                            {isAuto && (
-                              <span className="text-[10px] text-muted-foreground/60 ml-auto">(auto)</span>
-                            )}
                           </button>
-                          {candidates && candidates.length > 0 && (
-                            <div className="ml-6 space-y-0.5 pb-1">
-                              {candidates.map((c, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                                  <span>{c.nombre}</span>
-                                  {c.fecha
-                                    ? <span className="text-green-700">{c.fecha}</span>
-                                    : <span className="italic">Pendiente</span>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                  <Button
-                    onClick={() => setActiveTab("aprobacion")}
-                    disabled={!checklistComplete}
-                    className="w-full mt-2"
-                    variant={checklistComplete ? "default" : "outline"}>
-                    {checklistComplete ? "Siguiente: Aprobación →" : "Completa el checklist para continuar"}
-                  </Button>
+                  {programComplete && checklistComplete && (
+                    <Button className="w-full mt-2" onClick={() => setActiveTab("aprobacion")}>
+                      Enviar al obispo para aprobación →
+                    </Button>
+                  )}
                 </>
               )}
 
@@ -3018,351 +3087,472 @@ function BaptismalServiceSheet({
 
           {/* ── PASO 2: COORDINACIÓN ── */}
           {activeTab === "coordinacion" && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {coordQuery.isLoading && (
                 <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
               )}
 
-              {!coordQuery.isLoading && (
-                <>
-                  {/* Entrevista bautismal */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" />
-                    {serviceCandidates.length > 0 && (
-                      <div className="space-y-2">
-                        {serviceCandidates.map((c, idx) => (
-                          <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-medium">{c.nombre}</span>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {c.entrevista_fecha ? (
-                                  <span className="text-xs text-green-700 flex items-center gap-1">
-                                    <CheckSquare className="h-3.5 w-3.5" />
-                                    {formatDisplayDate(c.entrevista_fecha)}
-                                  </span>
-                                ) : c.entrevista_invitado ? (
-                                  <button
-                                    type="button"
-                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                    onClick={() => setInterviewConfirm({
-                                      personaId: c.id,
-                                      nombre: c.nombre,
-                                      fechaInvitado: c.entrevista_invitado!,
-                                      step: "ask",
-                                      customDate: "",
-                                    })}
-                                  >
-                                    <Square className="h-3.5 w-3.5" />
-                                    Marcar completada
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  className="text-muted-foreground hover:text-foreground transition-colors"
-                                  title="Editar fechas de entrevista"
-                                  onClick={() => setInterviewEdit({
-                                    personaId: c.id,
-                                    nombre: c.nombre,
-                                    fechaInvitado: c.entrevista_invitado ?? "",
-                                    fechaCumplido: c.entrevista_fecha ?? "",
-                                  })}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            {!c.entrevista_fecha && c.entrevista_invitado && (
-                              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                                <Clock className="h-3 w-3 shrink-0" />
-                                <span>Pendiente confirmación con misioneros de tiempo completo</span>
-                                <span className="ml-auto font-medium whitespace-nowrap">{formatDisplayDate(c.entrevista_invitado)}</span>
+              {!coordQuery.isLoading && (() => {
+                // Section completion booleans (used for dots and progress bar)
+                const secEntrevista = serviceCandidates.length === 0
+                  ? !!coordDraft.baptismDetails.entrevista_notas?.trim()
+                  : serviceCandidates.every((c) => !!c.entrevista_fecha);
+                const secReserva = !!coordDraft.logistics.espacio_comprobante_url;
+                const secArreglo = arregloParticipantes.some((p) => p.trim()) && !!coordDraft.logistics.arreglo_hora;
+                const secEquipo = !!coordDraft.logistics.equipo_responsable?.trim();
+                const secRefrigerio = !!coordDraft.logistics.refrigerio_responsable?.trim();
+                const secLimpieza = !!coordDraft.logistics.limpieza_responsable?.trim();
+                const secRopa = !!coordDraft.baptismDetails.ropa_responsable?.trim();
+                const sectionDone = [secEntrevista, secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza, secRopa];
+                const coordSectionsComplete = sectionDone.filter(Boolean).length;
+                const allCoordComplete = coordSectionsComplete === 7;
+
+                const dot = (done: boolean) => (
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                );
+
+                return (
+                  <>
+                    {/* Progress bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{coordSectionsComplete} de 7 listos</span>
+                        {allCoordComplete && <span className="text-green-600 font-medium">Completo</span>}
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 transition-all"
+                          style={{ width: `${(coordSectionsComplete / 7) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Accordion sections */}
+                    <Accordion
+                      type="multiple"
+                      value={coordOpenSections}
+                      onValueChange={setCoordOpenSections}
+                      className="space-y-1"
+                    >
+                      {/* Entrevista bautismal */}
+                      <AccordionItem value="entrevista" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Mic2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Entrevista bautismal</span>
+                            <span className="ml-auto mr-2">{dot(secEntrevista)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            {serviceCandidates.length > 0 && (
+                              <div className="space-y-2">
+                                {serviceCandidates.map((c, idx) => (
+                                  <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-sm font-medium">{c.nombre}</span>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {c.entrevista_fecha ? (
+                                          <span className="text-xs text-green-700 flex items-center gap-1">
+                                            <CheckSquare className="h-3.5 w-3.5" />
+                                            {formatDisplayDate(c.entrevista_fecha)}
+                                          </span>
+                                        ) : c.entrevista_invitado ? (
+                                          <button
+                                            type="button"
+                                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                            onClick={() => setInterviewConfirm({
+                                              personaId: c.id,
+                                              nombre: c.nombre,
+                                              fechaInvitado: c.entrevista_invitado!,
+                                              step: "ask",
+                                              customDate: "",
+                                            })}
+                                          >
+                                            <Square className="h-3.5 w-3.5" />
+                                            Marcar completada
+                                          </button>
+                                        ) : null}
+                                        <button
+                                          type="button"
+                                          className="text-muted-foreground hover:text-foreground transition-colors"
+                                          title="Editar fechas de entrevista"
+                                          onClick={() => setInterviewEdit({
+                                            personaId: c.id,
+                                            nombre: c.nombre,
+                                            fechaInvitado: c.entrevista_invitado ?? "",
+                                            fechaCumplido: c.entrevista_fecha ?? "",
+                                          })}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    {!c.entrevista_fecha && c.entrevista_invitado && (
+                                      <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                                        <Clock className="h-3 w-3 shrink-0" />
+                                        <span>Pendiente confirmación con misioneros de tiempo completo</span>
+                                        <span className="ml-auto font-medium whitespace-nowrap">{formatDisplayDate(c.entrevista_invitado)}</span>
+                                      </div>
+                                    )}
+                                    {!c.entrevista_fecha && !c.entrevista_invitado && (
+                                      <p className="text-xs text-muted-foreground italic">Sin fecha propuesta aún</p>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
                             )}
-                            {!c.entrevista_fecha && !c.entrevista_invitado && (
-                              <p className="text-xs text-muted-foreground italic">Sin fecha propuesta aún</p>
+                            <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Notas (opcional)"
+                              value={coordDraft.baptismDetails.entrevista_notas ?? ""}
+                              onChange={(e) => setBap("entrevista_notas", e.target.value)} />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {/* Reserva de ambientes */}
+                      <AccordionItem value="reserva" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Reserva de ambientes</span>
+                            <span className="ml-auto mr-2">{dot(secReserva)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-xs"
+                                onClick={() => window.open("https://www.churchofjesuschrist.org/calendar", "_blank")}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                                Ir al calendario
+                              </Button>
+                              <button
+                                type="button"
+                                disabled={uploadingComprobante}
+                                onClick={() => comprobanteRef.current?.click()}
+                                className="relative w-full overflow-hidden rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed"
+                              >
+                                <span
+                                  className="pointer-events-none absolute inset-y-0 left-0 rounded-[5px] bg-emerald-500/25 transition-none"
+                                  style={uploadingComprobante
+                                    ? { animation: "btn-fill 5s ease-out forwards" }
+                                    : { width: 0 }}
+                                />
+                                <span className="relative z-10 flex items-center justify-center gap-1.5">
+                                  <Upload className="h-3.5 w-3.5 shrink-0" />
+                                  {uploadingComprobante ? "Cargando..." : "Cargar comprobante de la reserva"}
+                                </span>
+                              </button>
+                              <input
+                                ref={comprobanteRef}
+                                type="file"
+                                accept="application/pdf,image/jpeg,image/jpg,image/heic,image/heif,.pdf,.jpg,.jpeg,.heic,.heif"
+                                className="hidden"
+                                onChange={handleComprobanteUpload}
+                              />
+                            </div>
+                            {coordDraft.logistics.espacio_comprobante_url && (
+                              <div className="flex items-center gap-1.5 text-xs bg-muted/50 px-2 py-1.5 rounded-md">
+                                <FileText className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                                <a
+                                  href={coordDraft.logistics.espacio_comprobante_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate hover:underline text-foreground"
+                                >
+                                  {coordDraft.logistics.espacio_comprobante_nombre ?? "Comprobante"}
+                                </a>
+                              </div>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Notas (opcional)"
-                      value={coordDraft.baptismDetails.entrevista_notas ?? ""}
-                      onChange={(e) => setBap("entrevista_notas", e.target.value)} />
-                  </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                  {/* Reserva de ambientes en Calendario */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Reserva de ambientes en Calendario" />
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs"
-                        onClick={() => window.open("https://www.churchofjesuschrist.org/calendar", "_blank")}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                        Ir al calendario
-                      </Button>
-                      <button
-                        type="button"
-                        disabled={uploadingComprobante}
-                        onClick={() => comprobanteRef.current?.click()}
-                        className="relative w-full overflow-hidden rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed"
-                      >
-                        <span
-                          className="pointer-events-none absolute inset-y-0 left-0 rounded-[5px] bg-emerald-500/25 transition-none"
-                          style={uploadingComprobante
-                            ? { animation: "btn-fill 5s ease-out forwards" }
-                            : { width: 0 }}
-                        />
-                        <span className="relative z-10 flex items-center justify-center gap-1.5">
-                          <Upload className="h-3.5 w-3.5 shrink-0" />
-                          {uploadingComprobante ? "Cargando..." : "Cargar comprobante de la reserva"}
-                        </span>
-                      </button>
-                      <input
-                        ref={comprobanteRef}
-                        type="file"
-                        accept="application/pdf,image/jpeg,image/jpg,image/heic,image/heif,.pdf,.jpg,.jpeg,.heic,.heif"
-                        className="hidden"
-                        onChange={handleComprobanteUpload}
-                      />
-                    </div>
-                    {coordDraft.logistics.espacio_comprobante_url && (
-                      <div className="flex items-center gap-1.5 text-xs bg-muted/50 px-2 py-1.5 rounded-md">
-                        <FileText className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                        <a
-                          href={coordDraft.logistics.espacio_comprobante_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="truncate hover:underline text-foreground"
-                        >
-                          {coordDraft.logistics.espacio_comprobante_nombre ?? "Comprobante"}
-                        </a>
-                      </div>
-                    )}
-                  </div>
+                      {/* Arreglo de espacios */}
+                      <AccordionItem value="arreglo" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Arreglo de espacios</span>
+                            <span className="ml-auto mr-2">{dot(secArreglo)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground block">Participantes</Label>
+                              {arregloParticipantes.map((name, i) => (
+                                <div key={i} className="flex items-center gap-1">
+                                  <MemberAutocomplete
+                                    value={name}
+                                    options={memberOptions}
+                                    placeholder="Nombre del miembro"
+                                    className="h-8 text-sm flex-1"
+                                    onChange={(v) => {
+                                      const updated = [...arregloParticipantes];
+                                      updated[i] = v;
+                                      setArregloParticipantes(updated);
+                                    }}
+                                  />
+                                  {arregloParticipantes.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="text-muted-foreground hover:text-destructive"
+                                      onClick={() => setArregloParticipantes(arregloParticipantes.filter((_, j) => j !== i))}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => setArregloParticipantes([...arregloParticipantes, ""])}
+                              >
+                                <Plus className="h-3 w-3" /> Añadir persona
+                              </button>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Hora de preparación</Label>
+                              <Input type="time" className="h-8 text-sm"
+                                value={coordDraft.logistics.arreglo_hora ?? ""}
+                                onChange={(e) => setLog("arreglo_hora", e.target.value)} />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground block">Tareas</Label>
+                              {arregloTareas.map((tarea, i) => (
+                                <div key={i} className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setArregloTareasDone((prev) => { const next = [...prev]; next[i] = !next[i]; return next; })}
+                                  >
+                                    {arregloTareasDone[i]
+                                      ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                                      : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
+                                  </button>
+                                  <Input
+                                    className={`h-7 text-sm flex-1 ${arregloTareasDone[i] ? "line-through text-muted-foreground" : ""}`}
+                                    value={tarea}
+                                    onChange={(e) => {
+                                      const updated = [...arregloTareas];
+                                      updated[i] = e.target.value;
+                                      setArregloTareas(updated);
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="text-muted-foreground hover:text-destructive"
+                                    onClick={() => {
+                                      setArregloTareas(arregloTareas.filter((_, j) => j !== i));
+                                      setArregloTareasDone((prev) => prev.filter((_, j) => j !== i));
+                                    }}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => { setArregloTareas([...arregloTareas, ""]); setArregloTareasDone((prev) => [...prev, false]); }}
+                              >
+                                <Plus className="h-3 w-3" /> Añadir tarea
+                              </button>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                  {/* Arreglo de espacios */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Sparkles className="h-4 w-4" />} title="Arreglo de espacios" />
-                    {/* Participantes */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground block">Participantes</Label>
-                      {arregloParticipantes.map((name, i) => (
-                        <div key={i} className="flex items-center gap-1">
-                          <MemberAutocomplete
-                            value={name}
-                            options={memberOptions}
-                            placeholder="Nombre del miembro"
-                            className="h-8 text-sm flex-1"
-                            onChange={(v) => {
-                              const updated = [...arregloParticipantes];
-                              updated[i] = v;
-                              setArregloParticipantes(updated);
-                            }}
-                          />
-                          {arregloParticipantes.length > 1 && (
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-destructive"
-                              onClick={() => setArregloParticipantes(arregloParticipantes.filter((_, j) => j !== i))}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => setArregloParticipantes([...arregloParticipantes, ""])}
-                      >
-                        <Plus className="h-3 w-3" /> Añadir persona
-                      </button>
-                    </div>
-                    {/* Hora de preparación */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Hora de preparación</Label>
-                      <Input type="time" className="h-8 text-sm"
-                        value={coordDraft.logistics.arreglo_hora ?? ""}
-                        onChange={(e) => setLog("arreglo_hora", e.target.value)} />
-                    </div>
-                    {/* Lista de tareas */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground block">Tareas</Label>
-                      {arregloTareas.map((tarea, i) => (
-                        <div key={i} className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setArregloTareasDone((prev) => { const next = [...prev]; next[i] = !next[i]; return next; })}
-                          >
-                            {arregloTareasDone[i]
-                              ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                              : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
-                          </button>
-                          <Input
-                            className={`h-7 text-sm flex-1 ${arregloTareasDone[i] ? "line-through text-muted-foreground" : ""}`}
-                            value={tarea}
-                            onChange={(e) => {
-                              const updated = [...arregloTareas];
-                              updated[i] = e.target.value;
-                              setArregloTareas(updated);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="text-muted-foreground hover:text-destructive"
-                            onClick={() => {
-                              setArregloTareas(arregloTareas.filter((_, j) => j !== i));
-                              setArregloTareasDone((prev) => prev.filter((_, j) => j !== i));
-                            }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => { setArregloTareas([...arregloTareas, ""]); setArregloTareasDone((prev) => [...prev, false]); }}
-                      >
-                        <Plus className="h-3 w-3" /> Añadir tarea
-                      </button>
-                    </div>
-                  </div>
+                      {/* Equipo y tecnología */}
+                      <AccordionItem value="equipo" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Tv2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Equipo y tecnología</span>
+                            <span className="ml-auto mr-2">{dot(secEquipo)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                                <Input className="h-8 text-sm" placeholder="Nombre"
+                                  value={coordDraft.logistics.equipo_responsable ?? ""}
+                                  onChange={(e) => setLog("equipo_responsable", e.target.value)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                                <Input type="date" className="h-8 text-sm"
+                                  value={coordDraft.logistics.equipo_fecha ?? ""}
+                                  onChange={(e) => setLog("equipo_fecha", e.target.value || null)} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Lista de equipo / notas</Label>
+                              <Textarea className="text-sm min-h-[56px] resize-none" placeholder="Micrófono, proyector, pila bautismal..."
+                                value={coordDraft.logistics.equipo_lista ?? ""}
+                                onChange={(e) => setLog("equipo_lista", e.target.value)} />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                  {/* Equipo y tecnología */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Tv2 className="h-4 w-4" />} title="Equipo y tecnología" action={(() => { const ci = getChkItem("equipo_tecnologia"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.logistics.equipo_responsable ?? ""}
-                          onChange={(e) => setLog("equipo_responsable", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                        <Input type="date" className="h-8 text-sm"
-                          value={coordDraft.logistics.equipo_fecha ?? ""}
-                          onChange={(e) => setLog("equipo_fecha", e.target.value || null)} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Lista de equipo / notas</Label>
-                      <Textarea className="text-sm min-h-[56px] resize-none" placeholder="Micrófono, proyector, pila bautismal..."
-                        value={coordDraft.logistics.equipo_lista ?? ""}
-                        onChange={(e) => setLog("equipo_lista", e.target.value)} />
-                    </div>
-                  </div>
+                      {/* Refrigerio */}
+                      <AccordionItem value="refrigerio" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Utensils className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Refrigerio</span>
+                            <span className="ml-auto mr-2">{dot(secRefrigerio)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                                <Input className="h-8 text-sm" placeholder="Nombre"
+                                  value={coordDraft.logistics.refrigerio_responsable ?? ""}
+                                  onChange={(e) => setLog("refrigerio_responsable", e.target.value)} />
+                              </div>
+                              <div className="flex items-end pb-0.5">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <Switch
+                                    checked={!!coordDraft.logistics.refrigerio_presupuesto_solicitado}
+                                    onCheckedChange={(v) => setLog("refrigerio_presupuesto_solicitado", v)} />
+                                  <span className="text-xs text-muted-foreground">Presupuesto solicitado</span>
+                                </label>
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
+                              <Textarea className="text-sm min-h-[44px] resize-none"
+                                value={coordDraft.logistics.refrigerio_notas ?? ""}
+                                onChange={(e) => setLog("refrigerio_notas", e.target.value)} />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                  {/* Refrigerio */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Utensils className="h-4 w-4" />} title="Refrigerio" action={(() => { const ci = getChkItem("presupuesto_refrigerio"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.logistics.refrigerio_responsable ?? ""}
-                          onChange={(e) => setLog("refrigerio_responsable", e.target.value)} />
-                      </div>
-                      <div className="flex items-end pb-0.5">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <Switch
-                            checked={!!coordDraft.logistics.refrigerio_presupuesto_solicitado}
-                            onCheckedChange={(v) => setLog("refrigerio_presupuesto_solicitado", v)} />
-                          <span className="text-xs text-muted-foreground">Presupuesto solicitado</span>
-                        </label>
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-                      <Textarea className="text-sm min-h-[44px] resize-none"
-                        value={coordDraft.logistics.refrigerio_notas ?? ""}
-                        onChange={(e) => setLog("refrigerio_notas", e.target.value)} />
-                    </div>
-                  </div>
+                      {/* Limpieza */}
+                      <AccordionItem value="limpieza" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Limpieza</span>
+                            <span className="ml-auto mr-2">{dot(secLimpieza)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                                <Input className="h-8 text-sm" placeholder="Nombre"
+                                  value={coordDraft.logistics.limpieza_responsable ?? ""}
+                                  onChange={(e) => setLog("limpieza_responsable", e.target.value)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                                <Input type="date" className="h-8 text-sm"
+                                  value={coordDraft.logistics.limpieza_fecha ?? ""}
+                                  onChange={(e) => setLog("limpieza_fecha", e.target.value || null)} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
+                              <Textarea className="text-sm min-h-[44px] resize-none"
+                                value={coordDraft.logistics.limpieza_notas ?? ""}
+                                onChange={(e) => setLog("limpieza_notas", e.target.value)} />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                  {/* Limpieza */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Sparkles className="h-4 w-4" />} title="Limpieza" action={(() => { const ci = getChkItem("limpieza"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.logistics.limpieza_responsable ?? ""}
-                          onChange={(e) => setLog("limpieza_responsable", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                        <Input type="date" className="h-8 text-sm"
-                          value={coordDraft.logistics.limpieza_fecha ?? ""}
-                          onChange={(e) => setLog("limpieza_fecha", e.target.value || null)} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
-                      <Textarea className="text-sm min-h-[44px] resize-none"
-                        value={coordDraft.logistics.limpieza_notas ?? ""}
-                        onChange={(e) => setLog("limpieza_notas", e.target.value)} />
-                    </div>
-                  </div>
+                      {/* Ropa bautismal */}
+                      <AccordionItem value="ropa" className="border rounded-lg px-3 border-b-0">
+                        <AccordionTrigger className="py-3 hover:no-underline">
+                          <div className="flex items-center gap-2 flex-1">
+                            <Shirt className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium">Ropa bautismal</span>
+                            <span className="ml-auto mr-2">{dot(secRopa)}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-1">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                                <Input className="h-8 text-sm" placeholder="Nombre"
+                                  value={coordDraft.baptismDetails.ropa_responsable ?? ""}
+                                  onChange={(e) => setBap("ropa_responsable", e.target.value)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                                <Input type="date" className="h-8 text-sm"
+                                  value={coordDraft.baptismDetails.ropa_fecha ?? ""}
+                                  onChange={(e) => setBap("ropa_fecha", e.target.value || null)} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Origen / notas</Label>
+                              <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Procedencia de la ropa, talla, etc."
+                                value={coordDraft.baptismDetails.ropa_notas ?? ""}
+                                onChange={(e) => setBap("ropa_notas", e.target.value)} />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba de ropa</Label>
+                              <div className="flex items-center gap-3">
+                                <Input type="date" className="h-8 text-sm flex-1"
+                                  value={coordDraft.baptismDetails.prueba_fecha ?? ""}
+                                  onChange={(e) => setBap("prueba_fecha", e.target.value || null)} />
+                                <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                                  <Switch
+                                    checked={!!coordDraft.baptismDetails.prueba_confirmada}
+                                    onCheckedChange={(v) => setBap("prueba_confirmada", v)} />
+                                  <span className="text-xs text-muted-foreground">Confirmada</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
 
-                  {/* Ropa bautismal */}
-                  <div className="space-y-3">
-                    <BaptismSectionHead icon={<Shirt className="h-4 w-4" />} title="Ropa bautismal" action={(() => { const ci = getChkItem("ropa_bautismal"); return ci ? <button type="button" title={ci.completed ? "Completado" : "Pendiente"} onClick={() => toggleChecklistItemMutation.mutate({ itemId: ci.id, completed: !ci.completed })}>{ci.completed ? <CheckSquare className="h-4 w-4 text-green-600" /> : <Square className="h-4 w-4 text-muted-foreground/40" />}</button> : null; })()} />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                        <Input className="h-8 text-sm" placeholder="Nombre"
-                          value={coordDraft.baptismDetails.ropa_responsable ?? ""}
-                          onChange={(e) => setBap("ropa_responsable", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                        <Input type="date" className="h-8 text-sm"
-                          value={coordDraft.baptismDetails.ropa_fecha ?? ""}
-                          onChange={(e) => setBap("ropa_fecha", e.target.value || null)} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Origen / notas</Label>
-                      <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Procedencia de la ropa, talla, etc."
-                        value={coordDraft.baptismDetails.ropa_notas ?? ""}
-                        onChange={(e) => setBap("ropa_notas", e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba de ropa</Label>
-                      <div className="flex items-center gap-3">
-                        <Input type="date" className="h-8 text-sm flex-1"
-                          value={coordDraft.baptismDetails.prueba_fecha ?? ""}
-                          onChange={(e) => setBap("prueba_fecha", e.target.value || null)} />
-                        <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                          <Switch
-                            checked={!!coordDraft.baptismDetails.prueba_confirmada}
-                            onCheckedChange={(v) => setBap("prueba_confirmada", v)} />
-                          <span className="text-xs text-muted-foreground">Confirmada</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={() => saveCoordMutation.mutate(coordDraft)}
-                    disabled={saveCoordMutation.isPending}>
-                    {saveCoordMutation.isPending ? "Guardando..." : "Guardar coordinación"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setActiveTab("checklist")}>
-                    Siguiente: Checklist →
-                  </Button>
-                </>
-              )}
+                    {/* Smart save button */}
+                    <Button
+                      className="w-full"
+                      onClick={() => saveCoordMutation.mutate(coordDraft, {
+                        onSuccess: () => {
+                          if (allCoordComplete) {
+                            setActiveTab("checklist");
+                          } else {
+                            const pending = 7 - coordSectionsComplete;
+                            toast({
+                              title: "Coordinación guardada",
+                              description: `${pending} sección${pending !== 1 ? "es" : ""} pendiente${pending !== 1 ? "s" : ""}`,
+                            });
+                          }
+                        },
+                      })}
+                      disabled={saveCoordMutation.isPending}
+                    >
+                      {saveCoordMutation.isPending
+                        ? "Guardando..."
+                        : allCoordComplete
+                          ? "Guardar y ver Resumen →"
+                          : "Guardar coordinación"}
+                    </Button>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
