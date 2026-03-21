@@ -853,6 +853,15 @@ export const activities = pgTable("activities", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  objetivo: text("objetivo"),
+  expectativas: text("expectativas"),
+  asistenciaEsperada: integer("asistencia_esperada"),
+  metas: text("metas"),
+  approvalStatus: text("approval_status").notNull().default("draft"),
+  approvalComment: text("approval_comment"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedBy: varchar("approved_by").references(() => users.id),
 });
 
 export const activityChecklistItems = pgTable("activity_checklist_items", {
@@ -865,6 +874,23 @@ export const activityChecklistItems = pgTable("activity_checklist_items", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   notes: text("notes"),
   sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const serviceTasks = pgTable("service_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  baptismServiceId: varchar("baptism_service_id"),
+  activityId: varchar("activity_id").references(() => activities.id, { onDelete: "cascade" }),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedRole: text("assigned_role"),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  title: text("title"),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const agendaEvents = pgTable("agenda_events", {
@@ -1231,7 +1257,31 @@ export const activitiesRelations = relations(activities, ({ one, many }) => ({
     fields: [activities.createdBy],
     references: [users.id],
   }),
+  approver: one(users, {
+    fields: [activities.approvedBy],
+    references: [users.id],
+  }),
   checklistItems: many(activityChecklistItems),
+  serviceTasks: many(serviceTasks),
+}));
+
+export const serviceTasksRelations = relations(serviceTasks, ({ one }) => ({
+  activity: one(activities, {
+    fields: [serviceTasks.activityId],
+    references: [activities.id],
+  }),
+  assignedToUser: one(users, {
+    fields: [serviceTasks.assignedTo],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [serviceTasks.organizationId],
+    references: [organizations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [serviceTasks.createdBy],
+    references: [users.id],
+  }),
 }));
 
 export const activityChecklistItemsRelations = relations(activityChecklistItems, ({ one }) => ({
@@ -1562,6 +1612,14 @@ export const selectActivitySchema = createSelectSchema(activities);
 export const insertActivityChecklistItemSchema = createInsertSchema(activityChecklistItems).omit({
   id: true,
 });
+
+export const insertServiceTaskSchema = createInsertSchema(serviceTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectServiceTaskSchema = createSelectSchema(serviceTasks);
 
 export const selectActivityChecklistItemSchema = createSelectSchema(activityChecklistItems);
 
@@ -2075,6 +2133,9 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 
 export type ActivityChecklistItem = typeof activityChecklistItems.$inferSelect;
 export type InsertActivityChecklistItem = z.infer<typeof insertActivityChecklistItemSchema>;
+
+export type ServiceTask = typeof serviceTasks.$inferSelect;
+export type InsertServiceTask = z.infer<typeof insertServiceTaskSchema>;
 
 export type AgendaEvent = typeof agendaEvents.$inferSelect;
 export type InsertAgendaEvent = z.infer<typeof insertAgendaEventSchema>;
