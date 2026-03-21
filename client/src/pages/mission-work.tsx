@@ -2236,6 +2236,11 @@ function BaptismalServiceSheet({
   const [approvalComment, setApprovalComment] = useState("");
   const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
+  const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
+  const isLiderActividades = userRole === "lider_actividades";
+  // Obispo/consejero see everything; otherwise role-based sections
+  const showMisionSections = isObispo || isMissionLeader;
+  const showLogisticsSections = isObispo || isLiderActividades;
 
   // Data hooks
   const { data: members = [] } = useMembers();
@@ -3109,9 +3114,12 @@ function BaptismalServiceSheet({
                   (!refrigerioNecesitaPresupuesto || refrigerioPresupuestoSolicitado);
                 const secLimpieza = !!coordDraft.logistics.limpieza_responsable?.trim();
                 const secRopa = !!coordDraft.baptismDetails.ropa_responsable?.trim();
-                const sectionDone = [secEntrevista, secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza, secRopa];
-                const coordSectionsComplete = sectionDone.filter(Boolean).length;
-                const allCoordComplete = coordSectionsComplete === 7;
+                const misionSectionDone = showMisionSections ? [secEntrevista, secRopa] : [];
+                const logisticsSectionDone = showLogisticsSections ? [secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza] : [];
+                const visibleSectionDone = [...misionSectionDone, ...logisticsSectionDone];
+                const coordSectionsComplete = visibleSectionDone.filter(Boolean).length;
+                const totalSections = visibleSectionDone.length;
+                const allCoordComplete = totalSections > 0 && coordSectionsComplete === totalSections;
 
                 const dot = (done: boolean) => (
                   <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-primary" : "bg-muted-foreground/30"}`} />
@@ -3124,13 +3132,13 @@ function BaptismalServiceSheet({
                     {/* Progress bar */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{coordSectionsComplete} de 7 listos</span>
+                        <span>{coordSectionsComplete} de {totalSections} listos</span>
                         {allCoordComplete && <span className="text-green-600 font-medium">Completo</span>}
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                         <div
                           className="h-full bg-green-500 transition-all"
-                          style={{ width: `${(coordSectionsComplete / 7) * 100}%` }}
+                          style={{ width: totalSections > 0 ? `${(coordSectionsComplete / totalSections) * 100}%` : "0%" }}
                         />
                       </div>
                     </div>
@@ -3142,8 +3150,8 @@ function BaptismalServiceSheet({
                       onValueChange={setCoordOpenSections}
                       className="space-y-1"
                     >
-                      {/* Entrevista bautismal */}
-                      <AccordionItem value="entrevista" className={accordionItemClass(secEntrevista)}>
+                      {/* Entrevista bautismal — líder misional */}
+                      {showMisionSections && <AccordionItem value="entrevista" className={accordionItemClass(secEntrevista)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Mic2 className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3215,10 +3223,9 @@ function BaptismalServiceSheet({
                               onChange={(e) => setBap("entrevista_notas", e.target.value)} />
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
 
-                      {/* Reserva de ambientes */}
-                      <AccordionItem value="reserva" className={accordionItemClass(secReserva)}>
+                      {showLogisticsSections && <AccordionItem value="reserva" className={accordionItemClass(secReserva)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3279,10 +3286,9 @@ function BaptismalServiceSheet({
                             )}
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
 
-                      {/* Arreglo y preparación */}
-                      <AccordionItem value="arreglo" className={accordionItemClass(secArreglo)}>
+                      {showLogisticsSections && <AccordionItem value="arreglo" className={accordionItemClass(secArreglo)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3385,10 +3391,9 @@ function BaptismalServiceSheet({
                             </div>
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
 
-                      {/* Equipo y tecnología */}
-                      <AccordionItem value="equipo" className={accordionItemClass(secEquipo)}>
+                      {showLogisticsSections && <AccordionItem value="equipo" className={accordionItemClass(secEquipo)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Tv2 className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3420,10 +3425,9 @@ function BaptismalServiceSheet({
                             </div>
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
 
-                      {/* Refrigerio */}
-                      <AccordionItem value="refrigerio" className={accordionItemClass(secRefrigerio)}>
+                      {showLogisticsSections && <AccordionItem value="refrigerio" className={accordionItemClass(secRefrigerio)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Utensils className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3503,10 +3507,9 @@ function BaptismalServiceSheet({
                             </div>
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
 
-                      {/* Limpieza */}
-                      <AccordionItem value="limpieza" className={accordionItemClass(secLimpieza)}>
+                      {showLogisticsSections && <AccordionItem value="limpieza" className={accordionItemClass(secLimpieza)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3538,10 +3541,10 @@ function BaptismalServiceSheet({
                             </div>
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
 
-                      {/* Ropa bautismal */}
-                      <AccordionItem value="ropa" className={accordionItemClass(secRopa)}>
+                      {/* Ropa bautismal — líder misional */}
+                      {showMisionSections && <AccordionItem value="ropa" className={accordionItemClass(secRopa)}>
                         <AccordionTrigger className="py-3 hover:no-underline">
                           <div className="flex items-center gap-2 flex-1">
                             <Shirt className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -3587,7 +3590,7 @@ function BaptismalServiceSheet({
                             </div>
                           </div>
                         </AccordionContent>
-                      </AccordionItem>
+                      </AccordionItem>}
                     </Accordion>
 
                     {/* Smart save button */}
