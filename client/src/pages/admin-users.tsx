@@ -49,7 +49,7 @@ const createUserSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   email: z.string().email("Email inválido"),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades", "mission_leader", "ward_missionary", "full_time_missionary", "technology_specialist"]),
   organizationId: z.string().min(1, "Selecciona una organización"),
   memberId: z.string().min(1, "Selecciona un miembro"),
   callingName: z.string().optional().or(z.literal("")),
@@ -65,7 +65,7 @@ const editUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades"]),
+  role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades", "mission_leader", "ward_missionary", "full_time_missionary", "technology_specialist"]),
   organizationId: z.string().optional(),
   memberId: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
@@ -682,6 +682,32 @@ export default function AdminUsersPage() {
         { value: "lider_actividades", label: "Líder de actividades" },
       ];
     }
+    if (selectedOrganizationType === "barrio") {
+      return [
+        { value: "mission_leader", label: "Líder misional" },
+        { value: "lider_actividades", label: "Líder de actividades" },
+        { value: "ward_missionary", label: "Misionero/a de barrio" },
+        { value: "full_time_missionary", label: "Misionero de tiempo completo" },
+        { value: "technology_specialist", label: "Especialista de tecnología" },
+        { value: "bibliotecario", label: "Bibliotecario" },
+      ];
+    }
+    if (selectedOrganizationType === "cuorum_elderes" ||
+        selectedOrganizationType === "sociedad_socorro" ||
+        selectedOrganizationType === "hombres_jovenes" ||
+        selectedOrganizationType === "mujeres_jovenes" ||
+        selectedOrganizationType === "primaria" ||
+        selectedOrganizationType === "escuela_dominical" ||
+        selectedOrganizationType === "jas" ||
+        selectedOrganizationType === "as") {
+      return [
+        { value: "presidente_organizacion", label: "Presidente de Organización" },
+        { value: "secretario_organizacion", label: "Secretario de Organización" },
+        { value: "consejero_organizacion", label: "Consejero de Organización" },
+        { value: "technology_specialist", label: "Especialista de tecnología" },
+        { value: "lider_actividades", label: "Líder de actividades" },
+      ];
+    }
     return [
       { value: "presidente_organizacion", label: "Presidente de Organización" },
       { value: "secretario_organizacion", label: "Secretario de Organización" },
@@ -713,6 +739,17 @@ export default function AdminUsersPage() {
     };
     if (orgType === "obispado") {
       return obispadoMap[normalized] ?? "";
+    }
+
+    if (orgType === "barrio") {
+      if (normalized.includes("misional del barrio")) return "mission_leader";
+      if (normalized.includes("misionero de barrio")) return "ward_missionary";
+      if (normalized.includes("misionera de barrio")) return "ward_missionary";
+      if (normalized.includes("coordinador de actividades")) return "lider_actividades";
+      if (normalized.includes("coordinadora de actividades")) return "lider_actividades";
+      if (normalized.includes("especialista de tecnologia")) return "technology_specialist";
+      if (normalized.includes("bibliotecario")) return "bibliotecario";
+      return "";
     }
 
     if (organizationMap[normalized]) {
@@ -986,6 +1023,10 @@ export default function AdminUsersPage() {
     secretario_financiero: "Secretario Financiero",
     bibliotecario: "Bibliotecario",
     lider_actividades: "Líder de actividades",
+    mission_leader: "Líder misional",
+    ward_missionary: "Misionero de barrio",
+    full_time_missionary: "Misionero de tiempo completo",
+    technology_specialist: "Especialista de tecnología",
     presidente_organizacion: "Presidente",
     consejero_organizacion: "Consejero",
   };
