@@ -2403,6 +2403,7 @@ function BaptismalServiceSheet({
       apiRequest("PUT", `/api/baptisms/services/${service?.id}/coordination`, data),
     onSuccess: (_res, variables) => {
       qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "coordination"] });
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
       toast({ title: "Coordinación guardada" });
       // Auto-complete arreglo_espacios when at least one participant and hora are set
       const log = variables.logistics;
