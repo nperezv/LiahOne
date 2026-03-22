@@ -3006,9 +3006,9 @@ function BaptismalServiceSheet({
                     );
                   })()}
 
-                  {/* Checklist items filtered by role */}
-                  <div className="space-y-1">
-                    {(visibleChecklistItems as any[]).map((item: any) => {
+                  {/* Checklist items — grouped by responsible when obispo */}
+                  {(() => {
+                    const renderItem = (item: any) => {
                       const itemKey = item.itemKey ?? item.item_key;
                       const isEntrevista = itemKey === "entrevista_bautismal";
                       let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
@@ -3039,8 +3039,31 @@ function BaptismalServiceSheet({
                           )}
                         </div>
                       );
-                    })}
-                  </div>
+                    };
+
+                    if (isObispo) {
+                      const misionItems = (visibleChecklistItems as any[]).filter((i) =>
+                        MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
+                      );
+                      const logisticsItems = (visibleChecklistItems as any[]).filter((i) =>
+                        LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
+                      );
+                      return (
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Líder misional</p>
+                            <div className="space-y-1">{misionItems.map(renderItem)}</div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Líder de actividades</p>
+                            <div className="space-y-1">{logisticsItems.map(renderItem)}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return <div className="space-y-1">{(visibleChecklistItems as any[]).map(renderItem)}</div>;
+                  })()}
 
                   {programComplete && checklistComplete && (
                     <Button
