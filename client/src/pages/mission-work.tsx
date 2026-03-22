@@ -2657,6 +2657,30 @@ function BaptismalServiceSheet({
   ];
 
   const programComplete = effectiveProgramOrder.every((t) => programDraft[t]?.trim());
+
+  const coordComplete = (() => {
+    const secEntrevista = serviceCandidates.length === 0
+      ? !!coordDraft.baptismDetails.entrevista_notas?.trim()
+      : serviceCandidates.every((c: any) => !!c.entrevista_fecha);
+    const secRopa = !!coordDraft.baptismDetails.ropa_responsable?.trim() && !!coordDraft.baptismDetails.prueba_responsable?.trim();
+    const secReserva = !!coordDraft.logistics.espacio_comprobante_url;
+    const arregloNecesitaPresupuesto = !!coordDraft.logistics.arreglo_necesita_presupuesto;
+    const arregloPresupuestoSolicitado = !!coordDraft.logistics.arreglo_presupuesto_solicitado;
+    const secArreglo = arregloTasks.some((t: any) => t.persona.trim()) &&
+      (!arregloNecesitaPresupuesto || arregloPresupuestoSolicitado);
+    const secEquipo = !!coordDraft.logistics.equipo_responsable?.trim();
+    const refrigerioNecesitaPresupuesto = !!coordDraft.logistics.refrigerio_necesita_presupuesto;
+    const refrigerioPresupuestoSolicitado = !!coordDraft.logistics.refrigerio_presupuesto_solicitado;
+    const secRefrigerio = refrigerioResponsables.some((r: string) => r.trim()) &&
+      !!(coordDraft.logistics.refrigerio_detalle as string | null | undefined)?.trim() &&
+      (!refrigerioNecesitaPresupuesto || refrigerioPresupuestoSolicitado);
+    const secLimpieza = !!coordDraft.logistics.limpieza_responsable?.trim();
+    const misionDone = showMisionSections ? [secEntrevista, secRopa] : [];
+    const logisticsDone = showLogisticsSections ? [secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza] : [];
+    const all = [...misionDone, ...logisticsDone];
+    return all.length > 0 && all.every(Boolean);
+  })();
+
   const checklistData = checklistQuery.data;
 
   // Mission leader only needs to complete mission-relevant checklist items;
@@ -2706,7 +2730,7 @@ function BaptismalServiceSheet({
             {/* Row 1: Programa + Coordinación (always accessible, side by side) */}
             {(["agenda", "coordinacion"] as const).map((key, idx) => {
               const label = key === "agenda" ? "Programa" : "Coordinación";
-              const done = key === "agenda" ? programComplete : false;
+              const done = key === "agenda" ? programComplete : coordComplete;
               const isActive = activeTab === key;
               return (
                 <button
