@@ -1638,129 +1638,116 @@ export function registerMissionBaptismRoutes(
     "/api/baptisms/services/:id/approve",
     requireAuth,
     async (req, res) => {
-      const user = (req as any).user;
-      if (!canApproveBaptism(user))
-        return res.status(403).json({ error: "Forbidden" });
-      const [service] = await db
-        .select()
-        .from(baptismServices)
-        .where(
-          and(
-            eq(baptismServices.id, req.params.id),
-            eq(baptismServices.unitId, user.organizationId),
-          ),
-        )
-        .limit(1);
-      if (!service) return res.status(404).json({ error: "Service not found" });
-      if (service.approvalStatus !== "pending_approval") {
-        return res
-          .status(400)
-          .json({ error: "El servicio no está pendiente de aprobación" });
-      }
-      const now = new Date();
-      const [updated] = await db
-        .update(baptismServices)
-        .set({
-          approvalStatus: "approved",
-          approvedBy: user.id,
-          approvedAt: now,
-          approvalComment: null,
-          updatedAt: now,
-        })
-        .where(eq(baptismServices.id, service.id))
-        .returning();
+      try {
+        const user = (req as any).user;
+        if (!canApproveBaptism(user))
+          return res.status(403).json({ error: "Forbidden" });
 
-      // Revoke any existing active links and create a new one that activates on service date
-      await db
-        .update(baptismPublicLinks)
-        .set({ revokedAt: now, revokedBy: user.id })
-        .where(
-          and(
-            eq(baptismPublicLinks.serviceId, service.id),
-            isNull(baptismPublicLinks.revokedAt),
-            gt(baptismPublicLinks.expiresAt, now),
-          ),
-        );
-      const [latest] = await db
-        .select({ slug: baptismPublicLinks.slug })
-        .from(baptismPublicLinks)
-        .where(eq(baptismPublicLinks.serviceId, service.id))
-        .orderBy(desc(baptismPublicLinks.createdAt))
-        .limit(1);
-      const session = approvedSessionPayload({
-        serviceId: service.id,
-        serviceAt: service.serviceAt,
-        randomCode: randomBytes(3).toString("hex"),
-        previousSlug: latest?.slug ?? null,
-        randomSlugHex: randomBytes(3).toString("hex"),
-      });
-      await db
-        .insert(baptismPublicLinks)
-        .values({ serviceId: service.id, ...session, createdBy: user.id });
+        const svcResult = await db.execute(sql`
+          SELECT id, unit_id, approval_status, created_by, location_name, candidate_contact_id, service_at
+          FROM baptism_services WHERE id = ${req.params.id}
+        `);
+        const service = svcResult.rows[0] as any;
+        if (!service) return res.status(404).json({ error: "Service not found" });
+        if (service.approval_status !== "pending_approval") {
+          return res.status(400).json({ error: "El servicio no está pendiente de aprobación" });
+        }
 
-      // Notify the leader
-      await db
-        .insert(notifications)
-        .values({
-          userId: service.createdBy,
-          title: "Agenda aprobada",
-          message: `El Obispo aprobó el servicio en ${service.locationName}. El enlace se activará el día del bautismo.`,
-          type: "reminder",
+        const now = new Date();
+
+        // Approve
+        await db.execute(sql`
+          UPDATE baptism_services
+          SET approval_status = 'approved', approved_by = ${user.id}, approved_at = ${now},
+              approval_comment = NULL, updated_at = ${now}
+          WHERE id = ${service.id}
+        `);
+
+        // Revoke active public links
+        await db.execute(sql`
+          UPDATE baptism_public_links
+          SET revoked_at = ${now}, revoked_by = ${user.id}
+          WHERE service_id = ${service.id} AND revoked_at IS NULL AND expires_at > ${now}
+        `);
+
+        // Get latest slug for continuity
+        const latestSlugResult = await db.execute(sql`
+          SELECT slug FROM baptism_public_links
+          WHERE service_id = ${service.id}
+          ORDER BY created_at DESC LIMIT 1
+        `);
+        const previousSlug = (latestSlugResult.rows[0] as any)?.slug ?? null;
+
+        const session = approvedSessionPayload({
+          serviceId: service.id,
+          serviceAt: new Date(service.service_at),
+          randomCode: randomBytes(3).toString("hex"),
+          previousSlug,
+          randomSlugHex: randomBytes(3).toString("hex"),
         });
 
-      // Create a service_task for the lider_actividades
-      try {
-        // Fetch candidate name
-        let candidateName = service.locationName;
-        if (service.candidateContactId) {
-          const [contact] = await db
-            .select({ fullName: missionContacts.fullName })
-            .from(missionContacts)
-            .where(eq(missionContacts.id, service.candidateContactId))
-            .limit(1);
-          if (contact) candidateName = contact.fullName;
-        }
+        await db.execute(sql`
+          INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
+          VALUES (${service.id}, ${session.slug}, ${session.code}, ${session.publishedAt}, ${session.expiresAt}, ${user.id})
+        `);
 
-        // Format service date as DD/MM/YYYY
-        const svcDate = new Date(service.serviceAt);
-        const dd = String(svcDate.getUTCDate()).padStart(2, "0");
-        const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
-        const yyyy = svcDate.getUTCFullYear();
-        const serviceDateStr = `${dd}/${mm}/${yyyy}`;
-
-        // Find lider_actividades in a barrio org
-        const [liderActividades] = await db
-          .select({ id: users.id, organizationId: users.organizationId })
-          .from(users)
-          .innerJoin(organizations, eq(organizations.id, users.organizationId))
-          .where(
-            and(
-              eq(users.role, "lider_actividades"),
-              eq(organizations.type, "barrio"),
-            ),
-          )
-          .limit(1);
-
-        if (liderActividades) {
-          await db.insert(serviceTasks).values({
-            baptismServiceId: service.id,
-            assignedTo: liderActividades.id,
-            assignedRole: "lider_actividades",
-            organizationId: liderActividades.organizationId,
-            title: `Servicio Bautismal — Coordinación logística: ${candidateName}`,
-            description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}`,
-            status: "pending",
-            createdBy: user.id,
+        // Notify mission leader
+        if (service.created_by) {
+          await db.insert(notifications).values({
+            userId: service.created_by,
+            title: "Agenda aprobada",
+            message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
+            type: "reminder",
           });
-        } else {
-          console.warn("[approve] No lider_actividades found in barrio org; skipping service_task creation");
         }
-      } catch (taskErr) {
-        console.error("[approve] Failed to create service_task:", taskErr);
-        // Do not fail the approval
-      }
 
-      res.json(updated);
+        // Create service_task for lider_actividades
+        try {
+          let candidateName = service.location_name;
+          if (service.candidate_contact_id) {
+            const contactResult = await db.execute(sql`
+              SELECT full_name FROM mission_contacts WHERE id = ${service.candidate_contact_id}
+            `);
+            const contact = contactResult.rows[0] as any;
+            if (contact) candidateName = contact.full_name;
+          }
+
+          const svcDate = new Date(service.service_at);
+          const dd = String(svcDate.getUTCDate()).padStart(2, "0");
+          const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
+          const yyyy = svcDate.getUTCFullYear();
+          const serviceDateStr = `${dd}/${mm}/${yyyy}`;
+
+          const [liderActividades] = await db
+            .select({ id: users.id, organizationId: users.organizationId })
+            .from(users)
+            .innerJoin(organizations, eq(organizations.id, users.organizationId))
+            .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
+            .limit(1);
+
+          if (liderActividades) {
+            await db.insert(serviceTasks).values({
+              baptismServiceId: service.id,
+              assignedTo: liderActividades.id,
+              assignedRole: "lider_actividades",
+              organizationId: liderActividades.organizationId,
+              title: `Servicio Bautismal — Coordinación logística: ${candidateName}`,
+              description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}`,
+              status: "pending",
+              createdBy: user.id,
+            });
+          } else {
+            console.warn("[approve] No lider_actividades found in barrio org; skipping service_task creation");
+          }
+        } catch (taskErr) {
+          console.error("[approve] Failed to create service_task:", taskErr);
+        }
+
+        return res.json({ success: true });
+      } catch (err) {
+        console.error("[baptisms/services/:id/approve POST]", err);
+        return res.status(500).json({ error: "Error interno al aprobar el servicio" });
+      }
     },
   );
 
@@ -1768,47 +1755,44 @@ export function registerMissionBaptismRoutes(
     "/api/baptisms/services/:id/reject",
     requireAuth,
     async (req, res) => {
-      const user = (req as any).user;
-      if (!canApproveBaptism(user))
-        return res.status(403).json({ error: "Forbidden" });
-      const { comment } = z
-        .object({ comment: z.string().min(1).max(500) })
-        .parse(req.body);
-      const [service] = await db
-        .select()
-        .from(baptismServices)
-        .where(
-          and(
-            eq(baptismServices.id, req.params.id),
-            eq(baptismServices.unitId, user.organizationId),
-          ),
-        )
-        .limit(1);
-      if (!service) return res.status(404).json({ error: "Service not found" });
-      if (service.approvalStatus !== "pending_approval") {
-        return res
-          .status(400)
-          .json({ error: "El servicio no está pendiente de aprobación" });
-      }
-      const [updated] = await db
-        .update(baptismServices)
-        .set({
-          approvalStatus: "needs_revision",
-          approvalComment: comment,
-          updatedAt: new Date(),
-        })
-        .where(eq(baptismServices.id, service.id))
-        .returning();
+      try {
+        const user = (req as any).user;
+        if (!canApproveBaptism(user))
+          return res.status(403).json({ error: "Forbidden" });
+        const { comment } = z
+          .object({ comment: z.string().min(1).max(500) })
+          .parse(req.body);
 
-      await db
-        .insert(notifications)
-        .values({
-          userId: service.createdBy,
-          title: "Agenda requiere revisión",
-          message: `El Obispo solicitó cambios en el servicio de ${service.locationName}: ${comment}`,
-          type: "reminder",
-        });
-      res.json(updated);
+        const svcResult = await db.execute(sql`
+          SELECT id, approval_status, created_by, location_name
+          FROM baptism_services WHERE id = ${req.params.id}
+        `);
+        const service = svcResult.rows[0] as any;
+        if (!service) return res.status(404).json({ error: "Service not found" });
+        if (service.approval_status !== "pending_approval") {
+          return res.status(400).json({ error: "El servicio no está pendiente de aprobación" });
+        }
+
+        await db.execute(sql`
+          UPDATE baptism_services
+          SET approval_status = 'needs_revision', approval_comment = ${comment}, updated_at = NOW()
+          WHERE id = ${service.id}
+        `);
+
+        if (service.created_by) {
+          await db.insert(notifications).values({
+            userId: service.created_by,
+            title: "Agenda requiere revisión",
+            message: `El Obispo solicitó cambios en el servicio de ${service.location_name}: ${comment}`,
+            type: "reminder",
+          });
+        }
+
+        return res.json({ success: true });
+      } catch (err) {
+        console.error("[baptisms/services/:id/reject POST]", err);
+        return res.status(500).json({ error: "Error interno al rechazar el servicio" });
+      }
     },
   );
 
