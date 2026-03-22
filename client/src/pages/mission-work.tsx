@@ -4004,6 +4004,7 @@ export default function MissionWork() {
     queryFn: () => missionFetch("/api/mission/baptism-services"),
     refetchOnWindowFocus: true,
     staleTime: 0,
+    refetchInterval: 30_000,
   });
 
   const qc = useQueryClient();
