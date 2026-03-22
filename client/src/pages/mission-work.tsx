@@ -3613,39 +3613,21 @@ function BaptismalServiceSheet({
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-3 pt-1">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                                <Input className="h-8 text-sm" placeholder="Nombre"
-                                  value={coordDraft.baptismDetails.ropa_responsable ?? ""}
-                                  onChange={(e) => setBap("ropa_responsable", e.target.value)} />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                                <Input type="date" className="h-8 text-sm"
-                                  value={coordDraft.baptismDetails.ropa_fecha ?? ""}
-                                  onChange={(e) => setBap("ropa_fecha", e.target.value || null)} />
-                              </div>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Origen / notas</Label>
-                              <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Procedencia de la ropa, talla, etc."
-                                value={coordDraft.baptismDetails.ropa_notas ?? ""}
-                                onChange={(e) => setBap("ropa_notas", e.target.value)} />
-                            </div>
                             <div>
                               <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba de ropa</Label>
-                              <div className="flex items-center gap-3">
-                                <Input type="date" className="h-8 text-sm flex-1"
-                                  value={coordDraft.baptismDetails.prueba_fecha ?? ""}
-                                  onChange={(e) => setBap("prueba_fecha", e.target.value || null)} />
-                                <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                                  <Switch
-                                    checked={!!coordDraft.baptismDetails.prueba_confirmada}
-                                    onCheckedChange={(v) => setBap("prueba_confirmada", v)} />
-                                  <span className="text-xs text-muted-foreground">Confirmada</span>
-                                </label>
-                              </div>
+                              <p className="text-sm text-foreground px-1">
+                                {service?.service_at ? formatServiceDate(service.service_at) : "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Responsable de recojo de ropa mojada</Label>
+                              <MemberAutocomplete
+                                value={coordDraft.baptismDetails.ropa_responsable ?? ""}
+                                options={memberOptions}
+                                placeholder="Nombre del miembro"
+                                className="h-8 text-sm"
+                                onChange={(v) => setBap("ropa_responsable", v)}
+                              />
                             </div>
                           </div>
                         </AccordionContent>
