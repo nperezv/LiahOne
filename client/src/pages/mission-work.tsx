@@ -4002,6 +4002,8 @@ export default function MissionWork() {
   const baptismServicesQuery = useQuery<BaptismService[]>({
     queryKey: ["/api/mission/baptism-services"],
     queryFn: () => missionFetch("/api/mission/baptism-services"),
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const qc = useQueryClient();
