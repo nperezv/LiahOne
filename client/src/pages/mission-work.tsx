@@ -2657,9 +2657,26 @@ function BaptismalServiceSheet({
 
   const programComplete = effectiveProgramOrder.every((t) => programDraft[t]?.trim());
   const checklistData = checklistQuery.data;
-  const checklistComplete = checklistData
-    ? checklistData.totalCount > 0 && checklistData.completedCount === checklistData.totalCount
-    : false;
+
+  // Mission leader only needs to complete mission-relevant checklist items;
+  // logistics items (espacio, arreglo, equipo, refrigerio, limpieza) belong to lider de actividades.
+  const MISSION_CHECKLIST_KEYS = ["programa", "ropa_bautismal", "entrevista_bautismal"];
+  const LOGISTICS_CHECKLIST_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
+
+  const visibleChecklistItems = (() => {
+    if (!checklistData?.items) return null;
+    if (isObispo) return checklistData.items; // obispo sees everything
+    if (isMissionLeader) return (checklistData.items as any[]).filter((i) =>
+      MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
+    );
+    return checklistData.items;
+  })();
+
+  const checklistComplete = (() => {
+    if (!visibleChecklistItems || visibleChecklistItems.length === 0) return false;
+    return (visibleChecklistItems as any[]).every((i) => i.completed);
+  })();
+
   // Helper: find a checklist item by its key
   const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
 
@@ -2952,13 +2969,16 @@ function BaptismalServiceSheet({
                 </div>
               )}
 
-              {programComplete && !checklistComplete && checklistData && (
+              {programComplete && !checklistComplete && visibleChecklistItems && (
                 <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                   <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-amber-800">Coordinación incompleta</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      {checklistData.totalCount - checklistData.completedCount} sección{checklistData.totalCount - checklistData.completedCount !== 1 ? "es" : ""} pendiente{checklistData.totalCount - checklistData.completedCount !== 1 ? "s" : ""}
+                      {(() => {
+                        const pending = (visibleChecklistItems as any[]).filter((i) => !i.completed).length;
+                        return `${pending} sección${pending !== 1 ? "es" : ""} pendiente${pending !== 1 ? "s" : ""}`;
+                      })()}
                     </p>
                   </div>
                   <Button size="sm" variant="outline" className="shrink-0 text-xs h-7 border-amber-300"
@@ -2968,21 +2988,27 @@ function BaptismalServiceSheet({
                 </div>
               )}
 
-              {checklistData && (
+              {visibleChecklistItems && (
                 <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{checklistData.completedCount} de {checklistData.totalCount} completados</span>
-                    <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 transition-all"
-                        style={{ width: checklistData.totalCount > 0 ? `${(checklistData.completedCount / checklistData.totalCount) * 100}%` : "0%" }}
-                      />
-                    </div>
-                  </div>
+                  {(() => {
+                    const total = (visibleChecklistItems as any[]).length;
+                    const completed = (visibleChecklistItems as any[]).filter((i) => i.completed).length;
+                    return (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">{completed} de {total} completados</span>
+                        <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-green-500 transition-all"
+                            style={{ width: total > 0 ? `${(completed / total) * 100}%` : "0%" }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                  {/* All checklist items — read-only, auto-driven */}
+                  {/* Checklist items filtered by role */}
                   <div className="space-y-1">
-                    {(checklistData.items ?? []).map((item: any) => {
+                    {(visibleChecklistItems as any[]).map((item: any) => {
                       const itemKey = item.itemKey ?? item.item_key;
                       const isEntrevista = itemKey === "entrevista_bautismal";
                       let candidates: Array<{ nombre: string; fecha: string | null }> | null = null;
@@ -3029,7 +3055,7 @@ function BaptismalServiceSheet({
                 </>
               )}
 
-              {!checklistData && !checklistQuery.isLoading && (
+              {!visibleChecklistItems && !checklistQuery.isLoading && (
                 <p className="text-sm text-muted-foreground">No hay checklist vinculado a este servicio.</p>
               )}
             </div>
