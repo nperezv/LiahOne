@@ -2164,4 +2164,105 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       return res.status(500).json({ error: "Error interno al rechazar el servicio" });
     }
   });
+
+  // GET /api/service-tasks — list service tasks visible to the authenticated user
+  app.get("/api/service-tasks", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      let rows;
+      if (user.role === "lider_actividades") {
+        const result = await db.execute(sql`
+          SELECT
+            st.id,
+            st.title,
+            st.description,
+            st.status,
+            st.assigned_to,
+            st.assigned_role,
+            st.due_date,
+            st.completed_at,
+            st.created_at,
+            st.updated_at,
+            st.baptism_service_id,
+            bs.service_at,
+            bs.location_name,
+            bs.approval_status
+          FROM service_tasks st
+          LEFT JOIN baptism_services bs ON bs.id = st.baptism_service_id
+          WHERE st.assigned_to = ${user.id}
+          ORDER BY st.created_at DESC
+        `);
+        rows = result.rows;
+      } else {
+        const result = await db.execute(sql`
+          SELECT
+            st.id,
+            st.title,
+            st.description,
+            st.status,
+            st.assigned_to,
+            st.assigned_role,
+            st.due_date,
+            st.completed_at,
+            st.created_at,
+            st.updated_at,
+            st.baptism_service_id,
+            bs.service_at,
+            bs.location_name,
+            bs.approval_status
+          FROM service_tasks st
+          LEFT JOIN baptism_services bs ON bs.id = st.baptism_service_id
+          ORDER BY st.created_at DESC
+        `);
+        rows = result.rows;
+      }
+
+      return res.json(rows);
+    } catch (err) {
+      console.error("[GET /api/service-tasks]", err);
+      return res.status(500).json({ error: "Error interno" });
+    }
+  });
+
+  // PATCH /api/service-tasks/:id/status — update status of a service task
+  app.patch("/api/service-tasks/:id/status", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { id } = req.params;
+      const { status } = req.body as { status: string };
+      const allowedStatuses = ["pending", "in_progress", "completed"];
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ error: "Estado no válido" });
+      }
+
+      const result = await db.execute(sql`
+        UPDATE service_tasks
+        SET
+          status = ${status},
+          updated_at = now(),
+          completed_at = ${status === "completed" ? sql`now()` : sql`NULL`}
+        WHERE id = ${id}
+        RETURNING *
+      `);
+
+      if (!result.rows.length) {
+        return res.status(404).json({ error: "Tarea no encontrada" });
+      }
+
+      return res.json(result.rows[0]);
+    } catch (err) {
+      console.error("[PATCH /api/service-tasks/:id/status]", err);
+      return res.status(500).json({ error: "Error interno" });
+    }
+  });
 }
