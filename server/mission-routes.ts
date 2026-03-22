@@ -1726,9 +1726,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           (${activity.id}, 'equipo_tecnologia',     'Equipo y tecnología coordinado con líderes',          3, false),
           (${activity.id}, 'presupuesto_refrigerio','Solicitud de presupuesto para refrigerio (si aplica)',4, false),
           (${activity.id}, 'limpieza',              'Limpieza de ambientes al terminar el servicio',       5, false),
-          (${activity.id}, 'ropa_bautismal',        'Designado recojo de ropa bautismal',                  6, false),
+          (${activity.id}, 'ropa_bautismal',        'Ropa bautismal coordinada',                           6, false),
           (${activity.id}, 'entrevista_bautismal',  'Candidatos han completado la entrevista bautismal',   7, false)
-        ON CONFLICT (activity_id, item_key) DO NOTHING
+        ON CONFLICT (activity_id, item_key) DO UPDATE SET label = EXCLUDED.label
       `);
 
       // Sync 'programa' item: mark complete if all program fields are filled
@@ -1754,6 +1754,27 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           UPDATE activity_checklist_items
           SET completed = false, completed_by = NULL, completed_at = NULL
           WHERE activity_id = ${activity.id} AND item_key = 'programa' AND completed = true
+        `);
+      }
+
+      // Sync 'ropa_bautismal': complete when both prueba_responsable and ropa_responsable are set
+      const ropaDetailsRow = await db.execute(sql`
+        SELECT ropa_responsable, prueba_responsable FROM baptism_service_baptism_details
+        WHERE service_id = ${req.params.id}
+      `);
+      const ropaDetails = ropaDetailsRow.rows[0] as any;
+      const ropaComplete = !!(ropaDetails?.ropa_responsable?.trim()) && !!(ropaDetails?.prueba_responsable?.trim());
+      if (ropaComplete) {
+        await db.execute(sql`
+          UPDATE activity_checklist_items
+          SET completed = true, completed_by = ${user.id}, completed_at = NOW()
+          WHERE activity_id = ${activity.id} AND item_key = 'ropa_bautismal' AND completed = false
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE activity_checklist_items
+          SET completed = false, completed_by = NULL, completed_at = NULL
+          WHERE activity_id = ${activity.id} AND item_key = 'ropa_bautismal' AND completed = true
         `);
       }
 
@@ -1948,13 +1969,14 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           INSERT INTO baptism_service_baptism_details (
             service_id,
             ropa_responsable, ropa_origen, ropa_fecha, ropa_notas,
-            prueba_confirmada, prueba_fecha, prueba_notas,
+            prueba_responsable, prueba_confirmada, prueba_fecha, prueba_notas,
             entrevista_fecha, entrevista_autoridad, entrevista_notas,
             updated_by, updated_at
           ) VALUES (
             ${id},
             ${baptismDetails.ropa_responsable ?? null}, ${baptismDetails.ropa_origen ?? null},
             ${baptismDetails.ropa_fecha ?? null}, ${baptismDetails.ropa_notas ?? null},
+            ${baptismDetails.prueba_responsable ?? null},
             ${baptismDetails.prueba_confirmada ?? false}, ${baptismDetails.prueba_fecha ?? null},
             ${baptismDetails.prueba_notas ?? null},
             ${baptismDetails.entrevista_fecha ?? null}, ${baptismDetails.entrevista_autoridad ?? null},
@@ -1966,6 +1988,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             ropa_origen = EXCLUDED.ropa_origen,
             ropa_fecha = EXCLUDED.ropa_fecha,
             ropa_notas = EXCLUDED.ropa_notas,
+            prueba_responsable = EXCLUDED.prueba_responsable,
             prueba_confirmada = EXCLUDED.prueba_confirmada,
             prueba_fecha = EXCLUDED.prueba_fecha,
             prueba_notas = EXCLUDED.prueba_notas,
