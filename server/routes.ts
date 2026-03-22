@@ -4966,6 +4966,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "secretario_financiero",
       ].includes(user.role);
 
+      const isMissionRole = [
+        "mission_leader",
+        "ward_missionary",
+        "full_time_missionary",
+      ].includes(user.role);
+
       // Welfare org presidents also need the full member list for the "favor de" field
       const isWelfarePresident =
         user.role === "presidente_organizacion" && user.organizationId
@@ -4976,7 +4982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             })()
           : false;
 
-      if (!isObispado && !isWelfarePresident) {
+      if (!isObispado && !isMissionRole && !isWelfarePresident) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
