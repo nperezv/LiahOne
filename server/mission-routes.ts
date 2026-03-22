@@ -2041,40 +2041,49 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         WHERE id = ${service.id}
       `);
 
-      // Revoke active public links and create new session link
-      await db.execute(sql`
-        UPDATE baptism_public_links
-        SET revoked_at = ${now}, revoked_by = ${user.id}
-        WHERE service_id = ${service.id} AND revoked_at IS NULL AND expires_at > ${now}
-      `);
-      const latestSlugResult = await db.execute(sql`
-        SELECT slug FROM baptism_public_links WHERE service_id = ${service.id}
-        ORDER BY created_at DESC LIMIT 1
-      `);
-      const previousSlug = (latestSlugResult.rows[0] as any)?.slug ?? null;
-      const session = approvedSessionPayload({
-        serviceId: service.id,
-        serviceAt: new Date(service.service_at),
-        randomCode: randomBytes(3).toString("hex"),
-        previousSlug,
-        randomSlugHex: randomBytes(3).toString("hex"),
-      });
-      await db.execute(sql`
-        INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
-        VALUES (${service.id}, ${session.slug}, ${session.code}, ${session.publishedAt}, ${session.expiresAt}, ${user.id})
-      `);
+      // Return success immediately — approval is committed
+      res.json({ success: true });
 
-      // Notify mission leader
-      if (service.created_by) {
-        await db.insert(notifications).values({
-          userId: service.created_by,
-          title: "Agenda aprobada",
-          message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
-          type: "reminder",
+      // Secondary operations: non-fatal, logged on failure
+      try {
+        await db.execute(sql`
+          UPDATE baptism_public_links
+          SET revoked_at = ${now}, revoked_by = ${user.id}
+          WHERE service_id = ${service.id} AND revoked_at IS NULL AND expires_at > ${now}
+        `);
+        const latestSlugResult = await db.execute(sql`
+          SELECT slug FROM baptism_public_links WHERE service_id = ${service.id}
+          ORDER BY created_at DESC LIMIT 1
+        `);
+        const previousSlug = (latestSlugResult.rows[0] as any)?.slug ?? null;
+        const session = approvedSessionPayload({
+          serviceId: service.id,
+          serviceAt: new Date(service.service_at),
+          randomCode: randomBytes(3).toString("hex"),
+          previousSlug,
+          randomSlugHex: randomBytes(3).toString("hex"),
         });
+        await db.execute(sql`
+          INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
+          VALUES (${service.id}, ${session.slug}, ${session.code}, ${session.publishedAt}, ${session.expiresAt}, ${user.id})
+        `);
+      } catch (linkErr) {
+        console.error("[approve] Failed to create public link:", linkErr);
       }
 
-      // Create service_task for lider_actividades
+      try {
+        if (service.created_by) {
+          await db.insert(notifications).values({
+            userId: service.created_by,
+            title: "Agenda aprobada",
+            message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
+            type: "reminder",
+          });
+        }
+      } catch (notifErr) {
+        console.error("[approve] Failed to send notification:", notifErr);
+      }
+
       try {
         let candidateName = service.location_name;
         if (service.candidate_persona_id) {
@@ -2089,14 +2098,12 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
         const yyyy = svcDate.getUTCFullYear();
         const serviceDateStr = `${dd}/${mm}/${yyyy}`;
-
         const [liderActividades] = await db
           .select({ id: users.id, organizationId: users.organizationId })
           .from(users)
           .innerJoin(organizations, eq(organizations.id, users.organizationId))
           .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
           .limit(1);
-
         if (liderActividades) {
           await db.insert(serviceTasks).values({
             baptismServiceId: service.id,
@@ -2112,8 +2119,6 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       } catch (taskErr) {
         console.error("[approve] Failed to create service_task:", taskErr);
       }
-
-      return res.json({ success: true });
     } catch (err) {
       console.error("[baptisms/services/:id/approve POST]", err);
       return res.status(500).json({ error: "Error interno al aprobar el servicio" });
