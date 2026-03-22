@@ -2132,7 +2132,7 @@ const MemberAutocomplete = ({
         className={className}
         onChange={(e) => { onChange(e.target.value); setOpen(true); updateRect(); }}
         onFocus={() => { setOpen(true); updateRect(); }}
-        onBlur={() => { setOpen(false); onBlur?.(); }}
+        onBlur={() => { setTimeout(() => { setOpen(false); onBlur?.(); }, 150); }}
       />
       {showDropdown && rect && createPortal(
         <ul
