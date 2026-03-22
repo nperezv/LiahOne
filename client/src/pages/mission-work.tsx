@@ -3172,7 +3172,7 @@ function BaptismalServiceSheet({
                   !!(coordDraft.logistics.refrigerio_detalle as string | null | undefined)?.trim() &&
                   (!refrigerioNecesitaPresupuesto || refrigerioPresupuestoSolicitado);
                 const secLimpieza = !!coordDraft.logistics.limpieza_responsable?.trim();
-                const secRopa = !!coordDraft.baptismDetails.ropa_responsable?.trim();
+                const secRopa = !!coordDraft.baptismDetails.ropa_responsable?.trim() && !!coordDraft.baptismDetails.prueba_responsable?.trim();
                 const misionSectionDone = showMisionSections ? [secEntrevista, secRopa] : [];
                 const logisticsSectionDone = showLogisticsSections ? [secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza] : [];
                 const visibleSectionDone = [...misionSectionDone, ...logisticsSectionDone];
@@ -3612,22 +3612,50 @@ function BaptismalServiceSheet({
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="space-y-3 pt-1">
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba de ropa</Label>
-                              <p className="text-sm text-foreground px-1">
-                                {service?.service_at ? formatServiceDate(service.service_at) : "—"}
-                              </p>
+                          <div className="space-y-4 pt-1">
+                            {/* Prueba de ropa */}
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prueba de ropa</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                                  <Input type="date" className="h-8 text-sm"
+                                    value={coordDraft.baptismDetails.prueba_fecha ?? ""}
+                                    onChange={(e) => setBap("prueba_fecha", e.target.value || null)} />
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                                  <MemberAutocomplete
+                                    value={coordDraft.baptismDetails.prueba_responsable ?? ""}
+                                    options={memberOptions}
+                                    placeholder="Nombre del miembro"
+                                    className="h-8 text-sm"
+                                    onChange={(v) => setBap("prueba_responsable", v)}
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Responsable de recojo de ropa mojada</Label>
-                              <MemberAutocomplete
-                                value={coordDraft.baptismDetails.ropa_responsable ?? ""}
-                                options={memberOptions}
-                                placeholder="Nombre del miembro"
-                                className="h-8 text-sm"
-                                onChange={(v) => setBap("ropa_responsable", v)}
-                              />
+                            {/* Recojo de ropa mojada */}
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recojo de ropa mojada</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                                  <p className="text-sm text-foreground px-1 h-8 flex items-center">
+                                    {service?.service_at ? formatServiceDate(service.service_at) : "—"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                                  <MemberAutocomplete
+                                    value={coordDraft.baptismDetails.ropa_responsable ?? ""}
+                                    options={memberOptions}
+                                    placeholder="Nombre del miembro"
+                                    className="h-8 text-sm"
+                                    onChange={(v) => setBap("ropa_responsable", v)}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </AccordionContent>
