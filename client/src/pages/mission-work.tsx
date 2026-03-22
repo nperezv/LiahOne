@@ -2325,8 +2325,15 @@ function BaptismalServiceSheet({
       setEditMode(false);
       setActiveTab("agenda");
       setCoordDraft({ logistics: {}, baptismDetails: {} });
-    } else if (isObispo) {
-      setActiveTab(service?.approval_status === "approved" ? "checklist" : "aprobacion");
+    } else {
+      if (service?.id) {
+        qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service.id] });
+        qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service.id, "checklist"] });
+        qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service.id, "coordination"] });
+      }
+      if (isObispo) {
+        setActiveTab(service?.approval_status === "approved" ? "checklist" : "aprobacion");
+      }
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
