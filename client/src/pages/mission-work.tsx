@@ -2321,8 +2321,14 @@ function BaptismalServiceSheet({
   }, [service?.service_at, service?.location_name, service?.location_address]);
 
   React.useEffect(() => {
-    if (!open) { setEditMode(false); setActiveTab("agenda"); setCoordDraft({ logistics: {}, baptismDetails: {} }); }
-  }, [open]);
+    if (!open) {
+      setEditMode(false);
+      setActiveTab("agenda");
+      setCoordDraft({ logistics: {}, baptismDetails: {} });
+    } else if (isObispo) {
+      setActiveTab(service?.approval_status === "approved" ? "checklist" : "aprobacion");
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (detail?.program_items) {
@@ -2659,6 +2665,14 @@ function BaptismalServiceSheet({
   const programComplete = effectiveProgramOrder.every((t) => programDraft[t]?.trim());
 
   const coordComplete = (() => {
+    if (isObispo) {
+      // Obispo is a reviewer: coord is "done" once data is loaded and mission leader filled something
+      return coordQuery.isSuccess && !coordQuery.isLoading && (
+        !!coordDraft.baptismDetails.ropa_responsable?.trim() ||
+        !!coordDraft.baptismDetails.entrevista_notas?.trim() ||
+        serviceCandidates.some((c: any) => !!c.entrevista_fecha)
+      );
+    }
     const secEntrevista = serviceCandidates.length === 0
       ? !!coordDraft.baptismDetails.entrevista_notas?.trim()
       : serviceCandidates.every((c: any) => !!c.entrevista_fecha);
@@ -2725,78 +2739,49 @@ function BaptismalServiceSheet({
             </div>
           </div>
 
-          {/* Stepper: [Programa | Coordinación] → [Resumen] → [Aprobación] */}
-          <div className="flex items-stretch gap-1">
-            {/* Row 1: Programa + Coordinación (always accessible, side by side) */}
-            {(["agenda", "coordinacion"] as const).map((key, idx) => {
-              const label = key === "agenda" ? "Programa" : "Coordinación";
-              const done = key === "agenda" ? programComplete : coordComplete;
-              const isActive = activeTab === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveTab(key)}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center cursor-pointer hover:bg-muted/40
-                    ${isActive ? "border-primary" : "border-transparent"}`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
-                    ${done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
-                  </div>
-                  <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* Resumen (always accessible) */}
-            {(() => {
-              const isActive = activeTab === "checklist";
-              return (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("checklist")}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center cursor-pointer hover:bg-muted/40
-                    ${isActive ? "border-primary" : "border-transparent"}`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
-                    ${checklistComplete ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {checklistComplete ? <Check className="h-3.5 w-3.5" /> : 3}
-                  </div>
-                  <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                    Resumen
-                  </span>
-                </button>
-              );
-            })()}
-
-            {/* Aprobación (locked until Resumen complete) */}
-            {(() => {
-              const isActive = activeTab === "aprobacion";
-              const canClick = !stepAprobacionLocked;
-              const done = liveService?.approval_status === "approved";
-              return (
-                <button
-                  type="button"
-                  disabled={!canClick}
-                  onClick={() => canClick && setActiveTab("aprobacion")}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center
-                    ${isActive ? "border-primary" : "border-transparent"}
-                    ${!canClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
-                    ${done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {done ? <Check className="h-3.5 w-3.5" /> : 4}
-                  </div>
-                  <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                    Aprobación
-                  </span>
-                </button>
-              );
-            })()}
-          </div>
+          {/* Stepper — order differs by role */}
+          {(() => {
+            const approved = liveService?.approval_status === "approved";
+            const stepConfig = isObispo
+              ? [
+                  { key: "agenda",       label: "Programa",     done: programComplete,        canClick: true },
+                  { key: "coordinacion", label: "Coordinación", done: coordComplete,           canClick: true },
+                  { key: "aprobacion",   label: "Aprobación",   done: approved,               canClick: true },
+                  { key: "checklist",    label: "Resumen",      done: !!serviceTaskQuery.data, canClick: approved },
+                ]
+              : [
+                  { key: "agenda",       label: "Programa",     done: programComplete,    canClick: true },
+                  { key: "coordinacion", label: "Coordinación", done: coordComplete,       canClick: true },
+                  { key: "checklist",    label: "Resumen",      done: checklistComplete,   canClick: true },
+                  { key: "aprobacion",   label: "Aprobación",   done: approved,            canClick: !stepAprobacionLocked },
+                ];
+            return (
+              <div className="flex items-stretch gap-1">
+                {stepConfig.map(({ key, label, done, canClick }, idx) => {
+                  const isActive = activeTab === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={!canClick}
+                      onClick={() => canClick && setActiveTab(key as any)}
+                      className={`flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors text-center
+                        ${isActive ? "border-primary" : "border-transparent"}
+                        ${!canClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0
+                        ${done ? "bg-green-500 text-white" : isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                        {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                      </div>
+                      <span className={`text-[11px] font-medium leading-none ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Scrollable body */}
@@ -3090,7 +3075,29 @@ function BaptismalServiceSheet({
                     return <div className="space-y-1">{(visibleChecklistItems as any[]).map(renderItem)}</div>;
                   })()}
 
-                  {programComplete && checklistComplete && (
+                  {/* Task card for obispo post-approval */}
+                  {isObispo && (() => {
+                    const task = serviceTaskQuery.data;
+                    if (!task) return null;
+                    const statusLabel = task.status === "completed" ? "Completado" : task.status === "in_progress" ? "En progreso" : "Pendiente";
+                    const statusColor = task.status === "completed" ? "bg-green-100 text-green-700" : task.status === "in_progress" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
+                    return (
+                      <div className={`border rounded-lg px-3 py-3 mt-2 ${task.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" : task.status === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                          <span className="text-sm font-medium flex-1">Logística asignada al líder de actividades</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{statusLabel}</span>
+                        </div>
+                        {task.assignedUserName && (
+                          <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {!isObispo && programComplete && checklistComplete &&
+                    liveService?.approval_status !== "pending_approval" &&
+                    liveService?.approval_status !== "approved" && (
                     <Button
                       className="w-full mt-2"
                       onClick={() => submitForApprovalMutation.mutate(undefined, {
@@ -3180,7 +3187,64 @@ function BaptismalServiceSheet({
                 <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
               )}
 
-              {!coordQuery.isLoading && (() => {
+              {/* Read-only view for obispo */}
+              {!coordQuery.isLoading && isObispo && (() => {
+                const bd = coordDraft.baptismDetails;
+                const task = serviceTaskQuery.data;
+                const taskStatusLabel = task?.status === "completed" ? "Completado"
+                  : task?.status === "in_progress" ? "En progreso"
+                  : task ? "Pendiente" : "Sin asignar";
+                const taskStatusColor = task?.status === "completed" ? "bg-green-100 text-green-700"
+                  : task?.status === "in_progress" ? "bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground";
+                const row = (label: string, value: string | null | undefined) => (
+                  <div className="flex items-start gap-2 py-1.5 border-b border-border/40 last:border-0">
+                    <span className="text-xs text-muted-foreground w-36 shrink-0 pt-0.5">{label}</span>
+                    <span className="text-sm">{value?.trim() || <span className="text-muted-foreground/50 italic">—</span>}</span>
+                  </div>
+                );
+                return (
+                  <div className="space-y-4">
+                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Entrevista bautismal" />
+                    <div className="rounded-lg border bg-muted/20 px-3 py-1">
+                      {serviceCandidates.length > 0
+                        ? serviceCandidates.map((c: any) => (
+                            <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0">
+                              <span className="text-sm">{c.nombre}</span>
+                              {c.entrevista_fecha
+                                ? <span className="text-xs text-green-700 font-medium">{formatServiceDate(c.entrevista_fecha)}</span>
+                                : <span className="text-xs text-muted-foreground italic">Pendiente</span>}
+                            </div>
+                          ))
+                        : row("Notas", bd.entrevista_notas)}
+                    </div>
+
+                    <BaptismSectionHead icon={<Shirt className="h-4 w-4" />} title="Ropa bautismal" />
+                    <div className="rounded-lg border bg-muted/20 px-3 py-1">
+                      {row("Fecha de prueba", service?.service_at ? formatServiceDate(service.service_at) : null)}
+                      {row("Responsable prueba", bd.prueba_responsable)}
+                      {row("Responsable recojo", bd.ropa_responsable)}
+                    </div>
+
+                    <BaptismSectionHead icon={<ClipboardList className="h-4 w-4" />} title="Logística de actividades" />
+                    <div className={`border rounded-lg px-3 py-3 ${task?.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${task?.status === "completed" ? "bg-green-500" : task?.status === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                        <span className="text-sm font-medium flex-1">Tarea del líder de actividades</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${taskStatusColor}`}>{taskStatusLabel}</span>
+                      </div>
+                      {task?.assignedUserName && (
+                        <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
+                      )}
+                      {!task && (
+                        <p className="text-xs text-muted-foreground mt-1 pl-4">Se generará al aprobar el servicio</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {!coordQuery.isLoading && !isObispo && (() => {
                 // Section completion booleans (used for dots and progress bar)
                 const secEntrevista = serviceCandidates.length === 0
                   ? !!coordDraft.baptismDetails.entrevista_notas?.trim()
