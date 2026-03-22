@@ -1,5 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
@@ -2106,39 +2105,27 @@ const MemberAutocomplete = ({
   onChange: (v: string) => void; onBlur?: () => void; testId?: string; className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
-
-  const updateRect = () => {
-    if (inputRef.current) setRect(inputRef.current.getBoundingClientRect());
-  };
 
   const handleSelect = (o: MemberOption) => {
     onChange(o.value);
     setOpen(false);
   };
 
-  const showDropdown = open && value.trim().length > 0 && filtered.length > 0;
-
   return (
     <div className="relative">
       <Input
-        ref={inputRef}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
         data-testid={testId}
         className={className}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); updateRect(); }}
-        onFocus={() => { setOpen(true); updateRect(); }}
-        onBlur={() => { setTimeout(() => { setOpen(false); onBlur?.(); }, 150); }}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { setOpen(false); onBlur?.(); }}
       />
-      {showDropdown && rect && createPortal(
-        <ul
-          style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width, zIndex: 9999 }}
-          className="max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm"
-        >
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
           {filtered.slice(0, 15).map((o) => (
             <li
               key={o.value}
@@ -2148,8 +2135,7 @@ const MemberAutocomplete = ({
               {o.value}
             </li>
           ))}
-        </ul>,
-        document.body
+        </ul>
       )}
     </div>
   );
