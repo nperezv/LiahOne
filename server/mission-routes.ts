@@ -2025,7 +2025,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         return res.status(403).json({ error: "Forbidden" });
 
       const svcResult = await db.execute(sql`
-        SELECT id, unit_id, approval_status, created_by, location_name, candidate_contact_id, service_at
+        SELECT id, unit_id, approval_status, created_by, location_name, candidate_persona_id, service_at
         FROM baptism_services WHERE id = ${req.params.id}
       `);
       const service = svcResult.rows[0] as any;
@@ -2077,12 +2077,12 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       // Create service_task for lider_actividades
       try {
         let candidateName = service.location_name;
-        if (service.candidate_contact_id) {
-          const contactResult = await db.execute(sql`
-            SELECT full_name FROM mission_contacts WHERE id = ${service.candidate_contact_id}
+        if (service.candidate_persona_id) {
+          const personaResult = await db.execute(sql`
+            SELECT nombre FROM mission_personas WHERE id = ${service.candidate_persona_id}
           `);
-          const contact = contactResult.rows[0] as any;
-          if (contact) candidateName = contact.full_name;
+          const persona = personaResult.rows[0] as any;
+          if (persona) candidateName = persona.nombre;
         }
         const svcDate = new Date(service.service_at);
         const dd = String(svcDate.getUTCDate()).padStart(2, "0");
