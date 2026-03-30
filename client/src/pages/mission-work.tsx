@@ -364,7 +364,7 @@ function usePersonaOtrosCompromisos(id: string | null) {
 // AttendanceGrid component
 // ============================================================
 
-function AttendanceGrid({
+const AttendanceGrid = React.memo(function AttendanceGrid({
   asistencia,
   sundays,
   personaId,
@@ -390,7 +390,6 @@ function AttendanceGrid({
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/mission/personas"] });
       if (personaId) {
         qc.invalidateQueries({ queryKey: ["/api/mission/personas", personaId, "asistencia"] });
       }
@@ -442,7 +441,7 @@ function AttendanceGrid({
       })}
     </div>
   );
-}
+});
 
 // ============================================================
 // AddPersonaDialog — member picker (nuevo / regresando)
@@ -804,7 +803,7 @@ function BaptismDateIcon() {
 // PersonaDetailSheet
 // ============================================================
 
-function PersonaDetailSheet({
+const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
   persona,
   open,
   onOpenChange,
@@ -3943,7 +3942,7 @@ function BaptismalServiceSheet({
     </Dialog>
     </>
   );
-}
+});
 
 // ============================================================
 
@@ -3985,6 +3984,10 @@ export default function MissionWork() {
   const [section, setSection] = useState<SectionType | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const handleSheetOpenChange = React.useCallback((v: boolean) => {
+    setSheetOpen(v);
+    if (!v) setSelectedPersona(null);
+  }, []);
   const [selectedService, setSelectedService] = useState<BaptismService | null>(null);
   const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
   const [serviceInitialEditMode, setServiceInitialEditMode] = useState(false);
@@ -4195,10 +4198,7 @@ export default function MissionWork() {
         <PersonaDetailSheet
           persona={livePersona}
           open={sheetOpen}
-          onOpenChange={(v) => {
-            setSheetOpen(v);
-            if (!v) setSelectedPersona(null);
-          }}
+          onOpenChange={handleSheetOpenChange}
           tipo={selectedPersona?.tipo ?? (section as PersonaTipo)}
         />
       </div>

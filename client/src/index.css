@@ -890,6 +890,16 @@
   }
 }
 
+/* Exclude sidebar from root view-transition so it stays put during navigation */
+[data-sidebar="sidebar"] {
+  view-transition-name: app-sidebar;
+}
+
+::view-transition-old(app-sidebar),
+::view-transition-new(app-sidebar) {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   ::view-transition-old(root),
   ::view-transition-new(root) {
