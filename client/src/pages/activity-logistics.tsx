@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useMemo, useEffect, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Clock, Loader2, Save } from "lucide-react";
+import {
+  ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Clock, Loader2, Save,
+  CalendarDays, Sparkles, Tv2, Utensils, Upload, FileText, ExternalLink, Plus, X,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,9 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getAccessToken } from "@/lib/auth-tokens";
+import { normalizeMemberName } from "@/lib/utils";
+import { BudgetRequestDialog } from "@/components/budget-request-dialog";
 
 const ALLOWED_ROLES = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
 const CAN_EDIT_ROLES = ["lider_actividades", "obispo", "consejero_obispo"];
@@ -32,23 +40,56 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pendiente</Badge>;
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h4 className="font-semibold text-muted-foreground uppercase text-xs tracking-wide mb-2 mt-4 first:mt-0">
-      {children}
-    </h4>
-  );
-}
+// ── MemberAutocomplete ──────────────────────────────────────────────────────
 
-function Field({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
+type MemberOption = { value: string };
+
+const filterMemberOptions = (options: MemberOption[], query: string) => {
+  const trimmed = query.trim();
+  if (!trimmed) return options;
+  return options.filter((o) => o.value.toLowerCase().includes(trimmed.toLowerCase()));
+};
+
+function MemberAutocomplete({
+  value, options, placeholder, onChange, className,
+}: {
+  value: string; options: MemberOption[]; placeholder?: string;
+  onChange: (v: string) => void; className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
   return (
-    <div className="text-sm">
-      <span className="font-medium">{label}: </span>
-      <span className="text-muted-foreground">{value}</span>
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={className}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      />
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 15).map((o) => (
+            <li
+              key={o.value}
+              className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={(e) => { e.preventDefault(); onChange(o.value); setOpen(false); }}
+            >
+              {o.value}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
+
+// ── LogisticsDetail ─────────────────────────────────────────────────────────
+
+type CoordData = { logistics: Record<string, any>; baptismDetails: Record<string, any> };
+type ArregloTask = { persona: string; asignacion: string; hora: string };
 
 function LogisticsDetail({
   baptismServiceId,
@@ -59,27 +100,123 @@ function LogisticsDetail({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [draft, setDraft] = useState<Record<string, any> | null>(null);
+  const comprobanteRef = useRef<HTMLInputElement>(null);
+  const [uploadingComprobante, setUploadingComprobante] = useState(false);
+  const [openSections, setOpenSections] = useState<string[]>([]);
+  const [arregloBudgetOpen, setArregloBudgetOpen] = useState(false);
+  const [refrigerioBudgetOpen, setRefrigeriBudgetOpen] = useState(false);
+  const [draft, setDraft] = useState<CoordData>({ logistics: {}, baptismDetails: {} });
+  const draftInitialized = useRef(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["/api/baptisms/services", baptismServiceId, "coordination"],
     queryFn: () => apiRequest("GET", `/api/baptisms/services/${baptismServiceId}/coordination`),
     enabled: Boolean(baptismServiceId),
-    select: (d: any) => d,
-    onSuccess: (d: any) => {
-      if (draft === null) setDraft(d?.logistics ?? {});
-    },
-  } as any);
+  });
+
+  useEffect(() => {
+    if (data && !draftInitialized.current) {
+      setDraft({
+        logistics: (data as any).logistics ?? {},
+        baptismDetails: (data as any).baptismDetails ?? {},
+      });
+      draftInitialized.current = true;
+    }
+  }, [data]);
+
+  const membersQuery = useQuery<any[]>({ queryKey: ["/api/members"] });
+  const memberOptions = useMemo(
+    () => Array.from(new Set(
+      (membersQuery.data ?? [])
+        .map((m: any) => normalizeMemberName(m.nameSurename))
+        .filter((n): n is string => Boolean(n))
+    )).map((value) => ({ value })),
+    [membersQuery.data],
+  );
 
   const saveMutation = useMutation({
-    mutationFn: (logistics: Record<string, any>) =>
-      apiRequest("PUT", `/api/baptisms/services/${baptismServiceId}/coordination`, { logistics }),
+    mutationFn: (d: CoordData) =>
+      apiRequest("PUT", `/api/baptisms/services/${baptismServiceId}/coordination`, d),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/baptisms/services", baptismServiceId, "coordination"] });
       toast({ title: "Logística guardada" });
     },
     onError: () => toast({ title: "Error al guardar", variant: "destructive" }),
   });
+
+  const setLog = (field: string, value: any) =>
+    setDraft((d) => ({ ...d, logistics: { ...d.logistics, [field]: value } }));
+
+  // arregloTasks — derived from draft with legacy field migration
+  const arregloTasks: ArregloTask[] = draft.logistics.arreglo_tasks
+    ?? (draft.logistics.arreglo_participantes?.length
+      ? (draft.logistics.arreglo_participantes as string[]).map((p: string) => ({
+          persona: p, asignacion: "", hora: draft.logistics.arreglo_hora ?? "",
+        }))
+      : [{ persona: "", asignacion: "", hora: "" }]);
+
+  const setArregloTasks = (tasks: ArregloTask[]) => {
+    setDraft((d) => ({
+      ...d,
+      logistics: {
+        ...d.logistics,
+        arreglo_tasks: tasks,
+        arreglo_participantes: tasks.map((t) => t.persona).filter((p) => p.trim()),
+        arreglo_responsable: tasks[0]?.persona || null,
+        arreglo_hora: tasks.find((t) => t.hora)?.hora || null,
+      },
+    }));
+  };
+
+  // refrigerioResponsables — derived from draft with legacy field migration
+  const refrigerioResponsables: string[] =
+    (draft.logistics.refrigerio_responsables as string[] | null | undefined)?.length
+      ? (draft.logistics.refrigerio_responsables as string[])
+      : draft.logistics.refrigerio_responsable
+        ? [draft.logistics.refrigerio_responsable as string]
+        : [""];
+
+  const setRefrigerioResponsables = (names: string[]) => {
+    setDraft((d) => ({
+      ...d,
+      logistics: {
+        ...d.logistics,
+        refrigerio_responsables: names,
+        refrigerio_responsable: names[0] ?? null,
+      },
+    }));
+  };
+
+  const handleComprobanteUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingComprobante(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const token = getAccessToken();
+      const uploadRes = await fetch("/api/uploads", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!uploadRes.ok) throw new Error("No se pudo subir el comprobante");
+      const uploaded = await uploadRes.json();
+      const updatedLogistics = {
+        ...draft.logistics,
+        espacio_comprobante_url: uploaded.url,
+        espacio_comprobante_nombre: file.name,
+      };
+      setDraft((d) => ({ ...d, logistics: updatedLogistics }));
+      await saveMutation.mutateAsync({ logistics: updatedLogistics, baptismDetails: draft.baptismDetails });
+    } catch (err: any) {
+      toast({ title: "Error al subir", description: err.message ?? "No se pudo subir el comprobante", variant: "destructive" });
+    } finally {
+      setUploadingComprobante(false);
+      if (comprobanteRef.current) comprobanteRef.current.value = "";
+    }
+  };
 
   if (isLoading) return (
     <div className="mt-4 space-y-2">
@@ -92,214 +229,433 @@ function LogisticsDetail({
     <p className="mt-4 text-sm text-muted-foreground">No se pudo cargar el detalle de logística.</p>
   );
 
-  const log = data.logistics ?? {};
-  const d = draft ?? log;
+  // Section completion (same logic as mission-work.tsx)
+  const secReserva = !!draft.logistics.espacio_comprobante_url;
+  const secArreglo = arregloTasks.some((t) => t.persona.trim()) &&
+    (!draft.logistics.arreglo_necesita_presupuesto || !!draft.logistics.arreglo_presupuesto_solicitado);
+  const secEquipo = !!draft.logistics.equipo_responsable?.trim();
+  const secRefrigerio = refrigerioResponsables.some((r) => r.trim()) &&
+    !!(draft.logistics.refrigerio_detalle as string | null | undefined)?.trim() &&
+    (!draft.logistics.refrigerio_necesita_presupuesto || !!draft.logistics.refrigerio_presupuesto_solicitado);
+  const secLimpieza = !!draft.logistics.limpieza_responsable?.trim();
+  const completedCount = [secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza].filter(Boolean).length;
 
-  const set = (key: string, val: any) => setDraft((prev) => ({ ...(prev ?? log), [key]: val }));
+  const dot = (done: boolean) => (
+    <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-primary" : "bg-muted-foreground/30"}`} />
+  );
+  const itemClass = (done: boolean) =>
+    `border rounded-lg px-3 border-b-0 transition-colors ${done ? "border-primary/40 bg-primary/5" : ""}`;
 
-  const arregloTasks: { persona?: string; asignacion?: string; hora?: string }[] =
-    Array.isArray(log.arreglo_tasks) ? log.arreglo_tasks : [];
-  const refrigerioResponsables: string[] = Array.isArray(log.refrigerio_responsables)
-    ? log.refrigerio_responsables
-    : log.refrigerio_responsable ? [log.refrigerio_responsable] : [];
-
-  if (!canEdit) {
-    // Read-only view
-    return (
-      <div className="mt-4 space-y-3 text-sm border-t pt-4">
-        <SectionTitle>Reserva de ambientes</SectionTitle>
-        <Field label="Responsable" value={log.espacio_responsable} />
-        <Field label="Fecha" value={log.espacio_fecha ? formatDate(log.espacio_fecha) : null} />
-        <Field label="Hora inicio" value={log.espacio_hora_inicio} />
-        <Field label="Hora fin" value={log.espacio_hora_fin} />
-        {Array.isArray(log.espacio_salas) && log.espacio_salas.length > 0 && (
-          <Field label="Salas" value={log.espacio_salas.join(", ")} />
-        )}
-        <Field label="Notas" value={log.espacio_notas} />
-
-        <SectionTitle>Arreglo y preparación</SectionTitle>
-        {arregloTasks.length > 0 ? (
-          <table className="w-full text-sm border rounded overflow-hidden">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-2 py-1 font-medium">Persona</th>
-                <th className="text-left px-2 py-1 font-medium">Asignación</th>
-                <th className="text-left px-2 py-1 font-medium">Hora</th>
-              </tr>
-            </thead>
-            <tbody>
-              {arregloTasks.map((t, i) => (
-                <tr key={i} className="border-t">
-                  <td className="px-2 py-1">{t.persona || "-"}</td>
-                  <td className="px-2 py-1">{t.asignacion || "-"}</td>
-                  <td className="px-2 py-1">{t.hora || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-muted-foreground italic text-sm">Sin tareas de arreglo.</p>
-        )}
-        <Field label="Notas" value={log.arreglo_notas} />
-
-        <SectionTitle>Equipo y tecnología</SectionTitle>
-        <Field label="Responsable" value={log.equipo_responsable} />
-        <Field label="Lista de equipo" value={log.equipo_lista} />
-        <Field label="Notas" value={log.equipo_notas} />
-
-        <SectionTitle>Refrigerio</SectionTitle>
-        {refrigerioResponsables.length > 0 && (
-          <Field label="Responsables" value={refrigerioResponsables.join(", ")} />
-        )}
-        <Field label="Qué se preparará" value={log.refrigerio_detalle} />
-        <Field label="Notas" value={log.refrigerio_notas} />
-
-        <SectionTitle>Limpieza</SectionTitle>
-        <Field label="Responsable" value={log.limpieza_responsable} />
-        <Field label="Notas" value={log.limpieza_notas} />
-      </div>
-    );
-  }
-
-  // Editable view
   return (
-    <div className="mt-4 space-y-4 border-t pt-4">
-      {/* Reserva de ambientes */}
-      <div className="space-y-2">
-        <SectionTitle>Reserva de ambientes</SectionTitle>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-            <Input className="h-8 text-sm" value={d.espacio_responsable ?? ""}
-              onChange={(e) => set("espacio_responsable", e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-            <Input type="date" className="h-8 text-sm" value={d.espacio_fecha ?? ""}
-              onChange={(e) => set("espacio_fecha", e.target.value || null)} />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1 block">Hora inicio</Label>
-            <Input type="time" className="h-8 text-sm" value={d.espacio_hora_inicio ?? ""}
-              onChange={(e) => set("espacio_hora_inicio", e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1 block">Hora fin</Label>
-            <Input type="time" className="h-8 text-sm" value={d.espacio_hora_fin ?? ""}
-              onChange={(e) => set("espacio_hora_fin", e.target.value)} />
-          </div>
+    <div className="mt-4 border-t pt-4 space-y-4">
+      {/* Progress bar */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{completedCount} de 5 listos</span>
+          {completedCount === 5 && <span className="text-green-600 font-medium">Completo</span>}
         </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" value={d.espacio_notas ?? ""}
-            onChange={(e) => set("espacio_notas", e.target.value)} />
+        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${(completedCount / 5) * 100}%` }} />
         </div>
       </div>
 
-      {/* Arreglo y preparación — show read-only tasks, editable notes */}
-      <div className="space-y-2">
-        <SectionTitle>Arreglo y preparación</SectionTitle>
-        {arregloTasks.length > 0 ? (
-          <table className="w-full text-sm border rounded overflow-hidden">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-2 py-1 font-medium">Persona</th>
-                <th className="text-left px-2 py-1 font-medium">Asignación</th>
-                <th className="text-left px-2 py-1 font-medium">Hora</th>
-              </tr>
-            </thead>
-            <tbody>
-              {arregloTasks.map((t, i) => (
-                <tr key={i} className="border-t">
-                  <td className="px-2 py-1">{t.persona || "-"}</td>
-                  <td className="px-2 py-1">{t.asignacion || "-"}</td>
-                  <td className="px-2 py-1">{t.hora || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">Sin tareas registradas.</p>
-        )}
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" value={d.arreglo_notas ?? ""}
-            onChange={(e) => set("arreglo_notas", e.target.value)} />
-        </div>
-      </div>
+      <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="space-y-1">
 
-      {/* Equipo y tecnología */}
-      <div className="space-y-2">
-        <SectionTitle>Equipo y tecnología</SectionTitle>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-          <Input className="h-8 text-sm" value={d.equipo_responsable ?? ""}
-            onChange={(e) => set("equipo_responsable", e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Lista de equipo</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Micrófono, proyector..."
-            value={d.equipo_lista ?? ""}
-            onChange={(e) => set("equipo_lista", e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" value={d.equipo_notas ?? ""}
-            onChange={(e) => set("equipo_notas", e.target.value)} />
-        </div>
-      </div>
+        {/* ── Reserva de ambientes ── */}
+        <AccordionItem value="reserva" className={itemClass(secReserva)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Reserva de ambientes</span>
+              <span className="ml-auto mr-2">{dot(secReserva)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => window.open("https://www.churchofjesuschrist.org/calendar", "_blank")}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                  Ir al calendario
+                </Button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    disabled={uploadingComprobante}
+                    onClick={() => comprobanteRef.current?.click()}
+                    className="relative w-full overflow-hidden rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed"
+                  >
+                    <span
+                      className="pointer-events-none absolute inset-y-0 left-0 rounded-[5px] bg-emerald-500/25 transition-none"
+                      style={uploadingComprobante ? { animation: "btn-fill 5s ease-out forwards" } : { width: 0 }}
+                    />
+                    <span className="relative z-10 flex items-center justify-center gap-1.5">
+                      <Upload className="h-3.5 w-3.5 shrink-0" />
+                      {uploadingComprobante ? "Cargando..." : "Cargar comprobante de la reserva"}
+                    </span>
+                  </button>
+                )}
+                <input
+                  ref={comprobanteRef}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/jpg,image/heic,image/heif,.pdf,.jpg,.jpeg,.heic,.heif"
+                  className="hidden"
+                  onChange={handleComprobanteUpload}
+                />
+              </div>
+              {draft.logistics.espacio_comprobante_url && (
+                <div className="flex items-center gap-1.5 text-xs bg-muted/50 px-2 py-1.5 rounded-md">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                  <a
+                    href={draft.logistics.espacio_comprobante_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate hover:underline text-foreground"
+                  >
+                    {draft.logistics.espacio_comprobante_nombre ?? "Comprobante"}
+                  </a>
+                </div>
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      {/* Refrigerio */}
-      <div className="space-y-2">
-        <SectionTitle>Refrigerio</SectionTitle>
-        {refrigerioResponsables.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Responsables: {refrigerioResponsables.join(", ")}
-          </p>
-        )}
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Qué se preparará</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" placeholder="Pastas, refrescos..."
-            value={d.refrigerio_detalle ?? ""}
-            onChange={(e) => set("refrigerio_detalle", e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Notas</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" value={d.refrigerio_notas ?? ""}
-            onChange={(e) => set("refrigerio_notas", e.target.value)} />
-        </div>
-      </div>
+        {/* ── Arreglo y preparación ── */}
+        <AccordionItem value="arreglo" className={itemClass(secArreglo)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Arreglo y preparación</span>
+              <span className="ml-auto mr-2">{dot(secArreglo)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Switch
+                    checked={!!draft.logistics.arreglo_necesita_presupuesto}
+                    onCheckedChange={(v) => setLog("arreglo_necesita_presupuesto", v)}
+                    disabled={!canEdit}
+                  />
+                  <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
+                </label>
+                {draft.logistics.arreglo_necesita_presupuesto && canEdit && (
+                  <Button
+                    type="button"
+                    variant={draft.logistics.arreglo_presupuesto_solicitado ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setArregloBudgetOpen(true)}
+                  >
+                    {draft.logistics.arreglo_presupuesto_solicitado ? "✓ Presupuesto solicitado" : "Solicitar presupuesto"}
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground block">Tareas</Label>
+                {arregloTasks.map((task, i) => (
+                  <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground mb-0.5 block">Persona asignada</Label>
+                          {canEdit ? (
+                            <MemberAutocomplete
+                              value={task.persona}
+                              options={memberOptions}
+                              placeholder="Nombre del miembro"
+                              className="h-7 text-sm"
+                              onChange={(v) => {
+                                const updated = [...arregloTasks];
+                                updated[i] = { ...updated[i], persona: v };
+                                setArregloTasks(updated);
+                              }}
+                            />
+                          ) : (
+                            <p className="text-sm">{task.persona || "-"}</p>
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground mb-0.5 block">Asignación</Label>
+                          {canEdit ? (
+                            <Input
+                              className="h-7 text-sm"
+                              placeholder="Ej: Decorar el salón"
+                              value={task.asignacion}
+                              onChange={(e) => {
+                                const updated = [...arregloTasks];
+                                updated[i] = { ...updated[i], asignacion: e.target.value };
+                                setArregloTasks(updated);
+                              }}
+                            />
+                          ) : (
+                            <p className="text-sm">{task.asignacion || "-"}</p>
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground mb-0.5 block">Hora</Label>
+                          {canEdit ? (
+                            <Input
+                              type="time"
+                              className="h-7 text-sm"
+                              value={task.hora}
+                              onChange={(e) => {
+                                const updated = [...arregloTasks];
+                                updated[i] = { ...updated[i], hora: e.target.value };
+                                setArregloTasks(updated);
+                              }}
+                            />
+                          ) : (
+                            <p className="text-sm">{task.hora || "-"}</p>
+                          )}
+                        </div>
+                      </div>
+                      {canEdit && arregloTasks.length > 1 && (
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-destructive mt-0.5 shrink-0"
+                          onClick={() => setArregloTasks(arregloTasks.filter((_, j) => j !== i))}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setArregloTasks([...arregloTasks, { persona: "", asignacion: "", hora: "" }])}
+                  >
+                    <Plus className="h-3 w-3" /> Añadir tarea
+                  </button>
+                )}
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      {/* Limpieza */}
-      <div className="space-y-2">
-        <SectionTitle>Limpieza</SectionTitle>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-          <Input className="h-8 text-sm" value={d.limpieza_responsable ?? ""}
-            onChange={(e) => set("limpieza_responsable", e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
-          <Textarea className="text-sm min-h-[44px] resize-none" value={d.limpieza_notas ?? ""}
-            onChange={(e) => set("limpieza_notas", e.target.value)} />
-        </div>
-      </div>
+        {/* ── Equipo y tecnología ── */}
+        <AccordionItem value="equipo" className={itemClass(secEquipo)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Tv2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Equipo y tecnología</span>
+              <span className="ml-auto mr-2">{dot(secEquipo)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                  <Input
+                    className="h-8 text-sm"
+                    placeholder="Nombre"
+                    value={draft.logistics.equipo_responsable ?? ""}
+                    onChange={(e) => setLog("equipo_responsable", e.target.value)}
+                    readOnly={!canEdit}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                  <Input
+                    type="date"
+                    className="h-8 text-sm"
+                    value={draft.logistics.equipo_fecha ?? ""}
+                    onChange={(e) => setLog("equipo_fecha", e.target.value || null)}
+                    readOnly={!canEdit}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Lista de equipo / notas</Label>
+                <Textarea
+                  className="text-sm min-h-[56px] resize-none"
+                  placeholder="Micrófono, proyector, pila bautismal..."
+                  value={draft.logistics.equipo_lista ?? ""}
+                  onChange={(e) => setLog("equipo_lista", e.target.value)}
+                  readOnly={!canEdit}
+                />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      <Button
-        className="w-full"
-        onClick={() => saveMutation.mutate(d)}
-        disabled={saveMutation.isPending}
-      >
-        {saveMutation.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-        ) : (
-          <Save className="h-4 w-4 mr-2" />
-        )}
-        Guardar logística
-      </Button>
+        {/* ── Refrigerio ── */}
+        <AccordionItem value="refrigerio" className={itemClass(secRefrigerio)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Utensils className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Refrigerio</span>
+              <span className="ml-auto mr-2">{dot(secRefrigerio)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Switch
+                    checked={!!draft.logistics.refrigerio_necesita_presupuesto}
+                    onCheckedChange={(v) => setLog("refrigerio_necesita_presupuesto", v)}
+                    disabled={!canEdit}
+                  />
+                  <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
+                </label>
+                {draft.logistics.refrigerio_necesita_presupuesto && canEdit && (
+                  <Button
+                    type="button"
+                    variant={draft.logistics.refrigerio_presupuesto_solicitado ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setRefrigeriBudgetOpen(true)}
+                  >
+                    {draft.logistics.refrigerio_presupuesto_solicitado ? "✓ Presupuesto solicitado" : "Solicitar presupuesto"}
+                  </Button>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Qué se preparará</Label>
+                <Textarea
+                  className="text-sm min-h-[44px] resize-none"
+                  placeholder="Ej: Pastas, refrescos, tarta..."
+                  value={(draft.logistics.refrigerio_detalle as string | null | undefined) ?? ""}
+                  onChange={(e) => setLog("refrigerio_detalle", e.target.value)}
+                  readOnly={!canEdit}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground block">Responsables</Label>
+                {refrigerioResponsables.map((name, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      {canEdit ? (
+                        <MemberAutocomplete
+                          value={name}
+                          options={memberOptions}
+                          placeholder="Nombre del miembro"
+                          className="h-7 text-sm"
+                          onChange={(v) => {
+                            const updated = [...refrigerioResponsables];
+                            updated[i] = v;
+                            setRefrigerioResponsables(updated);
+                          }}
+                        />
+                      ) : (
+                        <p className="text-sm">{name || "-"}</p>
+                      )}
+                    </div>
+                    {canEdit && refrigerioResponsables.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => setRefrigerioResponsables(refrigerioResponsables.filter((_, j) => j !== i))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setRefrigerioResponsables([...refrigerioResponsables, ""])}
+                  >
+                    <Plus className="h-3 w-3" /> Añadir responsable
+                  </button>
+                )}
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* ── Limpieza ── */}
+        <AccordionItem value="limpieza" className={itemClass(secLimpieza)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Limpieza</span>
+              <span className="ml-auto mr-2">{dot(secLimpieza)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                  <Input
+                    className="h-8 text-sm"
+                    placeholder="Nombre"
+                    value={draft.logistics.limpieza_responsable ?? ""}
+                    onChange={(e) => setLog("limpieza_responsable", e.target.value)}
+                    readOnly={!canEdit}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                  <Input
+                    type="date"
+                    className="h-8 text-sm"
+                    value={draft.logistics.limpieza_fecha ?? ""}
+                    onChange={(e) => setLog("limpieza_fecha", e.target.value || null)}
+                    readOnly={!canEdit}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
+                <Textarea
+                  className="text-sm min-h-[44px] resize-none"
+                  value={draft.logistics.limpieza_notas ?? ""}
+                  onChange={(e) => setLog("limpieza_notas", e.target.value)}
+                  readOnly={!canEdit}
+                />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      {canEdit && (
+        <Button
+          className="w-full"
+          onClick={() => saveMutation.mutate(draft)}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Save className="h-4 w-4 mr-2" />
+          )}
+          Guardar logística
+        </Button>
+      )}
+
+      <BudgetRequestDialog
+        open={arregloBudgetOpen}
+        onOpenChange={setArregloBudgetOpen}
+        defaultDescription="Arreglo y preparación del servicio bautismal"
+        onSuccess={() => setLog("arreglo_presupuesto_solicitado", true)}
+      />
+      <BudgetRequestDialog
+        open={refrigerioBudgetOpen}
+        onOpenChange={setRefrigeriBudgetOpen}
+        defaultDescription="Refrigerio para el servicio bautismal"
+        onSuccess={() => setLog("refrigerio_presupuesto_solicitado", true)}
+      />
     </div>
   );
 }
+
+// ── TaskCard ────────────────────────────────────────────────────────────────
 
 function TaskCard({ task, canEdit }: { task: any; canEdit: boolean }) {
   const [expanded, setExpanded] = useState(false);
@@ -392,6 +748,8 @@ function TaskCard({ task, canEdit }: { task: any; canEdit: boolean }) {
     </Card>
   );
 }
+
+// ── Page ────────────────────────────────────────────────────────────────────
 
 export default function ActivityLogisticsPage() {
   const { user } = useAuth();
