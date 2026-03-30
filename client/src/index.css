@@ -890,52 +890,12 @@
   }
 }
 
-/* Exclude sidebar from root view-transition so it stays put during navigation */
-[data-sidebar="sidebar"] {
-  view-transition-name: app-sidebar;
-}
-
-::view-transition-old(app-sidebar),
-::view-transition-new(app-sidebar) {
+/* Root view-transition: no animation so sidebar/header never move.
+   The content area already fades in via the route-fade-in CSS animation
+   (applied by .app-route-fade on mount thanks to key={location}). */
+::view-transition-old(root),
+::view-transition-new(root) {
   animation: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation-duration: 220ms;
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  ::view-transition-old(root) {
-    animation-name: fade-out-soft;
-  }
-
-  ::view-transition-new(root) {
-    animation-name: fade-in-soft;
-  }
-
-  @keyframes fade-out-soft {
-    from {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    to {
-      opacity: 0.97;
-      transform: translateY(-2px);
-    }
-  }
-
-  @keyframes fade-in-soft {
-    from {
-      opacity: 0.92;
-      transform: translateY(2px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 }
 
 @keyframes btn-fill {
