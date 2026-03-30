@@ -307,15 +307,22 @@ export default function BudgetPage() {
     })),
   });
 
-  const orgBudgetsByOrg = (organizations as Organization[]).reduce<Record<string, any[]>>((acc, org, index) => {
-    acc[org.id] = (orgBudgetQueries[index]?.data as any[]) ?? [];
-    return acc;
-  }, {});
+  const orgBudgetsByOrg = useMemo(
+    () => (organizations as Organization[]).reduce<Record<string, any[]>>((acc, org, index) => {
+      acc[org.id] = (orgBudgetQueries[index]?.data as any[]) ?? [];
+      return acc;
+    }, {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [organizations, ...orgBudgetQueries.map((q) => q.data)],
+  );
 
   // Filter requests based on user role
-  const filteredRequests = isOrgMember
-    ? (requests as any[]).filter((r: any) => r.organizationId === user?.organizationId)
-    : requests;
+  const filteredRequests = useMemo(
+    () => isOrgMember
+      ? (requests as any[]).filter((r: any) => r.organizationId === user?.organizationId)
+      : requests,
+    [isOrgMember, requests, user?.organizationId],
+  );
 
   useEffect(() => {
     if (!highlightedRequestId) return;
@@ -349,19 +356,23 @@ export default function BudgetPage() {
   }, [quarterBudgetValues, wardBudget?.amount, wardBudget?.annualAmount]);
   const currentQuarterBudget = quarterBudgets[currentQuarter as 1 | 2 | 3 | 4] || 0;
 
-  const validOrganizationIds = new Set(
-    (organizations as Organization[])
-      .filter((org) => org.type !== "barrio")
-      .map((org) => org.id)
-  );
-  const totalAssignedToOrgs = Object.entries(orgBudgetsByOrg)
-    .filter(([orgId]) => validOrganizationIds.has(orgId))
-    .flatMap(([, budgets]) => budgets)
-    .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
-    .reduce((sum: number, budget: any) => sum + toBudgetNumber(budget?.amount), 0);
-  const globalBudget = currentQuarterBudget;
-  const remainingGlobalBudget = globalBudget - totalAssignedToOrgs;
-  const globalUtilizationPercent = globalBudget > 0 ? Math.round((totalAssignedToOrgs / globalBudget) * 100) : 0;
+  const { totalAssignedToOrgs, globalBudget, remainingGlobalBudget, globalUtilizationPercent } = useMemo(() => {
+    const validIds = new Set(
+      (organizations as Organization[]).filter((org) => org.type !== "barrio").map((org) => org.id)
+    );
+    const assigned = Object.entries(orgBudgetsByOrg)
+      .filter(([orgId]) => validIds.has(orgId))
+      .flatMap(([, budgets]) => budgets)
+      .filter((budget: any) => budget?.year === currentYear && budget?.quarter === currentQuarter)
+      .reduce((sum: number, budget: any) => sum + toBudgetNumber(budget?.amount), 0);
+    const global = currentQuarterBudget;
+    return {
+      totalAssignedToOrgs: assigned,
+      globalBudget: global,
+      remainingGlobalBudget: global - assigned,
+      globalUtilizationPercent: global > 0 ? Math.round((assigned / global) * 100) : 0,
+    };
+  }, [organizations, orgBudgetsByOrg, currentYear, currentQuarter, currentQuarterBudget]);
 
   const budgetForm = useForm<BudgetFormValues>({
     resolver: zodResolver(budgetSchema),
@@ -1018,12 +1029,14 @@ export default function BudgetPage() {
     expenseReceiptsForm.reset({ expenseReceipts: [] });
   };
 
-  const totalSolicited = filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + Number(r.amount), 0);
-  const totalApproved = filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + Number(r.amount), 0);
+  const { totalSolicited, totalApproved } = useMemo(() => ({
+    totalSolicited: filteredRequests.filter((r: any) => r.status === "solicitado").reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+    totalApproved: filteredRequests.filter((r: any) => r.status === "aprobado" || r.status === "completado").reduce((sum: number, r: any) => sum + Number(r.amount), 0),
+  }), [filteredRequests]);
   const [activeSection, setActiveSection] = useState<"resumen" | "solicitudes" | "organizaciones">("resumen");
   const [requestStatusFilter, setRequestStatusFilter] = useState<"todas" | "pendientes" | "aprobadas" | "completadas" | "rechazadas">("todas");
 
-  const visibleRequests = filteredRequests.filter((request: any) => {
+  const visibleRequests = useMemo(() => filteredRequests.filter((request: any) => {
     switch (requestStatusFilter) {
       case "pendientes":
         return ["solicitado", "pendiente_firma_obispo"].includes(request.status);
@@ -1036,11 +1049,14 @@ export default function BudgetPage() {
       default:
         return true;
     }
-  });
+  }), [filteredRequests, requestStatusFilter]);
 
-  const actionRequests = (filteredRequests as any[])
-    .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
-    .slice(0, 3);
+  const actionRequests = useMemo(
+    () => (filteredRequests as any[])
+      .filter((r: any) => r.status === "solicitado" || r.status === "pendiente_firma_obispo")
+      .slice(0, 3),
+    [filteredRequests],
+  );
 
   if (requestsLoading || wardBudgetLoading || orgsLoading) {
     return (

@@ -48,7 +48,6 @@ import {
   AlertTriangle,
   Music,
   Handshake,
-  BookOpen,
   Trash2,
   ClipboardList,
   Shirt,
@@ -60,7 +59,6 @@ import {
   Clock,
   Upload,
   FileText,
-  Loader2,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -2709,19 +2707,19 @@ function BaptismalServiceSheet({
   const MISSION_CHECKLIST_KEYS = ["programa", "ropa_bautismal", "entrevista_bautismal"];
   const LOGISTICS_CHECKLIST_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
 
-  const visibleChecklistItems = (() => {
+  const visibleChecklistItems = useMemo(() => {
     if (!checklistData?.items) return null;
     if (isObispo) return checklistData.items; // obispo sees everything
     if (isMissionLeader) return (checklistData.items as any[]).filter((i) =>
       MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
     );
     return checklistData.items;
-  })();
+  }, [checklistData?.items, isObispo, isMissionLeader]);
 
-  const checklistComplete = (() => {
+  const checklistComplete = useMemo(() => {
     if (!visibleChecklistItems || visibleChecklistItems.length === 0) return false;
     return (visibleChecklistItems as any[]).every((i) => i.completed);
-  })();
+  }, [visibleChecklistItems]);
 
   // Helper: find a checklist item by its key
   const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
@@ -3480,7 +3478,7 @@ function BaptismalServiceSheet({
                             <div className="space-y-2">
                               <Label className="text-xs text-muted-foreground block">Tareas</Label>
                               {arregloTasks.map((task, i) => (
-                                <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                                <div key={i + '-' + (task.persona || '')} className="rounded-lg border bg-muted/20 p-3 space-y-2">
                                   <div className="flex items-start gap-2">
                                     <div className="flex-1 space-y-2">
                                       <div>
@@ -3627,7 +3625,7 @@ function BaptismalServiceSheet({
                             <div className="space-y-2">
                               <Label className="text-xs text-muted-foreground block">Responsables</Label>
                               {refrigerioResponsables.map((name, i) => (
-                                <div key={i} className="flex items-center gap-2">
+                                <div key={i + '-' + name} className="flex items-center gap-2">
                                   <div className="flex-1">
                                     <MemberAutocomplete
                                       value={name}

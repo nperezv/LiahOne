@@ -360,7 +360,7 @@ function LogisticsDetail({
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground block">Tareas</Label>
                 {arregloTasks.map((task, i) => (
-                  <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                  <div key={i + '-' + (task.persona || '')} className="rounded-lg border bg-muted/20 p-3 space-y-2">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
                         <div>
@@ -534,7 +534,7 @@ function LogisticsDetail({
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground block">Responsables</Label>
                 {refrigerioResponsables.map((name, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={i + '-' + name} className="flex items-center gap-2">
                     <div className="flex-1">
                       {canEdit ? (
                         <MemberAutocomplete

@@ -565,9 +565,12 @@ export default function InterviewsPage() {
   }, [messageContact, messageTemplateId]);
 
   // ✅ Filtrado por rol (si es org member)
-  const filteredInterviewsRaw = isOrgMember
-    ? interviews.filter((i: any) => i.assignedBy === user?.id || i.assignedToId === user?.id)
-    : interviews;
+  const filteredInterviewsRaw = useMemo(
+    () => isOrgMember
+      ? interviews.filter((i: any) => i.assignedBy === user?.id || i.assignedToId === user?.id)
+      : interviews,
+    [isOrgMember, interviews, user?.id],
+  );
 
   // ✅ Ocultar archivadas por defecto (archivadas = completadas/canceladas/archivadas legacy)
   const filteredInterviews = useMemo(() => {
@@ -583,8 +586,14 @@ export default function InterviewsPage() {
       );
   }, [filteredInterviewsRaw, showArchived]);
   // ✅ Métricas
-  const pendingInterviews = filteredInterviews.filter((i: any) => i.status === "programada");
-  const completedInterviews = filteredInterviewsRaw.filter((i: any) => i.resolution === "completada" || i.status === "completada");
+  const pendingInterviews = useMemo(
+    () => filteredInterviews.filter((i: any) => i.status === "programada"),
+    [filteredInterviews],
+  );
+  const completedInterviews = useMemo(
+    () => filteredInterviewsRaw.filter((i: any) => i.resolution === "completada" || i.status === "completada"),
+    [filteredInterviewsRaw],
+  );
   const highlightInterviewId = useMemo(() => {
     if (!search) return "";
     const params = new URLSearchParams(search);

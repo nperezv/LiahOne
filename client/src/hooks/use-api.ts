@@ -3,9 +3,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const REALTIME_QUERY_OPTIONS = {
-  refetchInterval: 5000,
+  refetchInterval: 30000,
   refetchOnWindowFocus: true,
-  staleTime: 3000,
+  staleTime: 15000,
 };
 
 // ========================================
