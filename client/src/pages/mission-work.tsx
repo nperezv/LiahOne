@@ -455,7 +455,7 @@ interface DirectoryMember {
   organizationName?: string | null;
 }
 
-function AddFromDirectoryDialog({
+const AddFromDirectoryDialog = React.memo(function AddFromDirectoryDialog({
   open,
   onOpenChange,
   tipo,
@@ -587,13 +587,13 @@ function AddFromDirectoryDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
 
 // ============================================================
 // AddPersonaDialog — manual entry (enseñando)
 // ============================================================
 
-function AddEnsenandoDialog({
+const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
   open,
   onOpenChange,
 }: {
@@ -665,13 +665,13 @@ function AddEnsenandoDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
 
 // ============================================================
 // AddPersonaDialog — router
 // ============================================================
 
-function AddPersonaDialog({
+const AddPersonaDialog = React.memo(function AddPersonaDialog({
   open,
   onOpenChange,
   tipo,
@@ -684,13 +684,13 @@ function AddPersonaDialog({
     return <AddEnsenandoDialog open={open} onOpenChange={onOpenChange} />;
   }
   return <AddFromDirectoryDialog open={open} onOpenChange={onOpenChange} tipo={tipo} />;
-}
+});
 
 // ============================================================
 // BooleanRow helper
 // ============================================================
 
-function BooleanRow({
+const BooleanRow = React.memo(function BooleanRow({
   label,
   value,
   onToggle,
@@ -707,7 +707,7 @@ function BooleanRow({
       <Switch checked={value} onCheckedChange={onToggle} disabled={disabled} />
     </div>
   );
-}
+});
 
 // Session names per principio ID (from DB seed: 2=Restauración, 3=Plan, 4=Evangelio, 5=Discípulos)
 const SESSION_NAMES: Record<number, string[]> = {
@@ -764,7 +764,7 @@ function getSesionLabel(principioId: number, sesionNum: number): string {
   return SESSION_NAMES[principioId]?.[sesionNum - 1] ?? `Sesión ${sesionNum}`;
 }
 
-function LessonStatusIcon({
+const LessonStatusIcon = React.memo(function LessonStatusIcon({
   present,
   exists,
 }: {
@@ -784,9 +784,9 @@ function LessonStatusIcon({
   }
 
   return <span className="block h-5 w-5 rounded-full border-2 border-white/55 bg-transparent" />;
-}
+});
 
-function BaptismDateIcon() {
+const BaptismDateIcon = React.memo(function BaptismDateIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary/70" aria-hidden="true">
       <path
@@ -797,7 +797,7 @@ function BaptismDateIcon() {
       />
     </svg>
   );
-}
+});
 
 // ============================================================
 // PersonaDetailSheet
@@ -1867,7 +1867,7 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
 // PersonaCard
 // ============================================================
 
-function PersonaCard({
+const PersonaCard = React.memo(function PersonaCard({
   persona,
   sundays,
   onSelect,
@@ -1968,13 +1968,13 @@ function PersonaCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ============================================================
 // TabContent
 // ============================================================
 
-function TabContent({
+const TabContent = React.memo(function TabContent({
   tipo,
   onSelect,
 }: {
@@ -2025,7 +2025,7 @@ function TabContent({
       <AddPersonaDialog open={addOpen} onOpenChange={setAddOpen} tipo={tipo} />
     </div>
   );
-}
+});
 
 // ============================================================
 // Main Page
@@ -4053,10 +4053,10 @@ export default function MissionWork() {
     );
   }
 
-  const handleSelect = (p: Persona) => {
+  const handleSelect = React.useCallback((p: Persona) => {
     setSelectedPersona(p);
     setSheetOpen(true);
-  };
+  }, []);
 
   // ── Baptism services section ──────────────────────────────
   if (section === "servicios_bautismales") {
