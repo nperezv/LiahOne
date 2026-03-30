@@ -1861,7 +1861,7 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
     </Dialog>
     </>
   );
-}
+});
 
 // ============================================================
 // PersonaCard
@@ -3942,7 +3942,7 @@ function BaptismalServiceSheet({
     </Dialog>
     </>
   );
-});
+}
 
 // ============================================================
 
