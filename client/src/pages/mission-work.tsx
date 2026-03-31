@@ -4035,6 +4035,11 @@ export default function MissionWork() {
     return all.find((p) => p.id === selectedPersona.id) ?? selectedPersona;
   }, [selectedPersona, nuevoQuery.data, regresandoQuery.data, ensenandoQuery.data]);
 
+  const handleSelect = React.useCallback((p: Persona) => {
+    setSelectedPersona(p);
+    setSheetOpen(true);
+  }, []);
+
   if (accessQuery.isLoading) {
     return (
       <div className="p-8">
@@ -4052,11 +4057,6 @@ export default function MissionWork() {
       </div>
     );
   }
-
-  const handleSelect = React.useCallback((p: Persona) => {
-    setSelectedPersona(p);
-    setSheetOpen(true);
-  }, []);
 
   // ── Baptism services section ──────────────────────────────
   if (section === "servicios_bautismales") {
