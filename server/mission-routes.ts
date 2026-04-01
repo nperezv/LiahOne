@@ -5,7 +5,7 @@ import { approvedSessionPayload } from "./mission-baptism-link-session";
 import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
-import { sendBaptismReminderEmail } from "./auth";
+import { sendBaptismReminderEmail, sendAgendaReminderEmail } from "./auth";
 import { syncBaptismInterviewChecklistItem } from "./mission-interview-sync";
 import { isPushConfigured, sendPushNotification } from "./push-service";
 import {
@@ -287,6 +287,76 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           memberId: data.memberId || null,
         })
         .returning();
+
+      // Notify mission team when a nuevo or regresando is added
+      if (data.tipo === "nuevo" || data.tipo === "regresando") {
+        const isRegresando = data.tipo === "regresando";
+        const notifTitle = isRegresando
+          ? `Miembro regresando: ${data.nombre}`
+          : `Nuevo contacto: ${data.nombre}`;
+        const notifMsg = isRegresando
+          ? `${data.nombre} ha sido registrado como miembro que regresa a la actividad. Coordina una visita de bienvenida.`
+          : `${data.nombre} ha sido registrado como nuevo contacto.`;
+
+        const TEAM_ROLES = ["obispo", "consejero_obispo", "mission_leader", "ward_missionary"];
+        const teamMembers = await db
+          .select({ id: users.id, email: users.email, name: users.name })
+          .from(users)
+          .where(and(
+            eq(users.organizationId, unitId),
+            inArray(users.role as any, TEAM_ROLES as any),
+          ));
+
+        const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
+
+        for (const member of teamMembers) {
+          await db.insert(notifications).values({
+            userId: member.id,
+            title: notifTitle,
+            message: notifMsg,
+            type: "reminder",
+          });
+          if (isPushConfigured()) {
+            await sendPushNotification(member.id, {
+              title: notifTitle,
+              body: notifMsg,
+              url: "/mission-work",
+            });
+          }
+          if (member.email) {
+            await sendAgendaReminderEmail({
+              toEmail: member.email,
+              subject: notifTitle,
+              body: [`Estimado/a ${member.name},`, "", notifMsg, "", wardName || "Tu barrio"].join("\n"),
+              wardName,
+            });
+          }
+        }
+
+        // For regresando: create an assignment to ward_missionary to visit within 7 days
+        if (isRegresando) {
+          const [wardMissionary] = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.organizationId, unitId), eq(users.role as any, "ward_missionary" as any)))
+            .limit(1);
+          if (wardMissionary) {
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + 7);
+            await db.execute(sql`
+              INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
+              VALUES (
+                ${"Visita de bienvenida: " + data.nombre},
+                ${"Visitar a " + data.nombre + " y darle la bienvenida a la actividad dentro de los próximos 7 días."},
+                ${wardMissionary.id},
+                ${user.id},
+                ${dueDate.toISOString()},
+                'pendiente'
+              )
+            `);
+          }
+        }
+      }
 
       return res.status(201).json(created);
     } catch (err) {
