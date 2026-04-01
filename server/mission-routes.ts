@@ -1518,6 +1518,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       // Delete linked activity (FK is ON DELETE SET NULL, so must delete manually)
       await db.execute(sql`DELETE FROM activities WHERE baptism_service_id = ${serviceId}`);
 
+      // Delete linked service tasks (logistics)
+      await db.execute(sql`DELETE FROM service_tasks WHERE baptism_service_id = ${serviceId}`);
+
       // Delete the service (CASCADE handles candidates, program_items, assignments, etc.)
       await db.execute(sql`DELETE FROM baptism_services WHERE id = ${serviceId}`);
 

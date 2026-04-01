@@ -791,6 +791,9 @@ export default function ActivityLogisticsPage() {
     queryKey: ["/api/service-tasks"],
     queryFn: () => apiRequest("GET", "/api/service-tasks"),
     enabled: Boolean(user) && ALLOWED_ROLES.includes(user?.role ?? ""),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 
   if (!user || !ALLOWED_ROLES.includes(user.role)) {
