@@ -48,6 +48,7 @@ import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
 import { registerMissionRoutes } from "./mission-routes";
+import { runBaptismReadinessCheck } from "./mission-baptism-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -8190,6 +8191,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
   startHourlyAlignedTask(sendAgendaDailyBriefing);
   startHourlyAlignedTask(sendAutomaticBaptismServiceReminders);
+  startHourlyAlignedTask(async () => {
+    try {
+      const hour = new Date().getHours();
+      if (hour !== birthdaySendHour) return;
+      await runBaptismReadinessCheck();
+    } catch (err) {
+      console.error("[BaptismReadinessCheck] Error:", err);
+    }
+  });
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);

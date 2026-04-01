@@ -1892,12 +1892,13 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         WHERE id = ${req.params.id}
       `);
 
-      // Notify bishops
+      // Notify bishops (DB + push + email)
       const bishops = await db
-        .select({ id: users.id })
+        .select({ id: users.id, name: users.name, email: users.email })
         .from(users)
         .where(and(eq(users.organizationId, unitId), eq(users.role, "obispo" as any)));
 
+      const wardNameSubmit = (await storage.getPdfTemplate())?.wardName ?? null;
       for (const bishop of bishops) {
         await db.insert(notifications).values({
           userId: bishop.id,
@@ -1905,6 +1906,29 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           message: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
           type: "reminder",
         });
+        if (isPushConfigured()) {
+          await sendPushNotification(bishop.id, {
+            title: "Agenda bautismal pendiente de aprobación",
+            body: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
+            url: "/mission-work",
+          });
+        }
+        if (bishop.email) {
+          await sendAgendaReminderEmail({
+            toEmail: bishop.email,
+            subject: "Agenda bautismal pendiente de aprobación",
+            body: [
+              `Estimado/a ${bishop.name},`,
+              "",
+              `El programa del servicio bautismal en ${service.location_name} ha sido enviado para tu aprobación.`,
+              "",
+              "Por favor, revísalo en la aplicación desde Obra Misional > Servicios Bautismales.",
+              "",
+              wardNameSubmit || "Tu barrio",
+            ].join("\n"),
+            wardName: wardNameSubmit,
+          });
+        }
       }
 
       return res.json({ success: true });
@@ -2149,6 +2173,31 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
             type: "reminder",
           });
+          if (isPushConfigured()) {
+            await sendPushNotification(service.created_by, {
+              title: "Agenda bautismal aprobada ✓",
+              body: `El Obispo aprobó el servicio en ${service.location_name}.`,
+              url: "/mission-work",
+            });
+          }
+          const wardNameApprove = (await storage.getPdfTemplate())?.wardName ?? null;
+          const leaderResult = await db.execute(sql`SELECT email, name FROM users WHERE id = ${service.created_by} LIMIT 1`);
+          const leader = leaderResult.rows[0] as any;
+          if (leader?.email) {
+            await sendAgendaReminderEmail({
+              toEmail: leader.email,
+              subject: "Agenda bautismal aprobada",
+              body: [
+                `Estimado/a ${leader.name},`,
+                "",
+                `El Obispo ha aprobado el programa del servicio bautismal en ${service.location_name}.`,
+                "El enlace público se activará el día del bautismo.",
+                "",
+                wardNameApprove || "Tu barrio",
+              ].join("\n"),
+              wardName: wardNameApprove,
+            });
+          }
         }
       } catch (notifErr) {
         console.error("[approve] Failed to send notification:", notifErr);
@@ -2169,7 +2218,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const yyyy = svcDate.getUTCFullYear();
         const serviceDateStr = `${dd}/${mm}/${yyyy}`;
         const [liderActividades] = await db
-          .select({ id: users.id, organizationId: users.organizationId })
+          .select({ id: users.id, organizationId: users.organizationId, email: users.email, name: users.name })
           .from(users)
           .innerJoin(organizations, eq(organizations.id, users.organizationId))
           .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
@@ -2185,6 +2234,36 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             status: "pending",
             createdBy: user.id,
           });
+          await db.insert(notifications).values({
+            userId: liderActividades.id,
+            title: "Nueva tarea de logística bautismal",
+            message: `Se te ha asignado la coordinación logística del servicio bautismal de ${candidateName} (${serviceDateStr}).`,
+            type: "reminder",
+          });
+          if (isPushConfigured()) {
+            await sendPushNotification(liderActividades.id, {
+              title: "Nueva tarea de logística",
+              body: `Coordinar el servicio bautismal de ${candidateName} el ${serviceDateStr}.`,
+              url: "/activity-logistics",
+            });
+          }
+          if (liderActividades.email) {
+            const wardNameTask = (await storage.getPdfTemplate())?.wardName ?? null;
+            await sendAgendaReminderEmail({
+              toEmail: liderActividades.email,
+              subject: "Nueva tarea de logística bautismal",
+              body: [
+                `Estimado/a ${liderActividades.name},`,
+                "",
+                `Se te ha asignado la coordinación logística del servicio bautismal de ${candidateName} programado para el ${serviceDateStr}.`,
+                "",
+                "Coordina el espacio, arreglo, equipo, refrigerio y limpieza desde Logística de Actividades en la aplicación.",
+                "",
+                wardNameTask || "Tu barrio",
+              ].join("\n"),
+              wardName: wardNameTask,
+            });
+          }
         }
       } catch (taskErr) {
         console.error("[approve] Failed to create service_task:", taskErr);
@@ -2226,6 +2305,34 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           message: `El Obispo solicitó cambios en el servicio de ${service.location_name}: ${comment}`,
           type: "reminder",
         });
+        if (isPushConfigured()) {
+          await sendPushNotification(service.created_by, {
+            title: "Agenda requiere revisión",
+            body: `El Obispo solicitó cambios: ${comment}`,
+            url: "/mission-work",
+          });
+        }
+        const rejectLeaderResult = await db.execute(sql`SELECT email, name FROM users WHERE id = ${service.created_by} LIMIT 1`);
+        const rejectLeader = rejectLeaderResult.rows[0] as any;
+        if (rejectLeader?.email) {
+          const wardNameReject = (await storage.getPdfTemplate())?.wardName ?? null;
+          await sendAgendaReminderEmail({
+            toEmail: rejectLeader.email,
+            subject: "Agenda bautismal — Se requieren correcciones",
+            body: [
+              `Estimado/a ${rejectLeader.name},`,
+              "",
+              `El Obispo ha solicitado correcciones en el programa del servicio bautismal de ${service.location_name}.`,
+              "",
+              `Comentario: ${comment}`,
+              "",
+              "Por favor, realiza los ajustes necesarios y vuelve a enviarlo para aprobación.",
+              "",
+              wardNameReject || "Tu barrio",
+            ].join("\n"),
+            wardName: wardNameReject,
+          });
+        }
       }
 
       return res.json({ success: true });
