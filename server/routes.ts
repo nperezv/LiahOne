@@ -48,7 +48,6 @@ import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
 import { registerMissionRoutes } from "./mission-routes";
-import { runBaptismReadinessCheck } from "./mission-baptism-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -8184,6 +8183,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ========================================
+  // BAPTISM READINESS CHECK (t14/t10/t7/t2/t1)
+  // ========================================
+  // Sends a push notification to the mission leader when a service within
+  // the next 14 days is still in draft or pending_approval (not yet approved).
+  // Deduplicates using a simple in-memory key per day+service+rule bucket.
+  const sentReadinessKeys = new Set<string>();
+  let lastReadinessDate = "";
+
+  async function sendAutomaticBaptismReadinessReminders() {
+    try {
+      const now = new Date();
+      if (now.getHours() !== birthdaySendHour) return;
+
+      const todayKey = getServerDayKey(now);
+      if (lastReadinessDate !== todayKey) {
+        sentReadinessKeys.clear();
+        lastReadinessDate = todayKey;
+      }
+
+      const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const result = await db.execute(sql`
+        SELECT id, location_name, service_at, created_by, approval_status
+        FROM baptism_services
+        WHERE service_at > ${now.toISOString()}
+          AND service_at <= ${horizon.toISOString()}
+          AND approval_status NOT IN ('approved', 'archived')
+      `);
+
+      for (const row of result.rows as any[]) {
+        const daysUntil = Math.ceil((new Date(row.service_at).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        const rule = daysUntil <= 1 ? "t1" : daysUntil <= 2 ? "t2" : daysUntil <= 7 ? "t7" : daysUntil <= 10 ? "t10" : "t14";
+        const dedupeKey = `readiness:${todayKey}:${row.id}:${rule}`;
+        if (sentReadinessKeys.has(dedupeKey)) continue;
+
+        if (!row.created_by) continue;
+        const title = `Servicio bautismal no aprobado — ${daysUntil} día(s)`;
+        const body = `El servicio en ${row.location_name} aún no está aprobado. Faltan ${daysUntil} día(s).`;
+
+        await db.execute(sql`
+          INSERT INTO notifications (user_id, title, message, type, is_read)
+          VALUES (${row.created_by}, ${title}, ${body}, 'reminder', false)
+        `);
+        if (isPushConfigured()) {
+          await sendPushNotification(row.created_by, { title, body, url: "/mission-work" });
+        }
+        sentReadinessKeys.add(dedupeKey);
+      }
+    } catch (error) {
+      console.error("[BaptismReadiness] Error:", error);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
@@ -8191,15 +8243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   startHourlyAlignedTask(sendAutomaticInterviewAndAssignmentReminders);
   startHourlyAlignedTask(sendAgendaDailyBriefing);
   startHourlyAlignedTask(sendAutomaticBaptismServiceReminders);
-  startHourlyAlignedTask(async () => {
-    try {
-      const hour = new Date().getHours();
-      if (hour !== birthdaySendHour) return;
-      await runBaptismReadinessCheck();
-    } catch (err) {
-      console.error("[BaptismReadinessCheck] Error:", err);
-    }
-  });
+  startHourlyAlignedTask(sendAutomaticBaptismReadinessReminders);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);
