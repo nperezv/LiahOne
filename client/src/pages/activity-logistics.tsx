@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Clock, Loader2, Save,
-  CalendarDays, Sparkles, Tv2, Utensils, Upload, FileText, ExternalLink, Plus, X,
+  CalendarDays, Sparkles, Tv2, Utensils, Upload, FileText, ExternalLink, Plus, X, Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -657,9 +657,10 @@ function LogisticsDetail({
 
 // ── TaskCard ────────────────────────────────────────────────────────────────
 
-function TaskCard({ task, canEdit }: { task: any; canEdit: boolean }) {
+function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; canDelete: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: string) =>
@@ -667,6 +668,15 @@ function TaskCard({ task, canEdit }: { task: any; canEdit: boolean }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-tasks"] });
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/service-tasks/${task.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/service-tasks"] });
+      toast({ title: "Tarea eliminada" });
+    },
+    onError: () => toast({ title: "Error al eliminar", variant: "destructive" }),
   });
 
   const nextStatus =
@@ -722,20 +732,41 @@ function TaskCard({ task, canEdit }: { task: any; canEdit: boolean }) {
             )}
           </div>
 
-          {task.baptism_service_id && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs"
-              onClick={() => setExpanded((prev) => !prev)}
-            >
-              {expanded ? (
-                <><ChevronUp className="h-3 w-3 mr-1" />Ocultar logística</>
-              ) : (
-                <><ChevronDown className="h-3 w-3 mr-1" />Ver logística</>
-              )}
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {task.baptism_service_id && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs"
+                onClick={() => setExpanded((prev) => !prev)}
+              >
+                {expanded ? (
+                  <><ChevronUp className="h-3 w-3 mr-1" />Ocultar logística</>
+                ) : (
+                  <><ChevronDown className="h-3 w-3 mr-1" />Ver logística</>
+                )}
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (window.confirm("¿Eliminar esta tarea? Esta acción no se puede deshacer.")) {
+                    deleteMutation.mutate();
+                  }
+                }}
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+              </Button>
+            )}
+          </div>
         </div>
 
         {expanded && task.baptism_service_id && (
@@ -754,6 +785,7 @@ function TaskCard({ task, canEdit }: { task: any; canEdit: boolean }) {
 export default function ActivityLogisticsPage() {
   const { user } = useAuth();
   const canEdit = CAN_EDIT_ROLES.includes(user?.role ?? "");
+  const canDelete = user?.role === "obispo";
 
   const { data: tasks = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/service-tasks"],
@@ -806,7 +838,7 @@ export default function ActivityLogisticsPage() {
       ) : (
         <div className="space-y-4">
           {tasks.map((task: any) => (
-            <TaskCard key={task.id} task={task} canEdit={canEdit} />
+            <TaskCard key={task.id} task={task} canEdit={canEdit} canDelete={canDelete} />
           ))}
         </div>
       )}

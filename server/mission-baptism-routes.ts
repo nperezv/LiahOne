@@ -3302,6 +3302,30 @@ export function registerMissionBaptismRoutes(
       return res.status(500).json({ error: "Error interno" });
     }
   });
+
+  // DELETE /api/service-tasks/:id — only obispo can delete a service task
+  app.delete("/api/service-tasks/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (user.role !== "obispo") {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { id } = req.params;
+      const result = await db.execute(sql`
+        DELETE FROM service_tasks WHERE id = ${id} RETURNING id
+      `);
+
+      if (!result.rows.length) {
+        return res.status(404).json({ error: "Tarea no encontrada" });
+      }
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("[DELETE /api/service-tasks/:id]", err);
+      return res.status(500).json({ error: "Error interno" });
+    }
+  });
 }
 
 export async function runMissionProgressTransitions(): Promise<{
