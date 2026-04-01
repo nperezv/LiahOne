@@ -45,6 +45,7 @@ export interface DashboardStats {
   }>;
   upcomingActivities: Array<{ title: string; date: string; location: string }>;
   userRole?: string;
+  pendingServiceTasks?: number;
 }
 
 export function useDashboardStats() {

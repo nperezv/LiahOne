@@ -5545,6 +5545,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             location: a.location || "",
           })),
         userRole: user.role,
+        pendingServiceTasks: await (async () => {
+          const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
+          if (!allowedRoles.includes(user.role)) return 0;
+          try {
+            const result = user.role === "lider_actividades"
+              ? await db.execute(sql`
+                  SELECT COUNT(*)::int AS count FROM service_tasks
+                  WHERE assigned_to = ${user.id} AND status = 'pending'
+                `)
+              : await db.execute(sql`
+                  SELECT COUNT(*)::int AS count FROM service_tasks WHERE status = 'pending'
+                `);
+            return Number(result.rows[0]?.count ?? 0);
+          } catch { return 0; }
+        })(),
       };
 
       res.json(stats);
