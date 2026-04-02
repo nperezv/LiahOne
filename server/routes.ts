@@ -826,6 +826,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
   }
 
+  // Auto-migration: add is_public to activities if missing
+  await db.execute(sql`
+    ALTER TABLE activities ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false
+  `);
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET,
@@ -6996,6 +7001,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ========================================
   // ACTIVITIES
   // ========================================
+
+  // Public endpoint — no auth required, only returns is_public activities
+  app.get("/api/public/activities", async (_req: Request, res: Response) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT id, title, description, date, location, type
+        FROM activities
+        WHERE is_public = true AND date >= NOW()
+        ORDER BY date ASC
+        LIMIT 20
+      `);
+      const rows = "rows" in result ? result.rows : result;
+      return res.json(rows);
+    } catch (error) {
+      console.error("Error fetching public activities:", error);
+      return res.status(500).json({ error: "Error al cargar actividades" });
+    }
+  });
 
   app.get("/api/activities", requireAuth, async (req: Request, res: Response) => {
     try {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -60,6 +60,7 @@ const activitySchema = z.object({
   location: z.string().optional(),
   organizationId: z.string().optional(),
   type: z.enum(["servicio_bautismal", "deportiva", "capacitacion", "fiesta", "hermanamiento", "otro"]),
+  isPublic: z.boolean().default(false),
 });
 
 type ActivityFormValues = z.infer<typeof activitySchema>;
@@ -163,6 +164,7 @@ export default function ActivitiesPage() {
       location: "",
       organizationId: isOrgMember ? user?.organizationId || "" : "",
       type: "otro",
+      isPublic: false,
     },
   });
 
@@ -177,6 +179,7 @@ export default function ActivitiesPage() {
         location: data.location || "",
         organizationId: organizationId,
         type: data.type,
+        isPublic: data.isPublic,
         responsiblePerson: user?.name || "Sin asignar",
       },
       {
@@ -352,6 +355,31 @@ export default function ActivitiesPage() {
                         )}
                       />
                     )}
+
+                    <FormField
+                      control={form.control}
+                      name="isPublic"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-3 rounded-lg border p-3">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 accent-primary"
+                              id="is-public-checkbox"
+                            />
+                          </FormControl>
+                          <div className="space-y-0.5">
+                            <FormLabel htmlFor="is-public-checkbox" className="flex items-center gap-1.5 cursor-pointer font-medium">
+                              <Globe className="h-4 w-4 text-muted-foreground" />
+                              Publicar en la landing pública
+                            </FormLabel>
+                            <p className="text-xs text-muted-foreground">Visible para cualquier persona que visite la página principal</p>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
 
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel">

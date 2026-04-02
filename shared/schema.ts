@@ -862,6 +862,7 @@ export const activities = pgTable("activities", {
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedBy: varchar("approved_by").references(() => users.id),
+  isPublic: boolean("is_public").notNull().default(false),
 });
 
 export const activityChecklistItems = pgTable("activity_checklist_items", {

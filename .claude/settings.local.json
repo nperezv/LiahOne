@@ -54,7 +54,15 @@
       "Bash(git commit:*)",
       "Bash(iconv:*)",
       "Bash(find:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(ls C:/Users/User/Documents/projects/LiahOne/esbuild* C:/Users/User/Documents/projects/LiahOne/tsconfig.node*)",
+      "Bash(git -C \"/c/Users/User/Documents/projects/LiahOne\" add client/src/pages/mission-work.tsx)",
+      "Bash(git -C:*)",
+      "Bash(git -C \"/c/Users/User/Documents/projects/LiahOne\" push)",
+      "Read(//mnt/c/Users/User/Documents/projects/**)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(wc -l \"C:\\\\Users\\\\User\\\\Documents\\\\projects\\\\LiahOne\\\\client\\\\src\\\\pages\"/*.tsx)",
+      "Bash(personas\"]\\) in AttendanceGrid toggle — only the specific asistencia:*)"
     ]
   }
 }
