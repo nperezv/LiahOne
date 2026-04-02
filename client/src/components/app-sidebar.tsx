@@ -319,12 +319,15 @@ function AppSidebarInner() {
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
 
+  const [, startTransition] = React.useTransition();
+
   const handleLinkClick = React.useCallback((path: string) => {
-    setLocation(path);
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  }, [isMobile, setLocation, setOpenMobile]);
+    // Close sidebar immediately (feels responsive), defer content swap
+    if (isMobile) setOpenMobile(false);
+    startTransition(() => {
+      setLocation(path);
+    });
+  }, [isMobile, setLocation, setOpenMobile, startTransition]);
 
   const handlePrefetch = React.useCallback((url: string) => {
     const prefetcher = ROUTE_PREFETCHERS[url];

@@ -1,5 +1,6 @@
+import { useTransition } from "react";
 import { CalendarDays, Home, Menu, Target, Users } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -16,7 +17,8 @@ const organizationSlugMap: Record<string, string> = {
 };
 
 export function MobileNav() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [, startTransition] = useTransition();
   const { toggleSidebar } = useSidebar();
   const { user } = useAuth();
   const { data: organizations = [] } = useOrganizations();
@@ -59,9 +61,10 @@ export function MobileNav() {
           const isActive = location === item.href;
           const Icon = item.icon;
           return (
-            <Link
+            <button
               key={item.href}
-              href={item.href}
+              type="button"
+              onClick={() => startTransition(() => setLocation(item.href))}
               className={cn(
                 "flex flex-col items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors",
                 isActive && "text-primary"
@@ -69,7 +72,7 @@ export function MobileNav() {
             >
               <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
               <span>{item.label}</span>
-            </Link>
+            </button>
           );
         })}
         <button
