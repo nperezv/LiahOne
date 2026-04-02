@@ -2632,6 +2632,26 @@ function BaptismalServiceSheet({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  // These must be before any conditional return to satisfy Rules of Hooks
+  const MISSION_CHECKLIST_KEYS = ["programa", "ropa_bautismal", "entrevista_bautismal"];
+  const LOGISTICS_CHECKLIST_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
+
+  const checklistData = checklistQuery.data;
+
+  const visibleChecklistItems = useMemo(() => {
+    if (!checklistData?.items) return null;
+    if (isObispo) return checklistData.items;
+    if (isMissionLeader) return (checklistData.items as any[]).filter((i) =>
+      MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
+    );
+    return checklistData.items;
+  }, [checklistData?.items, isObispo, isMissionLeader]);
+
+  const checklistComplete = useMemo(() => {
+    if (!visibleChecklistItems || visibleChecklistItems.length === 0) return false;
+    return (visibleChecklistItems as any[]).every((i) => i.completed);
+  }, [visibleChecklistItems]);
+
   if (!service) return null;
 
   const approvalBadge = () => {
@@ -2699,26 +2719,6 @@ function BaptismalServiceSheet({
     return all.length > 0 && all.every(Boolean);
   })();
 
-  const checklistData = checklistQuery.data;
-
-  // Mission leader only needs to complete mission-relevant checklist items;
-  // logistics items (espacio, arreglo, equipo, refrigerio, limpieza) belong to lider de actividades.
-  const MISSION_CHECKLIST_KEYS = ["programa", "ropa_bautismal", "entrevista_bautismal"];
-  const LOGISTICS_CHECKLIST_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
-
-  const visibleChecklistItems = useMemo(() => {
-    if (!checklistData?.items) return null;
-    if (isObispo) return checklistData.items; // obispo sees everything
-    if (isMissionLeader) return (checklistData.items as any[]).filter((i) =>
-      MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
-    );
-    return checklistData.items;
-  }, [checklistData?.items, isObispo, isMissionLeader]);
-
-  const checklistComplete = useMemo(() => {
-    if (!visibleChecklistItems || visibleChecklistItems.length === 0) return false;
-    return (visibleChecklistItems as any[]).every((i) => i.completed);
-  }, [visibleChecklistItems]);
 
   // Helper: find a checklist item by its key
   const getChkItem = (key: string) => checklistData?.items?.find((i: any) => (i.itemKey ?? i.item_key) === key);
