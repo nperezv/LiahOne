@@ -2238,8 +2238,8 @@ function BaptismalServiceSheet({
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
   const isLiderActividades = userRole === "lider_actividades";
   const showMisionSections = isObispo || isMissionLeader;
-  const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
-  const showLogisticsStatus = isObispo || isMissionLeader; // others see a status card
+  const showLogisticsSections = isObispo || isLiderActividades; // obispo and lider_actividades can edit logistics
+  const showLogisticsStatus = isMissionLeader; // mission leader sees logistics status card (read-only)
 
   // Data hooks
   const { data: wardTemplate } = useQuery({ queryKey: ["/api/pdf-template"], queryFn: () => apiRequest("GET", "/api/pdf-template") });
@@ -3219,8 +3219,8 @@ function BaptismalServiceSheet({
                 <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
               )}
 
-              {/* Read-only view for obispo */}
-              {!coordQuery.isLoading && isObispo && (() => {
+              {/* Read-only summary for obispo — hidden, obispo now uses the editable form below */}
+              {false && isObispo && (() => {
                 const bd = coordDraft.baptismDetails;
                 const task = serviceTaskQuery.data;
                 const taskStatusLabel = task?.status === "completed" ? "Completado"
@@ -3276,7 +3276,7 @@ function BaptismalServiceSheet({
                 );
               })()}
 
-              {!coordQuery.isLoading && !isObispo && (() => {
+              {!coordQuery.isLoading && (() => {
                 // Section completion booleans (used for dots and progress bar)
                 const secEntrevista = serviceCandidates.length === 0
                   ? !!coordDraft.baptismDetails.entrevista_notas?.trim()
