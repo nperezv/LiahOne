@@ -231,9 +231,52 @@ function Router() {
   );
 }
 
-function App() {
+// Lives inside AuthProvider so it can gate the splash on auth resolution
+function AppShell() {
+  const { isLoading: isAuthLoading } = useAuth();
+  const [pageReady, setPageReady] = useState(document.readyState === "complete");
   const [showSplash, setShowSplash] = useState(true);
   const [isSplashClosing, setIsSplashClosing] = useState(false);
+
+  // Track when the page has fully loaded
+  useEffect(() => {
+    if (pageReady) return;
+    const onLoad = () => setPageReady(true);
+    window.addEventListener("load", onLoad, { once: true });
+    const timeout = window.setTimeout(() => setPageReady(true), 1200);
+    return () => {
+      window.removeEventListener("load", onLoad);
+      window.clearTimeout(timeout);
+    };
+  }, [pageReady]);
+
+  // Dismiss splash only when BOTH page is loaded AND auth is resolved
+  useEffect(() => {
+    if (!pageReady || isAuthLoading) return;
+    let closeTimeout: number | null = null;
+    setIsSplashClosing(true);
+    closeTimeout = window.setTimeout(() => setShowSplash(false), 220);
+    return () => { if (closeTimeout) window.clearTimeout(closeTimeout); };
+  }, [pageReady, isAuthLoading]);
+
+  return (
+    <TooltipProvider>
+      <Toaster />
+      {showSplash && (
+        <div className={`app-splash ${isSplashClosing ? "is-closing" : ""}`} aria-hidden="true">
+          <div className="app-splash-content">
+            <img src="/icons/compass.svg" alt="" className="app-splash-logo app-compass-spin" />
+          </div>
+        </div>
+      )}
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Router />
+      </Suspense>
+    </TooltipProvider>
+  );
+}
+
+function App() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(() =>
     getStoredTheme()
   );
@@ -251,55 +294,10 @@ function App() {
     return () => stopListening();
   }, []);
 
-  useEffect(() => {
-    let timeout: number | null = null;
-    let dismissed = false;
-    let closeTimeout: number | null = null;
-
-    const dismissSplash = () => {
-      if (dismissed) return;
-      dismissed = true;
-      setIsSplashClosing(true);
-      closeTimeout = window.setTimeout(() => {
-        setShowSplash(false);
-      }, 220);
-    };
-
-    if (document.readyState === "complete") {
-      dismissSplash();
-    } else {
-      window.addEventListener("load", dismissSplash, { once: true });
-      timeout = window.setTimeout(dismissSplash, 1200);
-    }
-
-    return () => {
-      if (timeout) {
-        window.clearTimeout(timeout);
-      }
-      if (closeTimeout) {
-        window.clearTimeout(closeTimeout);
-      }
-      window.removeEventListener("load", dismissSplash);
-    };
-  }, []);
-
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          {showSplash && (
-            <div className={`app-splash ${isSplashClosing ? "is-closing" : ""}`} aria-hidden="true">
-              <div className="app-splash-content">
-                <img src="/icons/compass.svg" alt="" className="app-splash-logo app-compass-spin" />
-              </div>
-            </div>
-          )}
-          <Suspense fallback={<RouteLoadingFallback />}>
-            <Router />
-          </Suspense>
-        </TooltipProvider>
+        <AppShell />
       </AuthProvider>
     </QueryClientProvider>
   );
