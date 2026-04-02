@@ -31,6 +31,42 @@ interface MenuItem {
   organizationTypes?: string[]; // If defined, only visible to these organization types.
 }
 
+// Prefetch route chunks on hover so they're ready when the user clicks
+const ROUTE_PREFETCHERS: Record<string, () => Promise<any>> = {
+  "/dashboard": () => import("@/pages/dashboard"),
+  "/sacramental-meeting": () => import("@/pages/sacramental-meeting"),
+  "/ward-council": () => import("@/pages/ward-council"),
+  "/leadership": () => import("@/pages/leadership"),
+  "/directory": () => import("@/pages/directory"),
+  "/mission-work": () => import("@/pages/mission-work"),
+  "/inventory": () => import("@/pages/inventory"),
+  "/resources-library": () => import("@/pages/resources-library"),
+  "/welfare": () => import("@/pages/welfare"),
+  "/budget": () => import("@/pages/budget"),
+  "/interviews": () => import("@/pages/interviews"),
+  "/organization-interviews": () => import("@/pages/organization-interviews"),
+  "/goals": () => import("@/pages/goals"),
+  "/birthdays": () => import("@/pages/birthdays"),
+  "/activities": () => import("@/pages/activities"),
+  "/calendar": () => import("@/pages/calendar"),
+  "/agenda": () => import("@/pages/agenda"),
+  "/reports": () => import("@/pages/reports"),
+  "/secretary-dashboard": () => import("@/pages/secretary-dashboard"),
+  "/assignments": () => import("@/pages/assignments"),
+  "/activity-logistics": () => import("@/pages/activity-logistics"),
+  "/settings": () => import("@/pages/settings"),
+  "/admin/users": () => import("@/pages/admin-users"),
+  "/notifications": () => import("@/pages/notifications"),
+  "/profile": () => import("@/pages/profile"),
+  "/presidency/hombres-jovenes": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/mujeres-jovenes": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/sociedad-socorro": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/primaria": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/escuela-dominical": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/jas": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/cuorum-elderes": () => import("@/pages/presidency-manage-organization"),
+};
+
 const ORG_ROLES = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
 const HIDDEN_FOR_ORG_ROLES = ["/dashboard", "/goals", "/calendar"];
 
@@ -283,14 +319,17 @@ function AppSidebarInner() {
   const { isMobile, setOpenMobile } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
 
-  // App.tsx already wraps every pushState with startViewTransition,
-  // so we just navigate directly — no double-transition.
   const handleLinkClick = React.useCallback((path: string) => {
     setLocation(path);
     if (isMobile) {
       setOpenMobile(false);
     }
   }, [isMobile, setLocation, setOpenMobile]);
+
+  const handlePrefetch = React.useCallback((url: string) => {
+    const prefetcher = ROUTE_PREFETCHERS[url];
+    if (prefetcher) prefetcher();
+  }, []);
 
   // Fetch organizations to map organization ID to type
   const { data: organizations = [] } = useOrganizations();
@@ -367,7 +406,7 @@ function AppSidebarInner() {
                         className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
                         data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <Link href={item.url!} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
+                        <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
                           <item.icon className="h-5 w-5" />
                           <span>{title}</span>
                         </Link>
@@ -415,7 +454,7 @@ function AppSidebarInner() {
                                   isActive={location === subItem.url}
                                   data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
                                 >
-                                  <Link href={subItem.url} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
+                                  <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
                                     <span>{subItem.title}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
@@ -436,7 +475,7 @@ function AppSidebarInner() {
                       className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
                       data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <Link href={item.url!} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
+                      <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
                         <item.icon className="h-5 w-5" />
                         <span>{title}</span>
                       </Link>
