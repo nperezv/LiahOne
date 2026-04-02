@@ -59,6 +59,7 @@ import {
   Clock,
   Upload,
   FileText,
+  Lock,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -2230,6 +2231,7 @@ function BaptismalServiceSheet({
   const [locationVal, setLocationVal] = useState("");
   const [locationAddrVal, setLocationAddrVal] = useState("");
   const [serviceAtVal, setServiceAtVal] = useState("");
+  const [serviceTimeVal, setServiceTimeVal] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
   const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
@@ -2240,6 +2242,7 @@ function BaptismalServiceSheet({
   const showLogisticsStatus = isObispo || isMissionLeader; // others see a status card
 
   // Data hooks
+  const { data: wardTemplate } = useQuery({ queryKey: ["/api/pdf-template"], queryFn: () => apiRequest("GET", "/api/pdf-template") });
   const { data: members = [] } = useMembers();
   const { data: usersData = [] as any[] } = useUsers();
   const { data: hymns = [] as any[] } = useHymns();
@@ -2312,10 +2315,17 @@ function BaptismalServiceSheet({
   const liveService = detail ? { ...service, approval_status: detail.approval_status, approval_comment: detail.approval_comment } : service;
 
   React.useEffect(() => {
-    if (service?.service_at) setServiceAtVal(service.service_at.split(/[T ]/)[0]);
-    if (service?.location_name) setLocationVal(service.location_name);
-    if (service?.location_address) setLocationAddrVal(service.location_address ?? "");
-  }, [service?.service_at, service?.location_name, service?.location_address]);
+    if (service?.service_at) {
+      const parts = service.service_at.split(/[T ]/);
+      setServiceAtVal(parts[0] ?? "");
+      setServiceTimeVal(parts[1] ? parts[1].slice(0, 5) : "");
+    }
+    // Pre-fill location from ward settings if service has none saved yet
+    const defaultName = wardTemplate?.meetingCenterName || "";
+    const defaultAddr = wardTemplate?.meetingCenterAddress || "";
+    setLocationVal(service?.location_name || defaultName);
+    setLocationAddrVal(service?.location_address ?? defaultAddr);
+  }, [service?.service_at, service?.location_name, service?.location_address, wardTemplate?.meetingCenterName, wardTemplate?.meetingCenterAddress]);
 
   React.useEffect(() => {
     if (!open) {
@@ -2343,6 +2353,12 @@ function BaptismalServiceSheet({
       setProgramDraft(values);
     }
   }, [detail?.program_items]);
+
+  const saveDateTime = () => {
+    if (!serviceAtVal) return;
+    const combined = serviceTimeVal ? `${serviceAtVal} ${serviceTimeVal}` : serviceAtVal;
+    updateServiceMutation.mutate({ serviceAt: combined });
+  };
 
   const updateServiceMutation = useMutation({
     mutationFn: (data: { locationName?: string; locationAddress?: string; serviceAt?: string }) =>
@@ -2808,27 +2824,39 @@ function BaptismalServiceSheet({
                 <div>
                   <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Información del servicio" />
                   <div className="space-y-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                      <Input type="date" value={serviceAtVal}
-                        onChange={(e) => setServiceAtVal(e.target.value)}
-                        onBlur={() => updateServiceMutation.mutate({ serviceAt: serviceAtVal })}
-                        className="h-8 text-sm" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                        <Input type="date" value={serviceAtVal}
+                          onChange={(e) => setServiceAtVal(e.target.value)}
+                          onBlur={saveDateTime}
+                          className="h-8 text-sm" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Hora</Label>
+                        <Input type="time" value={serviceTimeVal}
+                          onChange={(e) => setServiceTimeVal(e.target.value)}
+                          onBlur={saveDateTime}
+                          className="h-8 text-sm" />
+                      </div>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Lugar</Label>
-                      <Input value={locationVal}
-                        onChange={(e) => setLocationVal(e.target.value)}
-                        onBlur={() => updateServiceMutation.mutate({ locationName: locationVal })}
-                        className="h-8 text-sm" placeholder="Nombre del lugar" />
+                      <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                        <Lock className="h-3 w-3" /> Lugar
+                      </Label>
+                      <Input value={locationVal} readOnly
+                        className="h-8 text-sm bg-muted/50 cursor-default" />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1 block">Dirección</Label>
-                      <Input value={locationAddrVal}
-                        onChange={(e) => setLocationAddrVal(e.target.value)}
-                        onBlur={() => updateServiceMutation.mutate({ locationAddress: locationAddrVal || undefined })}
-                        className="h-8 text-sm" placeholder="Dirección (opcional)" />
+                      <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                        <Lock className="h-3 w-3" /> Dirección
+                      </Label>
+                      <Input value={locationAddrVal} readOnly
+                        className="h-8 text-sm bg-muted/50 cursor-default" />
                     </div>
+                    <p className="text-[11px] text-muted-foreground/60">
+                      Lugar y dirección se configuran en Ajustes → Centro de Reuniones
+                    </p>
                   </div>
                 </div>
               )}

@@ -831,6 +831,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false
   `);
 
+  // Auto-migration: add meeting center fields to pdf_templates if missing
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS meeting_center_name text NOT NULL DEFAULT ''
+  `);
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS meeting_center_address text NOT NULL DEFAULT ''
+  `);
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET,
