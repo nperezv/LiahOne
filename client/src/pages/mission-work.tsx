@@ -2320,11 +2320,11 @@ function BaptismalServiceSheet({
       setServiceAtVal(parts[0] ?? "");
       setServiceTimeVal(parts[1] ? parts[1].slice(0, 5) : "");
     }
-    // Pre-fill location from ward settings if service has none saved yet
+    // Settings always take priority over whatever was saved in the DB
     const defaultName = wardTemplate?.meetingCenterName || "";
     const defaultAddr = wardTemplate?.meetingCenterAddress || "";
-    setLocationVal(service?.location_name || defaultName);
-    setLocationAddrVal(service?.location_address ?? defaultAddr);
+    setLocationVal(defaultName || service?.location_name || "");
+    setLocationAddrVal(defaultAddr || service?.location_address ?? "");
   }, [service?.service_at, service?.location_name, service?.location_address, wardTemplate?.meetingCenterName, wardTemplate?.meetingCenterAddress]);
 
   React.useEffect(() => {
