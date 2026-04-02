@@ -316,7 +316,7 @@ function getRenamedTitle(item: MenuItem, userRole?: string) {
 function AppSidebarInner() {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
 
   const handleLinkClick = React.useCallback((path: string) => {
@@ -356,6 +356,16 @@ function AppSidebarInner() {
     () => menuItems.filter((item) => (item.url ? !pinnedUrls.includes(item.url) : true)),
     [menuItems, pinnedUrls],
   );
+
+  // Prefetch all visible route chunks when the sidebar opens (works on mobile too)
+  const isOpen = isMobile ? openMobile : open;
+  React.useEffect(() => {
+    if (!isOpen) return;
+    menuItems.forEach((item) => {
+      if (item.url) handlePrefetch(item.url);
+      item.subItems?.forEach((sub) => handlePrefetch(sub.url));
+    });
+  }, [isOpen, menuItems, handlePrefetch]);
 
   const pendingByUrl: Record<string, number> = React.useMemo(() => ({
     "/assignments": dashboardStats?.pendingAssignments ?? 0,
