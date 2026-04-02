@@ -2238,8 +2238,8 @@ function BaptismalServiceSheet({
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
   const isLiderActividades = userRole === "lider_actividades";
   const showMisionSections = isObispo || isMissionLeader;
-  const showLogisticsSections = isObispo || isLiderActividades; // obispo and lider_actividades can edit logistics
-  const showLogisticsStatus = isMissionLeader; // mission leader sees logistics status card (read-only)
+  const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
+  const showLogisticsStatus = isObispo || isMissionLeader; // obispo and mission leader see logistics status card
 
   // Data hooks
   const { data: wardTemplate } = useQuery({ queryKey: ["/api/pdf-template"], queryFn: () => apiRequest("GET", "/api/pdf-template") });
