@@ -2324,7 +2324,7 @@ function BaptismalServiceSheet({
     const defaultName = wardTemplate?.meetingCenterName || "";
     const defaultAddr = wardTemplate?.meetingCenterAddress || "";
     setLocationVal(defaultName || service?.location_name || "");
-    setLocationAddrVal(defaultAddr || service?.location_address ?? "");
+    setLocationAddrVal(defaultAddr || (service?.location_address ?? ""));
   }, [service?.service_at, service?.location_name, service?.location_address, wardTemplate?.meetingCenterName, wardTemplate?.meetingCenterAddress]);
 
   React.useEffect(() => {
