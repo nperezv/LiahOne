@@ -706,7 +706,7 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
               <span>{formatDate(task.service_at)}</span>
             </div>
           )}
-          {task.location_name && task.location_name !== "Por confirmar" && <div>Lugar: {task.location_name}</div>}
+          {task.location_name && <div>Lugar: {task.location_name}</div>}
         </div>
       </CardHeader>
       <CardContent>

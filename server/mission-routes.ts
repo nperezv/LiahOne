@@ -2287,11 +2287,14 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           WHERE bsc.service_id = ${service.id}
           ORDER BY mp.nombre
         `);
-        const candidateName = candidatesResult.rows.length > 0
-          ? (candidatesResult.rows as any[]).map((r) => r.nombre).join(" & ")
-          : (service.location_name && service.location_name !== "Por confirmar"
-              ? service.location_name
-              : "Servicio bautismal");
+        const candidateNames = (candidatesResult.rows as any[]).map((r) => r.nombre as string);
+        function joinNamesEs(names: string[]): string {
+          if (names.length === 0) return "Servicio bautismal";
+          if (names.length === 1) return names[0];
+          if (names.length === 2) return `${names[0]} y ${names[1]}`;
+          return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+        }
+        const candidateName = joinNamesEs(candidateNames);
         const svcDate = new Date(service.service_at);
         const dd = String(svcDate.getUTCDate()).padStart(2, "0");
         const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
@@ -2309,7 +2312,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             assignedTo: liderActividades.id,
             assignedRole: "lider_actividades",
             organizationId: liderActividades.organizationId,
-            title: `Servicio Bautismal — Coordinación logística: ${candidateName}`,
+            title: `Servicio Bautismal ${candidateName} — Coordinación logística`,
             description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}`,
             status: "pending",
             createdBy: user.id,

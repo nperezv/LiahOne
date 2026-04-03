@@ -1,38 +1,33 @@
--- Fix service_task titles that still show "Por confirmar"
--- by replacing with actual candidate names from baptism_service_candidates
+-- Fix service_task titles to use correct format:
+-- "Servicio Bautismal <Nombre(s)> — Coordinación logística"
+-- Note: Spanish name joining (", " and " y " before last) is handled by the
+-- server startup fix in routes.ts which uses JavaScript for proper formatting.
+-- This SQL handles the simple single-candidate case as a fallback.
 UPDATE service_tasks st
 SET title = (
-  SELECT 'Servicio Bautismal — Coordinación logística: ' ||
-         STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
+  SELECT 'Servicio Bautismal ' ||
+         STRING_AGG(mp.nombre, ' y ' ORDER BY mp.nombre) ||
+         ' — Coordinación logística'
   FROM baptism_service_candidates bsc
   JOIN mission_personas mp ON mp.id = bsc.persona_id
   WHERE bsc.service_id = st.baptism_service_id
 )
 WHERE st.assigned_role = 'lider_actividades'
-  AND (
-    st.title LIKE '%Por confirmar%'
-    OR st.title = 'Servicio Bautismal — Coordinación logística: '
-  )
   AND st.baptism_service_id IS NOT NULL
   AND EXISTS (
     SELECT 1 FROM baptism_service_candidates bsc2
     WHERE bsc2.service_id = st.baptism_service_id
   );
 
--- Also fix mission_leader_logistics tasks
 UPDATE service_tasks st
 SET title = (
   SELECT 'Coordinar logística con el lider de actividades: ' ||
-         STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
+         STRING_AGG(mp.nombre, ' y ' ORDER BY mp.nombre)
   FROM baptism_service_candidates bsc
   JOIN mission_personas mp ON mp.id = bsc.persona_id
   WHERE bsc.service_id = st.baptism_service_id
 )
 WHERE st.assigned_role = 'mission_leader_logistics'
-  AND (
-    st.title LIKE '%Por confirmar%'
-    OR st.title = 'Coordinar logística con el lider de actividades: '
-  )
   AND st.baptism_service_id IS NOT NULL
   AND EXISTS (
     SELECT 1 FROM baptism_service_candidates bsc2

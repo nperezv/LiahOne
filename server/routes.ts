@@ -803,31 +803,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   registerMissionRoutes(app, requireAuth);
 
-  // One-time fix: update service_task titles that still show "Por confirmar"
-  // because they were created before the candidate-name lookup was added.
-  db.execute(sql`
-    UPDATE service_tasks st
-    SET title = sub.new_title
-    FROM (
-      SELECT st2.id,
-        CASE st2.assigned_role
-          WHEN 'lider_actividades' THEN
-            'Servicio Bautismal — Coordinación logística: ' ||
-            STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
-          WHEN 'mission_leader_logistics' THEN
-            'Coordinar logística con el lider de actividades: ' ||
-            STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
-        END AS new_title
-      FROM service_tasks st2
-      JOIN baptism_service_candidates bsc ON bsc.service_id = st2.baptism_service_id
+  // One-time fix: update service_task titles to use the correct format
+  // "Servicio Bautismal <Nombre(s)> — Coordinación logística"
+  // Catches tasks with old format or "Por confirmar" placeholder.
+  (async () => {
+    function joinNamesEs(names: string[]): string {
+      if (names.length === 0) return "Servicio bautismal";
+      if (names.length === 1) return names[0];
+      if (names.length === 2) return `${names[0]} y ${names[1]}`;
+      return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+    }
+    const stale = await db.execute(sql`
+      SELECT st.id, st.assigned_role,
+             array_agg(mp.nombre ORDER BY mp.nombre) AS nombres
+      FROM service_tasks st
+      JOIN baptism_service_candidates bsc ON bsc.service_id = st.baptism_service_id
       JOIN mission_personas mp ON mp.id = bsc.persona_id
-      WHERE st2.assigned_role IN ('lider_actividades', 'mission_leader_logistics')
-        AND st2.title LIKE '%Por confirmar%'
-        AND st2.baptism_service_id IS NOT NULL
-      GROUP BY st2.id, st2.assigned_role
-    ) sub
-    WHERE st.id = sub.id
-  `).catch((err: unknown) => {
+      WHERE st.assigned_role IN ('lider_actividades', 'mission_leader_logistics')
+        AND st.baptism_service_id IS NOT NULL
+        AND (
+          st.title LIKE '%Por confirmar%'
+          OR st.title NOT LIKE 'Servicio Bautismal % — Coordinación logística'
+        )
+      GROUP BY st.id, st.assigned_role
+    `);
+    for (const row of stale.rows as any[]) {
+      const joined = joinNamesEs(row.nombres as string[]);
+      const newTitle = row.assigned_role === "lider_actividades"
+        ? `Servicio Bautismal ${joined} — Coordinación logística`
+        : `Coordinar logística con el lider de actividades: ${joined}`;
+      await db.execute(sql`UPDATE service_tasks SET title = ${newTitle} WHERE id = ${row.id}`);
+    }
+  })().catch((err: unknown) => {
     console.error("[startup] Failed to fix stale service_task titles:", err);
   });
   // Setup session middleware
