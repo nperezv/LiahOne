@@ -1164,7 +1164,8 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
   return (
     <>
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto p-0">
+      <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto p-0" aria-describedby={undefined}>
+        <SheetTitle className="sr-only">{persona.nombre}</SheetTitle>
         {/* Name + button — sticky only in edit mode */}
         <div className={editMode ? "px-6 pt-5 pb-4 sticky top-0 z-10 bg-background border-b" : "px-6 pt-5 pb-4"}>
           <div className="text-left">
@@ -2856,7 +2857,8 @@ function BaptismalServiceSheet({
   return (
     <>
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-lg flex flex-col p-0 gap-0">
+      <SheetContent side="right" className="w-full max-w-lg flex flex-col p-0 gap-0" aria-describedby={undefined}>
+        <SheetTitle className="sr-only">Servicio bautismal</SheetTitle>
 
         {/* Header */}
         <div className="px-5 pt-5 pb-0 border-b shrink-0">
