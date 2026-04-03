@@ -7187,34 +7187,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const assignments = await storage.getAllAssignments();
 
-      if (isObispado || !isOrgMember) {
+      if (isObispado) {
         return res.json(assignments);
       }
 
-      const users = await storage.getAllUsers();
-      const userOrganizationById = new Map(users.map((item) => [item.id, item.organizationId ?? null]));
+      if (isOrgMember) {
+        const users = await storage.getAllUsers();
+        const userOrganizationById = new Map(users.map((item) => [item.id, item.organizationId ?? null]));
 
-      const visibleAssignments = assignments.filter((assignment: any) => {
-        if (!assignment) return false;
+        const visibleAssignments = assignments.filter((assignment: any) => {
+          if (!assignment) return false;
 
-        if (assignment.assignedTo === user.id || assignment.assignedBy === user.id) {
-          return true;
-        }
+          if (assignment.assignedTo === user.id || assignment.assignedBy === user.id) {
+            return true;
+          }
 
-        const assigneeOrganizationId = assignment.assignedTo
-          ? userOrganizationById.get(assignment.assignedTo)
-          : null;
-        const assignerOrganizationId = assignment.assignedBy
-          ? userOrganizationById.get(assignment.assignedBy)
-          : null;
+          const assigneeOrganizationId = assignment.assignedTo
+            ? userOrganizationById.get(assignment.assignedTo)
+            : null;
+          const assignerOrganizationId = assignment.assignedBy
+            ? userOrganizationById.get(assignment.assignedBy)
+            : null;
 
-        return (
-          assigneeOrganizationId === user.organizationId ||
-          assignerOrganizationId === user.organizationId
-        );
-      });
+          return (
+            assigneeOrganizationId === user.organizationId ||
+            assignerOrganizationId === user.organizationId
+          );
+        });
 
-      return res.json(visibleAssignments);
+        return res.json(visibleAssignments);
+      }
+
+      // All other roles (mission_leader, ward_missionary, lider_actividades, etc.)
+      // only see their own assignments
+      return res.json(
+        assignments.filter((a: any) => a?.assignedTo === user.id || a?.assignedBy === user.id)
+      );
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
