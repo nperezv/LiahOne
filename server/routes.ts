@@ -802,6 +802,34 @@ async function hasInterviewCollision({
 export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   registerMissionRoutes(app, requireAuth);
+
+  // One-time fix: update service_task titles that still show "Por confirmar"
+  // because they were created before the candidate-name lookup was added.
+  db.execute(sql`
+    UPDATE service_tasks st
+    SET title = sub.new_title
+    FROM (
+      SELECT st2.id,
+        CASE st2.assigned_role
+          WHEN 'lider_actividades' THEN
+            'Servicio Bautismal — Coordinación logística: ' ||
+            STRING_AGG(mp.nombre, ' & ' ORDER BY bsc.created_at)
+          WHEN 'mission_leader_logistics' THEN
+            'Coordinar logística con el lider de actividades: ' ||
+            STRING_AGG(mp.nombre, ' & ' ORDER BY bsc.created_at)
+        END AS new_title
+      FROM service_tasks st2
+      JOIN baptism_service_candidates bsc ON bsc.service_id = st2.baptism_service_id
+      JOIN mission_personas mp ON mp.id = bsc.persona_id
+      WHERE st2.assigned_role IN ('lider_actividades', 'mission_leader_logistics')
+        AND st2.title LIKE '%Por confirmar%'
+        AND st2.baptism_service_id IS NOT NULL
+      GROUP BY st2.id, st2.assigned_role
+    ) sub
+    WHERE st.id = sub.id
+  `).catch((err: unknown) => {
+    console.error("[startup] Failed to fix stale service_task titles:", err);
+  });
   // Setup session middleware
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable is required");
