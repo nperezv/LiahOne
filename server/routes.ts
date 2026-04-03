@@ -803,6 +803,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   registerMissionRoutes(app, requireAuth);
 
+  // One-time fix: update baptism_services with 'Por confirmar' location
+  // to use the configured meeting center name.
+  (async () => {
+    const tpl = await storage.getPdfTemplate();
+    const meetingCenter = tpl?.meetingCenterName?.trim();
+    if (meetingCenter) {
+      await db.execute(sql`
+        UPDATE baptism_services
+        SET location_name = ${meetingCenter}
+        WHERE location_name = 'Por confirmar'
+      `);
+    }
+  })().catch((err: unknown) => {
+    console.error("[startup] Failed to fix baptism_services location_name:", err);
+  });
+
   // One-time fix: update service_task titles to use the correct format
   // "Servicio Bautismal <Nombre(s)> — Coordinación logística"
   // Catches tasks with old format or "Por confirmar" placeholder.

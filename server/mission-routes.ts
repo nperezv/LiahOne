@@ -447,11 +447,13 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         WHERE baptism_service_id = ${baptismServiceId}
       `);
     } else {
+      const tpl = await storage.getPdfTemplate();
+      const defaultLocation = tpl?.meetingCenterName?.trim() || "Por confirmar";
       const serviceResult = await db.execute(sql`
         INSERT INTO baptism_services
           (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
         VALUES
-          (${unitId}, ${serviceAt.toISOString()}, 'Por confirmar', ${prepDeadline.toISOString()}, 'draft', ${userId})
+          (${unitId}, ${serviceAt.toISOString()}, ${defaultLocation}, ${prepDeadline.toISOString()}, 'draft', ${userId})
         RETURNING id
       `);
       baptismServiceId = (serviceResult.rows[0] as any)?.id as string | undefined;
