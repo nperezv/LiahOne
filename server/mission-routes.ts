@@ -2446,13 +2446,13 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
   app.get("/api/service-tasks", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
+      const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist", "mission_leader"];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
       let rows;
-      if (user.role === "lider_actividades") {
+      if (user.role === "lider_actividades" || user.role === "mission_leader") {
         const result = await db.execute(sql`
           SELECT
             st.id,

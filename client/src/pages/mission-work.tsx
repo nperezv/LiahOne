@@ -539,7 +539,7 @@ const AddFromDirectoryDialog = React.memo(function AddFromDirectoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setSelected(null); setSearch(""); } }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>
             {tipo === "nuevo" ? "Agregar miembro nuevo" : "Agregar miembro que regresa"}
@@ -667,7 +667,7 @@ const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Agregar persona a enseñar</DialogTitle>
         </DialogHeader>
@@ -1917,7 +1917,7 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
 
     {/* Mini modal para registrar sesión de principio */}
     <Dialog open={!!sesionModal} onOpenChange={(v) => { if (!v) setSesionModal(null); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="text-base leading-snug">
             {sesionModal?.principioNombre}
@@ -3970,7 +3970,7 @@ function BaptismalServiceSheet({
 
     {/* Interview edit dialog */}
     <Dialog open={!!interviewEdit} onOpenChange={(v) => { if (!v) setInterviewEdit(null); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="text-base">{interviewEdit?.nombre}</DialogTitle>
           <p className="text-xs text-muted-foreground pt-0.5">Entrevista bautismal</p>
@@ -4014,7 +4014,7 @@ function BaptismalServiceSheet({
 
     {/* Interview completion confirmation dialog */}
     <Dialog open={!!interviewConfirm} onOpenChange={(v) => { if (!v) setInterviewConfirm(null); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="text-base">{interviewConfirm?.nombre}</DialogTitle>
           <p className="text-xs text-muted-foreground pt-0.5">Entrevista bautismal</p>

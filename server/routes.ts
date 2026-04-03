@@ -4955,8 +4955,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "secretario_ejecutivo",
         "secretario_financiero",
       ].includes(user.role);
+      const isMissionLeader = user.role === "mission_leader";
 
-      if (!isObispado) {
+      if (!isObispado && !isMissionLeader) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
