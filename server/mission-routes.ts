@@ -2279,14 +2279,19 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       }
 
       try {
-        let candidateName = service.location_name;
-        if (service.candidate_persona_id) {
-          const personaResult = await db.execute(sql`
-            SELECT nombre FROM mission_personas WHERE id = ${service.candidate_persona_id}
-          `);
-          const persona = personaResult.rows[0] as any;
-          if (persona) candidateName = persona.nombre;
-        }
+        // Get all candidates from bridge table (supports multiple baptisms per service)
+        const candidatesResult = await db.execute(sql`
+          SELECT mp.nombre
+          FROM baptism_service_candidates bsc
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${service.id}
+          ORDER BY bsc.created_at
+        `);
+        const candidateName = candidatesResult.rows.length > 0
+          ? (candidatesResult.rows as any[]).map((r) => r.nombre).join(" & ")
+          : (service.location_name && service.location_name !== "Por confirmar"
+              ? service.location_name
+              : "Servicio bautismal");
         const svcDate = new Date(service.service_at);
         const dd = String(svcDate.getUTCDate()).padStart(2, "0");
         const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
