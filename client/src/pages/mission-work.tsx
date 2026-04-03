@@ -682,7 +682,7 @@ const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
               <select
                 value={sexo}
                 onChange={(e) => setSexo(e.target.value as "M" | "F" | "")}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="">—</option>
                 <option value="M">Masculino</option>
@@ -1230,7 +1230,7 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
                         setSexoVal(v);
                         sexoNacimientoMutation.mutate({ sexo: v || null });
                       }}
-                      className="flex h-7 rounded-md border border-input bg-transparent px-2 py-0 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="flex h-7 rounded-md border border-input bg-background text-foreground px-2 py-0 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       <option value="">—</option>
                       <option value="M">Masculino</option>
