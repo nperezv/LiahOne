@@ -361,7 +361,7 @@ function LogisticsDetail({
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground block">Tareas</Label>
                 {arregloTasks.map((task, i) => (
-                  <div key={i + '-' + (task.persona || '')} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                  <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 space-y-2">
                         <div>
@@ -457,13 +457,17 @@ function LogisticsDetail({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                  <Input
-                    className="h-8 text-sm"
-                    placeholder="Nombre"
-                    value={draft.logistics.equipo_responsable ?? ""}
-                    onChange={(e) => setLog("equipo_responsable", e.target.value)}
-                    readOnly={!canEdit}
-                  />
+                  {canEdit ? (
+                    <MemberAutocomplete
+                      value={draft.logistics.equipo_responsable ?? ""}
+                      options={memberOptions}
+                      placeholder="Nombre"
+                      className="h-8 text-sm"
+                      onChange={(v) => setLog("equipo_responsable", v)}
+                    />
+                  ) : (
+                    <p className="text-sm">{draft.logistics.equipo_responsable || "-"}</p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
@@ -535,7 +539,7 @@ function LogisticsDetail({
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground block">Responsables</Label>
                 {refrigerioResponsables.map((name, i) => (
-                  <div key={i + '-' + name} className="flex items-center gap-2">
+                  <div key={i} className="flex items-center gap-2">
                     <div className="flex-1">
                       {canEdit ? (
                         <MemberAutocomplete
@@ -706,7 +710,7 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
               <span>{formatDate(task.service_at)}</span>
             </div>
           )}
-          {task.location_name && <div>Lugar: {task.location_name}</div>}
+          {task.location_name && task.location_name !== "Por confirmar" && <div>Lugar: {task.location_name}</div>}
         </div>
       </CardHeader>
       <CardContent>
