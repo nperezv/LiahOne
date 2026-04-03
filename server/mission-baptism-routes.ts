@@ -3206,7 +3206,7 @@ export function registerMissionBaptismRoutes(
   app.get("/api/service-tasks", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
+      const allowedRoles = ["lider_actividades", "mission_leader", "obispo", "consejero_obispo", "technology_specialist"];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ error: "Forbidden" });
       }

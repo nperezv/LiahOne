@@ -112,3 +112,17 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Redirect to login when any query/mutation gets a persistent 401
+queryClient.getQueryCache().subscribe((event) => {
+  if (
+    event.type === "updated" &&
+    event.action.type === "error" &&
+    event.action.error instanceof Error &&
+    event.action.error.message.startsWith("401:")
+  ) {
+    // Clear cache and redirect to login
+    queryClient.clear();
+    window.location.href = "/login";
+  }
+});

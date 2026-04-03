@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { getAccessToken } from "@/lib/auth-tokens";
+import { getAccessToken, refreshAccessToken } from "@/lib/auth-tokens";
 import { useAuth } from "@/lib/auth.tsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -260,12 +260,25 @@ function formatDisplayDate(dateStr: string | null | undefined): string {
 // API Hooks
 // ============================================================
 
-function missionFetch(url: string) {
+async function missionFetch(url: string) {
   const token = getAccessToken();
-  return fetch(url, {
+  let res = await fetch(url, {
     credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-  }).then((r) => r.json());
+  });
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      res = await fetch(url, {
+        credentials: "include",
+        headers: { Authorization: `Bearer ${newToken}` },
+      });
+    }
+  }
+  if (!res.ok) {
+    throw new Error(`${res.status}: ${res.statusText}`);
+  }
+  return res.json();
 }
 
 function usePersonas(tipo: PersonaTipo) {
