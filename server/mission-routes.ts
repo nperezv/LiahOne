@@ -2522,7 +2522,29 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         return res.status(404).json({ error: "Tarea no encontrada" });
       }
 
-      return res.json(result.rows[0]);
+      const updatedTask = result.rows[0] as any;
+
+      // When lider_actividades completes their logistics task,
+      // auto-complete the mission_leader_logistics task for the same service
+      if (
+        status === "completed" &&
+        updatedTask.assigned_role === "lider_actividades" &&
+        updatedTask.baptism_service_id
+      ) {
+        try {
+          await db.execute(sql`
+            UPDATE service_tasks
+            SET status = 'completed', completed_at = now(), updated_at = now()
+            WHERE baptism_service_id = ${updatedTask.baptism_service_id}
+              AND assigned_role = 'mission_leader_logistics'
+              AND status != 'completed'
+          `);
+        } catch (autoErr) {
+          console.error("[PATCH /api/service-tasks/:id/status] Failed to auto-complete mission_leader_logistics task:", autoErr);
+        }
+      }
+
+      return res.json(updatedTask);
     } catch (err) {
       console.error("[PATCH /api/service-tasks/:id/status]", err);
       return res.status(500).json({ error: "Error interno" });
