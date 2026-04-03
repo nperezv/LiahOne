@@ -474,9 +474,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
     const daysUntil = Math.ceil((serviceAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     const isException = daysUntil < 14;
 
-    if (isNewService) {
+    if (isNewService && baptismServiceId) {
       const [missionLeader] = await db
-        .select({ id: users.id, name: users.name })
+        .select({ id: users.id, name: users.name, email: users.email })
         .from(users)
         .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, unitId)))
         .limit(1);
@@ -484,6 +484,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const assignmentDeadlineDays = isException ? 1 : 3;
         const deadline = new Date();
         deadline.setDate(deadline.getDate() + assignmentDeadlineDays);
+
+        // Legacy assignment (kept for backwards compat)
         await db.execute(sql`
           INSERT INTO assignments (title, description, assigned_to, assigned_by, due_date, status)
           VALUES (
@@ -495,6 +497,53 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             'pendiente'
           )
         `);
+
+        // Service task — auto-completable when obispo approves
+        await db.insert(serviceTasks).values({
+          baptismServiceId,
+          assignedTo: missionLeader.id,
+          assignedRole: "mission_leader",
+          organizationId: unitId,
+          title: `Completar programa del servicio bautismal: ${personaNombre}`,
+          description: `Rellenar el borrador del programa bautismal y enviarlo al obispado para aprobación antes del ${fechaBautismo}.`,
+          status: "pending",
+          dueDate: deadline,
+          createdBy: userId,
+        });
+
+        // In-app notification
+        const notif = await storage.createNotification({
+          userId: missionLeader.id,
+          type: "reminder",
+          title: "Nueva fecha de bautismo fijada",
+          description: `Se ha fijado una fecha de bautismo para ${personaNombre}. Completa el programa bautismal antes del ${fechaBautismo}.`,
+          relatedId: baptismServiceId,
+          isRead: false,
+        });
+
+        // Push notification
+        if (isPushConfigured()) {
+          await sendPushNotification(missionLeader.id, {
+            title: "Nueva fecha de bautismo",
+            body: `Completa el programa bautismal de ${personaNombre} (${fechaBautismo}).`,
+            url: `/mission-work?section=servicios_bautismales&highlight=${baptismServiceId}`,
+            notificationId: notif.id,
+          });
+        }
+
+        // Email
+        if (missionLeader.email) {
+          const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
+          await sendBaptismReminderEmail({
+            toEmail: missionLeader.email,
+            recipientName: missionLeader.name,
+            candidateName: personaNombre,
+            baptismDate: fechaBautismo,
+            wardName,
+            isException,
+            daysUntil,
+          });
+        }
       }
     }
 
