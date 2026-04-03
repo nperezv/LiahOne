@@ -95,9 +95,11 @@ type ArregloTask = { persona: string; asignacion: string; hora: string };
 function LogisticsDetail({
   baptismServiceId,
   canEdit,
+  serviceAt,
 }: {
   baptismServiceId: string;
   canEdit: boolean;
+  serviceAt: string | null;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -117,13 +119,28 @@ function LogisticsDetail({
 
   useEffect(() => {
     if (data && !draftInitialized.current) {
+      const logistics = (data as any).logistics ?? {};
+      const svcAt: string | null = (data as any).serviceAt ?? serviceAt ?? null;
+      // Pre-fill limpieza fecha/hora from service date if not already set
+      if (svcAt) {
+        const svcDate = new Date(svcAt);
+        const yyyy = svcDate.getUTCFullYear();
+        const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(svcDate.getUTCDate()).padStart(2, "0");
+        if (!logistics.limpieza_fecha) logistics.limpieza_fecha = `${yyyy}-${mm}-${dd}`;
+        if (!logistics.limpieza_hora) {
+          const hh = String(svcDate.getUTCHours()).padStart(2, "0");
+          const min = String(svcDate.getUTCMinutes()).padStart(2, "0");
+          logistics.limpieza_hora = logistics.espacio_hora_inicio ?? `${hh}:${min}`;
+        }
+      }
       setDraft({
-        logistics: (data as any).logistics ?? {},
+        logistics,
         baptismDetails: (data as any).baptismDetails ?? {},
       });
       draftInitialized.current = true;
     }
-  }, [data]);
+  }, [data, serviceAt]);
 
   const membersQuery = useQuery<any[]>({ queryKey: ["/api/members"] });
   const memberOptions = useMemo(
@@ -165,6 +182,25 @@ function LogisticsDetail({
         arreglo_participantes: tasks.map((t) => t.persona).filter((p) => p.trim()),
         arreglo_responsable: tasks[0]?.persona || null,
         arreglo_hora: tasks.find((t) => t.hora)?.hora || null,
+      },
+    }));
+  };
+
+  // limpiezaResponsables — derived from draft with legacy field migration
+  const limpiezaResponsables: string[] =
+    (draft.logistics.limpieza_responsables as string[] | null | undefined)?.length
+      ? (draft.logistics.limpieza_responsables as string[])
+      : draft.logistics.limpieza_responsable
+        ? [draft.logistics.limpieza_responsable as string]
+        : [""];
+
+  const setLimpiezaResponsables = (names: string[]) => {
+    setDraft((d) => ({
+      ...d,
+      logistics: {
+        ...d.logistics,
+        limpieza_responsables: names,
+        limpieza_responsable: names[0] ?? null,
       },
     }));
   };
@@ -238,7 +274,7 @@ function LogisticsDetail({
   const secRefrigerio = refrigerioResponsables.some((r) => r.trim()) &&
     !!(draft.logistics.refrigerio_detalle as string | null | undefined)?.trim() &&
     (!draft.logistics.refrigerio_necesita_presupuesto || !!draft.logistics.refrigerio_presupuesto_solicitado);
-  const secLimpieza = !!draft.logistics.limpieza_responsable?.trim();
+  const secLimpieza = limpiezaResponsables.some((r) => r.trim());
   const completedCount = [secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza].filter(Boolean).length;
 
   const dot = (done: boolean) => (
@@ -595,16 +631,6 @@ function LogisticsDetail({
             <div className="space-y-3 pt-1">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
-                  <Input
-                    className="h-8 text-sm"
-                    placeholder="Nombre"
-                    value={draft.logistics.limpieza_responsable ?? ""}
-                    onChange={(e) => setLog("limpieza_responsable", e.target.value)}
-                    readOnly={!canEdit}
-                  />
-                </div>
-                <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
                   <Input
                     type="date"
@@ -614,6 +640,58 @@ function LogisticsDetail({
                     readOnly={!canEdit}
                   />
                 </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Hora</Label>
+                  <Input
+                    type="time"
+                    className="h-8 text-sm"
+                    value={draft.logistics.limpieza_hora ?? ""}
+                    onChange={(e) => setLog("limpieza_hora", e.target.value || null)}
+                    readOnly={!canEdit}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground block">Responsables</Label>
+                {limpiezaResponsables.map((name, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      {canEdit ? (
+                        <MemberAutocomplete
+                          value={name}
+                          options={memberOptions}
+                          placeholder="Nombre del miembro"
+                          className="h-7 text-sm"
+                          onChange={(v) => {
+                            const updated = [...limpiezaResponsables];
+                            updated[i] = v;
+                            setLimpiezaResponsables(updated);
+                          }}
+                        />
+                      ) : (
+                        <p className="text-sm">{name || "-"}</p>
+                      )}
+                    </div>
+                    {canEdit && limpiezaResponsables.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => setLimpiezaResponsables(limpiezaResponsables.filter((_, j) => j !== i))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setLimpiezaResponsables([...limpiezaResponsables, ""])}
+                  >
+                    <Plus className="h-3 w-3" /> Añadir responsable
+                  </button>
+                )}
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
@@ -778,6 +856,7 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
           <LogisticsDetail
             baptismServiceId={task.baptism_service_id}
             canEdit={canEdit}
+            serviceAt={task.service_at ?? null}
           />
         )}
       </CardContent>

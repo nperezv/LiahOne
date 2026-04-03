@@ -2022,13 +2022,15 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       `);
       if (!svcCheck.rows.length) return res.status(404).json({ message: "No encontrado" });
 
-      const [logRow, detRow] = await Promise.all([
+      const [logRow, detRow, svcRow] = await Promise.all([
         db.execute(sql`SELECT * FROM baptism_service_logistics WHERE service_id = ${id}`),
         db.execute(sql`SELECT * FROM baptism_service_baptism_details WHERE service_id = ${id}`),
+        db.execute(sql`SELECT service_at FROM baptism_services WHERE id = ${id}`),
       ]);
       return res.json({
         logistics: logRow.rows[0] ?? null,
         baptismDetails: detRow.rows[0] ?? null,
+        serviceAt: (svcRow.rows[0] as any)?.service_at ?? null,
       });
     } catch (err) {
       console.error("[baptisms/services/:id/coordination GET]", err);
@@ -2064,7 +2066,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             arreglo_tasks, arreglo_necesita_presupuesto, arreglo_presupuesto_solicitado,
             equipo_responsable, equipo_lista, equipo_fecha, equipo_notas,
             refrigerio_responsable, refrigerio_responsables, refrigerio_presupuesto_solicitado, refrigerio_necesita_presupuesto, refrigerio_detalle, refrigerio_notas,
-            limpieza_responsable, limpieza_tareas, limpieza_fecha, limpieza_notas,
+            limpieza_responsable, limpieza_responsables, limpieza_tareas, limpieza_fecha, limpieza_hora, limpieza_notas,
             updated_by, updated_at
           ) VALUES (
             ${id},
@@ -2081,8 +2083,9 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             ${logistics.refrigerio_responsable ?? null}, CAST(${toDbArr(logistics.refrigerio_responsables)} AS text[]),
             ${logistics.refrigerio_presupuesto_solicitado ?? false},
             ${logistics.refrigerio_necesita_presupuesto ?? false}, ${logistics.refrigerio_detalle ?? null}, ${logistics.refrigerio_notas ?? null},
-            ${logistics.limpieza_responsable ?? null}, CAST(${toDbArr(logistics.limpieza_tareas)} AS text[]),
-            ${logistics.limpieza_fecha ?? null}, ${logistics.limpieza_notas ?? null},
+            ${logistics.limpieza_responsable ?? null}, CAST(${toDbArr(logistics.limpieza_responsables)} AS text[]),
+            CAST(${toDbArr(logistics.limpieza_tareas)} AS text[]),
+            ${logistics.limpieza_fecha ?? null}, ${logistics.limpieza_hora ?? null}, ${logistics.limpieza_notas ?? null},
             ${user.id}, NOW()
           )
           ON CONFLICT (service_id) DO UPDATE SET
@@ -2114,8 +2117,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             refrigerio_detalle = EXCLUDED.refrigerio_detalle,
             refrigerio_notas = EXCLUDED.refrigerio_notas,
             limpieza_responsable = EXCLUDED.limpieza_responsable,
+            limpieza_responsables = EXCLUDED.limpieza_responsables,
             limpieza_tareas = EXCLUDED.limpieza_tareas,
             limpieza_fecha = EXCLUDED.limpieza_fecha,
+            limpieza_hora = EXCLUDED.limpieza_hora,
             limpieza_notas = EXCLUDED.limpieza_notas,
             updated_by = EXCLUDED.updated_by,
             updated_at = NOW()
