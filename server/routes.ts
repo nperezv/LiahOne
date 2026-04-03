@@ -5423,9 +5423,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       // Filter data based on role
-      const filteredAssignments = isOrgMember
-        ? assignments.filter(a => a && (a.assignedTo === user.id || a.assignedBy === user.id))
-        : assignments;
+      const filteredAssignments = (isObispadoLeadership || isObispadoSecretary)
+        ? assignments
+        : assignments.filter(a => a && (a.assignedTo === user.id || a.assignedBy === user.id));
 
       // For organization members: show only interviews assigned to them
       // For obispado/secretarios: show all interviews
