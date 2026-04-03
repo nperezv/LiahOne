@@ -94,6 +94,8 @@ interface Persona {
   notas?: string | null;
   phone?: string | null;
   email?: string | null;
+  sexo?: "M" | "F" | null;
+  fechaNacimiento?: string | null;
   isArchived: boolean;
   asistencia: { fecha_domingo: string; asistio: boolean }[];
   amigosCount: number;
@@ -246,6 +248,18 @@ function monthsSince(dateStr: string | null | undefined): number {
   const start = new Date(dateStr + "T12:00:00");
   const now = new Date();
   return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+}
+
+function calcAge(fechaNacimiento: string | null | undefined): number | null {
+  if (!fechaNacimiento) return null;
+  const datePart = fechaNacimiento.split(/[T ]/)[0];
+  const birth = new Date(datePart + "T12:00:00");
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
 }
 
 function formatDisplayDate(dateStr: string | null | undefined): string {
@@ -620,6 +634,8 @@ const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
   const [nombre, setNombre] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [sexo, setSexo] = useState<"M" | "F" | "">("");
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [fechaPrimerContacto, setFechaPrimerContacto] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -629,7 +645,7 @@ const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/personas", "enseñando"] });
       toast({ title: "Persona agregada al seguimiento" });
-      setNombre(""); setPhone(""); setEmail("");
+      setNombre(""); setPhone(""); setEmail(""); setSexo(""); setFechaNacimiento("");
       onOpenChange(false);
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -644,6 +660,8 @@ const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
       fechaPrimerContacto,
       phone: phone.trim() || null,
       email: email.trim() || null,
+      sexo: sexo || null,
+      fechaNacimiento: fechaNacimiento || null,
     });
   };
 
@@ -657,6 +675,24 @@ const AddEnsenandoDialog = React.memo(function AddEnsenandoDialog({
           <div>
             <Label>Nombre completo <span className="text-destructive">*</span></Label>
             <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo" autoFocus />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Sexo</Label>
+              <select
+                value={sexo}
+                onChange={(e) => setSexo(e.target.value as "M" | "F" | "")}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">—</option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </div>
+            <div>
+              <Label>Fecha de nacimiento</Label>
+              <Input type="date" value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)} />
+            </div>
           </div>
           <div>
             <Label>Teléfono</Label>
@@ -898,6 +934,15 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
   const [fechaVisitaVal, setFechaVisitaVal] = useState("");
   const [proximoEventoVal, setProximoEventoVal] = useState("");
   const [proximoEventoDescVal, setProximoEventoDescVal] = useState("");
+  const [sexoVal, setSexoVal] = useState<"M" | "F" | "">("");
+  const [fechaNacimientoVal, setFechaNacimientoVal] = useState("");
+
+  const sexoNacimientoMutation = useMutation({
+    mutationFn: (data: { sexo?: string | null; fechaNacimiento?: string | null }) =>
+      apiRequest("PUT", `/api/mission/personas/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/mission/personas", tipo] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   const fechaPrimerContactoMutation = useMutation({
     mutationFn: (fecha: string | null) =>
@@ -1038,6 +1083,12 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
   React.useEffect(() => {
     setProximoEventoDescVal(persona?.proximoEventoDescripcion ?? "");
   }, [persona?.proximoEventoDescripcion]);
+  React.useEffect(() => {
+    setSexoVal((persona?.sexo as "M" | "F" | "") ?? "");
+  }, [persona?.sexo]);
+  React.useEffect(() => {
+    setFechaNacimientoVal(persona?.fechaNacimiento ?? "");
+  }, [persona?.fechaNacimiento]);
 
   // Otros compromisos
   const otrosCompromisosMutation = useMutation({
@@ -1120,6 +1171,20 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
             {tipo === "enseñando" ? (
               <>
                 <p className="text-2xl sm:text-3xl font-medium">{persona.nombre}</p>
+                {(persona.sexo || persona.fechaNacimiento) && (
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {persona.sexo && (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                        {persona.sexo === "M" ? "Masculino" : "Femenino"}
+                      </span>
+                    )}
+                    {calcAge(persona.fechaNacimiento) !== null && (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                        {calcAge(persona.fechaNacimiento)} años
+                      </span>
+                    )}
+                  </div>
+                )}
                 <button
                   className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
                   onClick={() => setEditMode((v) => !v)}
@@ -1154,6 +1219,38 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
         <div className="px-6 pt-3 pb-4 border-b">
           {tipo === "enseñando" ? (
             <>
+              {editMode && (
+                <div className="flex gap-4 flex-wrap items-end mb-4">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Sexo</p>
+                    <select
+                      value={sexoVal}
+                      onChange={(e) => {
+                        const v = e.target.value as "M" | "F" | "";
+                        setSexoVal(v);
+                        sexoNacimientoMutation.mutate({ sexo: v || null });
+                      }}
+                      className="flex h-7 rounded-md border border-input bg-transparent px-2 py-0 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">—</option>
+                      <option value="M">Masculino</option>
+                      <option value="F">Femenino</option>
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Fecha de nacimiento</p>
+                    <Input
+                      type="date"
+                      value={fechaNacimientoVal}
+                      onChange={(e) => {
+                        setFechaNacimientoVal(e.target.value);
+                        sexoNacimientoMutation.mutate({ fechaNacimiento: e.target.value || null });
+                      }}
+                      className="h-7 text-sm w-40"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex gap-8 flex-wrap items-start">
                 <div>
                   <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Primera enseñanza</p>

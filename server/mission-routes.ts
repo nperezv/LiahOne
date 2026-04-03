@@ -265,6 +265,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         email: z.string().nullable().optional(),
         memberId: z.string().nullable().optional(),
         fechaConfirmacion: z.string().nullable().optional(),
+        sexo: z.enum(["M", "F"]).nullable().optional(),
+        fechaNacimiento: z.string().nullable().optional(),
       });
 
       const data = schema.parse(req.body);
@@ -285,6 +287,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           phone: data.phone || null,
           email: data.email || null,
           memberId: data.memberId || null,
+          sexo: data.sexo || null,
+          fechaNacimiento: data.fechaNacimiento || null,
         })
         .returning();
 
@@ -618,6 +622,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         proximoEventoDescripcion: z.string().nullable().optional(),
         notas: z.string().nullable().optional(),
         fotoUrl: z.string().nullable().optional(),
+        sexo: z.enum(["M", "F"]).nullable().optional(),
+        fechaNacimiento: z.string().nullable().optional(),
       });
 
       const data = schema.parse(req.body);
