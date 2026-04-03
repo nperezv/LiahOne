@@ -1752,6 +1752,27 @@ export function registerMissionBaptismRoutes(
           } else {
             console.warn("[approve] No lider_actividades found in barrio org; skipping service_task creation");
           }
+
+          // Task for mission_leader: stay on top of logistics coordination
+          const [missionLeaderForTask] = await db
+            .select({ id: users.id, organizationId: users.organizationId })
+            .from(users)
+            .where(and(eq(users.role, "mission_leader" as any), eq(users.organizationId, service.unit_id)))
+            .limit(1);
+
+          if (missionLeaderForTask) {
+            await db.insert(serviceTasks).values({
+              baptismServiceId: service.id,
+              assignedTo: missionLeaderForTask.id,
+              assignedRole: "mission_leader_logistics",
+              organizationId: missionLeaderForTask.organizationId,
+              title: `Coordinar logística con el lider de actividades: ${candidateName}`,
+              description: `Estar al pendiente de que el lider de actividades coordine la pila, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}.`,
+              status: "pending",
+              dueDate: new Date(service.service_at),
+              createdBy: user.id,
+            });
+          }
         } catch (taskErr) {
           console.error("[approve] Failed to create service_task:", taskErr);
         }
