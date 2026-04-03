@@ -388,11 +388,13 @@ function AppSidebarInner() {
     "/organization-interviews": dashboardStats?.upcomingInterviews ?? 0,
     "/budget": dashboardStats?.budgetRequests?.pending ?? 0,
     "/activity-logistics": dashboardStats?.pendingServiceTasks ?? 0,
+    "/mission-work": dashboardStats?.pendingBaptismDrafts ?? 0,
   }), [
     dashboardStats?.budgetRequests?.pending,
     dashboardStats?.pendingAssignments,
     dashboardStats?.upcomingInterviews,
     dashboardStats?.pendingServiceTasks,
+    dashboardStats?.pendingBaptismDrafts,
   ]);
   return (
     <Sidebar>

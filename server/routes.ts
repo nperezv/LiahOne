@@ -5573,6 +5573,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return Number(result.rows[0]?.count ?? 0);
           } catch { return 0; }
         })(),
+        pendingBaptismDrafts: await (async () => {
+          const missionRoles = ["mission_leader", "ward_missionary", "full_time_missionary"];
+          if (!missionRoles.includes(user.role)) return 0;
+          try {
+            const result = await db.execute(sql`
+              SELECT COUNT(*)::int AS count FROM baptism_services
+              WHERE created_by = ${user.id}
+                AND approval_status IN ('draft', 'needs_revision')
+            `);
+            return Number(result.rows[0]?.count ?? 0);
+          } catch { return 0; }
+        })(),
       };
 
       res.json(stats);
