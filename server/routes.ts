@@ -5568,7 +5568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   WHERE assigned_to = ${user.id} AND status = 'pending'
                 `)
               : await db.execute(sql`
-                  SELECT COUNT(*)::int AS count FROM service_tasks WHERE status = 'pending'
+                  SELECT COUNT(*)::int AS count FROM service_tasks
+                  WHERE assigned_role = 'lider_actividades' AND status = 'pending'
                 `);
             return Number(result.rows[0]?.count ?? 0);
           } catch { return 0; }
