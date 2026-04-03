@@ -2145,7 +2145,7 @@ export default function BudgetPage() {
                   : "from-amber-500/45";
 
             return (
-              <Card key={request.id} className={highlightedRequestId === request.id ? "ring-2 ring-white/70" : ""} data-testid={`row-request-${request.id}`}>
+              <Card key={request.id} className={highlightedRequestId === request.id ? "notif-highlight" : ""} data-testid={`row-request-${request.id}`}>
                 <div className="p-6">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-2">

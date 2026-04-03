@@ -109,7 +109,9 @@ export const getNotificationDestination = (notification: Notification) => {
           : "/welfare";
       }
       if (title.includes("presupuesto") || title.includes("comprobantes")) {
-        return "/budget";
+        return notification.relatedId
+          ? `/budget?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/budget";
       }
       if (title.includes("entrevista")) {
         return notification.relatedId

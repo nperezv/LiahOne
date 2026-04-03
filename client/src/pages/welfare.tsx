@@ -1330,7 +1330,7 @@ export default function WelfarePage() {
                   <Card
                     key={request.id}
                     data-request-id={request.id}
-                    className={highlightedRequestId === request.id ? "ring-2 ring-white/70" : ""}
+                    className={highlightedRequestId === request.id ? "notif-highlight" : ""}
                   >
                     <div className="p-6">
                       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

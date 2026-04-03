@@ -2544,7 +2544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await sendPushNotification(member.id, {
               title: "Nueva Solicitud de Presupuesto",
               body: `${user.name || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
-              url: "/budget",
+              url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
               notificationId: notification.id,
             });
           }
@@ -2623,7 +2623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendPushNotification(userId, {
                 title: "Comprobantes adjuntados",
                 body: `${completerName} completó la asignación "${relatedAssignment.title}".`,
-                url: "/budget",
+                url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
                 notificationId: notification.id,
               });
             }
@@ -2657,7 +2657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(userId, {
             title: "Solicitud de presupuesto actualizada",
             body: `${updaterName} actualizó la solicitud "${budgetRequest.description}".`,
-            url: "/budget",
+            url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
             notificationId: notification.id,
           });
         }
@@ -2740,7 +2740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(budgetRequest.requestedBy, {
             title: "Aprobación financiera en proceso",
             body: `Tu solicitud "${budgetRequest.description}" está pendiente de firma del obispo.`,
-            url: "/budget",
+            url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
             notificationId: requesterNotification.id,
           });
         }
@@ -2991,7 +2991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendPushNotification(budgetRequest.requestedBy, {
           title,
           body: description,
-          url: "/budget",
+          url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
           notificationId: notification.id,
         });
       }
@@ -3143,7 +3143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(bishop.id, {
             title: "Nueva Solicitud de Bienestar",
             body: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
-            url: "/welfare",
+            url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
             notificationId: notification.id,
           });
         }
@@ -3624,7 +3624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(assignedToId, {
             title: "Entrevista Programada",
             body: `Tienes una entrevista programada`,
-            url: "/interviews",
+            url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
             notificationId: notification.id,
           });
         }
@@ -3700,7 +3700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await sendPushNotification(member.id, {
               title: "Nueva Solicitud de Entrevista",
               body: "Se ha solicitado una entrevista",
-              url: "/interviews",
+              url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
               notificationId: notification.id,
             });
           }
@@ -4106,7 +4106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(userId, {
             title: "Entrevista actualizada",
             body: `${updaterName} actualizó la entrevista con ${interview.personName}.`,
-            url: "/interviews",
+            url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
             notificationId: notification.id,
           });
         }
@@ -4266,7 +4266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(member.id, {
             title: "Nueva entrevista de organización",
             body: `Entrevista con ${interview.personName}`,
-            url: "/organization-interviews",
+            url: `/organization-interviews?highlight=${encodeURIComponent(interview.id)}`,
             notificationId: notification.id,
           });
         }
@@ -4600,7 +4600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendPushNotification(member.id, {
                 title: "Entrevista actualizada",
                 body: `Entrevista con ${updated.personName}`,
-                url: "/organization-interviews",
+                url: `/organization-interviews?highlight=${encodeURIComponent(updated.id)}`,
                 notificationId: notification.id,
               });
             }
@@ -5695,7 +5695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await sendPushNotification(userId, {
           title: "Presupuesto del barrio actualizado",
           body: `${updaterName} actualizó el presupuesto del barrio para ${payload.year}.`,
-          url: "/budget",
+          url: `/budget?highlight=${encodeURIComponent(budget.id)}`,
           notificationId: notification.id,
         });
       }
@@ -6130,7 +6130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 await sendPushNotification(intervieweeUser.id, {
                   title: "Recordatorio de entrevista",
                   body: "Tu entrevista es mañana.",
-                  url: "/interviews",
+                  url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
                   notificationId: notification.id,
                 });
               }
@@ -6158,7 +6158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendPushNotification(interview.interviewerId, {
                 title: "Recordatorio de entrevista",
                 body: `Mañana: entrevista con ${normalizeMemberName(interview.personName)}.`,
-                url: "/interviews",
+                url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
                 notificationId: reminder.id,
               });
             }
@@ -6210,7 +6210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendPushNotification(assignee.id, {
                 title: "Recordatorio de asignación",
                 body: `Continúa pendiente: "${assignment.title}"`,
-                url: "/assignments",
+                url: `/assignments?highlight=${encodeURIComponent(assignment.id)}`,
                 notificationId: notification.id,
               });
             }
@@ -6243,7 +6243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await sendPushNotification(assignee.id, {
                 title: "Asignación por vencer",
                 body: `Mañana vence: "${assignment.title}"`,
-                url: "/assignments",
+                url: `/assignments?highlight=${encodeURIComponent(assignment.id)}`,
                 notificationId: reminder.id,
               });
             }
@@ -7463,7 +7463,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendPushNotification(userId, {
             title: "Asignación actualizada",
             body: `La asignación "${updatedAssignment.title}" ha sido actualizada.${statusText}`,
-            url: "/assignments",
+            url: `/assignments?highlight=${encodeURIComponent(updatedAssignment.id)}`,
             notificationId: notification.id,
           });
         }

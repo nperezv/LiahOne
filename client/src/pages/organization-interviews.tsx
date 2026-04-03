@@ -241,6 +241,11 @@ export default function OrganizationInterviewsPage() {
   const originOrgSlug = searchParams.get("orgSlug");
   const canGoBackToManagement = origin === "presidency-manage" && Boolean(originOrgSlug);
 
+  const highlightInterviewId = useMemo(() => {
+    if (!search) return "";
+    return searchParams.get("highlight")?.trim() ?? "";
+  }, [search, searchParams]);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingInterview, setEditingInterview] = useState<any>(null);
@@ -256,6 +261,7 @@ export default function OrganizationInterviewsPage() {
   const [editDateDraft, setEditDateDraft] = useState({ date: "", time: "" });
   const [memberQuery, setMemberQuery] = useState("");
   const [editMemberQuery, setEditMemberQuery] = useState("");
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
 
   const { data: interviews = [], isLoading } =
     useOrganizationInterviews();
@@ -418,6 +424,31 @@ export default function OrganizationInterviewsPage() {
     setIsDialogOpen(true);
     navigateWithTransition(setLocation, "/organization-interviews");
   }, [form, search, setLocation]);
+
+  useEffect(() => {
+    if (!highlightInterviewId) {
+      setActiveHighlightId(null);
+      return;
+    }
+
+    setActiveHighlightId(highlightInterviewId);
+
+    const rafId = window.requestAnimationFrame(() => {
+      const element = document.querySelector<HTMLElement>(`[data-interview-id="${highlightInterviewId}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveHighlightId((current) => (current === highlightInterviewId ? null : current));
+    }, 3500);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [highlightInterviewId]);
 
   const advanceWizardStep = async () => {
     if (step === 1) {
@@ -1023,7 +1054,11 @@ export default function OrganizationInterviewsPage() {
                 const canModify = !isReadOnly;
 
                 return (
-                <TableRow key={interview.id}>
+                <TableRow
+                  key={interview.id}
+                  data-interview-id={interview.id}
+                  className={activeHighlightId === interview.id ? "notif-highlight" : ""}
+                >
                   <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
                   <TableCell>
                     {formatInterviewType(interview.type)}
