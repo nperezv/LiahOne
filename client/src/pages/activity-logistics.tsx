@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo, useEffect, type ChangeEvent } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback, type ChangeEvent } from "react";
+import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Clock, Loader2, Save,
@@ -786,6 +787,18 @@ export default function ActivityLogisticsPage() {
   const { user } = useAuth();
   const canEdit = CAN_EDIT_ROLES.includes(user?.role ?? "");
   const canDelete = user?.role === "obispo";
+  const search = useSearch();
+  const highlightId = useMemo(() => new URLSearchParams(search).get("highlight"), [search]);
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(highlightId);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    setActiveHighlightId(highlightId);
+    const el = document.querySelector(`[data-task-id="${highlightId}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setActiveHighlightId(null), 3000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
 
   const { data: tasks = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/service-tasks"],
@@ -841,7 +854,9 @@ export default function ActivityLogisticsPage() {
       ) : (
         <div className="space-y-4">
           {tasks.map((task: any) => (
-            <TaskCard key={task.id} task={task} canEdit={canEdit} canDelete={canDelete} />
+            <div key={task.id} data-task-id={task.baptism_service_id} className={activeHighlightId === task.baptism_service_id ? "notif-highlight" : ""}>
+              <TaskCard task={task} canEdit={canEdit} canDelete={canDelete} />
+            </div>
           ))}
         </div>
       )}

@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken, refreshAccessToken } from "@/lib/auth-tokens";
 import { useAuth } from "@/lib/auth.tsx";
+import { useSearch } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -4022,7 +4023,27 @@ interface BaptismService {
 
 export default function MissionWork() {
   const { user } = useAuth();
-  const [section, setSection] = useState<SectionType | null>(null);
+  const search = useSearch();
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
+  const urlSection = searchParams.get("section") as SectionType | null;
+  const urlHighlight = searchParams.get("highlight");
+
+  const [section, setSection] = useState<SectionType | null>(urlSection);
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(urlHighlight);
+
+  useEffect(() => {
+    if (!urlHighlight || !urlSection) return;
+    setSection(urlSection);
+    setActiveHighlightId(urlHighlight);
+    // Give the list time to render before scrolling
+    const scroll = setTimeout(() => {
+      const el = document.querySelector(`[data-service-id="${urlHighlight}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    const clear = setTimeout(() => setActiveHighlightId(null), 3500);
+    return () => { clearTimeout(scroll); clearTimeout(clear); };
+  }, [urlHighlight, urlSection]);
+
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const handleSheetOpenChange = React.useCallback((v: boolean) => {
@@ -4147,10 +4168,12 @@ export default function MissionWork() {
                 ? svc.candidates.map(c => c.nombre)
                 : [svc.persona_nombre];
 
+              const isHighlighted = activeHighlightId === svc.id;
               return (
                 <div
                   key={svc.id}
-                  className="group flex items-stretch rounded-xl bg-card hover:bg-accent/30 transition-all cursor-pointer overflow-hidden border"
+                  data-service-id={svc.id}
+                  className={`group flex items-stretch rounded-xl bg-card hover:bg-accent/30 transition-all cursor-pointer overflow-hidden border${isHighlighted ? " notif-highlight" : ""}`}
                   onClick={() => { setSelectedService(svc); setServiceInitialEditMode(false); setServiceSheetOpen(true); }}
                 >
                   {/* Date block */}

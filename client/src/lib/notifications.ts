@@ -50,7 +50,9 @@ export const getNotificationDestination = (notification: Notification) => {
           ? `/budget?highlight=${encodeURIComponent(notification.relatedId)}`
           : "/budget";
       }
-      return "/assignments";
+      return notification.relatedId
+        ? `/assignments?highlight=${encodeURIComponent(notification.relatedId)}`
+        : "/assignments";
     }
     case "budget_approved":
     case "budget_rejected": {
@@ -70,6 +72,31 @@ export const getNotificationDestination = (notification: Notification) => {
       return "/calendar";
     case "reminder": {
       const title = notification.title.toLowerCase();
+      const desc = (notification.description || "").toLowerCase();
+      // Activity logistics / service tasks — check BEFORE baptism since titles may include both
+      if (title.includes("logística") || title.includes("logistica") || title.includes("logistica")) {
+        return notification.relatedId
+          ? `/activity-logistics?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/activity-logistics";
+      }
+      // Mission / baptism
+      if (
+        title.includes("bautism") ||
+        title.includes("programa") ||
+        title.includes("fecha de bautismo") ||
+        title.includes("agenda") ||
+        desc.includes("bautism")
+      ) {
+        return notification.relatedId
+          ? `/mission-work?section=servicios_bautismales&highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/mission-work?section=servicios_bautismales";
+      }
+      // Assignments
+      if (title.includes("asignación") || title.includes("asignacion") || title.includes("tarea")) {
+        return notification.relatedId
+          ? `/assignments?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/assignments";
+      }
       if (title.includes("actividad")) {
         return "/activities";
       }
@@ -83,6 +110,14 @@ export const getNotificationDestination = (notification: Notification) => {
       }
       if (title.includes("presupuesto") || title.includes("comprobantes")) {
         return "/budget";
+      }
+      if (title.includes("entrevista")) {
+        return notification.relatedId
+          ? `/interviews?highlight=${encodeURIComponent(notification.relatedId)}`
+          : "/interviews";
+      }
+      if (title.includes("consejo de barrio")) {
+        return "/ward-council";
       }
       return "/dashboard";
     }

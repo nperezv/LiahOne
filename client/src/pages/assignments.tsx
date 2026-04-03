@@ -73,6 +73,17 @@ export default function Assignments() {
   const origin = searchParams.get("from");
   const originOrgSlug = searchParams.get("orgSlug");
   const shouldAutoOpenCreate = searchParams.get("create") === "1";
+  const highlightId = searchParams.get("highlight");
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(highlightId);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    setActiveHighlightId(highlightId);
+    const el = document.querySelector(`[data-testid="row-assignment-${highlightId}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setActiveHighlightId(null), 3000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
   const isPresidencyOrigin = (origin === "presidency-manage" || origin === "presidency-panel") && Boolean(originOrgSlug);
   const { data: assignments = [], isLoading } = useAssignments();
   const { data: users = [] } = useUsers();
@@ -604,7 +615,7 @@ export default function Assignments() {
                     <TableRow
                       key={assignment.id}
                       data-testid={`row-assignment-${assignment.id}`}
-                      className="cursor-pointer"
+                      className={`cursor-pointer${activeHighlightId === assignment.id ? " notif-highlight" : ""}`}
                       onClick={() => openDetails(assignment)}
                     >
                       <TableCell className="font-medium">{assignment.title}</TableCell>

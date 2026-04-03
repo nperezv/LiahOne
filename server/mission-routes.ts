@@ -1952,17 +1952,19 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       const wardNameSubmit = (await storage.getPdfTemplate())?.wardName ?? null;
       for (const bishop of bishops) {
-        await db.insert(notifications).values({
+        const notifSubmit = await db.insert(notifications).values({
           userId: bishop.id,
           title: "Agenda bautismal pendiente de aprobación",
           message: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
           type: "reminder",
-        });
+          relatedId: req.params.id,
+        }).returning();
         if (isPushConfigured()) {
           await sendPushNotification(bishop.id, {
             title: "Agenda bautismal pendiente de aprobación",
             body: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
-            url: "/mission-work",
+            url: `/mission-work?section=servicios_bautismales&highlight=${req.params.id}`,
+            notificationId: (notifSubmit[0] as any)?.id,
           });
         }
         if (bishop.email) {
@@ -2232,17 +2234,19 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       try {
         if (service.created_by) {
-          await db.insert(notifications).values({
+          const notifApprove = await db.insert(notifications).values({
             userId: service.created_by,
-            title: "Agenda aprobada",
+            title: "Agenda bautismal aprobada",
             message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
             type: "reminder",
-          });
+            relatedId: service.id,
+          }).returning();
           if (isPushConfigured()) {
             await sendPushNotification(service.created_by, {
               title: "Agenda bautismal aprobada ✓",
               body: `El Obispo aprobó el servicio en ${service.location_name}.`,
               url: `/mission-work?section=servicios_bautismales&highlight=${service.id}`,
+              notificationId: (notifApprove[0] as any)?.id,
             });
           }
           const wardNameApprove = (await storage.getPdfTemplate())?.wardName ?? null;
@@ -2299,17 +2303,19 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             status: "pending",
             createdBy: user.id,
           });
-          await db.insert(notifications).values({
+          const notifLogistics = await db.insert(notifications).values({
             userId: liderActividades.id,
             title: "Nueva tarea de logística bautismal",
             message: `Se te ha asignado la coordinación logística del servicio bautismal de ${candidateName} (${serviceDateStr}).`,
             type: "reminder",
-          });
+            relatedId: service.id,
+          }).returning();
           if (isPushConfigured()) {
             await sendPushNotification(liderActividades.id, {
               title: "Nueva tarea de logística",
               body: `Coordinar el servicio bautismal de ${candidateName} el ${serviceDateStr}.`,
-              url: "/activity-logistics",
+              url: `/activity-logistics?highlight=${service.id}`,
+              notificationId: (notifLogistics[0] as any)?.id,
             });
           }
           if (liderActividades.email) {
@@ -2385,17 +2391,19 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       `);
 
       if (service.created_by) {
-        await db.insert(notifications).values({
+        const notifReject = await db.insert(notifications).values({
           userId: service.created_by,
-          title: "Agenda requiere revisión",
+          title: "Agenda bautismal requiere revisión",
           message: `El Obispo solicitó cambios en el servicio de ${service.location_name}: ${comment}`,
           type: "reminder",
-        });
+          relatedId: req.params.id,
+        }).returning();
         if (isPushConfigured()) {
           await sendPushNotification(service.created_by, {
-            title: "Agenda requiere revisión",
+            title: "Agenda bautismal requiere revisión",
             body: `El Obispo solicitó cambios: ${comment}`,
-            url: "/mission-work",
+            url: `/mission-work?section=servicios_bautismales&highlight=${req.params.id}`,
+            notificationId: (notifReject[0] as any)?.id,
           });
         }
         const rejectLeaderResult = await db.execute(sql`SELECT email, name FROM users WHERE id = ${service.created_by} LIMIT 1`);

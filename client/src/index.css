@@ -706,6 +706,20 @@
   }
 
 
+  /* ── Notification highlight (neon pulse then fade) ── */
+  @keyframes notif-highlight {
+    0%   { box-shadow: 0 0 0 0 rgba(99,255,180,0); outline-color: rgba(99,255,180,0); }
+    15%  { box-shadow: 0 0 0 4px rgba(99,255,180,0.7); outline-color: rgba(99,255,180,0.9); }
+    60%  { box-shadow: 0 0 0 4px rgba(99,255,180,0.4); outline-color: rgba(99,255,180,0.5); }
+    100% { box-shadow: 0 0 0 0 rgba(99,255,180,0); outline-color: rgba(99,255,180,0); }
+  }
+  .notif-highlight {
+    animation: notif-highlight 2.8s ease-out forwards;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
   /* ── Landing page animations ── */
 
   @keyframes landing-fade-up {
