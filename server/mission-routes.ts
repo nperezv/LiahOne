@@ -2217,6 +2217,19 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         console.error("[approve] Failed to create public link:", linkErr);
       }
 
+      // Auto-complete mission_leader's "Completar programa" task
+      try {
+        await db.execute(sql`
+          UPDATE service_tasks
+          SET status = 'completed', completed_at = ${now}, updated_at = ${now}
+          WHERE baptism_service_id = ${service.id}
+            AND assigned_role = 'mission_leader'
+            AND status != 'completed'
+        `);
+      } catch (taskErr) {
+        console.error("[approve] Failed to auto-complete mission_leader task:", taskErr);
+      }
+
       try {
         if (service.created_by) {
           await db.insert(notifications).values({
@@ -2229,7 +2242,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             await sendPushNotification(service.created_by, {
               title: "Agenda bautismal aprobada ✓",
               body: `El Obispo aprobó el servicio en ${service.location_name}.`,
-              url: "/mission-work",
+              url: `/mission-work?section=servicios_bautismales&highlight=${service.id}`,
             });
           }
           const wardNameApprove = (await storage.getPdfTemplate())?.wardName ?? null;

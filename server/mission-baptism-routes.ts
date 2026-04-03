@@ -1691,6 +1691,19 @@ export function registerMissionBaptismRoutes(
           VALUES (${service.id}, ${session.slug}, ${session.code}, ${session.publishedAt}, ${session.expiresAt}, ${user.id})
         `);
 
+        // Auto-complete mission_leader's "Completar programa" task
+        try {
+          await db.execute(sql`
+            UPDATE service_tasks
+            SET status = 'completed', completed_at = ${now}, updated_at = ${now}
+            WHERE baptism_service_id = ${service.id}
+              AND assigned_role = 'mission_leader'
+              AND status != 'completed'
+          `);
+        } catch (taskErr) {
+          console.error("[approve] Failed to auto-complete mission_leader task:", taskErr);
+        }
+
         // Notify mission leader
         if (service.created_by) {
           await db.insert(notifications).values({
