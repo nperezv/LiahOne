@@ -1,9 +1,9 @@
--- Fix service_task titles that still show "Por confirmar" or old location_name
+-- Fix service_task titles that still show "Por confirmar"
 -- by replacing with actual candidate names from baptism_service_candidates
 UPDATE service_tasks st
 SET title = (
   SELECT 'Servicio Bautismal — Coordinación logística: ' ||
-         STRING_AGG(mp.nombre, ' & ' ORDER BY bsc.created_at)
+         STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
   FROM baptism_service_candidates bsc
   JOIN mission_personas mp ON mp.id = bsc.persona_id
   WHERE bsc.service_id = st.baptism_service_id
@@ -23,7 +23,7 @@ WHERE st.assigned_role = 'lider_actividades'
 UPDATE service_tasks st
 SET title = (
   SELECT 'Coordinar logística con el lider de actividades: ' ||
-         STRING_AGG(mp.nombre, ' & ' ORDER BY bsc.created_at)
+         STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
   FROM baptism_service_candidates bsc
   JOIN mission_personas mp ON mp.id = bsc.persona_id
   WHERE bsc.service_id = st.baptism_service_id

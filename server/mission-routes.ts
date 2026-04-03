@@ -2285,7 +2285,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           FROM baptism_service_candidates bsc
           JOIN mission_personas mp ON mp.id = bsc.persona_id
           WHERE bsc.service_id = ${service.id}
-          ORDER BY bsc.created_at
+          ORDER BY mp.nombre
         `);
         const candidateName = candidatesResult.rows.length > 0
           ? (candidatesResult.rows as any[]).map((r) => r.nombre).join(" & ")

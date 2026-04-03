@@ -813,10 +813,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         CASE st2.assigned_role
           WHEN 'lider_actividades' THEN
             'Servicio Bautismal — Coordinación logística: ' ||
-            STRING_AGG(mp.nombre, ' & ' ORDER BY bsc.created_at)
+            STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
           WHEN 'mission_leader_logistics' THEN
             'Coordinar logística con el lider de actividades: ' ||
-            STRING_AGG(mp.nombre, ' & ' ORDER BY bsc.created_at)
+            STRING_AGG(mp.nombre, ' & ' ORDER BY mp.nombre)
         END AS new_title
       FROM service_tasks st2
       JOIN baptism_service_candidates bsc ON bsc.service_id = st2.baptism_service_id
