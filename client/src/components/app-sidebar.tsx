@@ -222,6 +222,18 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Reportes",
     url: "/reports",
     icon: BarChart3,
+    roles: [
+      "obispo",
+      "consejero_obispo",
+      "secretario",
+      "secretario_ejecutivo",
+      "secretario_financiero",
+      "presidente_organizacion",
+      "consejero_organizacion",
+      "secretario_organizacion",
+      "lider_actividades",
+      "bibliotecario",
+    ],
   },
   {
     title: "Panel Secretaría",
