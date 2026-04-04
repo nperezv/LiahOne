@@ -2522,11 +2522,13 @@ function BaptismalServiceSheet({
   });
 
   // Fetch service task for logistics status (used by obispo + mission leader)
-  const serviceTaskQuery = useQuery<{ id: string; status: string; assigned_to: string; assignedUserName?: string } | null>({
+  // Specifically finds the lider_actividades task (not mission_leader_logistics)
+  const serviceTaskQuery = useQuery<{ id: string; status: string; assigned_to: string; assigned_role: string; assignedUserName?: string } | null>({
     queryKey: ["/api/service-tasks", service?.id],
     queryFn: async () => {
       const tasks = await missionFetch(`/api/service-tasks`);
-      return (tasks as any[]).find((t: any) => t.baptism_service_id === service?.id) ?? null;
+      const all = (tasks as any[]).filter((t: any) => t.baptism_service_id === service?.id);
+      return all.find((t: any) => t.assigned_role === "lider_actividades") ?? all[0] ?? null;
     },
     enabled: open && !!service?.id && showLogisticsStatus,
   });
@@ -2776,14 +2778,26 @@ function BaptismalServiceSheet({
 
   const checklistData = checklistQuery.data;
 
+  const logisticsTaskDone = serviceTaskQuery.data?.assigned_role === "lider_actividades"
+    && serviceTaskQuery.data?.status === "completed";
+
   const visibleChecklistItems = useMemo(() => {
     if (!checklistData?.items) return null;
-    if (isObispo) return checklistData.items;
-    if (isMissionLeader) return (checklistData.items as any[]).filter((i) =>
+    const items = logisticsTaskDone
+      ? (checklistData.items as any[]).map((i) => {
+          const key = i.itemKey ?? i.item_key;
+          if (LOGISTICS_CHECKLIST_KEYS.includes(key) && !i.completed) {
+            return { ...i, completed: true };
+          }
+          return i;
+        })
+      : (checklistData.items as any[]);
+    if (isObispo) return items;
+    if (isMissionLeader) return items.filter((i: any) =>
       MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
     );
-    return checklistData.items;
-  }, [checklistData?.items, isObispo, isMissionLeader]);
+    return items;
+  }, [checklistData?.items, isObispo, isMissionLeader, logisticsTaskDone]);
 
   const checklistComplete = useMemo(() => {
     if (!visibleChecklistItems || visibleChecklistItems.length === 0) return false;
@@ -3281,6 +3295,24 @@ function BaptismalServiceSheet({
                       disabled={submitForApprovalMutation.isPending}>
                       {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo para aprobación"}
                     </Button>
+                  )}
+
+                  {liveService?.approval_status === "approved" && publicLinkQuery.data?.stableUrl && (
+                    <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2 mt-2">
+                      <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
+                          {window.location.origin}{publicLinkQuery.data.stableUrl}
+                        </code>
+                        <Button size="sm" variant="outline" className="shrink-0 text-xs h-8"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}${publicLinkQuery.data!.stableUrl}`);
+                            toast({ title: "Enlace copiado" });
+                          }}>
+                          Copiar
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}
