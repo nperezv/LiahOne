@@ -751,7 +751,7 @@ const LOGISTICS_CHECKLIST_KEYS = [
 async function syncLogisticsChecklistFromServiceTask(baptismServiceId: string, activityId: string): Promise<void> {
   try {
     const taskRow = await db.execute(
-      sql`SELECT status FROM service_tasks WHERE baptism_service_id = ${baptismServiceId} LIMIT 1`,
+      sql`SELECT status FROM service_tasks WHERE baptism_service_id = ${baptismServiceId} AND assigned_role = 'lider_actividades' LIMIT 1`,
     );
     const taskStatus = (taskRow.rows[0] as any)?.status;
     if (taskStatus !== "completed") return;
@@ -3578,8 +3578,8 @@ export function registerMissionBaptismRoutes(
 
       const task = result.rows[0] as any;
 
-      // When the logistics task is completed, auto-mark all logistics checklist items
-      if (status === "completed" && task.baptism_service_id) {
+      // When the lider_actividades logistics task is completed, auto-mark all logistics checklist items
+      if (status === "completed" && task.baptism_service_id && task.assigned_role === "lider_actividades") {
         const LOGISTICS_KEYS = [
           "espacio_calendario",
           "arreglo_espacios",
