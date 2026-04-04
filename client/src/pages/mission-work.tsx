@@ -2788,11 +2788,12 @@ function BaptismalServiceSheet({
           return i;
         })
       : (checklistData.items as any[]);
-    if (isObispo) return items.filter((i: any) => (i.itemKey ?? i.item_key) !== "visibilidad_evento");
-    if (isMissionLeader) return items.filter((i: any) =>
+    const filtered = items.filter((i: any) => (i.itemKey ?? i.item_key) !== "visibilidad_evento");
+    if (isObispo) return filtered;
+    if (isMissionLeader) return filtered.filter((i: any) =>
       MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
     );
-    return items;
+    return filtered;
   }, [checklistData?.items, isObispo, isMissionLeader, logisticsTaskDone]);
 
   const checklistComplete = useMemo(() => {
