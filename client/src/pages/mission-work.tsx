@@ -3243,6 +3243,9 @@ function BaptismalServiceSheet({
                       const logisticsItems = (visibleChecklistItems as any[]).filter((i) =>
                         LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
                       );
+                      const task = serviceTaskQuery.data;
+                      const statusLabel = task?.status === "completed" ? "Completado" : task?.status === "in_progress" ? "En progreso" : "Pendiente";
+                      const statusColor = task?.status === "completed" ? "bg-green-100 text-green-700" : task?.status === "in_progress" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
                       return (
                         <div className="space-y-3">
                           <div>
@@ -3250,34 +3253,32 @@ function BaptismalServiceSheet({
                             <div className="space-y-1">{misionItems.map(renderItem)}</div>
                           </div>
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Líder de actividades</p>
-                            <div className="space-y-1">{logisticsItems.map(renderItem)}</div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Líder de actividades</p>
+                            {task ? (
+                              <div className={`border rounded-lg px-3 py-3 ${task.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" : task.status === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                                  <span className="text-sm font-medium flex-1">Logística</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{statusLabel}</span>
+                                </div>
+                                {task.assignedUserName && (
+                                  <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
+                                )}
+                                {logisticsItems.length > 0 && (
+                                  <div className="mt-2 pl-2 space-y-0.5 border-t border-border/30 pt-2">
+                                    {logisticsItems.map(renderItem)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-1">{logisticsItems.map(renderItem)}</div>
+                            )}
                           </div>
                         </div>
                       );
                     }
 
                     return <div className="space-y-1">{(visibleChecklistItems as any[]).map(renderItem)}</div>;
-                  })()}
-
-                  {/* Task card for obispo post-approval */}
-                  {isObispo && (() => {
-                    const task = serviceTaskQuery.data;
-                    if (!task) return null;
-                    const statusLabel = task.status === "completed" ? "Completado" : task.status === "in_progress" ? "En progreso" : "Pendiente";
-                    const statusColor = task.status === "completed" ? "bg-green-100 text-green-700" : task.status === "in_progress" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
-                    return (
-                      <div className={`border rounded-lg px-3 py-3 mt-2 ${task.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" : task.status === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
-                          <span className="text-sm font-medium flex-1">Logística asignada al líder de actividades</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{statusLabel}</span>
-                        </div>
-                        {task.assignedUserName && (
-                          <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
-                        )}
-                      </div>
-                    );
                   })()}
 
                   {!isObispo && programComplete && checklistComplete &&
@@ -3340,26 +3341,7 @@ function BaptismalServiceSheet({
                     <div className="space-y-2">
                       <p className="text-sm text-green-700 bg-green-50 rounded px-3 py-2">Servicio aprobado por el obispado.</p>
                       {detail?.stable_url && (
-                        <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
-                              {window.location.origin}{detail!.stable_url}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="shrink-0 text-xs h-8"
-                              onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
-                                toast({ title: "Enlace copiado" });
-                              }}
-                            >
-                              Copiar
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Comparte este enlace. Estará disponible mientras el servicio esté aprobado.</p>
-                        </div>
+                        <p className="text-xs text-muted-foreground px-1">El enlace del programa bautismal está disponible en la pestaña <strong>Resumen</strong>.</p>
                       )}
                     </div>
                   )}
@@ -3398,27 +3380,6 @@ function BaptismalServiceSheet({
                   )}
                   {liveService?.approval_status === "approved" && (
                     <div className="space-y-2">
-                      {detail?.stable_url && (
-                        <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
-                              {window.location.origin}{detail!.stable_url}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="shrink-0 text-xs h-8"
-                              onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
-                                toast({ title: "Enlace copiado" });
-                              }}
-                            >
-                              Copiar
-                            </Button>
-                          </div>
-                        </div>
-                      )}
                       <Button size="sm" variant="ghost" className="text-xs text-muted-foreground"
                         onClick={() => revokeMutation.mutate()} disabled={revokeMutation.isPending}>
                         Revocar aprobación

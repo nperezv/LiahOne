@@ -1667,7 +1667,52 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         );
       }
       const result = await db.execute(sql`SELECT * FROM baptism_services WHERE id = ${req.params.id}`);
-      return res.json(result.rows[0]);
+      const updatedService = result.rows[0] as any;
+
+      // Notify mission leader when bishop revokes approval (sets back to draft)
+      if (
+        data.approvalStatus === "draft" &&
+        (user.role === "obispo" || user.role === "consejero_obispo") &&
+        updatedService?.created_by
+      ) {
+        const locationName = updatedService.location_name ?? "desconocida";
+        const [notifRevoke] = await db.insert(notifications).values({
+          userId: updatedService.created_by,
+          title: "Aprobación de agenda revocada",
+          message: `El Obispo ha revocado la aprobación del servicio bautismal en ${locationName}. Por favor, revisa y vuelve a enviar para aprobación.`,
+          type: "reminder",
+          relatedId: req.params.id,
+        }).returning();
+        if (isPushConfigured()) {
+          await sendPushNotification(updatedService.created_by, {
+            title: "Aprobación de agenda revocada",
+            body: `El Obispo revocó la aprobación del servicio en ${locationName}. Revisa y reenvía.`,
+            url: `/mission-work?section=servicios_bautismales&highlight=${req.params.id}`,
+            notificationId: (notifRevoke as any)?.id,
+          });
+        }
+        const leaderResult = await db.execute(sql`SELECT email, name FROM users WHERE id = ${updatedService.created_by} LIMIT 1`);
+        const leader = leaderResult.rows[0] as any;
+        if (leader?.email) {
+          const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
+          await sendAgendaReminderEmail({
+            toEmail: leader.email,
+            subject: "Aprobación de agenda bautismal revocada",
+            body: [
+              `Estimado/a ${leader.name},`,
+              "",
+              `El Obispo ha revocado la aprobación del programa del servicio bautismal en ${locationName}.`,
+              "",
+              "Por favor, revisa los detalles y vuelve a enviar el programa para aprobación.",
+              "",
+              wardName || "Tu barrio",
+            ].join("\n"),
+            wardName,
+          }).catch((e) => console.error("[mission/baptism-services PATCH] revoke email error:", e));
+        }
+      }
+
+      return res.json(updatedService);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
       console.error("[mission/baptism-services/:id PATCH]", err);
