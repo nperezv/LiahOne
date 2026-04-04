@@ -2212,49 +2212,47 @@ export function registerMissionBaptismRoutes(
     "/api/baptisms/services/:id/public-link-state",
     requireAuth,
     async (req, res) => {
-      const user = (req as any).user;
-      if (!(await canAccessMission(user)))
-        return res.status(403).json({ error: "Forbidden" });
+      try {
+        const user = (req as any).user;
+        if (!(await canAccessMission(user)))
+          return res.status(403).json({ error: "Forbidden" });
 
-      const [service] = await db
-        .select()
-        .from(baptismServices)
-        .where(
-          and(
-            eq(baptismServices.id, req.params.id),
-            eq(baptismServices.unitId, user.organizationId),
-          ),
-        )
-        .limit(1);
-      if (!service) return res.status(404).json({ error: "Service not found" });
+        const svcResult = await db.execute(sql`
+          SELECT id FROM baptism_services
+          WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
+          LIMIT 1
+        `);
+        if (!svcResult.rows.length)
+          return res.status(404).json({ error: "Service not found" });
 
-      const [latest] = await db
-        .select()
-        .from(baptismPublicLinks)
-        .where(eq(baptismPublicLinks.serviceId, service.id))
-        .orderBy(desc(baptismPublicLinks.createdAt))
-        .limit(1);
-      if (!latest) {
+        const latestResult = await db.execute(sql`
+          SELECT slug, code, expires_at, revoked_at
+          FROM baptism_public_links
+          WHERE service_id = ${req.params.id}
+          ORDER BY created_at DESC
+          LIMIT 1
+        `);
+        if (!latestResult.rows.length) {
+          return res.json({ active: false, stableUrl: null, activePublicUrl: null, expiresAt: null });
+        }
+
+        const latest = latestResult.rows[0] as any;
+        const now = new Date();
+        const isActive = isPublicWindowActive(
+          latest.expires_at ? new Date(latest.expires_at) : null,
+          latest.revoked_at ? new Date(latest.revoked_at) : null,
+          now,
+        );
         return res.json({
-          active: false,
-          stableUrl: null,
-          activePublicUrl: null,
-          expiresAt: null,
+          active: isActive,
+          stableUrl: `/bautismo/${latest.slug}`,
+          activePublicUrl: isActive ? `/b/${latest.slug}?c=${latest.code}` : null,
+          expiresAt: latest.expires_at,
         });
+      } catch (err) {
+        console.error("[GET /public-link-state]", err);
+        return res.status(500).json({ error: "Error interno" });
       }
-
-      const now = new Date();
-      const isActive = isPublicWindowActive(
-        latest.expiresAt,
-        latest.revokedAt,
-        now,
-      );
-      return res.json({
-        active: isActive,
-        stableUrl: `/bautismo/${latest.slug}`,
-        activePublicUrl: isActive ? `/b/${latest.slug}?c=${latest.code}` : null,
-        expiresAt: latest.expiresAt,
-      });
     },
   );
 
