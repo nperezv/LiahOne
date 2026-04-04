@@ -2586,9 +2586,18 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
   app.get("/api/service-tasks", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const allowedRoles = ["lider_actividades", "mission_leader", "ward_missionary", "full_time_missionary", "obispo", "consejero_obispo", "technology_specialist", "presidente_organizacion"];
+      const allowedRoles = ["lider_actividades", "mission_leader", "ward_missionary", "full_time_missionary", "obispo", "consejero_obispo", "technology_specialist", "presidente_organizacion", "consejero_organizacion"];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ error: "Forbidden" });
+      }
+
+      // Restrict org presidents/counselors to cuórum de élderes and sociedad de socorro only
+      if (user.role === "presidente_organizacion" || user.role === "consejero_organizacion") {
+        const ALLOWED_ORG_TYPES = ["cuorum_elderes", "sociedad_socorro"];
+        const org = user.organizationId ? await storage.getOrganization(user.organizationId) : null;
+        if (!org || !ALLOWED_ORG_TYPES.includes(org.type)) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
       }
 
       let rows;

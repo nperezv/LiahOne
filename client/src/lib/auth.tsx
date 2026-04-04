@@ -10,6 +10,7 @@ interface User {
   avatarUrl?: string | null;
   role: string;
   organizationId?: string;
+  organizationType?: string | null;
   requireEmailOtp?: boolean;
   requirePasswordChange?: boolean;
 }

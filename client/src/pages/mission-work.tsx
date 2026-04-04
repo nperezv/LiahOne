@@ -2336,6 +2336,7 @@ function BaptismalServiceSheet({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<"agenda" | "checklist" | "coordinacion" | "aprobacion">("agenda");
   const [editMode, setEditMode] = useState(false);
 
@@ -2355,7 +2356,10 @@ function BaptismalServiceSheet({
   const isLiderActividades = userRole === "lider_actividades";
   const showMisionSections = isObispo || isMissionLeader;
   const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
-  const isPresidenteOrg = userRole === "presidente_organizacion";
+  const ALLOWED_ORG_TYPES = ["cuorum_elderes", "sociedad_socorro"];
+  const isPresidenteOrg =
+    (userRole === "presidente_organizacion" || userRole === "consejero_organizacion") &&
+    ALLOWED_ORG_TYPES.includes(currentUser?.organizationType ?? "");
   const showLogisticsStatus = isObispo || isMissionLeader || isPresidenteOrg;
 
   // Data hooks
@@ -3247,8 +3251,13 @@ function BaptismalServiceSheet({
                         LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
                       );
                       const task = serviceTaskQuery.data;
-                      const statusLabel = task?.status === "completed" ? "Completado" : task?.status === "in_progress" ? "En progreso" : "Pendiente";
-                      const statusColor = task?.status === "completed" ? "bg-green-100 text-green-700" : task?.status === "in_progress" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
+                      const logAllDone = logisticsItems.length > 0 && logisticsItems.every((i: any) => i.completed);
+                      const logSomeDone = logisticsItems.some((i: any) => i.completed);
+                      const logEffectiveStatus = logisticsItems.length > 0
+                        ? (logAllDone ? "completed" : logSomeDone ? "in_progress" : "pending")
+                        : (task?.status ?? "pending");
+                      const statusLabel = logEffectiveStatus === "completed" ? "Completado" : logEffectiveStatus === "in_progress" ? "En progreso" : "Pendiente";
+                      const statusColor = logEffectiveStatus === "completed" ? "bg-green-100 text-green-700" : logEffectiveStatus === "in_progress" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
                       const misionAllDone = misionItems.length > 0 && misionItems.every((i: any) => i.completed);
                       const misionStatusLabel = misionAllDone ? "Completado" : misionItems.some((i: any) => i.completed) ? "En progreso" : "Pendiente";
                       const misionStatusColor = misionAllDone ? "bg-green-100 text-green-700" : misionItems.some((i: any) => i.completed) ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
@@ -3329,9 +3338,9 @@ function BaptismalServiceSheet({
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Líder de actividades</p>
                             {task ? (
-                              <div className={`border rounded-lg px-3 py-3 ${task.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
+                              <div className={`border rounded-lg px-3 py-3 ${logEffectiveStatus === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
                                 <div className="flex items-center gap-2">
-                                  <span className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" : task.status === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                                  <span className={`h-2 w-2 rounded-full shrink-0 ${logEffectiveStatus === "completed" ? "bg-green-500" : logEffectiveStatus === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
                                   <span className="text-sm font-medium flex-1">Logística</span>
                                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{statusLabel}</span>
                                 </div>
@@ -4116,13 +4125,16 @@ function BaptismalServiceSheet({
                       {/* Logistics status card — obispo + líder misional */}
                       {showLogisticsStatus && (() => {
                         const task = serviceTaskQuery.data;
-                        // Fallback: if no task exists, derive status from checklist items
+                        // Derive status from checklist items (source of truth — synced on every save)
+                        // Fall back to task.status only if no checklist items exist yet
                         const logChkItems = (checklistData?.items as any[] | undefined)?.filter((i: any) =>
                           LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
                         ) ?? [];
                         const chkAllDone = logChkItems.length > 0 && logChkItems.every((i: any) => i.completed);
                         const chkSomeDone = logChkItems.some((i: any) => i.completed);
-                        const effectiveStatus = task?.status ?? (chkAllDone ? "completed" : chkSomeDone ? "in_progress" : "pending");
+                        const effectiveStatus = logChkItems.length > 0
+                          ? (chkAllDone ? "completed" : chkSomeDone ? "in_progress" : "pending")
+                          : (task?.status ?? "pending");
                         const statusLabel = effectiveStatus === "completed" ? "Completado"
                           : effectiveStatus === "in_progress" ? "En progreso"
                           : "Pendiente";

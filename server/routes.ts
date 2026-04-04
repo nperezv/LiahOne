@@ -1293,7 +1293,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { password: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+
+      let organizationType: string | null = null;
+      if (user.organizationId) {
+        const org = await storage.getOrganization(user.organizationId);
+        organizationType = org?.type ?? null;
+      }
+
+      res.json({ ...userWithoutPassword, organizationType });
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
