@@ -1543,13 +1543,17 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           (SELECT json_agg(pi ORDER BY pi."order")
            FROM baptism_program_items pi WHERE pi.service_id = bs.id) AS program_items,
           (SELECT json_agg(a)
-           FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
+           FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments,
+          (SELECT slug FROM baptism_public_links
+           WHERE service_id = bs.id ORDER BY created_at DESC LIMIT 1) AS public_link_slug
         FROM baptism_services bs
         WHERE bs.id = ${req.params.id}
           AND bs.unit_id = ${unitId}
       `);
       if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
-      return res.json(result.rows[0]);
+      const row = result.rows[0] as any;
+      const stableUrl = row.public_link_slug ? `/bautismo/${row.public_link_slug}` : null;
+      return res.json({ ...row, stable_url: stableUrl });
     } catch (err) {
       console.error("[mission/baptism-services/:id GET]", err);
       return res.status(500).json({ message: "Error interno" });

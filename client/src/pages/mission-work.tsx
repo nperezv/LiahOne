@@ -2311,6 +2311,7 @@ interface BaptismServiceDetail extends BaptismService {
   program_items: ProgramItem[] | null;
   assignments: any[] | null;
   candidates: Array<{ id: string; nombre: string; entrevista_invitado?: string | null; entrevista_fecha?: string | null }> | null;
+  stable_url: string | null;
 }
 
 const ProgramRow = ({ type, label, children }: { type: string; label?: string; children: React.ReactNode }) => (
@@ -2515,11 +2516,6 @@ function BaptismalServiceSheet({
     enabled: open && !!service?.id,
   });
 
-  const publicLinkQuery = useQuery<{ active: boolean; stableUrl: string | null; activePublicUrl: string | null; expiresAt: string | null }>({
-    queryKey: ["/api/baptisms/services", service?.id, "public-link"],
-    queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/public-link-state`),
-    enabled: open && !!service?.id && liveService?.approval_status === "approved",
-  });
 
   // Fetch service task for logistics status (used by obispo + mission leader)
   // Specifically finds the lider_actividades task (not mission_leader_logistics)
@@ -3297,16 +3293,16 @@ function BaptismalServiceSheet({
                     </Button>
                   )}
 
-                  {liveService?.approval_status === "approved" && publicLinkQuery.data?.stableUrl && (
+                  {liveService?.approval_status === "approved" && detail?.stable_url && (
                     <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2 mt-2">
                       <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
-                          {window.location.origin}{publicLinkQuery.data.stableUrl}
+                          {window.location.origin}{detail!.stable_url}
                         </code>
                         <Button size="sm" variant="outline" className="shrink-0 text-xs h-8"
                           onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}${publicLinkQuery.data!.stableUrl}`);
+                            navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
                             toast({ title: "Enlace copiado" });
                           }}>
                           Copiar
@@ -3343,19 +3339,19 @@ function BaptismalServiceSheet({
                   {liveService?.approval_status === "approved" && (
                     <div className="space-y-2">
                       <p className="text-sm text-green-700 bg-green-50 rounded px-3 py-2">Servicio aprobado por el obispado.</p>
-                      {publicLinkQuery.data?.stableUrl && (
+                      {detail?.stable_url && (
                         <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
                           <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
-                              {window.location.origin}{publicLinkQuery.data.stableUrl}
+                              {window.location.origin}{detail!.stable_url}
                             </code>
                             <Button
                               size="sm"
                               variant="outline"
                               className="shrink-0 text-xs h-8"
                               onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}${publicLinkQuery.data!.stableUrl}`);
+                                navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
                                 toast({ title: "Enlace copiado" });
                               }}
                             >
@@ -3402,19 +3398,19 @@ function BaptismalServiceSheet({
                   )}
                   {liveService?.approval_status === "approved" && (
                     <div className="space-y-2">
-                      {publicLinkQuery.data?.stableUrl && (
+                      {detail?.stable_url && (
                         <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
                           <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
-                              {window.location.origin}{publicLinkQuery.data.stableUrl}
+                              {window.location.origin}{detail!.stable_url}
                             </code>
                             <Button
                               size="sm"
                               variant="outline"
                               className="shrink-0 text-xs h-8"
                               onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}${publicLinkQuery.data!.stableUrl}`);
+                                navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
                                 toast({ title: "Enlace copiado" });
                               }}
                             >
