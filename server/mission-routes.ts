@@ -1987,10 +1987,11 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         .where(eq(activityChecklistItems.activityId, activity.id))
         .orderBy(asc(activityChecklistItems.sortOrder));
 
+      const countableItems = items.filter((i) => i.itemKey !== "visibilidad_evento");
       return res.json({
         items,
-        completedCount: items.filter((i) => i.completed).length,
-        totalCount: items.length,
+        completedCount: countableItems.filter((i) => i.completed).length,
+        totalCount: countableItems.length,
       });
     } catch (err) {
       console.error("[baptisms/services/:id/activity-checklist GET]", err);

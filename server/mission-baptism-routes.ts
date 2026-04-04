@@ -791,10 +791,11 @@ async function getBaptismActivityChecklist(
     .where(eq(activityChecklistItems.activityId, activity.id))
     .orderBy(asc(activityChecklistItems.sortOrder));
 
+  const countableItems = items.filter((i) => i.itemKey !== "visibilidad_evento");
   return {
     items,
-    completedCount: items.filter((i) => i.completed).length,
-    totalCount: items.length,
+    completedCount: countableItems.filter((i) => i.completed).length,
+    totalCount: countableItems.length,
   };
 }
 
