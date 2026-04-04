@@ -3265,9 +3265,87 @@ function BaptismalServiceSheet({
                                   <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
                                 )}
                                 {logisticsItems.length > 0 && (
-                                  <div className="mt-2 pl-2 space-y-0.5 border-t border-border/30 pt-2">
-                                    {logisticsItems.map(renderItem)}
-                                  </div>
+                                  <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
+                                    {logisticsItems.map((item: any) => {
+                                      const itemKey = item.itemKey ?? item.item_key;
+                                      const log = coordDraft.logistics as any;
+                                      let detail: React.ReactNode = null;
+
+                                      if (itemKey === "espacio_calendario") {
+                                        detail = log.espacio_comprobante_url ? (
+                                          <a href={log.espacio_comprobante_url} target="_blank" rel="noreferrer"
+                                            className="text-primary underline text-xs">
+                                            {log.espacio_comprobante_nombre ?? "Ver comprobante"}
+                                          </a>
+                                        ) : <span className="text-muted-foreground italic text-xs">Sin comprobante adjunto</span>;
+                                      } else if (itemKey === "arreglo_espacios") {
+                                        const tasks: any[] = log.arreglo_tasks ?? [];
+                                        detail = tasks.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {tasks.map((t: any, i: number) => (
+                                              <div key={i} className="text-xs text-muted-foreground">
+                                                <span className="font-medium text-foreground">{t.nombre}</span>
+                                                {t.tarea ? ` — ${t.tarea}` : ""}
+                                                {t.hora ? <span className="ml-1 text-primary">({t.hora})</span> : ""}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : <span className="text-muted-foreground italic text-xs">Sin participantes asignados</span>;
+                                      } else if (itemKey === "equipo_tecnologia") {
+                                        detail = (
+                                          <div className="space-y-1 text-xs text-muted-foreground">
+                                            {log.equipo_responsable && <p><span className="text-foreground font-medium">Responsable:</span> {log.equipo_responsable}</p>}
+                                            {log.equipo_fecha && <p><span className="text-foreground font-medium">Fecha coord.:</span> {log.equipo_fecha}</p>}
+                                            {log.equipo_lista && <p><span className="text-foreground font-medium">Equipo:</span> {log.equipo_lista}</p>}
+                                            {!log.equipo_responsable && !log.equipo_lista && <span className="italic">Sin detalles</span>}
+                                          </div>
+                                        );
+                                      } else if (itemKey === "presupuesto_refrigerio") {
+                                        const responsables: string[] = log.refrigerio_responsables?.length
+                                          ? log.refrigerio_responsables
+                                          : log.refrigerio_responsable ? [log.refrigerio_responsable] : [];
+                                        detail = (
+                                          <div className="space-y-1 text-xs text-muted-foreground">
+                                            {responsables.length > 0 && <p><span className="text-foreground font-medium">Responsable(s):</span> {responsables.join(", ")}</p>}
+                                            {log.refrigerio_detalle && <p><span className="text-foreground font-medium">Detalle:</span> {log.refrigerio_detalle}</p>}
+                                            {log.refrigerio_presupuesto_solicitado
+                                              ? <p className="text-green-700">✓ Presupuesto solicitado</p>
+                                              : log.refrigerio_necesita_presupuesto
+                                                ? <p className="text-amber-600">Presupuesto pendiente de solicitar</p>
+                                                : null}
+                                            {!responsables.length && !log.refrigerio_detalle && <span className="italic">Sin detalles</span>}
+                                          </div>
+                                        );
+                                      } else if (itemKey === "limpieza") {
+                                        detail = (
+                                          <div className="space-y-1 text-xs text-muted-foreground">
+                                            {log.limpieza_responsable && <p><span className="text-foreground font-medium">Responsable:</span> {log.limpieza_responsable}</p>}
+                                            {log.limpieza_fecha && <p><span className="text-foreground font-medium">Fecha:</span> {log.limpieza_fecha}</p>}
+                                            {log.limpieza_notas && <p><span className="text-foreground font-medium">Notas:</span> {log.limpieza_notas}</p>}
+                                            {!log.limpieza_responsable && !log.limpieza_notas && <span className="italic">Sin detalles</span>}
+                                          </div>
+                                        );
+                                      }
+
+                                      return (
+                                        <AccordionItem key={item.id} value={item.id} className="border-b-0">
+                                          <AccordionTrigger className="py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5">
+                                            <div className="flex items-center gap-2 text-sm">
+                                              {item.completed
+                                                ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                                                : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                              <span className={item.completed ? "text-muted-foreground line-through" : ""}>
+                                                {itemKey === "arreglo_espacios" ? "Arreglo y preparación" : item.label}
+                                              </span>
+                                            </div>
+                                          </AccordionTrigger>
+                                          <AccordionContent className="pl-6 pb-2">
+                                            {detail}
+                                          </AccordionContent>
+                                        </AccordionItem>
+                                      );
+                                    })}
+                                  </Accordion>
                                 )}
                               </div>
                             ) : (
