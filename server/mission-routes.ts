@@ -7,6 +7,7 @@ import { db } from "./db";
 import { storage } from "./storage";
 import { sendBaptismReminderEmail, sendAgendaReminderEmail } from "./auth";
 import { syncBaptismInterviewChecklistItem } from "./mission-interview-sync";
+import { syncBaptismVisibilityChecklistItem } from "./mission-visibility-sync";
 import { isPushConfigured, sendPushNotification } from "./push-service";
 import {
   organizations,
@@ -1602,6 +1603,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         serviceAt: z.string().optional(),
         approvalStatus: z.enum(["draft", "pending_approval", "approved", "needs_revision"]).optional(),
         approvalComment: z.string().nullable().optional(),
+        isPublic: z.boolean().optional(),
       });
       const data = schema.parse(req.body);
 
@@ -1635,12 +1637,21 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       if (data.approvalComment !== undefined) {
         sets.push(`approval_comment = ${data.approvalComment ? `'${data.approvalComment.replace(/'/g, "''")}'` : "NULL"}`);
       }
+      if (data.isPublic !== undefined) {
+        sets.push(`is_public = ${data.isPublic ? "true" : "false"}`);
+        sets.push(`visibility_confirmed = true`);
+      }
 
       await db.execute(sql`
         UPDATE baptism_services
         SET ${sql.raw(sets.join(", "))}
         WHERE id = ${req.params.id} AND unit_id = ${unitId}
       `);
+      if (data.isPublic !== undefined) {
+        syncBaptismVisibilityChecklistItem(req.params.id).catch((e) =>
+          console.error("[mission/baptism-services PATCH] syncVisibility error:", e),
+        );
+      }
       const result = await db.execute(sql`SELECT * FROM baptism_services WHERE id = ${req.params.id}`);
       return res.json(result.rows[0]);
     } catch (err) {

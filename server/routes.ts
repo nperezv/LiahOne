@@ -7093,6 +7093,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/public/baptism-services", async (_req: Request, res: Response) => {
+    try {
+      const now = new Date();
+      // Show services up to 30 days in advance, and up to 24h after they started
+      const windowCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const result = await db.execute(sql`
+        SELECT
+          bs.id,
+          bs.service_at AS "serviceAt",
+          bs.location_name AS "locationName",
+          bs.location_address AS "locationAddress",
+          bpl.slug,
+          COALESCE(
+            json_agg(mp.nombre ORDER BY mp.nombre) FILTER (WHERE mp.nombre IS NOT NULL),
+            '[]'
+          ) AS candidates
+        FROM baptism_services bs
+        LEFT JOIN baptism_public_links bpl
+          ON bpl.service_id = bs.id
+          AND bpl.revoked_at IS NULL
+          AND bpl.id = (
+            SELECT id FROM baptism_public_links
+            WHERE service_id = bs.id AND revoked_at IS NULL
+            ORDER BY published_at DESC LIMIT 1
+          )
+        LEFT JOIN baptism_service_candidates bsc ON bsc.service_id = bs.id
+        LEFT JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bs.approval_status = 'approved'
+          AND bs.is_public = true
+          AND bs.service_at >= ${windowCutoff}
+          AND bs.service_at <= NOW() + INTERVAL '30 days'
+        GROUP BY bs.id, bs.service_at, bs.location_name, bs.location_address, bpl.slug
+        ORDER BY bs.service_at ASC
+      `);
+      const rows = (result.rows as any[]).map((r) => {
+        const serviceAt = r.serviceAt ? new Date(r.serviceAt) : null;
+        const windowEnd = serviceAt ? new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000) : null;
+        const withinWindow = serviceAt && windowEnd
+          ? now >= serviceAt && now < windowEnd
+          : false;
+        return {
+          id: r.id,
+          serviceAt: r.serviceAt,
+          locationName: r.locationName,
+          locationAddress: r.locationAddress,
+          candidates: Array.isArray(r.candidates) ? r.candidates : [],
+          stableUrl: r.slug ? `/bautismo/${r.slug}` : null,
+          withinWindow,
+        };
+      });
+      return res.json(rows);
+    } catch (error) {
+      console.error("Error fetching public baptism services:", error);
+      return res.status(500).json({ error: "Error al cargar servicios bautismales" });
+    }
+  });
+
   app.get("/api/activities", requireAuth, async (req: Request, res: Response) => {
     try {
       const activities = await storage.getAllActivities();

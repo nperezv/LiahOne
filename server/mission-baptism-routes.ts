@@ -84,6 +84,7 @@ const serviceSchema = z.object({
   locationName: z.string().min(1),
   locationAddress: z.string().optional(),
   mapsUrl: z.string().url().optional(),
+  isPublic: z.boolean().optional().default(false),
 });
 
 const contactUpdateSchema = z.object({
@@ -599,6 +600,7 @@ const servicePatchSchema = z.object({
   locationAddress: z.string().nullable().optional(),
   mapsUrl: z.string().url().nullable().optional(),
   status: z.enum(["scheduled", "live", "completed", "archived"]).optional(),
+  isPublic: z.boolean().optional(),
 });
 
 const programItemSchema = z.object({
@@ -732,6 +734,7 @@ async function getActivePublicLink(slug: string, code?: string) {
  */
 import { syncBaptismInterviewChecklistItem } from "./mission-interview-sync";
 export { syncBaptismInterviewChecklistItem };
+import { syncBaptismVisibilityChecklistItem } from "./mission-visibility-sync";
 
 /**
  * Returns the checklist for the activity linked to a baptism service,
@@ -741,6 +744,7 @@ async function getBaptismActivityChecklist(
   baptismServiceId: string,
 ): Promise<{ items: any[]; completedCount: number; totalCount: number } | null> {
   await syncBaptismInterviewChecklistItem(baptismServiceId);
+  await syncBaptismVisibilityChecklistItem(baptismServiceId);
 
   const [activity] = await db
     .select({ id: activities.id })
@@ -1621,14 +1625,24 @@ export function registerMissionBaptismRoutes(
           ),
         );
       for (const bishop of bishops) {
-        await db
+        const [notif] = await db
           .insert(notifications)
           .values({
             userId: bishop.id,
             title: "Agenda bautismal pendiente de aprobación",
             message: `El servicio en ${service.locationName} necesita tu aprobación.${checklistSummary}`,
             type: "reminder",
+            relatedId: service.id,
+          })
+          .returning();
+        if (isPushConfigured()) {
+          await sendPushNotification(bishop.id, {
+            title: "Agenda bautismal pendiente de aprobación",
+            body: `El servicio en ${service.locationName} necesita tu aprobación.`,
+            url: `/mission-work?section=servicios_bautismales&highlight=${service.id}`,
+            notificationId: notif?.id,
           });
+        }
       }
       res.json({ ...updated, checklist });
     },
@@ -1706,12 +1720,21 @@ export function registerMissionBaptismRoutes(
 
         // Notify mission leader
         if (service.created_by) {
-          await db.insert(notifications).values({
+          const [notifApproved] = await db.insert(notifications).values({
             userId: service.created_by,
-            title: "Agenda aprobada",
+            title: "Agenda bautismal aprobada",
             message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
             type: "reminder",
-          });
+            relatedId: service.id,
+          }).returning();
+          if (isPushConfigured()) {
+            await sendPushNotification(service.created_by, {
+              title: "Agenda bautismal aprobada",
+              body: `El Obispo aprobó el servicio en ${service.location_name}.`,
+              url: `/mission-work?section=servicios_bautismales&highlight=${service.id}`,
+              notificationId: notifApproved?.id,
+            });
+          }
         }
 
         // Create service_task for lider_actividades
@@ -1814,12 +1837,21 @@ export function registerMissionBaptismRoutes(
         `);
 
         if (service.created_by) {
-          await db.insert(notifications).values({
+          const [notifReject] = await db.insert(notifications).values({
             userId: service.created_by,
             title: "Agenda requiere revisión",
             message: `El Obispo solicitó cambios en el servicio de ${service.location_name}: ${comment}`,
             type: "reminder",
-          });
+            relatedId: service.id,
+          }).returning();
+          if (isPushConfigured()) {
+            await sendPushNotification(service.created_by, {
+              title: "Agenda requiere revisión",
+              body: `El Obispo solicitó cambios en el servicio de ${service.location_name}.`,
+              url: `/mission-work?section=servicios_bautismales&highlight=${service.id}`,
+              notificationId: notifReject?.id,
+            });
+          }
         }
 
         return res.json({ success: true });
@@ -2340,21 +2372,58 @@ export function registerMissionBaptismRoutes(
   );
 
   app.get("/bautismo/:slug", async (req, res) => {
-    const active = await getActivePublicLink(req.params.slug);
-    if (!active || active === "invalid_code")
-      return res.status(410).json({ message: "Enlace caducado" });
-    res.redirect(302, `/b/${active.slug}?c=${active.code}`);
-  });
+    // Catalog URL — no code required, available during 24h window on service day
+    // Requires: approval_status = 'approved' + logistics complete + within time window
+    const linkRows = await db
+      .select()
+      .from(baptismPublicLinks)
+      .where(
+        and(
+          eq(baptismPublicLinks.slug, req.params.slug),
+          isNull(baptismPublicLinks.revokedAt),
+        ),
+      )
+      .orderBy(desc(baptismPublicLinks.publishedAt))
+      .limit(1);
+    const link = linkRows[0];
+    if (!link) return res.status(404).json({ message: "Enlace no encontrado" });
 
-  app.get("/b/:slug", async (req, res) => {
-    const code = String(req.query.c || "");
-    const active = await getActivePublicLink(req.params.slug, code);
-    if (active === "invalid_code")
-      return res.status(403).json({ error: "Invalid code" });
-    if (!active) return res.status(410).json({ message: "Enlace caducado" });
+    const svcRow = await db.execute(sql`
+      SELECT approval_status, service_at, candidate_contact_id FROM baptism_services WHERE id = ${link.serviceId}
+    `);
+    const svc = svcRow.rows[0] as any;
 
-    const items = await db
-      .select({
+    if (svc?.approval_status !== "approved")
+      return res.json({ unavailable: "not_approved" });
+
+    // 24h window: from serviceAt to serviceAt + 24h
+    const serviceAt = svc?.service_at ? new Date(svc.service_at) : null;
+    if (serviceAt) {
+      const now = new Date();
+      const windowEnd = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
+      if (now < serviceAt || now >= windowEnd)
+        return res.json({ unavailable: "outside_window" });
+    }
+
+    // Logistics check — all required assignments must have assignees
+    const [programItems, assignments] = await Promise.all([
+      db.select({ type: baptismProgramItems.type })
+        .from(baptismProgramItems)
+        .where(eq(baptismProgramItems.serviceId, link.serviceId)),
+      db.select({ type: baptismAssignments.type, assigneeUserId: baptismAssignments.assigneeUserId, assigneeName: baptismAssignments.assigneeName })
+        .from(baptismAssignments)
+        .where(eq(baptismAssignments.serviceId, link.serviceId)),
+    ]);
+    const readiness = computeMinimumReady({
+      programItems,
+      assignments,
+      hasInterviewScheduledMilestone: true, // bishop already approved — interview condition met
+    });
+    if (!readiness.ready)
+      return res.json({ unavailable: "pending_logistics" });
+
+    const [items, approvedPosts, candidatesResult, svcResult, tplResult] = await Promise.all([
+      db.select({
         id: baptismProgramItems.id,
         type: baptismProgramItems.type,
         title: baptismProgramItems.title,
@@ -2365,22 +2434,94 @@ export function registerMissionBaptismRoutes(
         hymnTitle: hymns.title,
         hymnExternalUrl: hymns.externalUrl,
       })
-      .from(baptismProgramItems)
-      .leftJoin(hymns, eq(hymns.id, baptismProgramItems.hymnId))
-      .where(eq(baptismProgramItems.serviceId, active.serviceId));
+        .from(baptismProgramItems)
+        .leftJoin(hymns, eq(hymns.id, baptismProgramItems.hymnId))
+        .where(eq(baptismProgramItems.serviceId, link.serviceId)),
+      db.select()
+        .from(baptismPublicPosts)
+        .where(and(
+          eq(baptismPublicPosts.publicLinkId, link.id),
+          eq(baptismPublicPosts.status, "approved"),
+        ))
+        .orderBy(desc(baptismPublicPosts.createdAt)),
+      db.execute(sql`
+        SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
+        FROM baptism_service_candidates bsc
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bsc.service_id = ${link.serviceId}
+        ORDER BY mp.nombre
+      `),
+      db.execute(sql`SELECT service_at FROM baptism_services WHERE id = ${link.serviceId}`),
+      db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
+    ]);
 
-    const approvedPosts = await db
-      .select()
-      .from(baptismPublicPosts)
-      .where(
-        and(
+    const candidates = (candidatesResult.rows as any[]).map((r) => ({
+      nombre: r.nombre as string,
+      sexo: r.sexo as string | null,
+      fechaNacimiento: r.fechaNacimiento as string | null,
+    }));
+    const serviceAt = (svcResult.rows[0] as any)?.service_at
+      ? new Date((svcResult.rows[0] as any).service_at)
+      : null;
+    const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
+
+    res.json(
+      toPublicServiceDTO({ items, approvedPosts, expiresAt: link.expiresAt, candidates, serviceAt, wardName }),
+    );
+  });
+
+  app.get("/b/:slug", async (req, res) => {
+    const code = String(req.query.c || "");
+    const active = await getActivePublicLink(req.params.slug, code);
+    if (active === "invalid_code")
+      return res.status(403).json({ error: "Invalid code" });
+    if (!active) return res.status(410).json({ message: "Enlace caducado" });
+
+    const [items, approvedPosts, candidatesResult, svcResult, tplResult] = await Promise.all([
+      db.select({
+        id: baptismProgramItems.id,
+        type: baptismProgramItems.type,
+        title: baptismProgramItems.title,
+        order: baptismProgramItems.order,
+        publicVisibility: baptismProgramItems.publicVisibility,
+        hymnId: baptismProgramItems.hymnId,
+        hymnNumber: hymns.number,
+        hymnTitle: hymns.title,
+        hymnExternalUrl: hymns.externalUrl,
+      })
+        .from(baptismProgramItems)
+        .leftJoin(hymns, eq(hymns.id, baptismProgramItems.hymnId))
+        .where(eq(baptismProgramItems.serviceId, active.serviceId)),
+      db.select()
+        .from(baptismPublicPosts)
+        .where(and(
           eq(baptismPublicPosts.publicLinkId, active.id),
           eq(baptismPublicPosts.status, "approved"),
-        ),
-      )
-      .orderBy(desc(baptismPublicPosts.createdAt));
+        ))
+        .orderBy(desc(baptismPublicPosts.createdAt)),
+      db.execute(sql`
+        SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
+        FROM baptism_service_candidates bsc
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bsc.service_id = ${active.serviceId}
+        ORDER BY mp.nombre
+      `),
+      db.execute(sql`SELECT service_at FROM baptism_services WHERE id = ${active.serviceId}`),
+      db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
+    ]);
+
+    const candidates = (candidatesResult.rows as any[]).map((r) => ({
+      nombre: r.nombre as string,
+      sexo: r.sexo as string | null,
+      fechaNacimiento: r.fechaNacimiento as string | null,
+    }));
+    const serviceAt = (svcResult.rows[0] as any)?.service_at
+      ? new Date((svcResult.rows[0] as any).service_at)
+      : null;
+    const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
+
     res.json(
-      toPublicServiceDTO({ items, approvedPosts, expiresAt: active.expiresAt }),
+      toPublicServiceDTO({ items, approvedPosts, expiresAt: active.expiresAt, candidates, serviceAt, wardName }),
     );
   });
 
@@ -2440,6 +2581,79 @@ export function registerMissionBaptismRoutes(
       .insert(baptismPublicPosts)
       .values({
         publicLinkId: active.id,
+        displayName: normalizeDisplayName(parsed.data.displayName),
+        message: parsed.data.message,
+        clientRequestId: parsed.data.clientRequestId,
+        ipHash: hash,
+        status: "pending",
+      })
+      .returning();
+
+    res.status(201).json(row);
+  });
+
+  app.post("/bautismo/:slug/posts", async (req, res) => {
+    const parsed = publicPostSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid payload" });
+    if (parsed.data.company && parsed.data.company.trim())
+      return res.status(400).json({ error: "Bot detected" });
+
+    const linkRows = await db
+      .select()
+      .from(baptismPublicLinks)
+      .where(
+        and(
+          eq(baptismPublicLinks.slug, req.params.slug),
+          isNull(baptismPublicLinks.revokedAt),
+        ),
+      )
+      .orderBy(desc(baptismPublicLinks.publishedAt))
+      .limit(1);
+    const link = linkRows[0];
+    if (!link) return res.status(404).json({ error: "Enlace no encontrado" });
+
+    const svcResult = await db.execute(sql`
+      SELECT approval_status, service_at FROM baptism_services WHERE id = ${link.serviceId}
+    `);
+    const svcPost = svcResult.rows[0] as any;
+    if (svcPost?.approval_status !== "approved")
+      return res.status(403).json({ error: "El programa no está disponible" });
+
+    const serviceAtPost = svcPost?.service_at ? new Date(svcPost.service_at) : null;
+    if (serviceAtPost) {
+      const now = new Date();
+      const windowEnd = new Date(serviceAtPost.getTime() + 24 * 60 * 60 * 1000);
+      if (now < serviceAtPost || now >= windowEnd)
+        return res.status(403).json({ error: "El programa no está disponible" });
+    }
+
+    const hash = ipHash(req);
+    const now = new Date();
+    const tenMinutes = new Date(now.getTime() - 10 * 60 * 1000);
+    const oneDay = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const recent10 = await db.select().from(baptismPublicPosts).where(
+      and(eq(baptismPublicPosts.ipHash, hash), gt(baptismPublicPosts.createdAt, tenMinutes)),
+    );
+    const recent24 = await db.select().from(baptismPublicPosts).where(
+      and(eq(baptismPublicPosts.ipHash, hash), gt(baptismPublicPosts.createdAt, oneDay)),
+    );
+    if (isRateLimited(recent10.length, recent24.length).blocked)
+      return res.status(429).json({ error: "Rate limit" });
+
+    const existing = await db.select().from(baptismPublicPosts).where(
+      and(
+        eq(baptismPublicPosts.publicLinkId, link.id),
+        eq(baptismPublicPosts.clientRequestId, parsed.data.clientRequestId),
+      ),
+    ).limit(1);
+    if (existing[0]) return res.status(200).json(existing[0]);
+
+    const [row] = await db
+      .insert(baptismPublicPosts)
+      .values({
+        publicLinkId: link.id,
         displayName: normalizeDisplayName(parsed.data.displayName),
         message: parsed.data.message,
         clientRequestId: parsed.data.clientRequestId,
@@ -3486,14 +3700,16 @@ export async function runBaptismReadinessCheck(): Promise<number> {
     await db
       .insert(baptismNotificationDeliveries)
       .values({ serviceId: service.id, rule, dedupeKey });
-    await db
+    const [notifReminder] = await db
       .insert(notifications)
-      .values({ userId: service.createdBy, title, message, type: "reminder" });
+      .values({ userId: service.createdBy, title, message, type: "reminder", relatedId: service.id })
+      .returning();
     if (isPushConfigured()) {
       await sendPushNotification(service.createdBy, {
         title,
         body: message,
-        url: "/mission-work",
+        url: `/mission-work?section=servicios_bautismales&highlight=${service.id}`,
+        notificationId: notifReminder?.id,
       }).catch(() => {});
     }
     sent++;

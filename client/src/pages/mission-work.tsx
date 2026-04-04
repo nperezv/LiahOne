@@ -61,6 +61,7 @@ import {
   Upload,
   FileText,
   Lock,
+  Globe,
 } from "lucide-react";
 import { useMembers, useUsers, useHymns, useAllMemberCallings } from "@/hooks/use-api";
 import {
@@ -2345,6 +2346,8 @@ function BaptismalServiceSheet({
   const [serviceAtVal, setServiceAtVal] = useState("");
   const [serviceTimeVal, setServiceTimeVal] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
+  const [isPublicLocal, setIsPublicLocal] = useState(service?.is_public ?? false);
+  React.useEffect(() => { setIsPublicLocal(service?.is_public ?? false); }, [service?.is_public]);
   const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
@@ -2473,11 +2476,12 @@ function BaptismalServiceSheet({
   };
 
   const updateServiceMutation = useMutation({
-    mutationFn: (data: { locationName?: string; locationAddress?: string; serviceAt?: string }) =>
+    mutationFn: (data: { locationName?: string; locationAddress?: string; serviceAt?: string; isPublic?: boolean }) =>
       apiRequest("PATCH", `/api/mission/baptism-services/${service?.id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
+      qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -2509,6 +2513,12 @@ function BaptismalServiceSheet({
     queryKey: ["/api/baptisms/services", service?.id, "checklist"],
     queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/activity-checklist`),
     enabled: open && !!service?.id,
+  });
+
+  const publicLinkQuery = useQuery<{ active: boolean; stableUrl: string | null; activePublicUrl: string | null; expiresAt: string | null }>({
+    queryKey: ["/api/baptisms/services", service?.id, "public-link"],
+    queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/public-link`),
+    enabled: open && !!service?.id && liveService?.approval_status === "approved",
   });
 
   // Fetch service task for logistics status (used by obispo + mission leader)
@@ -2761,7 +2771,7 @@ function BaptismalServiceSheet({
   });
 
   // These must be before any conditional return to satisfy Rules of Hooks
-  const MISSION_CHECKLIST_KEYS = ["programa", "ropa_bautismal", "entrevista_bautismal"];
+  const MISSION_CHECKLIST_KEYS = ["programa", "ropa_bautismal", "entrevista_bautismal", "visibilidad_evento"];
   const LOGISTICS_CHECKLIST_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
 
   const checklistData = checklistQuery.data;
@@ -2970,6 +2980,26 @@ function BaptismalServiceSheet({
                     <p className="text-[11px] text-muted-foreground/60">
                       Lugar y dirección se configuran en Ajustes → Centro de Reuniones
                     </p>
+                    <div
+                      className="flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+                      onClick={() => { setIsPublicLocal(!isPublicLocal); updateServiceMutation.mutate({ isPublic: !isPublicLocal }); }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isPublicLocal}
+                        readOnly
+                        className="h-4 w-4 accent-primary pointer-events-none"
+                      />
+                      <div>
+                        <p className="text-xs font-medium flex items-center gap-1.5">
+                          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                          Es un evento público
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                          Aparece en la página principal para cualquier visitante
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -3279,7 +3309,31 @@ function BaptismalServiceSheet({
                     <p className="text-sm text-muted-foreground">Solicitud enviada. En espera de respuesta del obispado.</p>
                   )}
                   {liveService?.approval_status === "approved" && (
-                    <p className="text-sm text-green-700 bg-green-50 rounded px-3 py-2">Servicio aprobado por el obispado.</p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-green-700 bg-green-50 rounded px-3 py-2">Servicio aprobado por el obispado.</p>
+                      {publicLinkQuery.data?.stableUrl && (
+                        <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
+                              {window.location.origin}{publicLinkQuery.data.stableUrl}
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 text-xs h-8"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}${publicLinkQuery.data!.stableUrl}`);
+                                toast({ title: "Enlace copiado" });
+                              }}
+                            >
+                              Copiar
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Comparte este enlace. Estará disponible mientras el servicio esté aprobado.</p>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -3315,10 +3369,33 @@ function BaptismalServiceSheet({
                     </>
                   )}
                   {liveService?.approval_status === "approved" && (
-                    <Button size="sm" variant="ghost" className="text-xs text-muted-foreground"
-                      onClick={() => revokeMutation.mutate()} disabled={revokeMutation.isPending}>
-                      Revocar aprobación
-                    </Button>
+                    <div className="space-y-2">
+                      {publicLinkQuery.data?.stableUrl && (
+                        <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
+                              {window.location.origin}{publicLinkQuery.data.stableUrl}
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 text-xs h-8"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}${publicLinkQuery.data!.stableUrl}`);
+                                toast({ title: "Enlace copiado" });
+                              }}
+                            >
+                              Copiar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <Button size="sm" variant="ghost" className="text-xs text-muted-foreground"
+                        onClick={() => revokeMutation.mutate()} disabled={revokeMutation.isPending}>
+                        Revocar aprobación
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
@@ -4118,6 +4195,7 @@ interface BaptismService {
   approval_status: string;
   approval_comment: string | null;
   prep_deadline_at: string;
+  is_public: boolean;
 }
 
 export default function MissionWork() {

@@ -975,6 +975,28 @@
   animation: none;
 }
 
+/* ── Diptych baptism booklet page-turn ── */
+@keyframes diptico-out {
+  from { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+  to   { transform: perspective(900px) rotateY(-22deg) scale(0.94); opacity: 0; }
+}
+@keyframes diptico-in {
+  from { transform: perspective(900px) rotateY(22deg) scale(0.94); opacity: 0; }
+  to   { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+}
+@keyframes diptico-out-back {
+  from { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+  to   { transform: perspective(900px) rotateY(22deg) scale(0.94); opacity: 0; }
+}
+@keyframes diptico-in-back {
+  from { transform: perspective(900px) rotateY(-22deg) scale(0.94); opacity: 0; }
+  to   { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+}
+.diptico-out      { animation: diptico-out 0.32s ease-in forwards; }
+.diptico-in       { animation: diptico-in 0.32s ease-out forwards; }
+.diptico-out-back { animation: diptico-out-back 0.32s ease-in forwards; }
+.diptico-in-back  { animation: diptico-in-back 0.32s ease-out forwards; }
+
 @keyframes btn-fill {
   0%   { width: 5%; }
   40%  { width: 60%; }

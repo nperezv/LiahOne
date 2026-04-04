@@ -49,6 +49,6 @@ export function approvedSessionPayload(params: {
     slug,
     code: params.randomCode,
     publishedAt: params.serviceAt,
-    expiresAt: new Date(params.serviceAt.getTime() + 48 * 60 * 60 * 1000),
+    expiresAt: new Date(params.serviceAt.getTime() + 24 * 60 * 60 * 1000),
   };
 }

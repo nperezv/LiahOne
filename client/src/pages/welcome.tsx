@@ -12,6 +12,16 @@ interface PublicActivity {
   type: string;
 }
 
+interface PublicBaptismService {
+  id: string;
+  serviceAt: string;
+  locationName: string;
+  locationAddress?: string;
+  candidates: string[];
+  stableUrl: string | null;
+  withinWindow: boolean;
+}
+
 const TYPE_LABELS: Record<string, string> = {
   servicio_bautismal: "Bautismo",
   deportiva: "Deporte",
@@ -29,6 +39,13 @@ const TYPE_COLORS: Record<string, string> = {
   hermanamiento: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   otro: "bg-amber-500/20 text-amber-300 border-amber-500/30",
 };
+
+function joinNames(names: string[]): string {
+  if (!names.length) return "Candidato";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} y ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+}
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -67,14 +84,17 @@ function RevealSection({ children, delay = 0, className = "" }: { children: Reac
 export default function WelcomePage() {
   const { isAuthenticated } = useAuth();
   const [activities, setActivities] = useState<PublicActivity[]>([]);
+  const [baptismServices, setBaptismServices] = useState<PublicBaptismService[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(true);
 
   useEffect(() => {
-    fetch("/api/public/activities")
-      .then((r) => r.json())
-      .then((data) => setActivities(Array.isArray(data) ? data : []))
-      .catch(() => setActivities([]))
-      .finally(() => setLoadingActivities(false));
+    Promise.all([
+      fetch("/api/public/activities").then((r) => r.json()).catch(() => []),
+      fetch("/api/public/baptism-services").then((r) => r.json()).catch(() => []),
+    ]).then(([acts, baps]) => {
+      setActivities(Array.isArray(acts) ? acts : []);
+      setBaptismServices(Array.isArray(baps) ? baps : []);
+    }).finally(() => setLoadingActivities(false));
   }, []);
 
   if (isAuthenticated) {
@@ -229,7 +249,7 @@ export default function WelcomePage() {
               <div key={i} className="h-44 rounded-2xl border border-white/8 bg-white/[0.03] animate-pulse" />
             ))}
           </div>
-        ) : activities.length === 0 ? (
+        ) : activities.length === 0 && baptismServices.length === 0 ? (
           <RevealSection>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-12 text-center">
               <CalendarDays className="h-10 w-10 text-white/20 mx-auto mb-3" />
@@ -238,10 +258,54 @@ export default function WelcomePage() {
           </RevealSection>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Baptism service cards */}
+            {baptismServices.map((svc, i) => {
+              const { day, month, weekday, time } = formatDate(svc.serviceAt);
+              return (
+                <RevealSection key={svc.id} delay={i * 80}>
+                  <div className="group h-full rounded-2xl border border-blue-500/20 bg-blue-500/[0.04] hover:bg-blue-500/[0.08] hover:border-blue-500/35 transition-all duration-300 p-5 flex flex-col gap-4">
+                    <div className="flex gap-4">
+                      {/* Date badge */}
+                      <div className="shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-blue-500/15 border border-blue-500/25 group-hover:bg-blue-500/25 transition-colors">
+                        <span className="text-xl font-bold text-blue-300 leading-none">{day}</span>
+                        <span className="text-[10px] font-semibold text-blue-300/70 uppercase tracking-wider mt-0.5">{month}</span>
+                      </div>
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider border rounded-full px-2 py-0.5 mb-2 bg-blue-500/20 text-blue-300 border-blue-500/30">
+                          🕊️ Bautismo
+                        </span>
+                        <h3 className="font-semibold text-white/90 text-sm leading-snug">{joinNames(svc.candidates)}</h3>
+                        <div className="flex items-center gap-1 mt-1.5 text-white/40 text-xs">
+                          <CalendarDays className="h-3 w-3 shrink-0" />
+                          <span className="capitalize">{weekday} · {time}</span>
+                        </div>
+                        {svc.locationName && (
+                          <div className="flex items-center gap-1 mt-1 text-white/40 text-xs">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{svc.locationName}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {svc.withinWindow && svc.stableUrl && (
+                      <a
+                        href={svc.stableUrl}
+                        className="flex items-center justify-center gap-2 text-xs font-semibold text-white bg-blue-600/70 hover:bg-blue-600 border border-blue-500/40 rounded-xl px-4 py-2.5 transition-all hover:scale-[1.02] active:scale-95"
+                      >
+                        Ver Programa
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </RevealSection>
+              );
+            })}
+            {/* Regular activity cards */}
             {activities.map((activity, i) => {
               const { day, month, weekday, time } = formatDate(activity.date);
               return (
-                <RevealSection key={activity.id} delay={i * 80}>
+                <RevealSection key={activity.id} delay={(baptismServices.length + i) * 80}>
                   <div className="group h-full rounded-2xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-[#C9A227]/25 transition-all duration-300 p-5 flex gap-4 cursor-default">
                     {/* Date badge */}
                     <div className="shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-[#C9A227]/12 border border-[#C9A227]/20 group-hover:bg-[#C9A227]/20 transition-colors">

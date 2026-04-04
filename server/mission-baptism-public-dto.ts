@@ -29,10 +29,19 @@ export function formatMadrid(date: Date) {
   }).format(date);
 }
 
+export type PublicCandidate = {
+  nombre: string;
+  sexo: string | null;
+  fechaNacimiento: string | null;
+};
+
 export function toPublicServiceDTO(input: {
   items: PublicProgramInputItem[];
   approvedPosts: PublicPostInput[];
   expiresAt: Date;
+  candidates?: PublicCandidate[];
+  serviceAt?: Date | null;
+  wardName?: string | null;
 }) {
   return {
     program: input.items
@@ -56,6 +65,13 @@ export function toPublicServiceDTO(input: {
       message: post.message,
       createdAt: post.createdAt,
     })),
+    candidates: (input.candidates ?? []).map((c) => ({
+      nombre: c.nombre,
+      sexo: c.sexo,
+      fechaNacimiento: c.fechaNacimiento,
+    })),
+    serviceAt: input.serviceAt ? input.serviceAt.toISOString() : null,
+    wardName: input.wardName ?? null,
     expiresAt: input.expiresAt,
     expiresAtMadrid: formatMadrid(input.expiresAt),
   };

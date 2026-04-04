@@ -446,6 +446,7 @@ const BASE_CHECKLIST_ITEMS = [
 const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
   { key: "entrevista_bautismal", label: "Entrevista bautismal completada", sort: 1 },
   { key: "ropa_bautismal", label: "Designado recojo de ropa bautismal", sort: 7 },
+  { key: "visibilidad_evento", label: "Visibilidad del evento definida (público o privado)", sort: 8 },
 ];
 
 function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {

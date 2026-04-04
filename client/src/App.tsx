@@ -223,6 +223,7 @@ function Router() {
       <Route path="/request-access" component={RequestAccessPage} />
       <Route path="/donar" component={DonationsPage} />
       <Route path="/b/:slug" component={BaptismPublicPage} />
+      <Route path="/bautismo/:slug" component={BaptismPublicPage} />
       <Route path="/">
         <Redirect to="/welcome" />
       </Route>
