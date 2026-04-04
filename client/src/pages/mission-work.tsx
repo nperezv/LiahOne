@@ -2517,7 +2517,7 @@ function BaptismalServiceSheet({
 
   const publicLinkQuery = useQuery<{ active: boolean; stableUrl: string | null; activePublicUrl: string | null; expiresAt: string | null }>({
     queryKey: ["/api/baptisms/services", service?.id, "public-link"],
-    queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/public-link`),
+    queryFn: () => missionFetch(`/api/baptisms/services/${service?.id}/public-link-state`),
     enabled: open && !!service?.id && liveService?.approval_status === "approved",
   });
 

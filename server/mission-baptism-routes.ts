@@ -740,6 +740,36 @@ import { syncBaptismVisibilityChecklistItem } from "./mission-visibility-sync";
  * Returns the checklist for the activity linked to a baptism service,
  * after syncing the interview item. Returns null if no activity is linked.
  */
+const LOGISTICS_CHECKLIST_KEYS = [
+  "espacio_calendario",
+  "arreglo_espacios",
+  "equipo_tecnologia",
+  "presupuesto_refrigerio",
+  "limpieza",
+];
+
+async function syncLogisticsChecklistFromServiceTask(baptismServiceId: string, activityId: string): Promise<void> {
+  try {
+    const taskRow = await db.execute(
+      sql`SELECT status FROM service_tasks WHERE baptism_service_id = ${baptismServiceId} LIMIT 1`,
+    );
+    const taskStatus = (taskRow.rows[0] as any)?.status;
+    if (taskStatus !== "completed") return;
+
+    await db
+      .update(activityChecklistItems)
+      .set({ completed: true, completedAt: new Date() })
+      .where(
+        and(
+          eq(activityChecklistItems.activityId, activityId),
+          inArray(activityChecklistItems.itemKey, LOGISTICS_CHECKLIST_KEYS),
+        ),
+      );
+  } catch (err) {
+    console.error("[syncLogisticsChecklistFromServiceTask]", err);
+  }
+}
+
 async function getBaptismActivityChecklist(
   baptismServiceId: string,
 ): Promise<{ items: any[]; completedCount: number; totalCount: number } | null> {
@@ -752,6 +782,8 @@ async function getBaptismActivityChecklist(
     .where(eq(activities.baptismServiceId, baptismServiceId))
     .limit(1);
   if (!activity) return null;
+
+  await syncLogisticsChecklistFromServiceTask(baptismServiceId, activity.id);
 
   const items = await db
     .select()
@@ -3544,7 +3576,40 @@ export function registerMissionBaptismRoutes(
         return res.status(404).json({ error: "Tarea no encontrada" });
       }
 
-      return res.json(result.rows[0]);
+      const task = result.rows[0] as any;
+
+      // When the logistics task is completed, auto-mark all logistics checklist items
+      if (status === "completed" && task.baptism_service_id) {
+        const LOGISTICS_KEYS = [
+          "espacio_calendario",
+          "arreglo_espacios",
+          "equipo_tecnologia",
+          "presupuesto_refrigerio",
+          "limpieza",
+        ];
+        try {
+          const [activity] = await db
+            .select({ id: activities.id })
+            .from(activities)
+            .where(eq(activities.baptismServiceId, task.baptism_service_id))
+            .limit(1);
+          if (activity) {
+            await db
+              .update(activityChecklistItems)
+              .set({ completed: true, completedAt: new Date(), completedBy: user.id })
+              .where(
+                and(
+                  eq(activityChecklistItems.activityId, activity.id),
+                  inArray(activityChecklistItems.itemKey, LOGISTICS_KEYS),
+                ),
+              );
+          }
+        } catch (syncErr) {
+          console.error("[PATCH /api/service-tasks/:id/status] logistics checklist sync error:", syncErr);
+        }
+      }
+
+      return res.json(task);
     } catch (err) {
       console.error("[PATCH /api/service-tasks/:id/status]", err);
       return res.status(500).json({ error: "Error interno" });
