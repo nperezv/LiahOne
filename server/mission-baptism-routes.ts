@@ -2218,20 +2218,44 @@ export function registerMissionBaptismRoutes(
           return res.status(403).json({ error: "Forbidden" });
 
         const svcResult = await db.execute(sql`
-          SELECT id FROM baptism_services
+          SELECT id, approval_status, service_at
+          FROM baptism_services
           WHERE id = ${req.params.id} AND unit_id = ${user.organizationId}
           LIMIT 1
         `);
         if (!svcResult.rows.length)
           return res.status(404).json({ error: "Service not found" });
+        const svc = svcResult.rows[0] as any;
 
-        const latestResult = await db.execute(sql`
+        let latestResult = await db.execute(sql`
           SELECT slug, code, expires_at, revoked_at
           FROM baptism_public_links
           WHERE service_id = ${req.params.id}
           ORDER BY created_at DESC
           LIMIT 1
         `);
+
+        // Lazy-create the public link if the service is approved but no link exists yet
+        if (!latestResult.rows.length && svc.approval_status === "approved") {
+          const session = approvedSessionPayload({
+            serviceId: svc.id,
+            serviceAt: new Date(svc.service_at),
+            randomCode: randomBytes(3).toString("hex"),
+            randomSlugHex: randomBytes(3).toString("hex"),
+          });
+          await db.execute(sql`
+            INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
+            VALUES (${svc.id}, ${session.slug}, ${session.code}, ${session.publishedAt}, ${session.expiresAt}, ${user.id})
+          `);
+          latestResult = await db.execute(sql`
+            SELECT slug, code, expires_at, revoked_at
+            FROM baptism_public_links
+            WHERE service_id = ${req.params.id}
+            ORDER BY created_at DESC
+            LIMIT 1
+          `);
+        }
+
         if (!latestResult.rows.length) {
           return res.json({ active: false, stableUrl: null, activePublicUrl: null, expiresAt: null });
         }
