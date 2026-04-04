@@ -2586,7 +2586,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
   app.get("/api/service-tasks", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const allowedRoles = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist", "mission_leader"];
+      const allowedRoles = ["lider_actividades", "mission_leader", "ward_missionary", "full_time_missionary", "obispo", "consejero_obispo", "technology_specialist", "presidente_organizacion"];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ error: "Forbidden" });
       }

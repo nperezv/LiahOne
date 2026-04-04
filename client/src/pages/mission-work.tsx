@@ -2355,7 +2355,8 @@ function BaptismalServiceSheet({
   const isLiderActividades = userRole === "lider_actividades";
   const showMisionSections = isObispo || isMissionLeader;
   const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
-  const showLogisticsStatus = isObispo || isMissionLeader; // obispo and mission leader see logistics status card
+  const isPresidenteOrg = userRole === "presidente_organizacion";
+  const showLogisticsStatus = isObispo || isMissionLeader || isPresidenteOrg;
 
   // Data hooks
   const { data: wardTemplate } = useQuery({ queryKey: ["/api/pdf-template"], queryFn: () => apiRequest("GET", "/api/pdf-template") });
