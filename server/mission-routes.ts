@@ -1543,16 +1543,26 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           (SELECT json_agg(pi ORDER BY pi."order")
            FROM baptism_program_items pi WHERE pi.service_id = bs.id) AS program_items,
           (SELECT json_agg(a)
-           FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments,
-          (SELECT slug FROM baptism_public_links
-           WHERE service_id = bs.id ORDER BY created_at DESC LIMIT 1) AS public_link_slug
+           FROM baptism_assignments a WHERE a.service_id = bs.id) AS assignments
         FROM baptism_services bs
         WHERE bs.id = ${req.params.id}
           AND bs.unit_id = ${unitId}
       `);
       if (result.rows.length === 0) return res.status(404).json({ message: "No encontrado" });
       const row = result.rows[0] as any;
-      const stableUrl = row.public_link_slug ? `/bautismo/${row.public_link_slug}` : null;
+      // Fetch stable_url separately so a missing baptism_public_links table doesn't crash the endpoint
+      let stableUrl: string | null = null;
+      try {
+        const linkResult = await db.execute(sql`
+          SELECT slug FROM baptism_public_links
+          WHERE service_id = ${req.params.id}
+          ORDER BY created_at DESC LIMIT 1
+        `);
+        const slug = (linkResult.rows[0] as any)?.slug;
+        if (slug) stableUrl = `/bautismo/${slug}`;
+      } catch {
+        // table may not exist yet — migration pending
+      }
       return res.json({ ...row, stable_url: stableUrl });
     } catch (err) {
       console.error("[mission/baptism-services/:id GET]", err);
