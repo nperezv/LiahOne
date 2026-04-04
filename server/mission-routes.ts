@@ -2235,6 +2235,60 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         `);
       }
 
+      // Auto-sync service_task status for lider_actividades based on logistics completeness
+      if (Object.keys(logistics).length) {
+        try {
+          const arregloTasks: any[] = Array.isArray(logistics.arreglo_tasks) ? logistics.arreglo_tasks : [];
+          const refrigerioResponsables: string[] = Array.isArray(logistics.refrigerio_responsables)
+            ? logistics.refrigerio_responsables
+            : logistics.refrigerio_responsable ? [logistics.refrigerio_responsable] : [];
+          const limpiezaResponsables: string[] = Array.isArray(logistics.limpieza_responsables)
+            ? logistics.limpieza_responsables
+            : logistics.limpieza_responsable ? [logistics.limpieza_responsable] : [];
+
+          const secReserva = !!logistics.espacio_comprobante_url;
+          const secArreglo = arregloTasks.some((t: any) => String(t.persona ?? "").trim()) &&
+            (!logistics.arreglo_necesita_presupuesto || !!logistics.arreglo_presupuesto_solicitado);
+          const secEquipo = !!String(logistics.equipo_responsable ?? "").trim();
+          const secRefrigerio = refrigerioResponsables.some((r) => r.trim()) &&
+            !!String(logistics.refrigerio_detalle ?? "").trim() &&
+            (!logistics.refrigerio_necesita_presupuesto || !!logistics.refrigerio_presupuesto_solicitado);
+          const secLimpieza = limpiezaResponsables.some((r) => r.trim());
+          const done = [secReserva, secArreglo, secEquipo, secRefrigerio, secLimpieza].filter(Boolean).length;
+          const newStatus = done === 5 ? "completed" : done > 0 ? "in_progress" : "pending";
+
+          await db.execute(sql`
+            UPDATE service_tasks
+            SET status = ${newStatus},
+                completed_at = ${newStatus === "completed" ? sql`now()` : sql`NULL`},
+                updated_at = now()
+            WHERE baptism_service_id = ${id}
+              AND assigned_role = 'lider_actividades'
+              AND status != ${newStatus}
+          `);
+
+          // If all done, sync checklist items too
+          if (newStatus === "completed") {
+            const activityRow = await db.execute(sql`
+              SELECT id FROM activities WHERE baptism_service_id = ${id} LIMIT 1
+            `);
+            const activityId = (activityRow.rows[0] as any)?.id;
+            if (activityId) {
+              const LOGISTICS_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
+              await db.execute(sql`
+                UPDATE activity_checklist_items
+                SET completed = true, completed_at = now()
+                WHERE activity_id = ${activityId}
+                  AND item_key = ANY(${LOGISTICS_KEYS}::text[])
+                  AND completed = false
+              `);
+            }
+          }
+        } catch (syncErr) {
+          console.error("[coordination PUT] task status sync error:", syncErr);
+        }
+      }
+
       const [logRow, detRow] = await Promise.all([
         db.execute(sql`SELECT * FROM baptism_service_logistics WHERE service_id = ${id}`),
         db.execute(sql`SELECT * FROM baptism_service_baptism_details WHERE service_id = ${id}`),

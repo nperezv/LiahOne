@@ -745,14 +745,6 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const statusMutation = useMutation({
-    mutationFn: (newStatus: string) =>
-      apiRequest("PATCH", `/api/service-tasks/${task.id}/status`, { status: newStatus }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service-tasks"] });
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/service-tasks/${task.id}`),
     onSuccess: () => {
@@ -761,16 +753,6 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
     },
     onError: () => toast({ title: "Error al eliminar", variant: "destructive" }),
   });
-
-  const nextStatus =
-    task.status === "pending" ? "in_progress"
-    : task.status === "in_progress" ? "completed"
-    : null;
-
-  const nextStatusLabel =
-    nextStatus === "in_progress" ? "Marcar en progreso"
-    : nextStatus === "completed" ? "Marcar completado"
-    : null;
 
   return (
     <Card className="transition-shadow hover:shadow-md">
@@ -796,25 +778,7 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
           <p className="text-sm text-muted-foreground mb-3">{task.description}</p>
         )}
 
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            {nextStatusLabel && (
-              <Button
-                size="sm"
-                variant={nextStatus === "completed" ? "default" : "outline"}
-                onClick={() => statusMutation.mutate(nextStatus!)}
-                disabled={statusMutation.isPending}
-              >
-                {statusMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : nextStatus === "completed" ? (
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                ) : null}
-                {nextStatusLabel}
-              </Button>
-            )}
-          </div>
-
+        <div className="flex items-center justify-end gap-2 flex-wrap">
           <div className="flex items-center gap-1">
             {task.baptism_service_id && (
               <Button
