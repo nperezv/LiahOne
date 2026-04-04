@@ -2788,7 +2788,7 @@ function BaptismalServiceSheet({
           return i;
         })
       : (checklistData.items as any[]);
-    if (isObispo) return items;
+    if (isObispo) return items.filter((i: any) => (i.itemKey ?? i.item_key) !== "visibilidad_evento");
     if (isMissionLeader) return items.filter((i: any) =>
       MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
     );
