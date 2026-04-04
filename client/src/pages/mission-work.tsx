@@ -3281,12 +3281,12 @@ function BaptismalServiceSheet({
                                       } else if (itemKey === "arreglo_espacios") {
                                         const tasks: any[] = log.arreglo_tasks ?? [];
                                         detail = tasks.length > 0 ? (
-                                          <div className="space-y-1">
+                                          <div className="space-y-1.5">
                                             {tasks.map((t: any, i: number) => (
                                               <div key={i} className="text-xs text-muted-foreground">
-                                                <span className="font-medium text-foreground">{t.nombre}</span>
-                                                {t.tarea ? ` — ${t.tarea}` : ""}
-                                                {t.hora ? <span className="ml-1 text-primary">({t.hora})</span> : ""}
+                                                {t.persona && <p><span className="text-foreground font-medium">Persona:</span> {t.persona}</p>}
+                                                {t.asignacion && <p><span className="text-foreground font-medium">Asignación:</span> {t.asignacion}</p>}
+                                                {t.hora && <p><span className="text-foreground font-medium">Hora:</span> {t.hora}</p>}
                                               </div>
                                             ))}
                                           </div>
