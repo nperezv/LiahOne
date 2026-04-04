@@ -2267,21 +2267,39 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
               AND status != ${newStatus}
           `);
 
-          // If all done, sync checklist items too
-          if (newStatus === "completed") {
+          // Sync each checklist item individually per section (not just on full completion)
+          {
             const activityRow = await db.execute(sql`
               SELECT id FROM activities WHERE baptism_service_id = ${id} LIMIT 1
             `);
             const activityId = (activityRow.rows[0] as any)?.id;
             if (activityId) {
-              const LOGISTICS_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
-              await db.execute(sql`
-                UPDATE activity_checklist_items
-                SET completed = true, completed_at = now()
-                WHERE activity_id = ${activityId}
-                  AND item_key = ANY(${LOGISTICS_KEYS}::text[])
-                  AND completed = false
-              `);
+              const sectionMap: Record<string, boolean> = {
+                espacio_calendario: secReserva,
+                arreglo_espacios: secArreglo,
+                equipo_tecnologia: secEquipo,
+                presupuesto_refrigerio: secRefrigerio,
+                limpieza: secLimpieza,
+              };
+              for (const [key, isDone] of Object.entries(sectionMap)) {
+                if (isDone) {
+                  await db.execute(sql`
+                    UPDATE activity_checklist_items
+                    SET completed = true, completed_at = now()
+                    WHERE activity_id = ${activityId}
+                      AND item_key = ${key}
+                      AND completed = false
+                  `);
+                } else {
+                  await db.execute(sql`
+                    UPDATE activity_checklist_items
+                    SET completed = false, completed_at = NULL
+                    WHERE activity_id = ${activityId}
+                      AND item_key = ${key}
+                      AND completed = true
+                  `);
+                }
+              }
             }
           }
         } catch (syncErr) {
