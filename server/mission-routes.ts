@@ -2624,12 +2624,12 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
 
       const updatedTask = result.rows[0] as any;
 
-      // When lider_actividades completes their logistics task,
-      // auto-complete the mission_leader_logistics task for the same service
+      // When lider_actividades (or obispo) completes their logistics task,
+      // auto-complete the mission_leader_logistics task and sync checklist items
       if (
         status === "completed" &&
-        updatedTask.assigned_role === "lider_actividades" &&
-        updatedTask.baptism_service_id
+        updatedTask.baptism_service_id &&
+        ["lider_actividades", "obispo", "consejero_obispo"].includes(updatedTask.assigned_role)
       ) {
         try {
           await db.execute(sql`
@@ -2641,6 +2641,25 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           `);
         } catch (autoErr) {
           console.error("[PATCH /api/service-tasks/:id/status] Failed to auto-complete mission_leader_logistics task:", autoErr);
+        }
+        // Sync logistics checklist items to completed
+        try {
+          const activityRow = await db.execute(sql`
+            SELECT id FROM activities WHERE baptism_service_id = ${updatedTask.baptism_service_id} LIMIT 1
+          `);
+          const activityId = (activityRow.rows[0] as any)?.id;
+          if (activityId) {
+            const LOGISTICS_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
+            await db.execute(sql`
+              UPDATE activity_checklist_items
+              SET completed = true, completed_at = now()
+              WHERE activity_id = ${activityId}
+                AND item_key = ANY(${LOGISTICS_KEYS}::text[])
+                AND completed = false
+            `);
+          }
+        } catch (syncErr) {
+          console.error("[PATCH /api/service-tasks/:id/status] logistics checklist sync error:", syncErr);
         }
       }
 
