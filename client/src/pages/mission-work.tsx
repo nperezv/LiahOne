@@ -4115,20 +4115,28 @@ function BaptismalServiceSheet({
                       {/* Logistics status card — obispo + líder misional */}
                       {showLogisticsStatus && (() => {
                         const task = serviceTaskQuery.data;
-                        const statusLabel = task?.status === "completed" ? "Completado"
-                          : task?.status === "in_progress" ? "En progreso"
-                          : task ? "Pendiente" : "Sin asignar";
-                        const statusColor = task?.status === "completed" ? "bg-green-500"
-                          : task?.status === "in_progress" ? "bg-primary"
+                        // Fallback: if no task exists, derive status from checklist items
+                        const logChkItems = (checklistData?.items as any[] | undefined)?.filter((i: any) =>
+                          LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
+                        ) ?? [];
+                        const chkAllDone = logChkItems.length > 0 && logChkItems.every((i: any) => i.completed);
+                        const chkSomeDone = logChkItems.some((i: any) => i.completed);
+                        const effectiveStatus = task?.status ?? (chkAllDone ? "completed" : chkSomeDone ? "in_progress" : "pending");
+                        const statusLabel = effectiveStatus === "completed" ? "Completado"
+                          : effectiveStatus === "in_progress" ? "En progreso"
+                          : "Pendiente";
+                        const statusColor = effectiveStatus === "completed" ? "bg-green-500"
+                          : effectiveStatus === "in_progress" ? "bg-primary"
                           : "bg-muted-foreground/30";
+                        const isDone = effectiveStatus === "completed";
                         return (
-                          <div className={`border rounded-lg px-3 py-3 transition-colors ${task?.status === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
+                          <div className={`border rounded-lg px-3 py-3 transition-colors ${isDone ? "border-primary/40 bg-primary/5" : ""}`}>
                             <div className="flex items-center gap-2">
                               <span className={`h-2 w-2 rounded-full shrink-0 ${statusColor}`} />
                               <span className="text-sm font-medium flex-1">Logística de coordinación</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                task?.status === "completed" ? "bg-green-100 text-green-700"
-                                : task?.status === "in_progress" ? "bg-primary/10 text-primary"
+                                isDone ? "bg-green-100 text-green-700"
+                                : effectiveStatus === "in_progress" ? "bg-primary/10 text-primary"
                                 : "bg-muted text-muted-foreground"
                               }`}>{statusLabel}</span>
                             </div>
