@@ -3238,7 +3238,8 @@ function BaptismalServiceSheet({
 
                     if (isObispo) {
                       const misionItems = (visibleChecklistItems as any[]).filter((i) =>
-                        MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
+                        MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key) &&
+                        (i.itemKey ?? i.item_key) !== "visibilidad_evento"
                       );
                       const logisticsItems = (visibleChecklistItems as any[]).filter((i) =>
                         LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
@@ -3246,11 +3247,82 @@ function BaptismalServiceSheet({
                       const task = serviceTaskQuery.data;
                       const statusLabel = task?.status === "completed" ? "Completado" : task?.status === "in_progress" ? "En progreso" : "Pendiente";
                       const statusColor = task?.status === "completed" ? "bg-green-100 text-green-700" : task?.status === "in_progress" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
+                      const misionAllDone = misionItems.length > 0 && misionItems.every((i: any) => i.completed);
+                      const misionStatusLabel = misionAllDone ? "Completado" : misionItems.some((i: any) => i.completed) ? "En progreso" : "Pendiente";
+                      const misionStatusColor = misionAllDone ? "bg-green-100 text-green-700" : misionItems.some((i: any) => i.completed) ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
+                      const bap = coordDraft.baptismDetails as any;
+                      const approvedAt = (detail as any)?.approved_at;
                       return (
                         <div className="space-y-3">
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Líder misional</p>
-                            <div className="space-y-1">{misionItems.map(renderItem)}</div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Líder misional</p>
+                            <div className={`border rounded-lg px-3 py-3 ${misionAllDone ? "border-primary/40 bg-primary/5" : ""}`}>
+                              <div className="flex items-center gap-2">
+                                <span className={`h-2 w-2 rounded-full shrink-0 ${misionAllDone ? "bg-green-500" : misionItems.some((i: any) => i.completed) ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                                <span className="text-sm font-medium flex-1">Programa y preparación</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${misionStatusColor}`}>{misionStatusLabel}</span>
+                              </div>
+                              {misionItems.length > 0 && (
+                                <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
+                                  {misionItems.map((item: any) => {
+                                    const itemKey = item.itemKey ?? item.item_key;
+                                    const itemLabel = itemKey === "programa" ? "Programa del servicio" : item.label;
+                                    let detail2: React.ReactNode = null;
+
+                                    if (itemKey === "programa") {
+                                      detail2 = (
+                                        <div className="space-y-1 text-xs text-muted-foreground">
+                                          {item.completed
+                                            ? <p className="text-green-700">✓ Completado</p>
+                                            : <p className="italic">Pendiente</p>}
+                                          {approvedAt && (
+                                            <p><span className="text-foreground font-medium">Aprobado el:</span> {new Date(approvedAt).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                                          )}
+                                        </div>
+                                      );
+                                    } else if (itemKey === "entrevista_bautismal") {
+                                      detail2 = serviceCandidates.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                          {serviceCandidates.map((c: any) => (
+                                            <div key={c.id} className="text-xs text-muted-foreground">
+                                              <span className="text-foreground font-medium">{c.nombre}</span>
+                                              {c.entrevista_fecha
+                                                ? <span className="ml-2 text-green-700">{c.entrevista_fecha}</span>
+                                                : <span className="ml-2 italic">Fecha pendiente</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : <span className="text-muted-foreground italic text-xs">Sin candidatos registrados</span>;
+                                    } else if (itemKey === "ropa_bautismal") {
+                                      detail2 = (
+                                        <div className="space-y-1 text-xs text-muted-foreground">
+                                          {bap.prueba_fecha && <p><span className="text-foreground font-medium">Fecha de prueba:</span> {bap.prueba_fecha}</p>}
+                                          {bap.prueba_responsable && <p><span className="text-foreground font-medium">Responsable prueba:</span> {bap.prueba_responsable}</p>}
+                                          {bap.ropa_responsable && <p><span className="text-foreground font-medium">Responsable recojo:</span> {bap.ropa_responsable}</p>}
+                                          {!bap.prueba_fecha && !bap.prueba_responsable && !bap.ropa_responsable && <span className="italic">Sin detalles</span>}
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <AccordionItem key={item.id} value={item.id} className="border-b-0">
+                                        <AccordionTrigger className="py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5">
+                                          <div className="flex items-center gap-2 text-sm">
+                                            {item.completed
+                                              ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                                              : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                            <span className={item.completed ? "text-muted-foreground line-through" : ""}>{itemLabel}</span>
+                                          </div>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="pl-6 pb-2">
+                                          {detail2}
+                                        </AccordionContent>
+                                      </AccordionItem>
+                                    );
+                                  })}
+                                </Accordion>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Líder de actividades</p>
