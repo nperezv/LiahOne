@@ -315,23 +315,27 @@ function CoverPage({ data }: { data: ServiceData }) {
           </div>
         )}
 
-        {/* "Mi Bautismo" — izquierda, dos líneas */}
-        <h1 style={{
-          fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: "clamp(2rem, 10vw, 2.8rem)",
-          fontWeight: 700, lineHeight: 0.88,
-          color: tc.titleColor, margin: 0, textAlign: "left",
-        }}>
-          Mi
-        </h1>
-        <h1 style={{
-          fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: "clamp(1.7rem, 8.5vw, 2.4rem)",
-          fontWeight: 700, lineHeight: 0.92,
-          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "left",
-        }}>
-          Bautismo
-        </h1>
+        {/* "Mi Bautismo" — bloque centrado, "Mi" alineado al borde izq de "Bautismo" */}
+        <div className="flex justify-center mb-5">
+          <div className="flex flex-col items-start">
+            <h1 style={{
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: "clamp(2rem, 10vw, 2.8rem)",
+              fontWeight: 700, lineHeight: 0.88,
+              color: tc.titleColor, margin: 0,
+            }}>
+              Mi
+            </h1>
+            <h1 style={{
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: "clamp(1.7rem, 8.5vw, 2.4rem)",
+              fontWeight: 700, lineHeight: 0.92,
+              color: tc.titleColor, margin: 0,
+            }}>
+              Bautismo
+            </h1>
+          </div>
+        </div>
 
         {/* Names — centered, one per line */}
         <div className="flex flex-col items-center">
