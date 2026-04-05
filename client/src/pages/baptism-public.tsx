@@ -291,7 +291,7 @@ function CoverPage({ data }: { data: ServiceData }) {
       {/* Content — vertically centered */}
       <div
         className="relative flex flex-col justify-center px-7"
-        style={{ zIndex: 3, minHeight: "100dvh" }}
+        style={{ zIndex: 3, minHeight: "100dvh", paddingTop: "12%" }}
       >
         {/* Date: ENERO | 06 | 2024 — centered */}
         {dateParts && (
@@ -315,12 +315,12 @@ function CoverPage({ data }: { data: ServiceData }) {
           </div>
         )}
 
-        {/* "Mi Bautismo" — centrado, dos líneas, texto izquierda */}
+        {/* "Mi Bautismo" — izquierda, dos líneas */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
           fontSize: "clamp(2rem, 10vw, 2.8rem)",
           fontWeight: 700, lineHeight: 0.88,
-          color: tc.titleColor, margin: 0, textAlign: "center",
+          color: tc.titleColor, margin: 0, textAlign: "left",
         }}>
           Mi
         </h1>
@@ -328,7 +328,7 @@ function CoverPage({ data }: { data: ServiceData }) {
           fontFamily: "'Cinzel', Georgia, serif",
           fontSize: "clamp(1.7rem, 8.5vw, 2.4rem)",
           fontWeight: 700, lineHeight: 0.92,
-          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "center",
+          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "left",
         }}>
           Bautismo
         </h1>
