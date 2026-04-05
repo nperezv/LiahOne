@@ -7,7 +7,6 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { computeMinimumReady } from "./mission-baptism-readiness";
 import { isRateLimited, normalizeDisplayName, containsBlockedUrl } from "./mission-baptism-public-rules";
 import { toPublicServiceDTO } from "./mission-baptism-public-dto";
 import { isActiveSession } from "./mission-baptism-link-session";
@@ -76,16 +75,7 @@ export function registerBaptismPublicRoutes(app: Express) {
       if (now >= windowEnd) return res.json({ unavailable: "outside_window" });
     }
 
-    const [programItemsResult, assignmentsResult] = await Promise.all([
-      db.execute(sql`SELECT type FROM baptism_program_items WHERE service_id = ${link.service_id}`),
-      db.execute(sql`SELECT type, assignee_user_id AS "assigneeUserId", assignee_name AS "assigneeName" FROM baptism_assignments WHERE service_id = ${link.service_id}`),
-    ]);
-    const readiness = computeMinimumReady({
-      programItems: programItemsResult.rows as any[],
-      assignments: assignmentsResult.rows as any[],
-      hasInterviewScheduledMilestone: true,
-    });
-    if (!readiness.ready) return res.json({ unavailable: "pending_logistics" });
+    // Bishop approval is the readiness gate — no additional logistics check needed
 
     const [itemsResult, postsResult, candidatesResult, tplResult] = await Promise.all([
       db.execute(sql`
