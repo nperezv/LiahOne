@@ -56,6 +56,7 @@ const publicPostSchema = z.object({
 
 export function registerBaptismPublicRoutes(app: Express) {
   app.get("/bautismo/:slug", async (req, res) => {
+    try {
     const linkResult = await db.execute(sql`
       SELECT id, service_id, expires_at FROM baptism_public_links
       WHERE slug = ${req.params.slug} AND revoked_at IS NULL
@@ -102,9 +103,14 @@ export function registerBaptismPublicRoutes(app: Express) {
     const expiresAt = link.expires_at ? new Date(link.expires_at) : null;
     const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
     res.json(toPublicServiceDTO({ items: itemsResult.rows as any[], approvedPosts: postsResult.rows as any[], expiresAt, candidates, serviceAt, wardName }));
+    } catch (err) {
+      console.error("[GET /bautismo/:slug]", err);
+      res.status(500).json({ message: "Error interno" });
+    }
   });
 
   app.get("/b/:slug", async (req, res) => {
+    try {
     const code = String(req.query.c || "");
     const active = await getActivePublicLink(req.params.slug, code);
     if (active === "invalid_code") return res.status(403).json({ error: "Invalid code" });
@@ -136,6 +142,10 @@ export function registerBaptismPublicRoutes(app: Express) {
     const serviceAt = (svcResult.rows[0] as any)?.service_at ? new Date((svcResult.rows[0] as any).service_at) : null;
     const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
     res.json(toPublicServiceDTO({ items: itemsResult.rows as any[], approvedPosts: postsResult.rows as any[], expiresAt: active.expiresAt, candidates, serviceAt, wardName }));
+    } catch (err) {
+      console.error("[GET /b/:slug]", err);
+      res.status(500).json({ message: "Error interno" });
+    }
   });
 
   app.post("/b/:slug/posts", async (req, res) => {
