@@ -41,31 +41,38 @@ const PROGRAM_LABELS: Record<string, string> = {
   // Current DB types
   preside:                 "Preside",
   dirige:                  "Dirige",
-  dirige_musica:           "Dirige la música",
-  acompanamiento_piano:    "Piano",
-  primer_himno:            "Primer himno",
-  oracion_apertura:        "Oración de apertura",
+  dirige_musica:           "Dirección de la música",
+  acompanamiento_piano:    "Acomp. Piano",
+  primer_himno:            "Himno inicial",
+  oracion_apertura:        "Oración",
   primer_mensaje:          "Primer mensaje",
   numero_especial:         "Número especial",
   segundo_mensaje:         "Segundo mensaje",
-  ultimo_himno:            "Último himno",
+  ultimo_himno:            "Himno final",
   ultima_oracion:          "Oración de cierre",
-  ordenanza_bautismo:      "Ordenanza del bautismo",
-  ordenanza_confirmacion:  "Ordenanza de la confirmación",
+  ordenanza_bautismo:      "Oficia el bautismo",
+  ordenanza_confirmacion:  "Oficia la confirmación",
+  testigos:                "Testigos",
+  interludio:              "Interludio",
   // Legacy keys
   oracion_cierre:          "Oración de cierre",
-  himno_apertura:          "Himno de apertura",
-  himno_cierre:            "Himno de cierre",
+  himno_apertura:          "Himno inicial",
+  himno_cierre:            "Himno final",
   discurso:                "Discurso",
-  bautismo:                "Bautismo",
-  confirmacion:            "Confirmación",
-  musica_especial:         "Música especial",
+  bautismo:                "Oficia el bautismo",
+  confirmacion:            "Oficia la confirmación",
+  musica_especial:         "Número especial",
   presentacion:            "Presentación",
   himno:                   "Himno",
   otro:                    "Otro",
 };
 
-const ORDINANCE_TYPES = new Set(["ordenanza_bautismo", "ordenanza_confirmacion", "bautismo", "confirmacion"]);
+// Types that belong inside the "Realización de la ordenanza" section
+const ORDINANCE_TYPES = new Set([
+  "ordenanza_bautismo", "ordenanza_confirmacion",
+  "bautismo", "confirmacion",
+  "testigos", "interludio",
+]);
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -125,13 +132,32 @@ function BotanicalCorner({
   );
 }
 
-function DividerLeaf() {
+function OrdinanceOpenDivider() {
   return (
-    <svg width="120" height="20" viewBox="0 0 120 20" fill="none">
-      <line x1="0" y1="10" x2="46" y2="10" stroke={C.gold} strokeWidth="0.8" strokeOpacity="0.5" />
-      <path d="M50,10 Q55,4 60,10 Q65,16 70,10Z" fill={C.sage} fillOpacity="0.5" />
-      <line x1="74" y1="10" x2="120" y2="10" stroke={C.gold} strokeWidth="0.8" strokeOpacity="0.5" />
-    </svg>
+    <div className="flex items-center gap-2 my-5">
+      <div className="flex-1 border-t" style={{ borderColor: C.inkLight, opacity: 0.25 }} />
+      <span
+        className="shrink-0 text-center"
+        style={{
+          fontFamily: "'Cinzel', serif",
+          fontSize: "0.55rem",
+          letterSpacing: "0.18em",
+          color: C.teal,
+          textTransform: "uppercase",
+        }}
+      >
+        Realización de la ordenanza
+      </span>
+      <div className="flex-1 border-t" style={{ borderColor: C.inkLight, opacity: 0.25 }} />
+    </div>
+  );
+}
+
+function OrdinanceCloseDivider() {
+  return (
+    <div className="my-5">
+      <div className="border-t" style={{ borderColor: C.inkLight, opacity: 0.2 }} />
+    </div>
   );
 }
 
@@ -268,39 +294,41 @@ function ProgramPage({ data }: { data: ServiceData }) {
   const firstOrdIdx = items.findIndex((i) => ORDINANCE_TYPES.has(i.type));
   const lastOrdIdx = [...items].map((i, idx) => ORDINANCE_TYPES.has(i.type) ? idx : -1).filter((x) => x >= 0).at(-1) ?? -1;
 
+  // Format "a 06 de enero de 2024"
+  const dateStr = dateParts
+    ? `a ${parseInt(dateParts.day, 10)} de ${dateParts.month.toLowerCase()} de ${dateParts.year}`
+    : null;
+
   function renderItem(item: ProgramItem, idx: number) {
     const label = PROGRAM_LABELS[item.type] ?? item.type;
     const isOrd = ORDINANCE_TYPES.has(item.type);
 
     return (
       <div key={idx}>
-        {/* Divider before first ordinance */}
-        {idx === firstOrdIdx && firstOrdIdx > 0 && (
-          <div className="flex justify-center my-4">
-            <DividerLeaf />
-          </div>
-        )}
+        {/* Opening ordinance divider */}
+        {idx === firstOrdIdx && firstOrdIdx > 0 && <OrdinanceOpenDivider />}
 
         <div className="flex items-baseline gap-2 py-1.5">
           <span
-            className="shrink-0 text-xs uppercase tracking-[0.12em] font-semibold"
-            style={{ color: isOrd ? C.teal : C.inkLight, fontFamily: "'Cinzel', serif", minWidth: "0" }}
+            className="shrink-0 uppercase font-semibold"
+            style={{
+              color: isOrd ? C.teal : C.inkLight,
+              fontFamily: "'Cinzel', serif",
+              fontSize: "0.65rem",
+              letterSpacing: "0.1em",
+            }}
           >
             {label}:
           </span>
           <span className="text-sm" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
             {item.hymn
-              ? `Himno #${item.hymn.number}${item.hymn.title ? ` · ${item.hymn.title}` : ""}`
+              ? `#${item.hymn.number}${item.hymn.title ? `, ${item.hymn.title}` : ""}`
               : (item.title || "—")}
           </span>
         </div>
 
-        {/* Thin separator between items (not at the last ordinance boundary) */}
-        {idx === lastOrdIdx && lastOrdIdx < items.length - 1 && (
-          <div className="flex justify-center my-4">
-            <DividerLeaf />
-          </div>
-        )}
+        {/* Closing ordinance divider */}
+        {idx === lastOrdIdx && lastOrdIdx < items.length - 1 && <OrdinanceCloseDivider />}
       </div>
     );
   }
@@ -312,27 +340,23 @@ function ProgramPage({ data }: { data: ServiceData }) {
     >
       {/* Header */}
       <div
-        className="px-6 pt-10 pb-6 text-center border-b"
+        className="px-6 pt-10 pb-5 text-center border-b"
         style={{ borderColor: C.creamDark }}
       >
         <p
-          className="text-xs tracking-[0.22em] uppercase font-semibold"
-          style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
+          className="uppercase font-semibold"
+          style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em" }}
         >
           Programa de Servicio Bautismal
         </p>
-        {names.length > 0 && (
-          <p
-            className="mt-2 text-lg italic"
-            style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}
-          >
-            {joinNames(names)}
+        {names.length > 0 && dateStr && (
+          <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
+            De {joinNames(names)}, realizado en {data.wardName ?? "la congregación"}, {dateStr}
           </p>
         )}
-        {dateParts && (
-          <p className="text-xs mt-1" style={{ color: C.inkLight }}>
-            {dateParts.day} de {dateParts.month.toLowerCase().replace(/^\w/, (c) => c.toUpperCase())} de {dateParts.year}
-            {data.wardName ? ` · ${data.wardName}` : ""}
+        {data.wardName && (
+          <p className="mt-0.5 text-xs" style={{ color: C.inkLight }}>
+            {data.wardName}
           </p>
         )}
       </div>
