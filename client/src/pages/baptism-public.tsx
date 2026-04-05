@@ -435,13 +435,13 @@ function ProgramPage({ data }: { data: ServiceData }) {
             style={{
               color: isOrd ? C.teal : C.inkLight,
               fontFamily: "'Cinzel', serif",
-              fontSize: "0.75rem",
+              fontSize: "0.65rem",
               letterSpacing: "0.1em",
             }}
           >
             {label}:
           </span>
-          <span className="text-base" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
+          <span className="text-sm" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
             {item.hymn
               ? `#${item.hymn.number}${item.hymn.title ? `, ${item.hymn.title}` : ""}`
               : (item.title || "—")}
@@ -466,17 +466,17 @@ function ProgramPage({ data }: { data: ServiceData }) {
       >
         <p
           className="uppercase font-semibold"
-          style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.78rem", letterSpacing: "0.2em" }}
+          style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em" }}
         >
           Programa de Servicio Bautismal
         </p>
         {names.length > 0 && dateStr && (
-          <p className="mt-1.5 text-sm italic" style={{ color: C.inkLight }}>
+          <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
             De {joinNames(names)}, realizado en {data.wardName ?? "la congregación"}, {dateStr}
           </p>
         )}
         {data.wardName && (
-          <p className="mt-0.5 text-sm" style={{ color: C.inkLight }}>
+          <p className="mt-0.5 text-xs" style={{ color: C.inkLight }}>
             {data.wardName}
           </p>
         )}
