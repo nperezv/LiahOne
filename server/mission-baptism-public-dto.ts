@@ -31,8 +31,6 @@ export function formatMadrid(date: Date) {
 
 export type PublicCandidate = {
   nombre: string;
-  sexo: string | null;
-  fechaNacimiento: string | null;
 };
 
 export function toPublicServiceDTO(input: {
@@ -67,8 +65,6 @@ export function toPublicServiceDTO(input: {
     })),
     candidates: (input.candidates ?? []).map((c) => ({
       nombre: c.nombre,
-      sexo: c.sexo,
-      fechaNacimiento: c.fechaNacimiento,
     })),
     serviceAt: input.serviceAt ? input.serviceAt.toISOString() : null,
     wardName: input.wardName ?? null,

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ const C = {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Candidate = { nombre: string; sexo: string | null; fechaNacimiento: string | null };
+type Candidate = { nombre: string };
 type ProgramItem = {
   type: string; title: string | null; order: number;
   hymn: { number: number | null; title: string | null; externalUrl: string | null } | null;
@@ -487,7 +487,7 @@ function GreetingsPage({
 
   const post = useMutation({
     mutationFn: async () => {
-      const endpoint = isCatalog ? `/api/bautismo/${slug}/posts` : `/api/b/${slug}/posts`;
+      const endpoint = `/api/bautismo/${slug}/posts`;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -746,12 +746,20 @@ function UnavailableScreen({ title, body }: { title: string; body: string }) {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function BaptismPublicPage() {
-  const [matchB, paramsB] = useRoute("/b/:slug");
+  // Prevent search engines from indexing public baptism program pages
+  useEffect(() => {
+    const meta = document.createElement("meta");
+    meta.name = "robots";
+    meta.content = "noindex, nofollow";
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
+
   const [, paramsBautismo] = useRoute("/bautismo/:slug");
-  const isCatalog = !matchB;
-  const slug = paramsB?.slug || paramsBautismo?.slug || "";
-  const code = isCatalog ? "" : (new URLSearchParams(window.location.search).get("c") || "");
-  const queryKey = isCatalog ? `/api/bautismo/${slug}` : `/api/b/${slug}?c=${code}`;
+  const slug = paramsBautismo?.slug || "";
+  const isCatalog = true;
+  const code = "";
+  const queryKey = `/api/bautismo/${slug}`;
 
   const { data, isError, isLoading } = useQuery<ServiceData>({
     queryKey: [queryKey],
