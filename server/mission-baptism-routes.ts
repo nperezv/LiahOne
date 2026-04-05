@@ -1964,8 +1964,21 @@ export function registerMissionBaptismRoutes(
         .limit(1);
       if (!service) return res.status(404).json({ error: "Service not found" });
 
+      const HYMN_ITEM_TYPES = new Set(["primer_himno", "ultimo_himno"]);
+
       for (let i = 0; i < items.length; i++) {
-        const { type, participantDisplayName, hymnId } = items[i];
+        const { type, participantDisplayName, hymnId: clientHymnId } = items[i];
+
+        // Resolve hymn_id: use client-provided value, or derive from display name (e.g. "49 - Señor, te necesito")
+        let hymnId: string | null = clientHymnId ?? null;
+        if (!hymnId && HYMN_ITEM_TYPES.has(type) && participantDisplayName) {
+          const num = parseInt(participantDisplayName.split(" - ")[0], 10);
+          if (!isNaN(num)) {
+            const [found] = await db.select({ id: hymns.id }).from(hymns).where(eq(hymns.number, num)).limit(1);
+            hymnId = found?.id ?? null;
+          }
+        }
+
         await db.execute(sql`
           INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, hymn_id, updated_by, updated_at)
           VALUES (${req.params.id}, ${type}, ${i}, ${participantDisplayName ?? null}, ${hymnId ?? null}, ${user.id}, NOW())
