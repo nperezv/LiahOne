@@ -324,7 +324,7 @@ function GreetingsPage({
 
   const post = useMutation({
     mutationFn: async () => {
-      const endpoint = isCatalog ? `/bautismo/${slug}/posts` : `/b/${slug}/posts`;
+      const endpoint = isCatalog ? `/api/bautismo/${slug}/posts` : `/api/b/${slug}/posts`;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -527,7 +527,7 @@ export default function BaptismPublicPage() {
   const isCatalog = !matchB;
   const slug = paramsB?.slug || paramsBautismo?.slug || "";
   const code = isCatalog ? "" : (new URLSearchParams(window.location.search).get("c") || "");
-  const queryKey = isCatalog ? `/bautismo/${slug}` : `/b/${slug}?c=${code}`;
+  const queryKey = isCatalog ? `/api/bautismo/${slug}` : `/api/b/${slug}?c=${code}`;
 
   const { data, isError, isLoading } = useQuery<ServiceData>({
     queryKey: [queryKey],

@@ -55,7 +55,7 @@ const publicPostSchema = z.object({
 // ── Route registration ────────────────────────────────────────────────────────
 
 export function registerBaptismPublicRoutes(app: Express) {
-  app.get("/bautismo/:slug", async (req, res) => {
+  app.get("/api/bautismo/:slug", async (req, res) => {
     try {
     const linkResult = await db.execute(sql`
       SELECT id, service_id, expires_at FROM baptism_public_links
@@ -109,7 +109,7 @@ export function registerBaptismPublicRoutes(app: Express) {
     }
   });
 
-  app.get("/b/:slug", async (req, res) => {
+  app.get("/api/b/:slug", async (req, res) => {
     try {
     const code = String(req.query.c || "");
     const active = await getActivePublicLink(req.params.slug, code);
@@ -148,7 +148,7 @@ export function registerBaptismPublicRoutes(app: Express) {
     }
   });
 
-  app.post("/b/:slug/posts", async (req, res) => {
+  app.post("/api/b/:slug/posts", async (req, res) => {
     const parsed = publicPostSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid payload" });
     if (parsed.data.company?.trim()) return res.status(400).json({ error: "Bot detected" });
@@ -178,7 +178,7 @@ export function registerBaptismPublicRoutes(app: Express) {
     res.status(201).json(row.rows[0]);
   });
 
-  app.post("/bautismo/:slug/posts", async (req, res) => {
+  app.post("/api/bautismo/:slug/posts", async (req, res) => {
     const parsed = publicPostSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid payload" });
     if (parsed.data.company?.trim()) return res.status(400).json({ error: "Bot detected" });
