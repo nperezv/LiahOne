@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Music, ChevronLeft, ChevronRight, Heart, Send } from "lucide-react";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Palette ───────────────────────────────────────────────────────────────────
+
+const C = {
+  cream:     "#f7f4ed",
+  creamDark: "#ede9df",
+  teal:      "#4a7c7e",
+  tealDark:  "#2d5e60",
+  tealLight: "#6a9c9e",
+  sage:      "#7a9e8c",
+  sageMid:   "#5a8270",
+  ink:       "#2c3e35",
+  inkLight:  "#5a6e65",
+  gold:      "#b8955a",
+};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Candidate = { nombre: string; sexo: string | null; fechaNacimiento: string | null };
 type ProgramItem = {
@@ -20,109 +35,48 @@ type ServiceData = {
   unavailable?: "not_approved" | "outside_window" | "pending_logistics";
 };
 
-// ── Theme engine ─────────────────────────────────────────────────────────────
+// ── Program labels ────────────────────────────────────────────────────────────
 
-type ThemeKey = "nino" | "nina" | "joven_varon" | "joven_mujer" | "adulto" | "adulta";
-
-function calcAge(fn: string | null): number | null {
-  if (!fn) return null;
-  const b = new Date(fn.split(/[T ]/)[0] + "T12:00:00");
-  if (isNaN(b.getTime())) return null;
-  const t = new Date();
-  let a = t.getFullYear() - b.getFullYear();
-  const m = t.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a--;
-  return a;
-}
-
-function detectTheme(candidates: Candidate[]): ThemeKey {
-  const c = candidates[0];
-  if (!c) return "adulto";
-  const age = calcAge(c.fechaNacimiento);
-  const f = c.sexo === "F";
-  if (age !== null && age < 12) return f ? "nina" : "nino";
-  if (age !== null && age < 18) return f ? "joven_mujer" : "joven_varon";
-  return f ? "adulta" : "adulto";
-}
-
-const THEMES: Record<ThemeKey, {
-  coverFrom: string; coverTo: string; pageBg: string;
-  accent: string; accentText: string; dotActive: string;
-  titleFont: string; label: string;
-}> = {
-  nino: {
-    coverFrom: "#38bdf8", coverTo: "#0ea5e9",
-    pageBg: "linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%)",
-    accent: "#0284c7", accentText: "#fff", dotActive: "#0284c7",
-    titleFont: "'Outfit', sans-serif", label: "Mi Bautismo",
-  },
-  nina: {
-    coverFrom: "#f472b6", coverTo: "#ec4899",
-    pageBg: "linear-gradient(135deg,#fce7f3 0%,#fbcfe8 100%)",
-    accent: "#db2777", accentText: "#fff", dotActive: "#db2777",
-    titleFont: "'Outfit', sans-serif", label: "Mi Bautismo",
-  },
-  joven_varon: {
-    coverFrom: "#14b8a6", coverTo: "#059669",
-    pageBg: "linear-gradient(135deg,#f0fdf4 0%,#ccfbf1 100%)",
-    accent: "#0d9488", accentText: "#fff", dotActive: "#0d9488",
-    titleFont: "'Outfit', sans-serif", label: "Mi Bautismo",
-  },
-  joven_mujer: {
-    coverFrom: "#a78bfa", coverTo: "#7c3aed",
-    pageBg: "linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%)",
-    accent: "#7c3aed", accentText: "#fff", dotActive: "#7c3aed",
-    titleFont: "'Outfit', sans-serif", label: "Mi Bautismo",
-  },
-  adulto: {
-    coverFrom: "#475569", coverTo: "#1e3a5f",
-    pageBg: "linear-gradient(135deg,#f1f5f9 0%,#dbeafe 100%)",
-    accent: "#1e40af", accentText: "#fff", dotActive: "#1e40af",
-    titleFont: "'Outfit', sans-serif", label: "Mi Bautismo",
-  },
-  adulta: {
-    coverFrom: "#a855f7", coverTo: "#be185d",
-    pageBg: "linear-gradient(135deg,#fdf4ff 0%,#fce7f3 100%)",
-    accent: "#9333ea", accentText: "#fff", dotActive: "#9333ea",
-    titleFont: "'Outfit', sans-serif", label: "Mi Bautismo",
-  },
+const PROGRAM_LABELS: Record<string, string> = {
+  // Current DB types
+  preside:                 "Preside",
+  dirige:                  "Dirige",
+  dirige_musica:           "Dirige la música",
+  acompanamiento_piano:    "Piano",
+  primer_himno:            "Primer himno",
+  oracion_apertura:        "Oración de apertura",
+  primer_mensaje:          "Primer mensaje",
+  numero_especial:         "Número especial",
+  segundo_mensaje:         "Segundo mensaje",
+  ultimo_himno:            "Último himno",
+  ultima_oracion:          "Oración de cierre",
+  ordenanza_bautismo:      "Ordenanza del bautismo",
+  ordenanza_confirmacion:  "Ordenanza de la confirmación",
+  // Legacy keys
+  oracion_cierre:          "Oración de cierre",
+  himno_apertura:          "Himno de apertura",
+  himno_cierre:            "Himno de cierre",
+  discurso:                "Discurso",
+  bautismo:                "Bautismo",
+  confirmacion:            "Confirmación",
+  musica_especial:         "Música especial",
+  presentacion:            "Presentación",
+  himno:                   "Himno",
+  otro:                    "Otro",
 };
 
-// ── SVG illustrations ─────────────────────────────────────────────────────────
+const ORDINANCE_TYPES = new Set(["ordenanza_bautismo", "ordenanza_confirmacion", "bautismo", "confirmacion"]);
 
-function DoveIllustration({ color = "#fff", size = 80 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
-      <ellipse cx="40" cy="42" rx="22" ry="14" fill={color} fillOpacity="0.18" />
-      <path d="M40 18 C28 18 18 28 18 40 C18 52 28 62 40 62 C52 62 62 52 62 40 C62 28 52 18 40 18Z" fill={color} fillOpacity="0.08" />
-      <path d="M38 38 C30 32 20 34 16 40 C14 44 18 50 24 48 L38 42Z" fill={color} fillOpacity="0.7" />
-      <path d="M38 38 L54 26 C58 22 64 24 62 30 C60 34 54 36 48 36 L38 42Z" fill={color} fillOpacity="0.9" />
-      <path d="M38 42 L34 52 C32 56 36 60 40 58 C44 56 44 50 42 46Z" fill={color} fillOpacity="0.75" />
-      <circle cx="56" cy="27" r="2" fill={color} fillOpacity="0.5" />
-      <path d="M20 36 L14 32" stroke={color} strokeWidth="1.5" strokeOpacity="0.5" strokeLinecap="round" />
-    </svg>
-  );
-}
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
-function WaveDecoration({ color = "#fff" }: { color?: string }) {
-  return (
-    <svg viewBox="0 0 400 60" width="100%" preserveAspectRatio="none" style={{ display: "block" }}>
-      <path d="M0,30 C60,50 120,10 180,30 C240,50 300,10 360,30 C380,36 392,40 400,38 L400,60 L0,60Z"
-        fill={color} fillOpacity="0.15" />
-      <path d="M0,40 C80,20 160,55 240,35 C300,20 360,45 400,30 L400,60 L0,60Z"
-        fill={color} fillOpacity="0.1" />
-    </svg>
-  );
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatDateEs(iso: string | null): string {
-  if (!iso) return "";
+function parseDateParts(iso: string | null): { month: string; day: string; year: string } | null {
+  if (!iso) return null;
   const d = new Date(iso);
-  return new Intl.DateTimeFormat("es-ES", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-  }).format(d);
+  if (isNaN(d.getTime())) return null;
+  const month = new Intl.DateTimeFormat("es-ES", { month: "long", timeZone: "UTC" }).format(d).toUpperCase();
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const year = String(d.getUTCFullYear());
+  return { month, day, year };
 }
 
 function joinNames(names: string[]): string {
@@ -132,191 +86,342 @@ function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
 }
 
-const PROGRAM_LABELS: Record<string, string> = {
-  oracion_apertura: "Oración de apertura",
-  oracion_cierre: "Oración de cierre",
-  himno_apertura: "Himno de apertura",
-  himno_cierre: "Himno de cierre",
-  discurso: "Discurso",
-  bautismo: "Bautismo",
-  confirmacion: "Confirmación",
-  musica_especial: "Música especial",
-  presentacion: "Presentación",
-  himno: "Himno",
-  otro: "Otro",
-};
+// ── SVG decorations ───────────────────────────────────────────────────────────
 
-// ── Page components ───────────────────────────────────────────────────────────
+function BotanicalCorner({
+  pos = "tl", size = 140, opacity = 1,
+}: { pos?: "tl" | "tr" | "bl" | "br"; size?: number; opacity?: number }) {
+  const sx = pos === "tr" || pos === "br" ? -1 : 1;
+  const sy = pos === "bl" || pos === "br" ? -1 : 1;
 
-function CoverPage({ data, theme }: { data: ServiceData; theme: ReturnType<typeof detectTheme> }) {
-  const t = THEMES[theme];
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 140 140" fill="none"
+      style={{ opacity, transform: `scale(${sx},${sy})`, transformOrigin: "center" }}
+    >
+      {/* main stem */}
+      <path d="M8,132 Q38,90 78,52 Q95,34 115,18" stroke={C.sageMid} strokeWidth="1.2" strokeOpacity="0.55" fill="none" />
+      {/* secondary stem */}
+      <path d="M8,132 Q28,100 55,85" stroke={C.sageMid} strokeWidth="0.9" strokeOpacity="0.4" fill="none" />
+      {/* leaf 1 big */}
+      <path d="M18,118 Q42,95 55,105 Q36,88 18,118Z" fill={C.sage} fillOpacity="0.30" />
+      {/* leaf 2 */}
+      <path d="M35,100 Q58,78 68,90 Q52,73 35,100Z" fill={C.sageMid} fillOpacity="0.28" />
+      {/* leaf 3 */}
+      <path d="M54,80 Q75,60 84,72 Q70,56 54,80Z" fill={C.sage} fillOpacity="0.32" />
+      {/* leaf 4 */}
+      <path d="M72,60 Q90,42 98,54 Q86,39 72,60Z" fill={C.sageMid} fillOpacity="0.27" />
+      {/* leaf 5 small top */}
+      <path d="M90,42 Q104,28 110,38 Q100,25 90,42Z" fill={C.sage} fillOpacity="0.22" />
+      {/* side sprig 1 */}
+      <path d="M38,98 Q48,82 60,84 Q46,76 38,98Z" fill={C.teal} fillOpacity="0.14" />
+      {/* side sprig 2 */}
+      <path d="M22,112 Q32,95 48,100 Q34,90 22,112Z" fill={C.teal} fillOpacity="0.12" />
+      {/* berry dots */}
+      <circle cx="60" cy="112" r="2.5" fill={C.sage} fillOpacity="0.35" />
+      <circle cx="68" cy="118" r="1.8" fill={C.sage} fillOpacity="0.28" />
+      <circle cx="55" cy="120" r="1.5" fill={C.sageMid} fillOpacity="0.3" />
+    </svg>
+  );
+}
+
+function DividerLeaf() {
+  return (
+    <svg width="120" height="20" viewBox="0 0 120 20" fill="none">
+      <line x1="0" y1="10" x2="46" y2="10" stroke={C.gold} strokeWidth="0.8" strokeOpacity="0.5" />
+      <path d="M50,10 Q55,4 60,10 Q65,16 70,10Z" fill={C.sage} fillOpacity="0.5" />
+      <line x1="74" y1="10" x2="120" y2="10" stroke={C.gold} strokeWidth="0.8" strokeOpacity="0.5" />
+    </svg>
+  );
+}
+
+function WatermarkCross() {
+  return (
+    <svg width="80" height="96" viewBox="0 0 80 96" fill="none" style={{ opacity: 0.08 }}>
+      <rect x="33" y="0" width="14" height="96" rx="7" fill={C.tealDark} />
+      <rect x="0" y="22" width="80" height="14" rx="7" fill={C.tealDark} />
+    </svg>
+  );
+}
+
+// ── Cover page ────────────────────────────────────────────────────────────────
+
+function CoverPage({ data }: { data: ServiceData }) {
   const names = data.candidates.map((c) => c.nombre);
-  const dateStr = formatDateEs(data.serviceAt);
+  const dateParts = parseDateParts(data.serviceAt);
 
   return (
     <div
-      className="relative flex flex-col items-center justify-between overflow-hidden select-none"
+      className="relative flex flex-col items-center overflow-hidden select-none"
       style={{
         minHeight: "100dvh",
-        background: `linear-gradient(160deg, ${t.coverFrom} 0%, ${t.coverTo} 100%)`,
-        fontFamily: t.titleFont,
+        background: C.cream,
+        fontFamily: "'EB Garamond', Georgia, serif",
       }}
     >
-      {/* Top decoration */}
-      <div className="w-full pt-12 flex flex-col items-center gap-2 z-10 px-6">
-        <div className="text-white/60 text-xs tracking-[0.2em] uppercase font-medium">
-          {data.wardName ?? ""}
-        </div>
-        <DoveIllustration color="#fff" size={72} />
-        <div className="text-white/80 text-sm tracking-[0.15em] uppercase font-medium mt-1">
-          {t.label}
-        </div>
+      {/* Top botanical corners */}
+      <div className="absolute top-0 left-0 pointer-events-none">
+        <BotanicalCorner pos="tl" size={150} opacity={0.85} />
+      </div>
+      <div className="absolute top-0 right-0 pointer-events-none">
+        <BotanicalCorner pos="tr" size={150} opacity={0.85} />
       </div>
 
-      {/* Center — names */}
-      <div className="flex flex-col items-center gap-3 px-8 z-10 text-center">
+      {/* Ward name at very top */}
+      <div className="relative z-10 mt-8 px-6 text-center">
+        <p
+          className="tracking-[0.22em] uppercase text-xs font-medium"
+          style={{ color: C.teal, fontFamily: "'Cinzel', Georgia, serif" }}
+        >
+          {data.wardName ?? "\u00a0"}
+        </p>
+      </div>
+
+      {/* Cross watermark + main title block */}
+      <div className="relative z-10 flex flex-col items-center mt-8 px-6 gap-3">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <WatermarkCross />
+        </div>
         <h1
-          className="text-white font-bold leading-tight"
-          style={{ fontSize: names.length === 1 && names[0].length < 14 ? "2.4rem" : "1.8rem" }}
+          className="relative text-center font-bold leading-none tracking-wide"
+          style={{
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: "clamp(2rem, 8vw, 2.8rem)",
+            color: C.tealDark,
+            letterSpacing: "0.06em",
+          }}
+        >
+          Mi Bautismo
+        </h1>
+
+        {/* Thin gold rule */}
+        <div className="w-24 border-t" style={{ borderColor: C.gold, opacity: 0.6 }} />
+      </div>
+
+      {/* Candidate name(s) */}
+      <div className="relative z-10 flex flex-col items-center mt-6 px-8 text-center gap-1">
+        <p
+          style={{
+            fontFamily: "'Dancing Script', cursive",
+            fontSize: "clamp(1.5rem, 6vw, 2.1rem)",
+            color: C.ink,
+            lineHeight: 1.3,
+          }}
         >
           {joinNames(names) || "Programa bautismal"}
-        </h1>
-        {dateStr && (
-          <p className="text-white/80 text-sm capitalize">{dateStr}</p>
+        </p>
+      </div>
+
+      {/* Date */}
+      {dateParts && (
+        <div className="relative z-10 flex items-center gap-3 mt-6">
+          <span
+            className="text-xs tracking-[0.18em] uppercase"
+            style={{ color: C.inkLight, fontFamily: "'Cinzel', Georgia, serif" }}
+          >
+            {dateParts.month}
+          </span>
+          <span className="text-lg font-semibold" style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}>
+            {dateParts.day}
+          </span>
+          <span
+            className="text-xs tracking-[0.18em]"
+            style={{ color: C.inkLight, fontFamily: "'Cinzel', Georgia, serif" }}
+          >
+            {dateParts.year}
+          </span>
+        </div>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Bottom botanical corners */}
+      <div className="absolute bottom-0 left-0 pointer-events-none">
+        <BotanicalCorner pos="bl" size={150} opacity={0.75} />
+      </div>
+      <div className="absolute bottom-0 right-0 pointer-events-none">
+        <BotanicalCorner pos="br" size={150} opacity={0.75} />
+      </div>
+
+      {/* Tap hint */}
+      <div
+        className="relative z-10 mb-8 flex flex-col items-center gap-1"
+      >
+        <p className="text-xs tracking-[0.15em] uppercase" style={{ color: C.tealLight }}>
+          Toca para abrir
+        </p>
+        <ChevronRight size={16} style={{ color: C.tealLight }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Program page ──────────────────────────────────────────────────────────────
+
+function ProgramPage({ data }: { data: ServiceData }) {
+  const items = [...data.program].sort((a, b) => a.order - b.order);
+  const names = data.candidates.map((c) => c.nombre);
+  const dateParts = parseDateParts(data.serviceAt);
+
+  // Split: pre-ordinance | ordinance | post-ordinance
+  const firstOrdIdx = items.findIndex((i) => ORDINANCE_TYPES.has(i.type));
+  const lastOrdIdx = [...items].map((i, idx) => ORDINANCE_TYPES.has(i.type) ? idx : -1).filter((x) => x >= 0).at(-1) ?? -1;
+
+  function renderItem(item: ProgramItem, idx: number) {
+    const label = PROGRAM_LABELS[item.type] ?? item.type;
+    const isOrd = ORDINANCE_TYPES.has(item.type);
+
+    return (
+      <div key={idx}>
+        {/* Divider before first ordinance */}
+        {idx === firstOrdIdx && firstOrdIdx > 0 && (
+          <div className="flex justify-center my-4">
+            <DividerLeaf />
+          </div>
         )}
-      </div>
 
-      {/* Bottom wave + hint */}
-      <div className="w-full z-10">
-        <WaveDecoration color="#fff" />
-        <div
-          className="pb-8 pt-2 flex flex-col items-center gap-1"
-          style={{ background: "rgba(255,255,255,0.12)" }}
-        >
-          <div className="text-white/70 text-xs tracking-widest uppercase">Toca para abrir</div>
-          <ChevronRight className="text-white/60" size={18} />
+        <div className="flex items-baseline gap-2 py-1.5">
+          <span
+            className="shrink-0 text-xs uppercase tracking-[0.12em] font-semibold"
+            style={{ color: isOrd ? C.teal : C.inkLight, fontFamily: "'Cinzel', serif", minWidth: "0" }}
+          >
+            {label}:
+          </span>
+          <span className="text-sm" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
+            {item.hymn
+              ? `Himno #${item.hymn.number}${item.hymn.title ? ` · ${item.hymn.title}` : ""}`
+              : (item.title || "—")}
+          </span>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function ProgramPage({ data, theme }: { data: ServiceData; theme: ThemeKey }) {
-  const t = THEMES[theme];
-  const items = data.program;
-
-  return (
-    <div
-      className="min-h-screen overflow-y-auto px-5 py-8"
-      style={{ background: t.pageBg, fontFamily: t.titleFont }}
-    >
-      <div className="max-w-sm mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-1 h-6 rounded-full" style={{ background: t.accent }} />
-          <h2 className="font-bold text-lg text-gray-800">Programa</h2>
-        </div>
-        <div className="space-y-3">
-          {items.map((item, i) => (
-            <div
-              key={i}
-              className="bg-white/80 rounded-2xl px-4 py-3 shadow-sm flex items-start gap-3"
-            >
-              {item.hymn ? (
-                <Music size={16} className="mt-0.5 shrink-0" style={{ color: t.accent }} />
-              ) : (
-                <div
-                  className="w-4 h-4 rounded-full mt-0.5 shrink-0"
-                  style={{ background: t.accent, opacity: 0.3 }}
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 uppercase tracking-wide leading-none mb-0.5">
-                  {PROGRAM_LABELS[item.type] ?? item.type}
-                </p>
-                <p className="text-sm font-medium text-gray-800 truncate">
-                  {item.title || "—"}
-                </p>
-                {item.hymn && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Himno #{item.hymn.number}{item.hymn.title ? ` · ${item.hymn.title}` : ""}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-          {items.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-8">El programa no está disponible aún.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HymnsPage({ data, theme }: { data: ServiceData; theme: ThemeKey }) {
-  const t = THEMES[theme];
-  const hymnItems = data.program.filter((i) => i.hymn);
-
-  return (
-    <div
-      className="min-h-screen overflow-y-auto px-5 py-8"
-      style={{ background: t.pageBg, fontFamily: t.titleFont }}
-    >
-      <div className="max-w-sm mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-1 h-6 rounded-full" style={{ background: t.accent }} />
-          <h2 className="font-bold text-lg text-gray-800">Himnos</h2>
-        </div>
-        {hymnItems.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">No hay himnos en el programa.</p>
-        ) : (
-          <div className="space-y-4">
-            {hymnItems.map((item, i) => (
-              <div key={i} className="bg-white/80 rounded-2xl px-4 py-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-                      {PROGRAM_LABELS[item.type] ?? item.type}
-                    </p>
-                    <p className="font-semibold text-gray-800">
-                      #{item.hymn!.number}{item.hymn!.title ? ` · ${item.hymn!.title}` : ""}
-                    </p>
-                    {item.title && item.title !== item.hymn!.title && (
-                      <p className="text-xs text-gray-500 mt-0.5">{item.title}</p>
-                    )}
-                  </div>
-                  {item.hymn!.externalUrl && (
-                    <a
-                      href={item.hymn!.externalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl text-white"
-                      style={{ background: t.accent }}
-                    >
-                      <Music size={13} />
-                      Abrir himno
-                      <ExternalLink size={11} />
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-            <p className="text-xs text-gray-400 text-center pt-2 leading-relaxed">
-              Los himnos enlazan a la página oficial de La Iglesia de Jesucristo de los Santos de los Últimos Días.
-            </p>
+        {/* Thin separator between items (not at the last ordinance boundary) */}
+        {idx === lastOrdIdx && lastOrdIdx < items.length - 1 && (
+          <div className="flex justify-center my-4">
+            <DividerLeaf />
           </div>
         )}
       </div>
+    );
+  }
+
+  return (
+    <div
+      className="min-h-screen overflow-y-auto pb-24"
+      style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
+    >
+      {/* Header */}
+      <div
+        className="px-6 pt-10 pb-6 text-center border-b"
+        style={{ borderColor: C.creamDark }}
+      >
+        <p
+          className="text-xs tracking-[0.22em] uppercase font-semibold"
+          style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
+        >
+          Programa de Servicio Bautismal
+        </p>
+        {names.length > 0 && (
+          <p
+            className="mt-2 text-lg italic"
+            style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}
+          >
+            {joinNames(names)}
+          </p>
+        )}
+        {dateParts && (
+          <p className="text-xs mt-1" style={{ color: C.inkLight }}>
+            {dateParts.day} de {dateParts.month.toLowerCase().replace(/^\w/, (c) => c.toUpperCase())} de {dateParts.year}
+            {data.wardName ? ` · ${data.wardName}` : ""}
+          </p>
+        )}
+      </div>
+
+      {/* Items */}
+      <div className="px-6 pt-4 max-w-sm mx-auto">
+        {items.length === 0 ? (
+          <p className="text-sm text-center py-10" style={{ color: C.inkLight }}>
+            El programa no está disponible aún.
+          </p>
+        ) : (
+          items.map((item, i) => renderItem(item, i))
+        )}
+      </div>
     </div>
   );
 }
 
+// ── Hymns page ────────────────────────────────────────────────────────────────
+
+function HymnsPage({ data }: { data: ServiceData }) {
+  const hymnItems = [...data.program]
+    .sort((a, b) => a.order - b.order)
+    .filter((i) => i.hymn);
+
+  return (
+    <div
+      className="min-h-screen overflow-y-auto pb-24"
+      style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
+    >
+      {/* Header */}
+      <div
+        className="px-6 pt-10 pb-6 text-center border-b"
+        style={{ borderColor: C.creamDark }}
+      >
+        <p
+          className="text-xs tracking-[0.22em] uppercase font-semibold"
+          style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
+        >
+          Himnos del Servicio Bautismal
+        </p>
+      </div>
+
+      <div className="px-6 pt-6 max-w-sm mx-auto space-y-5">
+        {hymnItems.length === 0 ? (
+          <p className="text-sm text-center py-10" style={{ color: C.inkLight }}>
+            No hay himnos en el programa.
+          </p>
+        ) : (
+          hymnItems.map((item, i) => (
+            <div key={i} className="border-b pb-5" style={{ borderColor: C.creamDark }}>
+              <p
+                className="text-xs tracking-[0.12em] uppercase font-semibold mb-1"
+                style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
+              >
+                {PROGRAM_LABELS[item.type] ?? item.type}
+              </p>
+              <p className="font-semibold text-base" style={{ color: C.ink }}>
+                #{item.hymn!.number}{item.hymn!.title ? ` · ${item.hymn!.title}` : ""}
+              </p>
+              {item.hymn!.externalUrl && (
+                <a
+                  href={item.hymn!.externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium px-3 py-1.5 rounded-lg"
+                  style={{ background: C.teal, color: "#fff" }}
+                >
+                  <Music size={12} />
+                  Abrir himno
+                  <ExternalLink size={10} />
+                </a>
+              )}
+            </div>
+          ))
+        )}
+        <p className="text-xs text-center pt-2 leading-relaxed" style={{ color: C.inkLight }}>
+          Los himnos enlazan a la página oficial de La Iglesia de Jesucristo.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Greetings page ────────────────────────────────────────────────────────────
+
 function GreetingsPage({
-  data, slug, code, isCatalog, theme,
-}: {
-  data: ServiceData; slug: string; code: string; isCatalog: boolean; theme: ThemeKey;
-}) {
-  const t = THEMES[theme];
+  data, slug, code, isCatalog,
+}: { data: ServiceData; slug: string; code: string; isCatalog: boolean }) {
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
 
@@ -342,62 +447,71 @@ function GreetingsPage({
 
   return (
     <div
-      className="min-h-screen overflow-y-auto px-5 py-8"
-      style={{ background: t.pageBg, fontFamily: t.titleFont }}
+      className="min-h-screen overflow-y-auto pb-24"
+      style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
-      <div className="max-w-sm mx-auto space-y-6">
-        {/* Send greeting */}
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-1 h-6 rounded-full" style={{ background: t.accent }} />
-            <h2 className="font-bold text-lg text-gray-800">Enviar felicitación</h2>
-          </div>
-          <div className="bg-white/80 rounded-2xl p-4 shadow-sm space-y-3">
-            <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Tu nombre (opcional)"
-              maxLength={40}
-              className="bg-white border-gray-200"
-            />
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Escribe un mensaje de felicitación..."
-              maxLength={240}
-              className="bg-white border-gray-200 resize-none min-h-[80px]"
-            />
-            <Button
-              onClick={() => post.mutate()}
-              disabled={!message.trim() || post.isPending}
-              className="w-full text-white"
-              style={{ background: t.accent }}
-            >
-              <Send size={14} className="mr-2" />
-              {post.isPending ? "Enviando..." : "Enviar felicitación"}
-            </Button>
-          </div>
+      {/* Header */}
+      <div
+        className="px-6 pt-10 pb-6 text-center border-b"
+        style={{ borderColor: C.creamDark }}
+      >
+        <p
+          className="text-xs tracking-[0.22em] uppercase font-semibold"
+          style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
+        >
+          Felicitaciones
+        </p>
+      </div>
+
+      <div className="px-6 pt-6 max-w-sm mx-auto space-y-6">
+        {/* Send form */}
+        <div className="space-y-3">
+          <Input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Tu nombre (opcional)"
+            maxLength={40}
+            className="border-gray-300 bg-white/70"
+          />
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Escribe un mensaje de felicitación..."
+            maxLength={240}
+            className="border-gray-300 bg-white/70 resize-none min-h-[80px]"
+          />
+          <Button
+            onClick={() => post.mutate()}
+            disabled={!message.trim() || post.isPending}
+            className="w-full text-white font-medium"
+            style={{ background: C.teal }}
+          >
+            <Send size={14} className="mr-2" />
+            {post.isPending ? "Enviando..." : "Enviar felicitación"}
+          </Button>
         </div>
 
         {/* Received greetings */}
         {data.posts.length > 0 && (
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Heart size={14} style={{ color: t.accent }} />
-              <h2 className="font-semibold text-gray-700">Felicitaciones</h2>
+            <div className="flex items-center gap-2 mb-3">
+              <Heart size={13} style={{ color: C.teal }} />
+              <p className="text-sm font-semibold" style={{ color: C.ink }}>Recibidas</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {data.posts.map((p) => (
-                <div key={p.id} className="bg-white/80 rounded-2xl p-3 shadow-sm">
-                  <p className="font-semibold text-xs text-gray-700 truncate">{p.displayName}</p>
-                  <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-4">{p.message}</p>
+                <div key={p.id} className="bg-white/60 rounded-xl p-3 border" style={{ borderColor: C.creamDark }}>
+                  {p.displayName && (
+                    <p className="font-semibold text-xs mb-1 truncate" style={{ color: C.ink }}>{p.displayName}</p>
+                  )}
+                  <p className="text-xs leading-relaxed line-clamp-4" style={{ color: C.inkLight }}>{p.message}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
         {data.posts.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-4">
+          <p className="text-sm text-center py-4" style={{ color: C.inkLight }}>
             Aún no hay felicitaciones. ¡Sé el primero!
           </p>
         )}
@@ -412,8 +526,6 @@ const PAGES = ["cover", "program", "hymns", "greetings"] as const;
 type PageId = typeof PAGES[number];
 
 function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slug: string; code: string; isCatalog: boolean }) {
-  const theme = detectTheme(data.candidates);
-  const t = THEMES[theme];
   const hasHymns = data.program.some((i) => i.hymn);
   const visiblePages: PageId[] = ["cover", "program", ...(hasHymns ? ["hymns" as PageId] : []), "greetings"];
 
@@ -426,19 +538,16 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
     if (anim) return;
     if (dir === "next" && pageIdx >= visiblePages.length - 1) return;
     if (dir === "prev" && pageIdx === 0) return;
-
-    const isForward = dir === "next";
-    setAnim(isForward ? "out" : "out-back");
-
+    const fwd = dir === "next";
+    setAnim(fwd ? "out" : "out-back");
     setTimeout(() => {
-      setDisplayIdx((i) => i + (isForward ? 1 : -1));
-      setPageIdx((i) => i + (isForward ? 1 : -1));
-      setAnim(isForward ? "in" : "in-back");
+      setDisplayIdx((i) => i + (fwd ? 1 : -1));
+      setPageIdx((i) => i + (fwd ? 1 : -1));
+      setAnim(fwd ? "in" : "in-back");
       setTimeout(() => setAnim(""), 300);
     }, 280);
   }, [anim, pageIdx, visiblePages.length]);
 
-  // Touch/swipe
   const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return;
@@ -454,6 +563,9 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
     : "";
 
   const currentPage = visiblePages[displayIdx];
+  const PAGE_LABELS: Record<PageId, string> = {
+    cover: "Portada", program: "Programa", hymns: "Himnos", greetings: "Felicitaciones",
+  };
 
   return (
     <div
@@ -468,51 +580,60 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
         className={animClass}
         style={{
           willChange: "transform, opacity",
-          boxShadow: anim ? "4px 0 24px rgba(0,0,0,0.18), -4px 0 24px rgba(0,0,0,0.10)" : undefined,
+          boxShadow: anim ? "4px 0 24px rgba(0,0,0,0.12), -4px 0 24px rgba(0,0,0,0.08)" : undefined,
         }}
         onClick={() => { if (currentPage === "cover") navigate("next"); }}
       >
-        {currentPage === "cover" && <CoverPage data={data} theme={theme} />}
-        {currentPage === "program" && <ProgramPage data={data} theme={theme} />}
-        {currentPage === "hymns" && <HymnsPage data={data} theme={theme} />}
-        {currentPage === "greetings" && <GreetingsPage data={data} slug={slug} code={code} isCatalog={isCatalog} theme={theme} />}
+        {currentPage === "cover"     && <CoverPage data={data} />}
+        {currentPage === "program"   && <ProgramPage data={data} />}
+        {currentPage === "hymns"     && <HymnsPage data={data} />}
+        {currentPage === "greetings" && <GreetingsPage data={data} slug={slug} code={code} isCatalog={isCatalog} />}
       </div>
 
-      {/* Navigation bar (all pages except cover) */}
+      {/* Navigation bar */}
       {displayIdx > 0 && (
         <div
           className="fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-50"
-          style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)", borderTop: "1px solid rgba(0,0,0,0.06)" }}
+          style={{
+            background: "rgba(247,244,237,0.92)",
+            backdropFilter: "blur(8px)",
+            borderTop: `1px solid ${C.creamDark}`,
+          }}
         >
           <button
             onClick={() => navigate("prev")}
             disabled={pageIdx === 0}
-            className="p-2 rounded-full disabled:opacity-30"
-            style={{ color: t.accent }}
+            className="p-2 rounded-full disabled:opacity-25"
+            style={{ color: C.teal }}
           >
             <ChevronLeft size={22} />
           </button>
 
-          {/* Dots */}
-          <div className="flex items-center gap-2">
-            {visiblePages.map((_, i) => (
-              <div
-                key={i}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: i === pageIdx ? 20 : 6,
-                  height: 6,
-                  background: i === pageIdx ? t.dotActive : "#d1d5db",
-                }}
-              />
-            ))}
+          {/* Page dots with label */}
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-xs" style={{ color: C.inkLight, fontFamily: "'Cinzel', serif", letterSpacing: "0.1em" }}>
+              {PAGE_LABELS[currentPage]}
+            </p>
+            <div className="flex items-center gap-1.5">
+              {visiblePages.map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-full transition-all duration-300"
+                  style={{
+                    width: i === pageIdx ? 18 : 5,
+                    height: 5,
+                    background: i === pageIdx ? C.teal : C.creamDark,
+                  }}
+                />
+              ))}
+            </div>
           </div>
 
           <button
             onClick={() => navigate("next")}
             disabled={pageIdx >= visiblePages.length - 1}
-            className="p-2 rounded-full disabled:opacity-30"
-            style={{ color: t.accent }}
+            className="p-2 rounded-full disabled:opacity-25"
+            style={{ color: C.teal }}
           >
             <ChevronRight size={22} />
           </button>
@@ -522,7 +643,49 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Loading / error states ────────────────────────────────────────────────────
+
+function LoadingScreen() {
+  return (
+    <main
+      className="flex items-center justify-center min-h-screen"
+      style={{ background: C.cream }}
+    >
+      <div className="flex flex-col items-center gap-4">
+        <BotanicalCorner pos="tl" size={80} opacity={0.5} />
+        <p className="text-sm" style={{ color: C.inkLight, fontFamily: "'EB Garamond', serif" }}>
+          Cargando programa...
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function UnavailableScreen({ title, body }: { title: string; body: string }) {
+  return (
+    <main
+      className="flex items-center justify-center min-h-screen px-8 text-center"
+      style={{ background: C.cream }}
+    >
+      <div className="flex flex-col items-center gap-4 max-w-xs">
+        <div className="opacity-30">
+          <BotanicalCorner pos="tl" size={100} />
+        </div>
+        <p
+          className="font-semibold tracking-wide"
+          style={{ color: C.tealDark, fontFamily: "'Cinzel', serif" }}
+        >
+          {title}
+        </p>
+        <p className="text-sm leading-relaxed" style={{ color: C.inkLight, fontFamily: "'EB Garamond', serif" }}>
+          {body}
+        </p>
+      </div>
+    </main>
+  );
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export default function BaptismPublicPage() {
   const [matchB, paramsB] = useRoute("/b/:slug");
@@ -537,34 +700,17 @@ export default function BaptismPublicPage() {
     enabled: isCatalog ? Boolean(slug) : Boolean(slug && code),
   });
 
-  if (isLoading) {
-    return (
-      <main className="flex items-center justify-center min-h-screen bg-gradient-to-br from-sky-50 to-indigo-50">
-        <div className="flex flex-col items-center gap-3">
-          <DoveIllustration color="#6366f1" size={48} />
-          <p className="text-sm text-gray-400">Cargando programa...</p>
-        </div>
-      </main>
-    );
-  }
+  if (isLoading) return <LoadingScreen />;
 
   if (isError || !data) {
-    return (
-      <main className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center px-6">
-          <p className="text-2xl mb-2">🕊️</p>
-          <p className="font-medium text-gray-700">Enlace caducado</p>
-          <p className="text-sm text-gray-400 mt-1">Este programa ya no está disponible.</p>
-        </div>
-      </main>
-    );
+    return <UnavailableScreen title="Enlace caducado" body="Este programa ya no está disponible." />;
   }
 
   if (data.unavailable) {
     const msgs: Record<string, { title: string; body: string }> = {
       pending_logistics: {
         title: "Preparación en curso",
-        body: "Aún está pendiente la preparación logística del servicio. El programa estará disponible en breve.",
+        body: "El programa estará disponible en breve.",
       },
       outside_window: {
         title: "Programa no disponible",
@@ -576,15 +722,7 @@ export default function BaptismPublicPage() {
       },
     };
     const msg = msgs[data.unavailable] ?? { title: "No disponible", body: "" };
-    return (
-      <main className="flex items-center justify-center min-h-screen bg-gradient-to-br from-sky-50 to-indigo-50">
-        <div className="text-center px-6 max-w-xs">
-          <DoveIllustration color="#6366f1" size={48} />
-          <p className="font-semibold text-gray-700 mt-4">{msg.title}</p>
-          <p className="text-sm text-gray-400 mt-1 leading-relaxed">{msg.body}</p>
-        </div>
-      </main>
-    );
+    return <UnavailableScreen title={msg.title} body={msg.body} />;
   }
 
   return <DiptychViewer data={data} slug={slug} code={code} isCatalog={isCatalog} />;
