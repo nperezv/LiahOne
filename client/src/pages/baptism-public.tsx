@@ -291,7 +291,7 @@ function CoverPage({ data }: { data: ServiceData }) {
       {/* Content — vertically centered */}
       <div
         className="relative flex flex-col justify-center px-7"
-        style={{ zIndex: 3, minHeight: "100dvh" }}
+        style={{ zIndex: 3, minHeight: "100dvh", paddingBottom: "8%" }}
       >
         {/* Date: ENERO | 06 | 2024 — centered */}
         {dateParts && (
@@ -315,28 +315,26 @@ function CoverPage({ data }: { data: ServiceData }) {
           </div>
         )}
 
-        {/* "Mi" — left */}
+        {/* "Mi Bautismo" — centered */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
           fontSize: "clamp(2.8rem, 14vw, 4rem)",
           fontWeight: 700, lineHeight: 0.88,
-          color: tc.titleColor, margin: 0, textAlign: "left",
+          color: tc.titleColor, margin: 0, textAlign: "center",
         }}>
           Mi
         </h1>
-
-        {/* "Bautismo" — left */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
           fontSize: "clamp(2.2rem, 11vw, 3.2rem)",
           fontWeight: 700, lineHeight: 0.92,
-          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "left",
+          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "center",
         }}>
           Bautismo
         </h1>
 
-        {/* Names — centered, one per line */}
-        <div className="flex flex-col items-center">
+        {/* Names — left-aligned */}
+        <div className="flex flex-col items-start">
           {names.length > 0 ? names.map((name, i) => (
             <p key={i} style={{
               fontFamily: "'Dancing Script', cursive",
