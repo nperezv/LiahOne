@@ -2536,13 +2536,13 @@ export function registerMissionBaptismRoutes(
       sexo: r.sexo as string | null,
       fechaNacimiento: r.fechaNacimiento as string | null,
     }));
-    const serviceAt = (svcResult.rows[0] as any)?.service_at
+    const serviceAtDto = (svcResult.rows[0] as any)?.service_at
       ? new Date((svcResult.rows[0] as any).service_at)
       : null;
     const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
 
     res.json(
-      toPublicServiceDTO({ items, approvedPosts, expiresAt: link.expiresAt, candidates, serviceAt, wardName }),
+      toPublicServiceDTO({ items, approvedPosts, expiresAt: link.expiresAt, candidates, serviceAt: serviceAtDto, wardName }),
     );
   });
 
