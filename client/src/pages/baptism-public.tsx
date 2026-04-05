@@ -264,116 +264,111 @@ function CoverPage({ data }: { data: ServiceData }) {
       className="relative overflow-hidden select-none"
       style={{ minHeight: "100dvh", background: "#ffffff", fontFamily: "'EB Garamond', Georgia, serif" }}
     >
-      {/* Theme decoration — top-right only, behind text */}
+      {/* Theme decoration — top-right */}
       <div className="absolute top-0 right-0 pointer-events-none" style={{ zIndex: 1 }}>
         <ThemeDeco deco={tc.deco} size={190} />
       </div>
 
-      {/* Christ image — occupies bottom 55%, behind text z-layer */}
+      {/* Christ image — full-page ghost watermark */}
       <div
-        className="absolute left-0 right-0 bottom-0 pointer-events-none"
-        style={{ top: "38%", zIndex: 1 }}
+        className="absolute inset-0 pointer-events-none flex items-start justify-center"
+        style={{ zIndex: 2, paddingTop: "4%" }}
       >
         <img
           src={tc.image}
           alt=""
           style={{
-            width: "100%",
-            height: "100%",
+            width: "82%",
+            maxWidth: 340,
             objectFit: "contain",
             objectPosition: "center top",
-            opacity: 0.92,
+            opacity: 0.18,
+            mixBlendMode: "multiply",
             display: "block",
           }}
         />
-        {/* Bottom fade so it dissolves into white */}
-        <div
-          className="absolute bottom-0 left-0 right-0"
-          style={{ height: "30%", background: "linear-gradient(to bottom, transparent, #ffffff)" }}
-        />
       </div>
 
-      {/* Text content — foreground */}
-      <div className="relative flex flex-col px-7 pt-14" style={{ zIndex: 2 }}>
-
-        {/* Date: ENERO · 06 · 2024 */}
+      {/* Content — vertically centered */}
+      <div
+        className="relative flex flex-col justify-center px-7"
+        style={{ zIndex: 3, minHeight: "100dvh", paddingBottom: "12%" }}
+      >
+        {/* Date: ENERO | 06 | 2024 — centered */}
         {dateParts && (
-          <div className="flex items-baseline gap-2 mb-5">
-            <span
-              style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em",
-                       textTransform: "uppercase", color: tc.accentDark }}
-            >
+          <div className="flex items-center justify-center mb-7">
+            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem",
+                           letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase" }}>
               {dateParts.month}
             </span>
-            <span
-              style={{ fontFamily: "'Cinzel', serif", fontSize: "1.4rem", fontWeight: 700,
-                       lineHeight: 1, color: tc.accent }}
-            >
+            <span style={{
+              borderLeft: `1px solid ${tc.accentDark}`, borderRight: `1px solid ${tc.accentDark}`,
+              margin: "0 10px", padding: "0 10px",
+              fontFamily: "'Cinzel', serif", fontSize: "1.7rem",
+              fontWeight: 700, lineHeight: 1, color: tc.accent,
+            }}>
               {dateParts.day}
             </span>
-            <span
-              style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em",
-                       color: tc.accentDark }}
-            >
+            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem",
+                           letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase" }}>
               {dateParts.year}
             </span>
           </div>
         )}
 
-        {/* "Mí" */}
-        <h1
-          style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: "clamp(2.8rem, 12vw, 4rem)",
-            fontWeight: 700,
-            lineHeight: 0.95,
-            color: tc.titleColor,
-            letterSpacing: "0.01em",
-            margin: 0,
-          }}
-        >
-          Mí
+        {/* "Mi" — large, left */}
+        <h1 style={{
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: "clamp(4.5rem, 22vw, 6.5rem)",
+          fontWeight: 700, lineHeight: 0.88,
+          color: tc.titleColor, margin: 0, textAlign: "left",
+        }}>
+          Mi
         </h1>
 
-        {/* "Bautismo" */}
-        <h1
-          style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: "clamp(2.8rem, 12vw, 4rem)",
-            fontWeight: 700,
-            lineHeight: 0.95,
-            color: tc.titleColor,
-            letterSpacing: "0.01em",
-            margin: 0,
-            marginBottom: "1.2rem",
-          }}
-        >
+        {/* "Bautismo" — large, left */}
+        <h1 style={{
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: "clamp(3.5rem, 18vw, 5.5rem)",
+          fontWeight: 700, lineHeight: 0.92,
+          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "left",
+        }}>
           Bautismo
         </h1>
 
-        {/* Candidate name in script */}
-        <p
-          style={{
-            fontFamily: "'Dancing Script', cursive",
-            fontSize: "clamp(1.3rem, 5.5vw, 1.9rem)",
-            color: C.ink,
-            lineHeight: 1.2,
-          }}
-        >
-          {joinNames(names) || "Programa bautismal"}
-        </p>
+        {/* Names — centered, one per line */}
+        <div className="flex flex-col items-center">
+          {names.length > 0 ? names.map((name, i) => (
+            <p key={i} style={{
+              fontFamily: "'Dancing Script', cursive",
+              fontSize: "clamp(1.5rem, 6.5vw, 2.2rem)",
+              color: C.ink, lineHeight: 1.3, margin: 0,
+            }}>
+              {name}
+            </p>
+          )) : (
+            <p style={{
+              fontFamily: "'Dancing Script', cursive",
+              fontSize: "clamp(1.5rem, 6.5vw, 2.2rem)",
+              color: C.ink, lineHeight: 1.3, margin: 0,
+            }}>
+              Programa bautismal
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Tap hint — pinned to bottom, above image */}
+      {/* Tap hint */}
       <div
         className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-1 pointer-events-none"
-        style={{ zIndex: 3 }}
+        style={{ zIndex: 4 }}
       >
-        <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.6rem", letterSpacing: "0.18em",
-                    textTransform: "uppercase", color: tc.accent, opacity: 0.65 }}>
+        <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.55rem",
+                    letterSpacing: "0.18em", textTransform: "uppercase",
+                    color: tc.accent, opacity: 0.55 }}>
           Toca para abrir
         </p>
-        <ChevronRight size={14} style={{ color: tc.accent, opacity: 0.55 }} />
+        <ChevronRight size={13} style={{ color: tc.accent, opacity: 0.45 }} />
       </div>
     </div>
   );
