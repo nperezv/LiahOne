@@ -74,6 +74,42 @@ const ORDINANCE_TYPES = new Set([
   "testigos", "interludio",
 ]);
 
+// Canonical display order for program types.
+// Items of the same type keep their relative DB order among themselves.
+const TYPE_DISPLAY_ORDER: Record<string, number> = {
+  preside:                0,
+  dirige:                 1,
+  dirige_musica:          2,
+  acompanamiento_piano:   3,
+  primer_himno:           4,
+  himno_apertura:         4,
+  oracion_apertura:       5,
+  primer_mensaje:         6,
+  numero_especial:        7,
+  segundo_mensaje:        8,
+  // ── ordenanza section ──
+  ordenanza_bautismo:     9,
+  bautismo:               9,
+  testigos:              10,
+  interludio:            11,
+  ordenanza_confirmacion:12,
+  confirmacion:          12,
+  // ── post-ordinance ──
+  ultimo_himno:          13,
+  himno_cierre:          13,
+  ultima_oracion:        14,
+  oracion_cierre:        14,
+};
+
+function sortItems(items: ProgramItem[]): ProgramItem[] {
+  return [...items].sort((a, b) => {
+    const oa = TYPE_DISPLAY_ORDER[a.type] ?? 50;
+    const ob = TYPE_DISPLAY_ORDER[b.type] ?? 50;
+    if (oa !== ob) return oa - ob;
+    return a.order - b.order; // tie-break by DB order
+  });
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
 function parseDateParts(iso: string | null): { month: string; day: string; year: string } | null {
@@ -286,7 +322,7 @@ function CoverPage({ data }: { data: ServiceData }) {
 // ── Program page ──────────────────────────────────────────────────────────────
 
 function ProgramPage({ data }: { data: ServiceData }) {
-  const items = [...data.program].sort((a, b) => a.order - b.order);
+  const items = sortItems(data.program);
   const names = data.candidates.map((c) => c.nombre);
   const dateParts = parseDateParts(data.serviceAt);
 
@@ -378,9 +414,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
 // ── Hymns page ────────────────────────────────────────────────────────────────
 
 function HymnsPage({ data }: { data: ServiceData }) {
-  const hymnItems = [...data.program]
-    .sort((a, b) => a.order - b.order)
-    .filter((i) => i.hymn);
+  const hymnItems = sortItems(data.program).filter((i) => i.hymn);
 
   return (
     <div
