@@ -48,6 +48,7 @@ import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
 import { registerMissionRoutes } from "./mission-routes";
+import { registerBaptismPublicRoutes } from "./mission-baptism-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -802,6 +803,7 @@ async function hasInterviewCollision({
 export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   registerMissionRoutes(app, requireAuth);
+  registerBaptismPublicRoutes(app);
 
   // One-time fix: update baptism_services with 'Por confirmar' location
   // to use the configured meeting center name.
