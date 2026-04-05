@@ -295,42 +295,40 @@ function CoverPage({ data }: { data: ServiceData }) {
       >
         {/* Date: ENERO | 06 | 2024 — centered */}
         {dateParts && (
-          <div className="flex items-center justify-center mb-7">
-            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem",
+          <div className="flex items-center justify-center mb-3">
+            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.58rem",
                            letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase" }}>
               {dateParts.month}
             </span>
             <span style={{
               borderLeft: `1px solid ${tc.accentDark}`, borderRight: `1px solid ${tc.accentDark}`,
-              margin: "0 10px", padding: "0 10px",
-              fontFamily: "'Cinzel', serif", fontSize: "1.7rem",
+              margin: "0 9px", padding: "0 9px",
+              fontFamily: "'Cinzel', serif", fontSize: "1.35rem",
               fontWeight: 700, lineHeight: 1, color: tc.accent,
             }}>
               {dateParts.day}
             </span>
-            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem",
+            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.58rem",
                            letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase" }}>
               {dateParts.year}
             </span>
           </div>
         )}
 
-        {/* "Mi" — left */}
+        {/* "Mi Bautismo" — centrado, dos líneas, texto izquierda */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: "clamp(2.8rem, 14vw, 4rem)",
+          fontSize: "clamp(2rem, 10vw, 2.8rem)",
           fontWeight: 700, lineHeight: 0.88,
-          color: tc.titleColor, margin: 0, textAlign: "left",
+          color: tc.titleColor, margin: 0, textAlign: "center",
         }}>
           Mi
         </h1>
-
-        {/* "Bautismo" — left */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: "clamp(2.2rem, 11vw, 3.2rem)",
+          fontSize: "clamp(1.7rem, 8.5vw, 2.4rem)",
           fontWeight: 700, lineHeight: 0.92,
-          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "left",
+          color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "center",
         }}>
           Bautismo
         </h1>
