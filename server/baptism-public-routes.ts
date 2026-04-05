@@ -73,7 +73,7 @@ export function registerBaptismPublicRoutes(app: Express) {
     if (serviceAt) {
       const now = new Date();
       const windowEnd = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
-      if (now < serviceAt || now >= windowEnd) return res.json({ unavailable: "outside_window" });
+      if (now >= windowEnd) return res.json({ unavailable: "outside_window" });
     }
 
     const [programItemsResult, assignmentsResult] = await Promise.all([
