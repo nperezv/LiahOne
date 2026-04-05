@@ -976,26 +976,28 @@
 }
 
 /* ── Diptych baptism booklet page-turn ── */
+/* Page-flip book animation — forward (left edge pivot) */
 @keyframes diptico-out {
-  from { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
-  to   { transform: perspective(900px) rotateY(-22deg) scale(0.94); opacity: 0; }
+  0%   { transform: perspective(1200px) rotateY(0deg);    transform-origin: left center; opacity: 1; }
+  100% { transform: perspective(1200px) rotateY(-90deg);  transform-origin: left center; opacity: 0.3; }
 }
 @keyframes diptico-in {
-  from { transform: perspective(900px) rotateY(22deg) scale(0.94); opacity: 0; }
-  to   { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+  0%   { transform: perspective(1200px) rotateY(90deg);   transform-origin: right center; opacity: 0.3; }
+  100% { transform: perspective(1200px) rotateY(0deg);    transform-origin: right center; opacity: 1; }
 }
+/* Page-flip book animation — backward (right edge pivot) */
 @keyframes diptico-out-back {
-  from { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
-  to   { transform: perspective(900px) rotateY(22deg) scale(0.94); opacity: 0; }
+  0%   { transform: perspective(1200px) rotateY(0deg);    transform-origin: right center; opacity: 1; }
+  100% { transform: perspective(1200px) rotateY(90deg);   transform-origin: right center; opacity: 0.3; }
 }
 @keyframes diptico-in-back {
-  from { transform: perspective(900px) rotateY(-22deg) scale(0.94); opacity: 0; }
-  to   { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+  0%   { transform: perspective(1200px) rotateY(-90deg);  transform-origin: left center; opacity: 0.3; }
+  100% { transform: perspective(1200px) rotateY(0deg);    transform-origin: left center; opacity: 1; }
 }
-.diptico-out      { animation: diptico-out 0.32s ease-in forwards; }
-.diptico-in       { animation: diptico-in 0.32s ease-out forwards; }
-.diptico-out-back { animation: diptico-out-back 0.32s ease-in forwards; }
-.diptico-in-back  { animation: diptico-in-back 0.32s ease-out forwards; }
+.diptico-out      { animation: diptico-out      0.28s ease-in  forwards; }
+.diptico-in       { animation: diptico-in       0.28s ease-out forwards; }
+.diptico-out-back { animation: diptico-out-back 0.28s ease-in  forwards; }
+.diptico-in-back  { animation: diptico-in-back  0.28s ease-out forwards; }
 
 @keyframes btn-fill {
   0%   { width: 5%; }

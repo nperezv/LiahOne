@@ -434,8 +434,8 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
       setDisplayIdx((i) => i + (isForward ? 1 : -1));
       setPageIdx((i) => i + (isForward ? 1 : -1));
       setAnim(isForward ? "in" : "in-back");
-      setTimeout(() => setAnim(""), 340);
-    }, 320);
+      setTimeout(() => setAnim(""), 300);
+    }, 280);
   }, [anim, pageIdx, visiblePages.length]);
 
   // Touch/swipe
@@ -466,7 +466,10 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
       <div
         key={displayIdx}
         className={animClass}
-        style={{ willChange: "transform, opacity" }}
+        style={{
+          willChange: "transform, opacity",
+          boxShadow: anim ? "4px 0 24px rgba(0,0,0,0.18), -4px 0 24px rgba(0,0,0,0.10)" : undefined,
+        }}
         onClick={() => { if (currentPage === "cover") navigate("next"); }}
       >
         {currentPage === "cover" && <CoverPage data={data} theme={theme} />}
