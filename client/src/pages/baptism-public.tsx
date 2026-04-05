@@ -271,8 +271,8 @@ function CoverPage({ data }: { data: ServiceData }) {
 
       {/* Christ image — full-page ghost watermark */}
       <div
-        className="absolute inset-0 pointer-events-none flex items-start justify-center"
-        style={{ zIndex: 2, paddingTop: "4%" }}
+        className="absolute inset-0 pointer-events-none flex items-center justify-center"
+        style={{ zIndex: 2 }}
       >
         <img
           src={tc.image}
@@ -281,7 +281,6 @@ function CoverPage({ data }: { data: ServiceData }) {
             width: "82%",
             maxWidth: 340,
             objectFit: "contain",
-            objectPosition: "center top",
             opacity: 0.18,
             mixBlendMode: "multiply",
             display: "block",
@@ -292,7 +291,7 @@ function CoverPage({ data }: { data: ServiceData }) {
       {/* Content — vertically centered */}
       <div
         className="relative flex flex-col justify-center px-7"
-        style={{ zIndex: 3, minHeight: "100dvh", paddingBottom: "12%" }}
+        style={{ zIndex: 3, minHeight: "100dvh" }}
       >
         {/* Date: ENERO | 06 | 2024 — centered */}
         {dateParts && (
