@@ -8406,6 +8406,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ========================================
+  // BAPTISM LOGISTICS DEADLINE REMINDERS
+  // ========================================
+  // Fires at birthdaySendHour on the due_date day of each lider_actividades task.
+  // If the logistics task is still incomplete, notifies all stakeholders and
+  // auto-completes the mission_leader_logistics oversight task.
+  const sentLogisticsDeadlineKeys = new Set<string>();
+  let lastLogisticsDeadlineDate = "";
+
+  async function sendAutomaticLogisticsDeadlineReminders() {
+    try {
+      const now = new Date();
+      if (now.getHours() !== birthdaySendHour) return;
+
+      const todayKey = getServerDayKey(now);
+      if (lastLogisticsDeadlineDate !== todayKey) {
+        sentLogisticsDeadlineKeys.clear();
+        lastLogisticsDeadlineDate = todayKey;
+      }
+
+      const todayStart = new Date(now);
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(now);
+      todayEnd.setHours(23, 59, 59, 999);
+
+      // Find pending lider_actividades tasks whose due_date is today
+      const tasksResult = await db.execute(sql`
+        SELECT st.id, st.baptism_service_id, st.assigned_to, st.due_date,
+               bs.service_at, bs.unit_id
+        FROM service_tasks st
+        JOIN baptism_services bs ON bs.id = st.baptism_service_id
+        WHERE st.assigned_role = 'lider_actividades'
+          AND st.status != 'completed'
+          AND st.due_date >= ${todayStart.toISOString()}
+          AND st.due_date <= ${todayEnd.toISOString()}
+          AND bs.approval_status = 'approved'
+      `);
+
+      if ((tasksResult.rows as any[]).length === 0) return;
+
+      const allUsers = await storage.getAllUsers();
+      const wardName = (await storage.getPdfTemplate())?.wardName ?? null;
+
+      for (const task of tasksResult.rows as any[]) {
+        const dedupeKey = `logistics_deadline:${todayKey}:${task.baptism_service_id}`;
+        if (sentLogisticsDeadlineKeys.has(dedupeKey)) continue;
+
+        // Candidate name(s)
+        const candResult = await db.execute(sql`
+          SELECT mp.nombre FROM baptism_service_candidates bsc
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${task.baptism_service_id}
+          ORDER BY mp.nombre
+        `);
+        const candNames = (candResult.rows as any[]).map((r) => r.nombre as string);
+        function joinNamesEs(names: string[]) {
+          if (names.length === 0) return "Servicio bautismal";
+          if (names.length === 1) return names[0];
+          if (names.length === 2) return `${names[0]} y ${names[1]}`;
+          return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+        }
+        const candidateName = joinNamesEs(candNames);
+        const svcDate = new Date(task.service_at);
+        const svcDateStr = `${String(svcDate.getUTCDate()).padStart(2, "0")}/${String(svcDate.getUTCMonth() + 1).padStart(2, "0")}/${svcDate.getUTCFullYear()}`;
+
+        // Build recipient list: obispado + mission_leader + lider_actividades + org presidents/counselors
+        const coreRoles = new Set(["obispo", "consejero_obispo", "mission_leader", "lider_actividades"]);
+        const coreRecipients = allUsers.filter(
+          (u: any) => u.organizationId === task.unit_id && coreRoles.has(u.role),
+        );
+
+        const orgLeadersResult = await db.execute(sql`
+          SELECT u.id FROM users u
+          JOIN organizations o ON o.id = u.organization_id
+          WHERE u.role IN ('presidente_organizacion', 'consejero_organizacion')
+            AND o.type IN ('cuorum_elderes', 'sociedad_socorro')
+        `);
+        const orgLeaderIds = new Set((orgLeadersResult.rows as any[]).map((r) => r.id));
+        const orgLeaders = allUsers.filter(
+          (u: any) => orgLeaderIds.has(u.id) && !coreRecipients.find((c: any) => c.id === u.id),
+        );
+
+        const recipients = [...coreRecipients, ...orgLeaders];
+
+        const title = `⚠️ Logística bautismal — plazo hoy`;
+        const body = `La coordinación logística del servicio bautismal de ${candidateName} (${svcDateStr}) vence hoy y aún está pendiente.`;
+
+        for (const recipient of recipients) {
+          const notif = await storage.createNotification({
+            userId: recipient.id,
+            type: "reminder",
+            title,
+            description: body,
+            relatedId: task.baptism_service_id,
+            isRead: false,
+          });
+          if (isPushConfigured()) {
+            await sendPushNotification(recipient.id, {
+              title,
+              body,
+              url: `/mission-work?section=servicios_bautismales&highlight=${task.baptism_service_id}`,
+              notificationId: notif.id,
+            });
+          }
+          if (recipient.email) {
+            await sendAgendaReminderEmail({
+              toEmail: recipient.email,
+              subject: title,
+              body: [
+                `Estimado/a ${recipient.name},`,
+                "",
+                body,
+                "",
+                "Por favor, coordina o confirma el estado de la logística desde la aplicación.",
+                "",
+                wardName || "Tu barrio",
+              ].join("\n"),
+              wardName,
+            });
+          }
+        }
+
+        // Auto-complete the mission_leader_logistics oversight task
+        await db.execute(sql`
+          UPDATE service_tasks
+          SET status = 'completed', completed_at = ${now.toISOString()}, updated_at = ${now.toISOString()}
+          WHERE baptism_service_id = ${task.baptism_service_id}
+            AND assigned_role = 'mission_leader_logistics'
+            AND status != 'completed'
+        `);
+
+        sentLogisticsDeadlineKeys.add(dedupeKey);
+        console.log(`[LogisticsDeadline] Notified ${recipients.length} recipients for ${candidateName} (${svcDateStr})`);
+      }
+    } catch (error) {
+      console.error("[LogisticsDeadline] Error:", error);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
@@ -8414,6 +8553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   startHourlyAlignedTask(sendAgendaDailyBriefing);
   startHourlyAlignedTask(sendAutomaticBaptismServiceReminders);
   startHourlyAlignedTask(sendAutomaticBaptismReadinessReminders);
+  startHourlyAlignedTask(sendAutomaticLogisticsDeadlineReminders);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);

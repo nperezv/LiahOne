@@ -2456,6 +2456,11 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           .innerJoin(organizations, eq(organizations.id, users.organizationId))
           .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
           .limit(1);
+        // Logistics deadline: service_at - 3 days (min 1 day from now)
+        const logisticsDue = new Date(svcDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+        const minDue = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const logisticsDueDate = logisticsDue > minDue ? logisticsDue : minDue;
+
         if (liderActividades) {
           await db.insert(serviceTasks).values({
             baptismServiceId: service.id,
@@ -2465,6 +2470,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             title: `Servicio Bautismal ${candidateName} — Coordinación logística`,
             description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}`,
             status: "pending",
+            dueDate: logisticsDueDate,
             createdBy: user.id,
           });
           const notifLogistics = await db.insert(notifications).values({
@@ -2517,7 +2523,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             title: `Coordinar logística con el lider de actividades: ${candidateName}`,
             description: `Estar al pendiente de que el lider de actividades coordine la pila, arreglo, equipo, refrigerio y limpieza para el servicio bautismal del ${serviceDateStr}.`,
             status: "pending",
-            dueDate: new Date(service.service_at),
+            dueDate: logisticsDueDate,
             createdBy: user.id,
           });
         }
