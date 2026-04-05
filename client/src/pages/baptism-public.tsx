@@ -316,20 +316,20 @@ function CoverPage({ data }: { data: ServiceData }) {
           </div>
         )}
 
-        {/* "Mi" — large, left */}
+        {/* "Mi" — left */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: "clamp(4.5rem, 22vw, 6.5rem)",
+          fontSize: "clamp(2.8rem, 14vw, 4rem)",
           fontWeight: 700, lineHeight: 0.88,
           color: tc.titleColor, margin: 0, textAlign: "left",
         }}>
           Mi
         </h1>
 
-        {/* "Bautismo" — large, left */}
+        {/* "Bautismo" — left */}
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: "clamp(3.5rem, 18vw, 5.5rem)",
+          fontSize: "clamp(2.2rem, 11vw, 3.2rem)",
           fontWeight: 700, lineHeight: 0.92,
           color: tc.titleColor, margin: "0 0 1.4rem", textAlign: "left",
         }}>
