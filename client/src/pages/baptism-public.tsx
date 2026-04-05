@@ -13,9 +13,7 @@ const C = {
   creamDark: "#ede9df",
   teal:      "#4a7c7e",
   tealDark:  "#2d5e60",
-  tealLight: "#6a9c9e",
   sage:      "#7a9e8c",
-  sageMid:   "#5a8270",
   ink:       "#2c3e35",
   inkLight:  "#5a6e65",
   gold:      "#b8955a",
@@ -23,6 +21,7 @@ const C = {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type BaptismTheme = "nino" | "nina" | "joven_varon" | "joven_mujer" | "adulto" | "adulta" | "multi_kids" | "multi_family" | "multi_adults" | "fallback";
 type Candidate = { nombre: string };
 type ProgramItem = {
   type: string; title: string | null; order: number;
@@ -32,7 +31,26 @@ type Post = { id: string; displayName: string; message: string };
 type ServiceData = {
   program: ProgramItem[]; posts: Post[]; expiresAtMadrid: string;
   candidates: Candidate[]; serviceAt: string | null; wardName: string | null;
+  theme?: BaptismTheme;
   unavailable?: "not_approved" | "outside_window" | "pending_logistics";
+};
+
+// ── Theme config ──────────────────────────────────────────────────────────────
+type DecoType = "sage" | "rose" | "blue_soft" | "lavender" | "geometric" | "warm";
+
+const THEME_CONFIG: Record<BaptismTheme, {
+  image: string; accent: string; accentDark: string; titleColor: string; deco: DecoType;
+}> = {
+  nino:         { image: "/covenantspathboy.png",    accent: "#6ba3c8", accentDark: "#3d7aa8", titleColor: "#3d6080", deco: "blue_soft" },
+  nina:         { image: "/covenantspathgirl.png",   accent: "#c47a8a", accentDark: "#9a4e62", titleColor: "#8a3e55", deco: "rose" },
+  joven_varon:  { image: "/covenanthspathhim.png",   accent: "#6a9c7e", accentDark: "#3d7060", titleColor: "#2d5e60", deco: "sage" },
+  joven_mujer:  { image: "/covenantspathher.png",    accent: "#9b7ec8", accentDark: "#7358a8", titleColor: "#5a3a90", deco: "lavender" },
+  adulto:       { image: "/covenantspath.png",       accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60", deco: "geometric" },
+  adulta:       { image: "/theshepherd.png",         accent: "#b8955a", accentDark: "#8a6e3a", titleColor: "#4a7c7e", deco: "warm" },
+  multi_kids:   { image: "/covenantspathkids.png",   accent: "#6a9c7e", accentDark: "#3d7060", titleColor: "#2d5e60", deco: "sage" },
+  multi_family: { image: "/covenantspathfamily.png", accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60", deco: "sage" },
+  multi_adults: { image: "/covenantspath.png",       accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60", deco: "sage" },
+  fallback:     { image: "/theshepherd.png",         accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60", deco: "sage" },
 };
 
 // ── Program labels ────────────────────────────────────────────────────────────
@@ -131,40 +149,194 @@ function joinNames(names: string[]): string {
 
 // ── SVG decorations ───────────────────────────────────────────────────────────
 
-function BotanicalCorner({
-  pos = "tl", size = 140, opacity = 1,
-}: { pos?: "tl" | "tr" | "bl" | "br"; size?: number; opacity?: number }) {
-  const sx = pos === "tr" || pos === "br" ? -1 : 1;
-  const sy = pos === "bl" || pos === "br" ? -1 : 1;
+// ── Theme decorations (top-right corner of cover) ────────────────────────────
+
+function DecoSage({ size = 160 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" fill="none">
+      <path d="M155,5 Q120,40 85,75 Q65,95 40,120 Q20,140 5,155" stroke="#7a9e8c" strokeWidth="1.2" strokeOpacity="0.45" fill="none" />
+      <path d="M145,15 Q115,35 120,55 Q100,35 145,15Z" fill="#7a9e8c" fillOpacity="0.28" />
+      <path d="M125,35 Q95,55 102,74 Q82,54 125,35Z" fill="#5a8270" fillOpacity="0.26" />
+      <path d="M105,58 Q76,76 84,94 Q65,74 105,58Z" fill="#7a9e8c" fillOpacity="0.30" />
+      <path d="M82,82 Q55,98 64,114 Q46,95 82,82Z" fill="#5a8270" fillOpacity="0.25" />
+      <path d="M60,108 Q36,122 44,136 Q28,118 60,108Z" fill="#7a9e8c" fillOpacity="0.22" />
+      <circle cx="138" cy="28" r="2.2" fill="#b8955a" fillOpacity="0.38" />
+      <circle cx="128" cy="38" r="1.5" fill="#b8955a" fillOpacity="0.30" />
+    </svg>
+  );
+}
+
+function DecoRose({ size = 160 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" fill="none">
+      <path d="M155,5 Q110,50 70,90 Q45,115 15,148" stroke="#c47a8a" strokeWidth="1" strokeOpacity="0.35" fill="none" />
+      <circle cx="148" cy="20" r="8" fill="#e8a0b0" fillOpacity="0.35" />
+      <circle cx="140" cy="14" r="6" fill="#d47888" fillOpacity="0.30" />
+      <circle cx="155" cy="28" r="5" fill="#e8a0b0" fillOpacity="0.28" />
+      <circle cx="144" cy="26" r="4" fill="#c46878" fillOpacity="0.40" />
+      <circle cx="115" cy="48" r="6" fill="#e8a0b0" fillOpacity="0.28" />
+      <circle cx="110" cy="44" r="4" fill="#d47888" fillOpacity="0.25" />
+      <path d="M130,30 Q112,42 118,56 Q100,42 130,30Z" fill="#8ab08a" fillOpacity="0.28" />
+      <path d="M105,60 Q88,72 94,84 Q77,70 105,60Z" fill="#8ab08a" fillOpacity="0.25" />
+      <path d="M78,88 Q62,98 68,110 Q52,97 78,88Z" fill="#8ab08a" fillOpacity="0.22" />
+    </svg>
+  );
+}
+
+function DecoBlueSoft({ size = 160 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" fill="none">
+      <circle cx="138" cy="22" r="14" fill="#a8d0e8" fillOpacity="0.28" />
+      <circle cx="152" cy="32" r="10" fill="#8abcd8" fillOpacity="0.22" />
+      <circle cx="125" cy="18" r="9"  fill="#c0dff0" fillOpacity="0.25" />
+      <circle cx="118" cy="44" r="12" fill="#a8d0e8" fillOpacity="0.22" />
+      <circle cx="135" cy="50" r="8"  fill="#8abcd8" fillOpacity="0.18" />
+      <circle cx="100" cy="62" r="10" fill="#c0dff0" fillOpacity="0.20" />
+      <circle cx="145" cy="60" r="3"  fill="#6ba3c8" fillOpacity="0.30" />
+      <circle cx="110" cy="80" r="3"  fill="#6ba3c8" fillOpacity="0.25" />
+      <path d="M148,8 Q130,22 136,36 Q118,22 148,8Z"   fill="#90c0d8" fillOpacity="0.22" />
+      <path d="M120,32 Q104,44 110,56 Q93,42 120,32Z"  fill="#90c0d8" fillOpacity="0.20" />
+    </svg>
+  );
+}
+
+function DecoLavender({ size = 160 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" fill="none">
+      <path d="M155,5 Q115,45 80,80 Q55,105 20,145" stroke="#9b7ec8" strokeWidth="1" strokeOpacity="0.35" fill="none" />
+      <path d="M142,18 Q118,36 124,54 Q104,36 142,18Z" fill="#c0a8e0" fillOpacity="0.28" />
+      <path d="M120,40 Q96,58 104,74 Q85,56 120,40Z"   fill="#9b7ec8" fillOpacity="0.26" />
+      <path d="M96,66  Q74,82 82,96  Q64,78 96,66Z"    fill="#c0a8e0" fillOpacity="0.24" />
+      <path d="M70,92  Q50,106 58,118 Q41,102 70,92Z"  fill="#9b7ec8" fillOpacity="0.20" />
+      <circle cx="148" cy="24" r="5"   fill="#d4b8f0" fillOpacity="0.38" />
+      <circle cx="138" cy="16" r="3.5" fill="#c0a8e0" fillOpacity="0.32" />
+    </svg>
+  );
+}
+
+function DecoGeometric({ size = 160 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" fill="none">
+      <path d="M130,10 L155,52 L130,94 L80,94 L55,52 L80,10Z"  stroke="#4a7c7e" strokeWidth="0.8" strokeOpacity="0.25" fill="none" />
+      <path d="M145,20 L160,46 L145,72 L115,72 L100,46 L115,20Z" stroke="#4a7c7e" strokeWidth="0.6" strokeOpacity="0.18" fill="none" />
+      <line x1="155" y1="0"  x2="90"  y2="65"  stroke="#4a7c7e" strokeWidth="0.7" strokeOpacity="0.15" />
+      <line x1="160" y1="20" x2="105" y2="75"  stroke="#4a7c7e" strokeWidth="0.5" strokeOpacity="0.12" />
+      <circle cx="148" cy="18" r="2.5" fill="#b8955a" fillOpacity="0.45" />
+      <circle cx="155" cy="40" r="2"   fill="#b8955a" fillOpacity="0.35" />
+      <circle cx="138" cy="8"  r="1.8" fill="#b8955a" fillOpacity="0.30" />
+    </svg>
+  );
+}
+
+function DecoWarm({ size = 160 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" fill="none">
+      <path d="M155,5 Q118,42 82,78 Q58,102 22,148" stroke="#b8955a" strokeWidth="1" strokeOpacity="0.35" fill="none" />
+      <path d="M145,15 Q118,32 124,50 Q105,32 145,15Z" fill="#c4a06a" fillOpacity="0.28" />
+      <path d="M122,38 Q97,54 104,70 Q85,54 122,38Z"  fill="#9a7a4a" fillOpacity="0.26" />
+      <path d="M100,62 Q76,76 84,90 Q66,74 100,62Z"   fill="#c4a06a" fillOpacity="0.24" />
+      <path d="M76,88  Q54,100 62,112 Q45,98 76,88Z"  fill="#9a7a4a" fillOpacity="0.20" />
+      <circle cx="150" cy="22" r="3.5" fill="#d4aa72" fillOpacity="0.50" />
+      <circle cx="140" cy="14" r="2.5" fill="#d4aa72" fillOpacity="0.40" />
+    </svg>
+  );
+}
+
+function ThemeDeco({ deco, size = 160 }: { deco: DecoType; size?: number }) {
+  if (deco === "rose")      return <DecoRose size={size} />;
+  if (deco === "blue_soft") return <DecoBlueSoft size={size} />;
+  if (deco === "lavender")  return <DecoLavender size={size} />;
+  if (deco === "geometric") return <DecoGeometric size={size} />;
+  if (deco === "warm")      return <DecoWarm size={size} />;
+  return <DecoSage size={size} />;
+}
+
+// ── Cover page ────────────────────────────────────────────────────────────────
+
+function CoverPage({ data }: { data: ServiceData }) {
+  const theme = data.theme ?? "fallback";
+  const tc = THEME_CONFIG[theme];
+  const names = data.candidates.map((c) => c.nombre);
+  const dateParts = parseDateParts(data.serviceAt);
 
   return (
-    <svg
-      width={size} height={size} viewBox="0 0 140 140" fill="none"
-      style={{ opacity, transform: `scale(${sx},${sy})`, transformOrigin: "center" }}
+    <div
+      className="relative flex flex-col overflow-hidden select-none"
+      style={{ minHeight: "100dvh", background: "#faf8f4", fontFamily: "'EB Garamond', Georgia, serif" }}
+      onClick={() => {}}
     >
-      {/* main stem */}
-      <path d="M8,132 Q38,90 78,52 Q95,34 115,18" stroke={C.sageMid} strokeWidth="1.2" strokeOpacity="0.55" fill="none" />
-      {/* secondary stem */}
-      <path d="M8,132 Q28,100 55,85" stroke={C.sageMid} strokeWidth="0.9" strokeOpacity="0.4" fill="none" />
-      {/* leaf 1 big */}
-      <path d="M18,118 Q42,95 55,105 Q36,88 18,118Z" fill={C.sage} fillOpacity="0.30" />
-      {/* leaf 2 */}
-      <path d="M35,100 Q58,78 68,90 Q52,73 35,100Z" fill={C.sageMid} fillOpacity="0.28" />
-      {/* leaf 3 */}
-      <path d="M54,80 Q75,60 84,72 Q70,56 54,80Z" fill={C.sage} fillOpacity="0.32" />
-      {/* leaf 4 */}
-      <path d="M72,60 Q90,42 98,54 Q86,39 72,60Z" fill={C.sageMid} fillOpacity="0.27" />
-      {/* leaf 5 small top */}
-      <path d="M90,42 Q104,28 110,38 Q100,25 90,42Z" fill={C.sage} fillOpacity="0.22" />
-      {/* side sprig 1 */}
-      <path d="M38,98 Q48,82 60,84 Q46,76 38,98Z" fill={C.teal} fillOpacity="0.14" />
-      {/* side sprig 2 */}
-      <path d="M22,112 Q32,95 48,100 Q34,90 22,112Z" fill={C.teal} fillOpacity="0.12" />
-      {/* berry dots */}
-      <circle cx="60" cy="112" r="2.5" fill={C.sage} fillOpacity="0.35" />
-      <circle cx="68" cy="118" r="1.8" fill={C.sage} fillOpacity="0.28" />
-      <circle cx="55" cy="120" r="1.5" fill={C.sageMid} fillOpacity="0.3" />
-    </svg>
+      {/* Theme decoration — top-right only */}
+      <div className="absolute top-0 right-0 pointer-events-none z-10">
+        <ThemeDeco deco={tc.deco} size={180} />
+      </div>
+
+      {/* Content — left-aligned like the reference */}
+      <div className="relative z-20 flex flex-col px-7 pt-12">
+        {/* Date */}
+        {dateParts && (
+          <div className="flex items-baseline gap-2 mb-6">
+            <span className="text-xs tracking-[0.18em] uppercase" style={{ color: tc.accentDark, fontFamily: "'Cinzel', serif" }}>
+              {dateParts.month}
+            </span>
+            <span className="font-bold text-xl" style={{ color: tc.accent, fontFamily: "'Cinzel', serif" }}>
+              {dateParts.day}
+            </span>
+            <span className="text-xs tracking-[0.18em]" style={{ color: tc.accentDark, fontFamily: "'Cinzel', serif" }}>
+              {dateParts.year}
+            </span>
+          </div>
+        )}
+
+        {/* "Mí / Bautismo" */}
+        <h1
+          className="font-bold leading-none"
+          style={{ fontFamily: "'Cinzel', Georgia, serif", fontSize: "clamp(2.6rem, 11vw, 3.8rem)", color: tc.titleColor, letterSpacing: "0.02em" }}
+        >
+          Mí
+        </h1>
+        <h1
+          className="font-bold leading-none mb-5"
+          style={{ fontFamily: "'Cinzel', Georgia, serif", fontSize: "clamp(2.6rem, 11vw, 3.8rem)", color: tc.titleColor, letterSpacing: "0.02em" }}
+        >
+          Bautismo
+        </h1>
+
+        {/* Candidate name */}
+        <p
+          style={{
+            fontFamily: "'Dancing Script', cursive",
+            fontSize: "clamp(1.4rem, 5.5vw, 2rem)",
+            color: C.ink,
+            lineHeight: 1.25,
+          }}
+        >
+          {joinNames(names) || "Programa bautismal"}
+        </p>
+      </div>
+
+      {/* Christ image — bottom, large, fading at bottom edge */}
+      <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10" style={{ height: "58%" }}>
+        <img
+          src={tc.image}
+          alt=""
+          className="w-full h-full object-contain object-bottom"
+          style={{ opacity: 0.88 }}
+        />
+        {/* Gradient fade at bottom */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-20"
+          style={{ background: "linear-gradient(to bottom, transparent, #faf8f4)" }}
+        />
+      </div>
+
+      {/* Tap hint — bottom */}
+      <div className="absolute bottom-5 left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
+        <p className="text-xs tracking-[0.15em] uppercase" style={{ color: tc.accent, opacity: 0.7, fontFamily: "'Cinzel', serif" }}>
+          Toca para abrir
+        </p>
+        <ChevronRight size={15} style={{ color: tc.accent, opacity: 0.6 }} />
+      </div>
+    </div>
   );
 }
 
@@ -193,128 +365,6 @@ function OrdinanceCloseDivider() {
   return (
     <div className="my-5">
       <div className="border-t" style={{ borderColor: C.inkLight, opacity: 0.2 }} />
-    </div>
-  );
-}
-
-function WatermarkCross() {
-  return (
-    <svg width="80" height="96" viewBox="0 0 80 96" fill="none" style={{ opacity: 0.08 }}>
-      <rect x="33" y="0" width="14" height="96" rx="7" fill={C.tealDark} />
-      <rect x="0" y="22" width="80" height="14" rx="7" fill={C.tealDark} />
-    </svg>
-  );
-}
-
-// ── Cover page ────────────────────────────────────────────────────────────────
-
-function CoverPage({ data }: { data: ServiceData }) {
-  const names = data.candidates.map((c) => c.nombre);
-  const dateParts = parseDateParts(data.serviceAt);
-
-  return (
-    <div
-      className="relative flex flex-col items-center overflow-hidden select-none"
-      style={{
-        minHeight: "100dvh",
-        background: C.cream,
-        fontFamily: "'EB Garamond', Georgia, serif",
-      }}
-    >
-      {/* Top botanical corners */}
-      <div className="absolute top-0 left-0 pointer-events-none">
-        <BotanicalCorner pos="tl" size={150} opacity={0.85} />
-      </div>
-      <div className="absolute top-0 right-0 pointer-events-none">
-        <BotanicalCorner pos="tr" size={150} opacity={0.85} />
-      </div>
-
-      {/* Ward name at very top */}
-      <div className="relative z-10 mt-8 px-6 text-center">
-        <p
-          className="tracking-[0.22em] uppercase text-xs font-medium"
-          style={{ color: C.teal, fontFamily: "'Cinzel', Georgia, serif" }}
-        >
-          {data.wardName ?? "\u00a0"}
-        </p>
-      </div>
-
-      {/* Cross watermark + main title block */}
-      <div className="relative z-10 flex flex-col items-center mt-8 px-6 gap-3">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <WatermarkCross />
-        </div>
-        <h1
-          className="relative text-center font-bold leading-none tracking-wide"
-          style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: "clamp(2rem, 8vw, 2.8rem)",
-            color: C.tealDark,
-            letterSpacing: "0.06em",
-          }}
-        >
-          Mi Bautismo
-        </h1>
-
-        {/* Thin gold rule */}
-        <div className="w-24 border-t" style={{ borderColor: C.gold, opacity: 0.6 }} />
-      </div>
-
-      {/* Candidate name(s) */}
-      <div className="relative z-10 flex flex-col items-center mt-6 px-8 text-center gap-1">
-        <p
-          style={{
-            fontFamily: "'Dancing Script', cursive",
-            fontSize: "clamp(1.5rem, 6vw, 2.1rem)",
-            color: C.ink,
-            lineHeight: 1.3,
-          }}
-        >
-          {joinNames(names) || "Programa bautismal"}
-        </p>
-      </div>
-
-      {/* Date */}
-      {dateParts && (
-        <div className="relative z-10 flex items-center gap-3 mt-6">
-          <span
-            className="text-xs tracking-[0.18em] uppercase"
-            style={{ color: C.inkLight, fontFamily: "'Cinzel', Georgia, serif" }}
-          >
-            {dateParts.month}
-          </span>
-          <span className="text-lg font-semibold" style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}>
-            {dateParts.day}
-          </span>
-          <span
-            className="text-xs tracking-[0.18em]"
-            style={{ color: C.inkLight, fontFamily: "'Cinzel', Georgia, serif" }}
-          >
-            {dateParts.year}
-          </span>
-        </div>
-      )}
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Bottom botanical corners */}
-      <div className="absolute bottom-0 left-0 pointer-events-none">
-        <BotanicalCorner pos="bl" size={150} opacity={0.75} />
-      </div>
-      <div className="absolute bottom-0 right-0 pointer-events-none">
-        <BotanicalCorner pos="br" size={150} opacity={0.75} />
-      </div>
-
-      {/* Tap hint */}
-      <div
-        className="relative z-10 mb-8 flex flex-col items-center gap-1"
-      >
-        <p className="text-xs tracking-[0.15em] uppercase" style={{ color: C.tealLight }}>
-          Toca para abrir
-        </p>
-        <ChevronRight size={16} style={{ color: C.tealLight }} />
-      </div>
     </div>
   );
 }
@@ -710,7 +760,7 @@ function LoadingScreen() {
       style={{ background: C.cream }}
     >
       <div className="flex flex-col items-center gap-4">
-        <BotanicalCorner pos="tl" size={80} opacity={0.5} />
+        <DecoSage size={70} />
         <p className="text-sm" style={{ color: C.inkLight, fontFamily: "'EB Garamond', serif" }}>
           Cargando programa...
         </p>
@@ -727,7 +777,7 @@ function UnavailableScreen({ title, body }: { title: string; body: string }) {
     >
       <div className="flex flex-col items-center gap-4 max-w-xs">
         <div className="opacity-30">
-          <BotanicalCorner pos="tl" size={100} />
+          <DecoSage size={90} />
         </div>
         <p
           className="font-semibold tracking-wide"

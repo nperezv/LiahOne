@@ -57,6 +57,7 @@ const InventoryLocationDetailPage = lazy(() => import("@/pages/inventory-locatio
 const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
 const MissionWorkPage = lazy(() => import("@/pages/mission-work"));
 const BaptismPublicPage = lazy(() => import("@/pages/baptism-public"));
+const BaptismLobbyPage  = lazy(() => import("@/pages/baptism-lobby"));
 const ActivityLogisticsPage = lazy(() => import("@/pages/activity-logistics"));
 
 function RouteLoadingFallback() {
@@ -222,6 +223,7 @@ function Router() {
       <Route path="/login" component={LoginRoute} />
       <Route path="/request-access" component={RequestAccessPage} />
       <Route path="/donar" component={DonationsPage} />
+      <Route path="/bautismo" component={BaptismLobbyPage} />
       <Route path="/bautismo/:slug" component={BaptismPublicPage} />
       <Route path="/">
         <Redirect to="/welcome" />
