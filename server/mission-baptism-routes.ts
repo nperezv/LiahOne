@@ -2236,6 +2236,27 @@ export function registerMissionBaptismRoutes(
           LIMIT 1
         `);
 
+        // If existing link has published_at in the future (not yet activated), fix it to now
+        if (latestResult.rows.length && svc.approval_status === "approved") {
+          const existing = latestResult.rows[0] as any;
+          const publishedAt = existing.published_at ? new Date(existing.published_at) : null;
+          if (publishedAt && publishedAt > new Date()) {
+            await db.execute(sql`
+              UPDATE baptism_public_links
+              SET published_at = now()
+              WHERE service_id = ${req.params.id}
+                AND published_at = ${existing.published_at}
+            `);
+            latestResult = await db.execute(sql`
+              SELECT slug, code, expires_at, revoked_at
+              FROM baptism_public_links
+              WHERE service_id = ${req.params.id}
+              ORDER BY created_at DESC
+              LIMIT 1
+            `);
+          }
+        }
+
         // Lazy-create the public link if the service is approved but no link exists yet
         if (!latestResult.rows.length && svc.approval_status === "approved") {
           const session = approvedSessionPayload({

@@ -45,10 +45,11 @@ export function approvedSessionPayload(params: {
   randomSlugHex?: string;
 }) {
   const slug = params.previousSlug || buildStableSlug(params.serviceId, params.randomSlugHex || "000000");
+  const now = new Date();
   return {
     slug,
     code: params.randomCode,
-    publishedAt: params.serviceAt,
+    publishedAt: now,
     expiresAt: new Date(params.serviceAt.getTime() + 24 * 60 * 60 * 1000),
   };
 }
