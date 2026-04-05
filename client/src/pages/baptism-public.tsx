@@ -261,80 +261,119 @@ function CoverPage({ data }: { data: ServiceData }) {
 
   return (
     <div
-      className="relative flex flex-col overflow-hidden select-none"
-      style={{ minHeight: "100dvh", background: "#faf8f4", fontFamily: "'EB Garamond', Georgia, serif" }}
-      onClick={() => {}}
+      className="relative overflow-hidden select-none"
+      style={{ minHeight: "100dvh", background: "#ffffff", fontFamily: "'EB Garamond', Georgia, serif" }}
     >
-      {/* Theme decoration — top-right only */}
-      <div className="absolute top-0 right-0 pointer-events-none z-10">
-        <ThemeDeco deco={tc.deco} size={180} />
+      {/* Theme decoration — top-right only, behind text */}
+      <div className="absolute top-0 right-0 pointer-events-none" style={{ zIndex: 1 }}>
+        <ThemeDeco deco={tc.deco} size={190} />
       </div>
 
-      {/* Content — left-aligned like the reference */}
-      <div className="relative z-20 flex flex-col px-7 pt-12">
-        {/* Date */}
+      {/* Christ image — occupies bottom 55%, behind text z-layer */}
+      <div
+        className="absolute left-0 right-0 bottom-0 pointer-events-none"
+        style={{ top: "38%", zIndex: 1 }}
+      >
+        <img
+          src={tc.image}
+          alt=""
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            objectPosition: "center top",
+            opacity: 0.92,
+            display: "block",
+          }}
+        />
+        {/* Bottom fade so it dissolves into white */}
+        <div
+          className="absolute bottom-0 left-0 right-0"
+          style={{ height: "30%", background: "linear-gradient(to bottom, transparent, #ffffff)" }}
+        />
+      </div>
+
+      {/* Text content — foreground */}
+      <div className="relative flex flex-col px-7 pt-14" style={{ zIndex: 2 }}>
+
+        {/* Date: ENERO · 06 · 2024 */}
         {dateParts && (
-          <div className="flex items-baseline gap-2 mb-6">
-            <span className="text-xs tracking-[0.18em] uppercase" style={{ color: tc.accentDark, fontFamily: "'Cinzel', serif" }}>
+          <div className="flex items-baseline gap-2 mb-5">
+            <span
+              style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em",
+                       textTransform: "uppercase", color: tc.accentDark }}
+            >
               {dateParts.month}
             </span>
-            <span className="font-bold text-xl" style={{ color: tc.accent, fontFamily: "'Cinzel', serif" }}>
+            <span
+              style={{ fontFamily: "'Cinzel', serif", fontSize: "1.4rem", fontWeight: 700,
+                       lineHeight: 1, color: tc.accent }}
+            >
               {dateParts.day}
             </span>
-            <span className="text-xs tracking-[0.18em]" style={{ color: tc.accentDark, fontFamily: "'Cinzel', serif" }}>
+            <span
+              style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em",
+                       color: tc.accentDark }}
+            >
               {dateParts.year}
             </span>
           </div>
         )}
 
-        {/* "Mí / Bautismo" */}
+        {/* "Mí" */}
         <h1
-          className="font-bold leading-none"
-          style={{ fontFamily: "'Cinzel', Georgia, serif", fontSize: "clamp(2.6rem, 11vw, 3.8rem)", color: tc.titleColor, letterSpacing: "0.02em" }}
+          style={{
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: "clamp(2.8rem, 12vw, 4rem)",
+            fontWeight: 700,
+            lineHeight: 0.95,
+            color: tc.titleColor,
+            letterSpacing: "0.01em",
+            margin: 0,
+          }}
         >
           Mí
         </h1>
+
+        {/* "Bautismo" */}
         <h1
-          className="font-bold leading-none mb-5"
-          style={{ fontFamily: "'Cinzel', Georgia, serif", fontSize: "clamp(2.6rem, 11vw, 3.8rem)", color: tc.titleColor, letterSpacing: "0.02em" }}
+          style={{
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: "clamp(2.8rem, 12vw, 4rem)",
+            fontWeight: 700,
+            lineHeight: 0.95,
+            color: tc.titleColor,
+            letterSpacing: "0.01em",
+            margin: 0,
+            marginBottom: "1.2rem",
+          }}
         >
           Bautismo
         </h1>
 
-        {/* Candidate name */}
+        {/* Candidate name in script */}
         <p
           style={{
             fontFamily: "'Dancing Script', cursive",
-            fontSize: "clamp(1.4rem, 5.5vw, 2rem)",
+            fontSize: "clamp(1.3rem, 5.5vw, 1.9rem)",
             color: C.ink,
-            lineHeight: 1.25,
+            lineHeight: 1.2,
           }}
         >
           {joinNames(names) || "Programa bautismal"}
         </p>
       </div>
 
-      {/* Christ image — bottom, large, fading at bottom edge */}
-      <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10" style={{ height: "58%" }}>
-        <img
-          src={tc.image}
-          alt=""
-          className="w-full h-full object-contain object-bottom"
-          style={{ opacity: 0.88 }}
-        />
-        {/* Gradient fade at bottom */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-20"
-          style={{ background: "linear-gradient(to bottom, transparent, #faf8f4)" }}
-        />
-      </div>
-
-      {/* Tap hint — bottom */}
-      <div className="absolute bottom-5 left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
-        <p className="text-xs tracking-[0.15em] uppercase" style={{ color: tc.accent, opacity: 0.7, fontFamily: "'Cinzel', serif" }}>
+      {/* Tap hint — pinned to bottom, above image */}
+      <div
+        className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-1 pointer-events-none"
+        style={{ zIndex: 3 }}
+      >
+        <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.6rem", letterSpacing: "0.18em",
+                    textTransform: "uppercase", color: tc.accent, opacity: 0.65 }}>
           Toca para abrir
         </p>
-        <ChevronRight size={15} style={{ color: tc.accent, opacity: 0.6 }} />
+        <ChevronRight size={14} style={{ color: tc.accent, opacity: 0.55 }} />
       </div>
     </div>
   );
