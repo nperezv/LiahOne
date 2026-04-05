@@ -3829,21 +3829,20 @@ export async function runBaptismReadinessCheck(): Promise<number> {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public routes only (no auth required) — registered separately from routes.ts
+// All queries use raw SQL since baptism tables have no Drizzle table objects.
 // ─────────────────────────────────────────────────────────────────────────────
 export function registerBaptismPublicRoutes(app: Express) {
   app.get("/bautismo/:slug", async (req, res) => {
-    const linkRows = await db
-      .select()
-      .from(baptismPublicLinks)
-      .where(and(eq(baptismPublicLinks.slug, req.params.slug), isNull(baptismPublicLinks.revokedAt)))
-      .orderBy(desc(baptismPublicLinks.publishedAt))
-      .limit(1);
-    const link = linkRows[0];
+    const linkResult = await db.execute(sql`
+      SELECT id, service_id, expires_at, revoked_at
+      FROM baptism_public_links
+      WHERE slug = ${req.params.slug} AND revoked_at IS NULL
+      ORDER BY published_at DESC LIMIT 1
+    `);
+    const link = linkResult.rows[0] as any;
     if (!link) return res.status(404).json({ message: "Enlace no encontrado" });
 
-    const svcRow = await db.execute(sql`
-      SELECT approval_status, service_at FROM baptism_services WHERE id = ${link.serviceId}
-    `);
+    const svcRow = await db.execute(sql`SELECT approval_status, service_at FROM baptism_services WHERE id = ${link.service_id}`);
     const svc = svcRow.rows[0] as any;
     if (svc?.approval_status !== "approved") return res.json({ unavailable: "not_approved" });
 
@@ -3854,26 +3853,33 @@ export function registerBaptismPublicRoutes(app: Express) {
       if (now < serviceAt || now >= windowEnd) return res.json({ unavailable: "outside_window" });
     }
 
-    const [programItems, assignments] = await Promise.all([
-      db.select({ type: baptismProgramItems.type }).from(baptismProgramItems).where(eq(baptismProgramItems.serviceId, link.serviceId)),
-      db.select({ type: baptismAssignments.type, assigneeUserId: baptismAssignments.assigneeUserId, assigneeName: baptismAssignments.assigneeName })
-        .from(baptismAssignments).where(eq(baptismAssignments.serviceId, link.serviceId)),
+    const [programItemsResult, assignmentsResult] = await Promise.all([
+      db.execute(sql`SELECT type FROM baptism_program_items WHERE service_id = ${link.service_id}`),
+      db.execute(sql`SELECT type, assignee_user_id AS "assigneeUserId", assignee_name AS "assigneeName" FROM baptism_assignments WHERE service_id = ${link.service_id}`),
     ]);
+    const programItems = programItemsResult.rows as any[];
+    const assignments = assignmentsResult.rows as any[];
     const readiness = computeMinimumReady({ programItems, assignments, hasInterviewScheduledMilestone: true });
     if (!readiness.ready) return res.json({ unavailable: "pending_logistics" });
 
-    const [items, approvedPosts, candidatesResult, svcResult, tplResult] = await Promise.all([
-      db.select({ id: baptismProgramItems.id, type: baptismProgramItems.type, title: baptismProgramItems.title, order: baptismProgramItems.order, publicVisibility: baptismProgramItems.publicVisibility, hymnId: baptismProgramItems.hymnId, hymnNumber: hymns.number, hymnTitle: hymns.title, hymnExternalUrl: hymns.externalUrl })
-        .from(baptismProgramItems).leftJoin(hymns, eq(hymns.id, baptismProgramItems.hymnId)).where(eq(baptismProgramItems.serviceId, link.serviceId)),
-      db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.publicLinkId, link.id), eq(baptismPublicPosts.status, "approved"))).orderBy(desc(baptismPublicPosts.createdAt)),
-      db.execute(sql`SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento" FROM baptism_service_candidates bsc JOIN mission_personas mp ON mp.id = bsc.persona_id WHERE bsc.service_id = ${link.serviceId} ORDER BY mp.nombre`),
-      db.execute(sql`SELECT service_at FROM baptism_services WHERE id = ${link.serviceId}`),
+    const [itemsResult, postsResult, candidatesResult, tplResult] = await Promise.all([
+      db.execute(sql`
+        SELECT bpi.id, bpi.type, bpi.title, bpi.order, bpi.public_visibility AS "publicVisibility",
+               bpi.hymn_id AS "hymnId", h.number AS "hymnNumber", h.title AS "hymnTitle", h.external_url AS "hymnExternalUrl"
+        FROM baptism_program_items bpi
+        LEFT JOIN hymns h ON h.id = bpi.hymn_id
+        WHERE bpi.service_id = ${link.service_id}
+      `),
+      db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${link.id} AND status = 'approved' ORDER BY created_at DESC`),
+      db.execute(sql`SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento" FROM baptism_service_candidates bsc JOIN mission_personas mp ON mp.id = bsc.persona_id WHERE bsc.service_id = ${link.service_id} ORDER BY mp.nombre`),
       db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
     ]);
+    const items = itemsResult.rows as any[];
+    const approvedPosts = postsResult.rows as any[];
     const candidates = (candidatesResult.rows as any[]).map((r) => ({ nombre: r.nombre as string, sexo: r.sexo as string | null, fechaNacimiento: r.fechaNacimiento as string | null }));
-    const serviceAtFinal = (svcResult.rows[0] as any)?.service_at ? new Date((svcResult.rows[0] as any).service_at) : null;
     const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
-    res.json(toPublicServiceDTO({ items, approvedPosts, expiresAt: link.expiresAt, candidates, serviceAt: serviceAtFinal, wardName }));
+    const expiresAt = link.expires_at ? new Date(link.expires_at) : null;
+    res.json(toPublicServiceDTO({ items, approvedPosts, expiresAt, candidates, serviceAt, wardName }));
   });
 
   app.get("/b/:slug", async (req, res) => {
@@ -3882,14 +3888,21 @@ export function registerBaptismPublicRoutes(app: Express) {
     if (active === "invalid_code") return res.status(403).json({ error: "Invalid code" });
     if (!active) return res.status(410).json({ message: "Enlace caducado" });
 
-    const [items, approvedPosts, candidatesResult, svcResult, tplResult] = await Promise.all([
-      db.select({ id: baptismProgramItems.id, type: baptismProgramItems.type, title: baptismProgramItems.title, order: baptismProgramItems.order, publicVisibility: baptismProgramItems.publicVisibility, hymnId: baptismProgramItems.hymnId, hymnNumber: hymns.number, hymnTitle: hymns.title, hymnExternalUrl: hymns.externalUrl })
-        .from(baptismProgramItems).leftJoin(hymns, eq(hymns.id, baptismProgramItems.hymnId)).where(eq(baptismProgramItems.serviceId, active.serviceId)),
-      db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.publicLinkId, active.id), eq(baptismPublicPosts.status, "approved"))).orderBy(desc(baptismPublicPosts.createdAt)),
+    const [itemsResult, postsResult, candidatesResult, svcResult, tplResult] = await Promise.all([
+      db.execute(sql`
+        SELECT bpi.id, bpi.type, bpi.title, bpi.order, bpi.public_visibility AS "publicVisibility",
+               bpi.hymn_id AS "hymnId", h.number AS "hymnNumber", h.title AS "hymnTitle", h.external_url AS "hymnExternalUrl"
+        FROM baptism_program_items bpi
+        LEFT JOIN hymns h ON h.id = bpi.hymn_id
+        WHERE bpi.service_id = ${active.serviceId}
+      `),
+      db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${active.id} AND status = 'approved' ORDER BY created_at DESC`),
       db.execute(sql`SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento" FROM baptism_service_candidates bsc JOIN mission_personas mp ON mp.id = bsc.persona_id WHERE bsc.service_id = ${active.serviceId} ORDER BY mp.nombre`),
       db.execute(sql`SELECT service_at FROM baptism_services WHERE id = ${active.serviceId}`),
       db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
     ]);
+    const items = itemsResult.rows as any[];
+    const approvedPosts = postsResult.rows as any[];
     const candidates = (candidatesResult.rows as any[]).map((r) => ({ nombre: r.nombre as string, sexo: r.sexo as string | null, fechaNacimiento: r.fechaNacimiento as string | null }));
     const serviceAt = (svcResult.rows[0] as any)?.service_at ? new Date((svcResult.rows[0] as any).service_at) : null;
     const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
@@ -3907,17 +3920,21 @@ export function registerBaptismPublicRoutes(app: Express) {
 
     const hash = ipHash(req);
     const now = new Date();
-    const tenMinutes = new Date(now.getTime() - 10 * 60 * 1000);
-    const oneDay = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const recent10 = await db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.ipHash, hash), gt(baptismPublicPosts.createdAt, tenMinutes)));
-    const recent24 = await db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.ipHash, hash), gt(baptismPublicPosts.createdAt, oneDay)));
-    if (isRateLimited(recent10.length, recent24.length).blocked) return res.status(429).json({ error: "Rate limit" });
+    const tenMinutes = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+    const oneDay = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const recent10Result = await db.execute(sql`SELECT 1 FROM baptism_public_posts WHERE ip_hash = ${hash} AND created_at > ${tenMinutes}`);
+    const recent24Result = await db.execute(sql`SELECT 1 FROM baptism_public_posts WHERE ip_hash = ${hash} AND created_at > ${oneDay}`);
+    if (isRateLimited(recent10Result.rows.length, recent24Result.rows.length).blocked) return res.status(429).json({ error: "Rate limit" });
 
-    const existing = await db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.publicLinkId, active.id), eq(baptismPublicPosts.clientRequestId, parsed.data.clientRequestId))).limit(1);
-    if (existing[0]) return res.status(200).json(existing[0]);
+    const existingResult = await db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${active.id} AND client_request_id = ${parsed.data.clientRequestId} LIMIT 1`);
+    if (existingResult.rows[0]) return res.status(200).json(existingResult.rows[0]);
 
-    const [row] = await db.insert(baptismPublicPosts).values({ publicLinkId: active.id, displayName: normalizeDisplayName(parsed.data.displayName), message: parsed.data.message, clientRequestId: parsed.data.clientRequestId, ipHash: hash, status: "pending" }).returning();
-    res.status(201).json(row);
+    const insertResult = await db.execute(sql`
+      INSERT INTO baptism_public_posts (public_link_id, display_name, message, client_request_id, ip_hash, status)
+      VALUES (${active.id}, ${normalizeDisplayName(parsed.data.displayName)}, ${parsed.data.message}, ${parsed.data.clientRequestId}, ${hash}, 'pending')
+      RETURNING *
+    `);
+    res.status(201).json(insertResult.rows[0]);
   });
 
   app.post("/bautismo/:slug/posts", async (req, res) => {
@@ -3925,11 +3942,11 @@ export function registerBaptismPublicRoutes(app: Express) {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid payload" });
     if (parsed.data.company && parsed.data.company.trim()) return res.status(400).json({ error: "Bot detected" });
 
-    const linkRows = await db.select().from(baptismPublicLinks).where(and(eq(baptismPublicLinks.slug, req.params.slug), isNull(baptismPublicLinks.revokedAt))).orderBy(desc(baptismPublicLinks.publishedAt)).limit(1);
-    const link = linkRows[0];
+    const linkResult = await db.execute(sql`SELECT id, service_id FROM baptism_public_links WHERE slug = ${req.params.slug} AND revoked_at IS NULL ORDER BY published_at DESC LIMIT 1`);
+    const link = linkResult.rows[0] as any;
     if (!link) return res.status(404).json({ error: "Enlace no encontrado" });
 
-    const svcResult = await db.execute(sql`SELECT approval_status, service_at FROM baptism_services WHERE id = ${link.serviceId}`);
+    const svcResult = await db.execute(sql`SELECT approval_status, service_at FROM baptism_services WHERE id = ${link.service_id}`);
     const svcPost = svcResult.rows[0] as any;
     if (svcPost?.approval_status !== "approved") return res.status(403).json({ error: "El programa no está disponible" });
 
@@ -3942,16 +3959,20 @@ export function registerBaptismPublicRoutes(app: Express) {
 
     const hash = ipHash(req);
     const now = new Date();
-    const tenMinutes = new Date(now.getTime() - 10 * 60 * 1000);
-    const oneDay = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const recent10 = await db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.ipHash, hash), gt(baptismPublicPosts.createdAt, tenMinutes)));
-    const recent24 = await db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.ipHash, hash), gt(baptismPublicPosts.createdAt, oneDay)));
-    if (isRateLimited(recent10.length, recent24.length).blocked) return res.status(429).json({ error: "Rate limit" });
+    const tenMinutes = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+    const oneDay = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const recent10Result = await db.execute(sql`SELECT 1 FROM baptism_public_posts WHERE ip_hash = ${hash} AND created_at > ${tenMinutes}`);
+    const recent24Result = await db.execute(sql`SELECT 1 FROM baptism_public_posts WHERE ip_hash = ${hash} AND created_at > ${oneDay}`);
+    if (isRateLimited(recent10Result.rows.length, recent24Result.rows.length).blocked) return res.status(429).json({ error: "Rate limit" });
 
-    const existing = await db.select().from(baptismPublicPosts).where(and(eq(baptismPublicPosts.publicLinkId, link.id), eq(baptismPublicPosts.clientRequestId, parsed.data.clientRequestId))).limit(1);
-    if (existing[0]) return res.status(200).json(existing[0]);
+    const existingResult = await db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${link.id} AND client_request_id = ${parsed.data.clientRequestId} LIMIT 1`);
+    if (existingResult.rows[0]) return res.status(200).json(existingResult.rows[0]);
 
-    const [row] = await db.insert(baptismPublicPosts).values({ publicLinkId: link.id, displayName: normalizeDisplayName(parsed.data.displayName), message: parsed.data.message, clientRequestId: parsed.data.clientRequestId, ipHash: hash, status: "pending" }).returning();
-    res.status(201).json(row);
+    const insertResult = await db.execute(sql`
+      INSERT INTO baptism_public_posts (public_link_id, display_name, message, client_request_id, ip_hash, status)
+      VALUES (${link.id}, ${normalizeDisplayName(parsed.data.displayName)}, ${parsed.data.message}, ${parsed.data.clientRequestId}, ${hash}, 'pending')
+      RETURNING *
+    `);
+    res.status(201).json(insertResult.rows[0]);
   });
 }
