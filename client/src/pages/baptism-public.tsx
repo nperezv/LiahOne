@@ -364,12 +364,12 @@ function CoverPage({ data }: { data: ServiceData }) {
         className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-1 pointer-events-none"
         style={{ zIndex: 4 }}
       >
-        <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.55rem",
+        <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.72rem",
                     letterSpacing: "0.18em", textTransform: "uppercase",
-                    color: tc.accent, opacity: 0.55 }}>
+                    color: tc.accent, opacity: 0.85 }}>
           Toca para abrir
         </p>
-        <ChevronRight size={13} style={{ color: tc.accent, opacity: 0.45 }} />
+        <ChevronRight size={16} style={{ color: tc.accent, opacity: 0.75 }} />
       </div>
     </div>
   );
@@ -383,7 +383,7 @@ function OrdinanceOpenDivider() {
         className="shrink-0 text-center"
         style={{
           fontFamily: "'Cinzel', serif",
-          fontSize: "0.55rem",
+          fontSize: "0.7rem",
           letterSpacing: "0.18em",
           color: C.teal,
           textTransform: "uppercase",
@@ -435,13 +435,13 @@ function ProgramPage({ data }: { data: ServiceData }) {
             style={{
               color: isOrd ? C.teal : C.inkLight,
               fontFamily: "'Cinzel', serif",
-              fontSize: "0.65rem",
+              fontSize: "0.75rem",
               letterSpacing: "0.1em",
             }}
           >
             {label}:
           </span>
-          <span className="text-sm" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
+          <span className="text-base" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
             {item.hymn
               ? `#${item.hymn.number}${item.hymn.title ? `, ${item.hymn.title}` : ""}`
               : (item.title || "—")}
@@ -466,17 +466,17 @@ function ProgramPage({ data }: { data: ServiceData }) {
       >
         <p
           className="uppercase font-semibold"
-          style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em" }}
+          style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.78rem", letterSpacing: "0.2em" }}
         >
           Programa de Servicio Bautismal
         </p>
         {names.length > 0 && dateStr && (
-          <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
+          <p className="mt-1.5 text-sm italic" style={{ color: C.inkLight }}>
             De {joinNames(names)}, realizado en {data.wardName ?? "la congregación"}, {dateStr}
           </p>
         )}
         {data.wardName && (
-          <p className="mt-0.5 text-xs" style={{ color: C.inkLight }}>
+          <p className="mt-0.5 text-sm" style={{ color: C.inkLight }}>
             {data.wardName}
           </p>
         )}
