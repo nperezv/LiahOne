@@ -2493,13 +2493,21 @@ function BaptismalServiceSheet({
   });
 
   const saveProgramMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("PUT", `/api/baptisms/services/${service?.id}/program`, {
-        items: effectiveProgramOrder.map((type) => ({
-          type,
-          participantDisplayName: programDraft[type] || null,
-        })),
-      }),
+    mutationFn: () => {
+      const HYMN_TYPES = new Set(["primer_himno", "ultimo_himno"]);
+      return apiRequest("PUT", `/api/baptisms/services/${service?.id}/program`, {
+        items: effectiveProgramOrder.map((type) => {
+          const displayName = programDraft[type] || null;
+          let hymnId: string | null = null;
+          if (HYMN_TYPES.has(type) && displayName) {
+            const num = parseInt(displayName.split(" - ")[0], 10);
+            const found = (hymns as any[]).find((h: any) => h.number === num);
+            hymnId = found?.id ?? null;
+          }
+          return { type, participantDisplayName: displayName, hymnId };
+        }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
       qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });

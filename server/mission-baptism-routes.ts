@@ -1954,7 +1954,7 @@ export function registerMissionBaptismRoutes(
       const user = (req as any).user;
       if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
 
-      const items: Array<{ type: string; participantDisplayName?: string | null }> = req.body.items ?? [];
+      const items: Array<{ type: string; participantDisplayName?: string | null; hymnId?: string | null }> = req.body.items ?? [];
       if (!Array.isArray(items)) return res.status(400).json({ error: "items must be an array" });
 
       const [service] = await db
@@ -1965,12 +1965,13 @@ export function registerMissionBaptismRoutes(
       if (!service) return res.status(404).json({ error: "Service not found" });
 
       for (let i = 0; i < items.length; i++) {
-        const { type, participantDisplayName } = items[i];
+        const { type, participantDisplayName, hymnId } = items[i];
         await db.execute(sql`
-          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, updated_by, updated_at)
-          VALUES (${req.params.id}, ${type}, ${i}, ${participantDisplayName ?? null}, ${user.id}, NOW())
+          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, hymn_id, updated_by, updated_at)
+          VALUES (${req.params.id}, ${type}, ${i}, ${participantDisplayName ?? null}, ${hymnId ?? null}, ${user.id}, NOW())
           ON CONFLICT (service_id, type) DO UPDATE SET
             participant_display_name = EXCLUDED.participant_display_name,
+            hymn_id = EXCLUDED.hymn_id,
             "order" = EXCLUDED."order",
             updated_by = EXCLUDED.updated_by,
             updated_at = EXCLUDED.updated_at
