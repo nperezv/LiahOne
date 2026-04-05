@@ -80,7 +80,9 @@ export function registerBaptismPublicRoutes(app: Express) {
 
     const [itemsResult, postsResult, candidatesResult, tplResult] = await Promise.all([
       db.execute(sql`
-        SELECT bpi.id, bpi.type, bpi.title, bpi.order, bpi.public_visibility AS "publicVisibility",
+        SELECT bpi.id, bpi.type,
+               COALESCE(bpi.participant_display_name, bpi.title) AS title,
+               bpi.order, bpi.public_visibility AS "publicVisibility",
                bpi.hymn_id AS "hymnId", h.number AS "hymnNumber", h.title AS "hymnTitle", h.external_url AS "hymnExternalUrl"
         FROM baptism_program_items bpi
         LEFT JOIN hymns h ON h.id = bpi.hymn_id
@@ -118,7 +120,9 @@ export function registerBaptismPublicRoutes(app: Express) {
 
     const [itemsResult, postsResult, candidatesResult, svcResult, tplResult] = await Promise.all([
       db.execute(sql`
-        SELECT bpi.id, bpi.type, bpi.title, bpi.order, bpi.public_visibility AS "publicVisibility",
+        SELECT bpi.id, bpi.type,
+               COALESCE(bpi.participant_display_name, bpi.title) AS title,
+               bpi.order, bpi.public_visibility AS "publicVisibility",
                bpi.hymn_id AS "hymnId", h.number AS "hymnNumber", h.title AS "hymnTitle", h.external_url AS "hymnExternalUrl"
         FROM baptism_program_items bpi
         LEFT JOIN hymns h ON h.id = bpi.hymn_id
