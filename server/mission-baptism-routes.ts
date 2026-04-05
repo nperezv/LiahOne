@@ -3827,11 +3827,8 @@ export async function runBaptismReadinessCheck(): Promise<number> {
   return sent;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public routes only (no auth required) — registered separately from routes.ts
-// All queries use raw SQL since baptism tables have no Drizzle table objects.
-// ─────────────────────────────────────────────────────────────────────────────
-export function registerBaptismPublicRoutes(app: Express) {
+// Dead code — moved to baptism-public-routes.ts
+function _unusedBaptismPublicRoutes(app: Express) {
   app.get("/bautismo/:slug", async (req, res) => {
     const linkResult = await db.execute(sql`
       SELECT id, service_id, expires_at, revoked_at
