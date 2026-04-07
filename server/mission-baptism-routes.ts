@@ -1973,9 +1973,11 @@ export function registerMissionBaptismRoutes(
         let hymnId: string | null = clientHymnId ?? null;
         if (!hymnId && HYMN_ITEM_TYPES.has(type) && participantDisplayName) {
           const num = parseInt(participantDisplayName.split(" - ")[0], 10);
+          console.log(`[program PUT] hymn type=${type} displayName="${participantDisplayName}" parsedNum=${num}`);
           if (!isNaN(num)) {
             const [found] = await db.select({ id: hymns.id }).from(hymns).where(eq(hymns.number, num)).limit(1);
             hymnId = found?.id ?? null;
+            console.log(`[program PUT] hymn lookup num=${num} found=${hymnId}`);
           }
         }
 

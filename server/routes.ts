@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { applyHymnStartupMigrations } from "./startup-hymn-migrations";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -891,6 +892,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`
     ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS meeting_center_address text NOT NULL DEFAULT ''
   `);
+
+  // Auto-migration: ensure hymns table has all required columns, missing entries, and external URLs
+  await applyHymnStartupMigrations();
 
   app.use(
     session({
