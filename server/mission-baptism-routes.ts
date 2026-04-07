@@ -2026,6 +2026,25 @@ export function registerMissionBaptismRoutes(
     },
   );
 
+  // Temporary debug endpoint — returns raw program items with hymn_id for a service
+  app.get(
+    "/api/baptisms/services/:id/program-debug",
+    requireAuth,
+    async (req, res) => {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ error: "Forbidden" });
+      const rows = await db.execute(sql`
+        SELECT bpi.type, bpi.participant_display_name, bpi.hymn_id,
+               h.number AS hymn_number, h.title AS hymn_title, h.external_url
+        FROM baptism_program_items bpi
+        LEFT JOIN hymns h ON h.id = bpi.hymn_id
+        WHERE bpi.service_id = ${req.params.id}
+        ORDER BY bpi.order
+      `);
+      res.json(rows.rows);
+    },
+  );
+
   app.post(
     "/api/baptisms/services/:id/program-items",
     requireAuth,
