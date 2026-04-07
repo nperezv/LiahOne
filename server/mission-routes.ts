@@ -1800,13 +1800,27 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       `);
       if (!svcCheck.rows.length) return res.status(404).json({ message: "Servicio no encontrado" });
 
+      const HYMN_ITEM_TYPES = new Set(["primer_himno", "ultimo_himno"]);
+
       for (let i = 0; i < items.length; i++) {
         const { type, participantDisplayName } = items[i];
+
+        // Resolve hymn_id from display name (e.g. "49 - Señor, te necesito")
+        let hymnId: string | null = null;
+        if (HYMN_ITEM_TYPES.has(type) && participantDisplayName) {
+          const num = parseInt(participantDisplayName.split(" - ")[0], 10);
+          if (!isNaN(num)) {
+            const found = await db.execute(sql`SELECT id FROM hymns WHERE number = ${num} LIMIT 1`);
+            hymnId = (found.rows[0] as any)?.id ?? null;
+          }
+        }
+
         await db.execute(sql`
-          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, updated_by, updated_at)
-          VALUES (${req.params.id}, ${type}, ${i}, ${participantDisplayName ?? null}, ${user.id}, NOW())
+          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, hymn_id, updated_by, updated_at)
+          VALUES (${req.params.id}, ${type}, ${i}, ${participantDisplayName ?? null}, ${hymnId}, ${user.id}, NOW())
           ON CONFLICT (service_id, type) DO UPDATE SET
             participant_display_name = EXCLUDED.participant_display_name,
+            hymn_id = EXCLUDED.hymn_id,
             "order" = EXCLUDED."order",
             updated_by = EXCLUDED.updated_by,
             updated_at = EXCLUDED.updated_at
