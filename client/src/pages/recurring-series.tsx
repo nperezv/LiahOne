@@ -57,6 +57,16 @@ const FREQUENCY_LABELS: Record<string, string> = {
   quarterly: "Trimestral",
 };
 
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  servicio_bautismal: "Servicio Bautismal",
+  deportiva: "Deportiva",
+  capacitacion: "Capacitación",
+  fiesta: "Fiesta",
+  hermanamiento: "Hermanamiento",
+  actividad_org: "Actividad de Org.",
+  otro: "Otro",
+};
+
 const EMPTY_FORM = {
   title: "",
   description: "",
@@ -67,6 +77,8 @@ const EMPTY_FORM = {
   rotationStartDate: "",
   rotationEndDate: "",
   notifyDaysBefore: "7",
+  activityType: "actividad_org",
+  isPublic: false,
 };
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -156,6 +168,8 @@ export default function RecurringSeriesPage() {
       rotationStartDate: s.rotation_start_date?.slice(0, 10) ?? "",
       rotationEndDate: s.end_date?.slice(0, 10) ?? "",
       notifyDaysBefore: String(s.notify_days_before ?? 14),
+      activityType: s.activity_type ?? "actividad_org",
+      isPublic: s.is_public ?? false,
     });
     setRotationOrgIds(s.rotation_org_ids ?? []);
     setFormOpen(true);
@@ -173,6 +187,8 @@ export default function RecurringSeriesPage() {
       rotationStartDate: form.rotationStartDate,
       rotationEndDate: form.rotationEndDate || null,
       notifyDaysBefore: Number(form.notifyDaysBefore),
+      activityType: form.activityType,
+      isPublic: form.isPublic,
     };
     if (editing) { updateSeries.mutate({ id: editing.id, body }); }
     else { createSeries.mutate(body); }
@@ -427,6 +443,18 @@ export default function RecurringSeriesPage() {
             </div>
 
             <div className="space-y-1.5">
+              <Label>Tipo de actividad</Label>
+              <Select value={form.activityType} onValueChange={(v) => setForm({ ...form, activityType: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ACTIVITY_TYPE_LABELS).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label>Lugar (opcional)</Label>
               <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
                 placeholder="Capilla del Barrio" />
@@ -437,6 +465,19 @@ export default function RecurringSeriesPage() {
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 rows={2} placeholder="Descripción de la actividad" />
             </div>
+
+            <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/30">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary mt-0.5"
+                checked={form.isPublic}
+                onChange={(e) => setForm({ ...form, isPublic: e.target.checked })}
+              />
+              <div>
+                <p className="text-sm font-medium">Publicar en la landing pública</p>
+                <p className="text-xs text-muted-foreground">Visible para cualquier persona que visite la página principal</p>
+              </div>
+            </label>
 
             {/* Rotation order */}
             <div className="space-y-2">

@@ -1027,6 +1027,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE activities
       ADD COLUMN IF NOT EXISTS section_data jsonb NOT NULL DEFAULT '{}'
   `);
+  await db.execute(sql`
+    ALTER TABLE recurring_series
+      ADD COLUMN IF NOT EXISTS activity_type varchar(50) NOT NULL DEFAULT 'actividad_org'
+  `);
+  await db.execute(sql`
+    ALTER TABLE recurring_series
+      ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false
+  `);
+  await db.execute(sql`
+    ALTER TABLE quarterly_plan_items
+      ADD COLUMN IF NOT EXISTS activity_type varchar(50) NOT NULL DEFAULT 'actividad_org'
+  `);
+  await db.execute(sql`
+    ALTER TABLE quarterly_plan_items
+      ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false
+  `);
 
   // Auto-migration: regenerate checklist items for non-baptism activities that still
   // have old-format items (prog_agenda, coord_participantes, etc.)

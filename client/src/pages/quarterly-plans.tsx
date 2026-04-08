@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   Plus, CalendarDays, MapPin, Users, DollarSign, Trash2,
-  ChevronDown, ChevronRight, Send, CheckCircle2, XCircle, Clock, FileText, ArrowLeft
+  ChevronDown, ChevronRight, Send, CheckCircle2, XCircle, Clock, FileText, ArrowLeft, Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -31,6 +31,16 @@ import {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 const QUARTER_LABELS = ["Q1 (Ene–Mar)", "Q2 (Abr–Jun)", "Q3 (Jul–Sep)", "Q4 (Oct–Dic)"];
+
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  servicio_bautismal: "Servicio Bautismal",
+  deportiva: "Deportiva",
+  capacitacion: "Capacitación",
+  fiesta: "Fiesta",
+  hermanamiento: "Hermanamiento",
+  actividad_org: "Actividad de Org.",
+  otro: "Otro",
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft:     { label: "Borrador",  color: "secondary", icon: <FileText className="h-3 w-3" /> },
@@ -76,6 +86,8 @@ const itemSchema = z.object({
   estimatedAttendance: z.string().optional(),
   budget: z.string().optional(),
   notes: z.string().optional(),
+  activityType: z.string().default("actividad_org"),
+  isPublic: z.boolean().default(false),
 });
 
 type NewPlanValues = z.infer<typeof newPlanSchema>;
@@ -107,6 +119,8 @@ function ItemFormDialog({
       estimatedAttendance: item?.estimatedAttendance?.toString() ?? "",
       budget: item?.budget ?? "",
       notes: item?.notes ?? "",
+      activityType: (item as any)?.activityType ?? "actividad_org",
+      isPublic: (item as any)?.isPublic ?? false,
     },
   });
 
@@ -119,6 +133,8 @@ function ItemFormDialog({
       estimatedAttendance: vals.estimatedAttendance ? parseInt(vals.estimatedAttendance) : null,
       budget: vals.budget || null,
       notes: vals.notes || null,
+      activityType: vals.activityType,
+      isPublic: vals.isPublic,
     };
 
     if (item) {
@@ -149,6 +165,22 @@ function ItemFormDialog({
               <FormItem>
                 <FormLabel>Fecha *</FormLabel>
                 <FormControl><Input type="date" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="activityType" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tipo de actividad</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger><SelectValue placeholder="Selecciona el tipo" /></SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {Object.entries(ACTIVITY_TYPE_LABELS).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )} />
@@ -187,6 +219,26 @@ function ItemFormDialog({
                 <FormLabel>Notas</FormLabel>
                 <FormControl><Textarea {...field} rows={2} placeholder="Notas adicionales" /></FormControl>
                 <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="isPublic" render={({ field }) => (
+              <FormItem className="flex items-center gap-3 rounded-lg border p-3">
+                <FormControl>
+                  <input
+                    type="checkbox"
+                    checked={field.value}
+                    onChange={field.onChange}
+                    className="h-4 w-4 accent-primary"
+                    id="qp-is-public"
+                  />
+                </FormControl>
+                <div className="space-y-0.5">
+                  <FormLabel htmlFor="qp-is-public" className="flex items-center gap-1.5 cursor-pointer font-medium">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    Publicar en la landing pública
+                  </FormLabel>
+                  <p className="text-xs text-muted-foreground">Visible para cualquier persona que visite la página principal</p>
+                </div>
               </FormItem>
             )} />
             <DialogFooter>

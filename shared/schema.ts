@@ -936,6 +936,8 @@ export const quarterlyPlanItems = pgTable("quarterly_plan_items", {
   notes: text("notes"),
   order: integer("order").notNull().default(0),
   activityId: varchar("activity_id").references(() => activities.id),
+  activityType: varchar("activity_type").default("actividad_org"),
+  isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

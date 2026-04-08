@@ -182,13 +182,13 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
   app.post("/api/recurring-series", requireAuth, async (req, res) => {
     if (!isAdmin(req, res)) return;
     try {
-      const { title, description, location, dayOfWeek, timeOfDay, frequency, rotationOrgIds, rotationStartDate, rotationEndDate, notifyDaysBefore } = req.body;
+      const { title, description, location, dayOfWeek, timeOfDay, frequency, rotationOrgIds, rotationStartDate, rotationEndDate, notifyDaysBefore, activityType, isPublic } = req.body;
       if (!title || !rotationStartDate || !Array.isArray(rotationOrgIds) || rotationOrgIds.length === 0) {
         return res.status(400).json({ error: "Faltan campos requeridos" });
       }
       const result = await db.execute(sql`
         INSERT INTO recurring_series
-          (title, description, location, day_of_week, time_of_day, frequency, rotation_org_ids, rotation_start_date, end_date, notify_days_before)
+          (title, description, location, day_of_week, time_of_day, frequency, rotation_org_ids, rotation_start_date, end_date, notify_days_before, activity_type, is_public)
         VALUES (
           ${title},
           ${description ?? null},
@@ -199,7 +199,9 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
           ${JSON.stringify(rotationOrgIds)}::jsonb,
           ${rotationStartDate}::date,
           ${rotationEndDate || null}::date,
-          ${notifyDaysBefore ?? 14}
+          ${notifyDaysBefore ?? 14},
+          ${activityType ?? "actividad_org"},
+          ${isPublic ?? false}
         )
         RETURNING *
       `);
@@ -214,7 +216,7 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
   app.patch("/api/recurring-series/:id", requireAuth, async (req, res) => {
     if (!isAdmin(req, res)) return;
     try {
-      const { title, description, location, dayOfWeek, timeOfDay, frequency, rotationOrgIds, rotationStartDate, rotationEndDate, notifyDaysBefore, active } = req.body;
+      const { title, description, location, dayOfWeek, timeOfDay, frequency, rotationOrgIds, rotationStartDate, rotationEndDate, notifyDaysBefore, active, activityType, isPublic } = req.body;
       const result = await db.execute(sql`
         UPDATE recurring_series SET
           title              = COALESCE(${title ?? null}, title),
@@ -227,7 +229,9 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
           rotation_start_date= COALESCE(${rotationStartDate ?? null}::date, rotation_start_date),
           end_date           = ${rotationEndDate !== undefined ? (rotationEndDate || null) : null}::date,
           notify_days_before = COALESCE(${notifyDaysBefore ?? null}, notify_days_before),
-          active             = COALESCE(${active ?? null}, active)
+          active             = COALESCE(${active ?? null}, active),
+          activity_type      = COALESCE(${activityType ?? null}, activity_type),
+          is_public          = COALESCE(${isPublic ?? null}, is_public)
         WHERE id = ${req.params.id}
         RETURNING *
       `);
@@ -430,13 +434,13 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
           description: series.description ?? null,
           location: series.location ?? null,
           date: date,
-          type: "actividad_org",
+          type: (series.activity_type ?? "actividad_org") as any,
           status: "borrador",
           organizationId: orgId,
           createdBy: systemUserId,
-          approvalStatus: "approved",
-          isPublic: true,
-          slug,
+          approvalStatus: "draft",
+          isPublic: series.is_public ?? false,
+          slug: series.is_public ? slug : undefined,
           recurringSeriesId: series.id,
         } as any);
         created++;
