@@ -717,9 +717,12 @@ export default function PresidencyMeetingsPage() {
     const assignedBudget = Number(currentOrgBudget?.amount ?? 0);
 
     const approvedRequests = (budgetRequests as any[]).filter(
-      (request: any) =>
-        request.organizationId === organizationId &&
-        (request.status === "aprobado" || request.status === "completado")
+      (request: any) => {
+        if (request.organizationId !== organizationId) return false;
+        if (request.status !== "aprobado" && request.status !== "completado") return false;
+        const d = new Date(request.activityDate ?? request.createdAt);
+        return d.getFullYear() === currentYear && Math.floor(d.getMonth() / 3) + 1 === currentQuarter;
+      }
     );
 
     const spentBudget = approvedRequests.reduce((sum: number, request: any) => sum + Number(request.amount ?? 0), 0);
@@ -818,11 +821,20 @@ export default function PresidencyMeetingsPage() {
 
     const budgetSlides = [
       {
+        key: "total",
+        title: "Gastos totales",
+        amount: spentBudget,
+        percentage: budgetUsage,
+        gradientStops: undefined as [string, string, string] | undefined,
+        isTotal: true,
+      },
+      {
         key: "materiales",
         title: "Materiales",
         amount: byCategory.materiales,
         percentage: assignedBudget > 0 ? Math.min(100, (byCategory.materiales / assignedBudget) * 100) : 0,
         gradientStops: ["hsl(var(--chart-2))", "hsl(var(--chart-1))", "hsl(var(--chart-4))"] as [string, string, string],
+        isTotal: false,
       },
       {
         key: "actividades",
@@ -830,6 +842,7 @@ export default function PresidencyMeetingsPage() {
         amount: byCategory.actividades,
         percentage: assignedBudget > 0 ? Math.min(100, (byCategory.actividades / assignedBudget) * 100) : 0,
         gradientStops: ["hsl(var(--chart-4))", "hsl(var(--chart-1))", "hsl(var(--chart-5))"] as [string, string, string],
+        isTotal: false,
       },
       {
         key: "otros",
@@ -837,6 +850,7 @@ export default function PresidencyMeetingsPage() {
         amount: byCategory.otros,
         percentage: assignedBudget > 0 ? Math.min(100, (byCategory.otros / assignedBudget) * 100) : 0,
         gradientStops: ["hsl(var(--chart-3))", "hsl(var(--chart-5))", "hsl(var(--chart-2))"] as [string, string, string],
+        isTotal: false,
       },
     ];
 
@@ -1233,6 +1247,13 @@ export default function PresidencyMeetingsPage() {
 
   const activeGoal = goalSlideIndex === 0 ? null : (dashboardStats.goalsWithPercentage[goalSlideIndex - 1] ?? null);
   const activeBudgetSlide = dashboardStats.budgetSlides[budgetSlideIndex] ?? dashboardStats.budgetSlides[0];
+  const budgetTotalSegments = dashboardStats.assignedBudget > 0
+    ? ([
+        { value: Math.min(100, (dashboardStats.byCategory.materiales / dashboardStats.assignedBudget) * 100), color: "hsl(var(--chart-4))" },
+        { value: Math.min(100, (dashboardStats.byCategory.actividades / dashboardStats.assignedBudget) * 100), color: "hsl(var(--chart-5))" },
+        { value: Math.min(100, (dashboardStats.byCategory.otros / dashboardStats.assignedBudget) * 100), color: "hsl(var(--chart-2))" },
+      ] as Array<{ value: number; color: string }>).filter((s) => s.value > 0)
+    : [];
   const organizationBudgetMovements = (budgetRequests as any[])
     .filter((request: any) => request.organizationId === organizationId)
     .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1972,7 +1993,8 @@ export default function PresidencyMeetingsPage() {
               label={`€${(activeBudgetSlide?.amount ?? dashboardStats.spentBudget).toFixed(0)}`}
               subtitle={`${activeBudgetSlide?.title ?? "usados"}`}
               gradientId="budget"
-              gradientStops={activeBudgetSlide?.gradientStops}
+              gradientStops={activeBudgetSlide?.isTotal ? undefined : activeBudgetSlide?.gradientStops}
+              segments={activeBudgetSlide?.isTotal ? budgetTotalSegments : undefined}
             />
             </div>
             <div className="mt-4 flex justify-center gap-2" data-testid="budget-dots">
