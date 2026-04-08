@@ -3,9 +3,9 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { storage } from "./storage";
-import { quarterlyPlans, quarterlyPlanItems, serviceTasks, organizations, users } from "@shared/schema";
+import { quarterlyPlans, quarterlyPlanItems } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { sendPushNotification, isPushConfigured } from "./push-service";
+import { createActivityTasksAndAssignments } from "./activity-task-helpers";
 
 // Roles allowed to manage plans for their organization
 const ORG_PLAN_ROLES = new Set([
@@ -261,29 +261,6 @@ export function registerQuarterlyPlanRoutes(
 
         const orgId: string | null = p.organization_id ?? null;
 
-        // Find org's lider_actividades
-        let liderActividadesId: string | null = null;
-        let liderActividadesEmail: string | null = null;
-        let liderActividadesName: string | null = null;
-        if (orgId) {
-          const laRow = await db.execute(sql`
-            SELECT id, email, name FROM users
-            WHERE organization_id = ${orgId} AND role = 'lider_actividades' AND is_active = true
-            LIMIT 1
-          `);
-          liderActividadesId = (laRow.rows[0] as any)?.id ?? null;
-          liderActividadesEmail = (laRow.rows[0] as any)?.email ?? null;
-          liderActividadesName = (laRow.rows[0] as any)?.name ?? null;
-        }
-
-        // Find org presidency members to notify
-        const orgPresidencyRows = await db.execute(sql`
-          SELECT id, email, name FROM users
-          WHERE organization_id = ${orgId}
-            AND role IN ('presidente_organizacion','consejero_organizacion','secretario_organizacion')
-            AND is_active = true
-        `);
-        const presidencyMembers = orgPresidencyRows.rows as any[];
 
         for (const item of items.rows as any[]) {
           // Skip if activity already created for this item
@@ -311,64 +288,18 @@ export function registerQuarterlyPlanRoutes(
             UPDATE quarterly_plan_items SET activity_id = ${activity.id} WHERE id = ${item.id}
           `);
 
-          // Due date for logistics task: activity date - 14 days
-          const dueDate = new Date(activityDate);
-          dueDate.setDate(dueDate.getDate() - 14);
-          const minDue = new Date(Date.now() + 24 * 60 * 60 * 1000);
-          const taskDue = dueDate > minDue ? dueDate : minDue;
-
-          // Create service_task for lider_actividades
-          if (liderActividadesId) {
-            await db.execute(sql`
-              INSERT INTO service_tasks (
-                activity_id, quarterly_plan_item_id, organization_id,
-                assigned_to, assigned_role,
-                title, description, status, due_date, created_by, created_at, updated_at
-              ) VALUES (
-                ${activity.id}, ${item.id}, ${orgId},
-                ${liderActividadesId}, 'lider_actividades',
-                ${'Logística: ' + item.title},
-                ${'Coordinar logística (espacio, arreglo, equipo, refrigerio, limpieza) para la actividad del ' + item.activity_date},
-                'pending', ${taskDue.toISOString()}, ${user.id}, NOW(), NOW()
-              )
-            `);
-
-            // Push notification to lider_actividades
-            if (isPushConfigured()) {
-              await sendPushNotification(liderActividadesId, {
-                title: "Nueva actividad asignada",
-                body: `Coordinar logística: ${item.title} (${item.activity_date})`,
-                url: "/activity-logistics",
+          // Create tasks + assignments for lider_actividades and org presidency
+          if (orgId) {
+            try {
+              await createActivityTasksAndAssignments({
+                activityId: activity.id,
+                activityTitle: item.title,
+                activityDate: activityDate,
+                organizationId: orgId,
+                createdBy: user.id,
               });
-            }
-
-            // In-app notification
-            await storage.createNotification({
-              userId: liderActividadesId,
-              type: "reminder",
-              title: "Nueva actividad asignada",
-              description: `Coordinar logística: ${item.title} — ${item.activity_date}`,
-              relatedId: activity.id,
-              isRead: false,
-            });
-          }
-
-          // Notify org presidency about their draft activity
-          for (const member of presidencyMembers) {
-            await storage.createNotification({
-              userId: member.id,
-              type: "reminder",
-              title: "Actividad creada — Plan aprobado",
-              description: `${item.title} está en borrador. Prepárala y envíala al obispado antes de 14 días previos a la actividad.`,
-              relatedId: activity.id,
-              isRead: false,
-            });
-            if (isPushConfigured()) {
-              await sendPushNotification(member.id, {
-                title: "Plan aprobado — Actividad creada",
-                body: `${item.title}: prepara y envía al obispo 14 días antes (${item.activity_date})`,
-                url: "/activities",
-              });
+            } catch (taskErr) {
+              console.error("[quarterly-plans] Failed to create tasks/assignments:", taskErr);
             }
           }
         }

@@ -42,15 +42,13 @@ import {
   notifications,
   interviews,
   organizationInterviews,
-  serviceTasks,
-  users,
-  organizations,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
+import { createActivityTasksAndAssignments, autoCompleteAssignmentsForSection } from "./activity-task-helpers";
 import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
@@ -7373,32 +7371,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const activity = await storage.createActivity(activityData);
 
-      // Create coordination task for lider_actividades of the activity's org
+      // Create tasks + assignments for lider_actividades and org presidency
       if (activity.organizationId) {
         try {
-          const [lider] = await db
-            .select({ id: users.id, organizationId: users.organizationId })
-            .from(users)
-            .innerJoin(organizations, eq(organizations.id, users.organizationId))
-            .where(and(eq(users.role, "lider_actividades" as any), eq(users.organizationId, activity.organizationId)))
-            .limit(1);
-          if (lider) {
-            const d = new Date(activity.date);
-            const dateStr = `${String(d.getUTCDate()).padStart(2,"0")}/${String(d.getUTCMonth()+1).padStart(2,"0")}/${d.getUTCFullYear()}`;
-            await db.insert(serviceTasks).values({
-              activityId: activity.id,
-              assignedTo: lider.id,
-              assignedRole: "lider_actividades",
-              organizationId: lider.organizationId,
-              title: `Coordinación y Logística: ${activity.title}`,
-              description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para la actividad del ${dateStr}`,
-              status: "pending",
-              dueDate: new Date(activity.date),
-              createdBy: req.session.userId!,
-            } as any);
-          }
+          await createActivityTasksAndAssignments({
+            activityId: activity.id,
+            activityTitle: activity.title,
+            activityDate: new Date(activity.date),
+            organizationId: activity.organizationId,
+            createdBy: req.session.userId!,
+          });
         } catch (taskErr) {
-          console.error("[POST /api/activities] Failed to create lider_actividades task:", taskErr);
+          console.error("[POST /api/activities] Failed to create tasks/assignments:", taskErr);
         }
       }
 
@@ -7765,6 +7749,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               completed_by = ${isComplete ? user.id : null}
           WHERE activity_id = ${req.params.id} AND item_key = ${key}
         `);
+      }
+
+      // Auto-complete related assignments when section is fully done
+      try {
+        await autoCompleteAssignmentsForSection({ activityId: req.params.id, section });
+      } catch (autoErr) {
+        console.error("[PATCH /api/activities/:id/section] autoComplete error:", autoErr);
       }
 
       res.json({ ok: true });

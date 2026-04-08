@@ -10,10 +10,10 @@
  */
 
 import type { Express, Request, Response, RequestHandler } from "express";
-import { sql, eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
-import { serviceTasks, users, organizations } from "@shared/schema";
+import { createActivityTasksAndAssignments } from "./activity-task-helpers";
 
 const ADMIN_ROLES = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
 
@@ -446,32 +446,18 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
         } as any);
         created++;
 
-        // Create coordination task for lider_actividades
+        // Create tasks + assignments for lider_actividades and org presidency
         if (orgId) {
           try {
-            const [lider] = await db
-              .select({ id: users.id, organizationId: users.organizationId })
-              .from(users)
-              .where(and(eq(users.role, "lider_actividades" as any), eq(users.organizationId, orgId)))
-              .limit(1);
-            if (lider) {
-              const dd = String(date.getUTCDate()).padStart(2,"0");
-              const mm = String(date.getUTCMonth()+1).padStart(2,"0");
-              const yyyy = date.getUTCFullYear();
-              await db.insert(serviceTasks).values({
-                activityId: newActivity.id,
-                assignedTo: lider.id,
-                assignedRole: "lider_actividades",
-                organizationId: lider.organizationId,
-                title: `Coordinación y Logística: ${series.title}`,
-                description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para la actividad del ${dd}/${mm}/${yyyy}`,
-                status: "pending",
-                dueDate: date,
-                createdBy: systemUserId,
-              } as any);
-            }
+            await createActivityTasksAndAssignments({
+              activityId: newActivity.id,
+              activityTitle: series.title as string,
+              activityDate: date,
+              organizationId: orgId,
+              createdBy: systemUserId,
+            });
           } catch (taskErr) {
-            console.error("[RecurringSeries] Failed to create lider_actividades task:", taskErr);
+            console.error("[RecurringSeries] Failed to create tasks/assignments:", taskErr);
           }
         }
       }
