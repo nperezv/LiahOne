@@ -120,8 +120,8 @@ export function ActivityPublicDetail() {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center text-muted-foreground">
         <p className="text-lg font-medium">Actividad no encontrada</p>
-        <a href="/actividades" className="mt-4 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-          <ArrowLeft className="h-3.5 w-3.5" /> Ver todas las actividades
+        <a href="/actividades" className="mt-4 inline-flex items-center gap-2 text-sm text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" /> Ver todas las actividades
         </a>
       </div>
     );
@@ -130,8 +130,8 @@ export function ActivityPublicDetail() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
-        <a href="/actividades" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5" /> Todas las actividades
+        <a href="/actividades" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Todas las actividades
         </a>
 
         {act.flyer_url && (

@@ -321,8 +321,12 @@ export default function AdminUsersPage() {
           <p className="text-muted-foreground mb-4">
             No tienes permiso para acceder a este panel de administración.
           </p>
-          <Button onClick={() => setLocation("/dashboard")}>
-            Volver
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setLocation("/dashboard")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
           </Button>
         </div>
       </div>
@@ -1049,14 +1053,12 @@ export default function AdminUsersPage() {
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4">
       <Button
-        variant="ghost"
-        size="sm"
+        variant="outline"
+        className="rounded-full mb-6"
         onClick={() => setLocation("/dashboard")}
-        className="mb-6"
         data-testid="button-back-to-dashboard"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver
+        <ArrowLeft className="mr-2 h-4 w-4" /> Volver
       </Button>
 
       <div className="flex items-center justify-between mb-6">

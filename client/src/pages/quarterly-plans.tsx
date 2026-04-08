@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   Plus, CalendarDays, MapPin, Users, DollarSign, Trash2,
-  ChevronDown, ChevronRight, Send, CheckCircle2, XCircle, Clock, FileText
+  ChevronDown, ChevronRight, Send, CheckCircle2, XCircle, Clock, FileText, ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -244,7 +244,9 @@ function PlanDetail({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>← Volver</Button>
+        <Button variant="outline" className="rounded-full" onClick={onBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+        </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-lg font-semibold">

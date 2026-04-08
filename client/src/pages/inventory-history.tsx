@@ -52,7 +52,9 @@ export default function InventoryHistoryPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Historial de inventario</h1>
         <Link href="/inventory">
-          <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />Volver</Button>
+          <Button variant="outline" className="rounded-full">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
         </Link>
       </div>
 
