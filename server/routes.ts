@@ -9,7 +9,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { generateBudgetRequestPdf } from "./pdf/budget-pdf";
 import { generateWelfareRequestPdf } from "./pdf/welfare-pdf";
-import { storage } from "./storage";
+import { storage, getDefaultChecklistItems } from "./storage";
 import { db, pool } from "./db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import {
@@ -1027,6 +1027,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE activities
       ADD COLUMN IF NOT EXISTS section_data jsonb NOT NULL DEFAULT '{}'
   `);
+
+  // Auto-migration: regenerate checklist items for non-baptism activities that still
+  // have old-format items (prog_agenda, coord_participantes, etc.)
+  try {
+    const stale = await db.execute(sql`
+      SELECT DISTINCT a.id, a.type
+      FROM activities a
+      JOIN activity_checklist_items ci ON ci.activity_id = a.id
+      WHERE ci.item_key = 'prog_agenda'
+        AND a.type != 'servicio_bautismal'
+    `);
+    for (const row of stale.rows as Array<{ id: string; type: string }>) {
+      await db.execute(sql`DELETE FROM activity_checklist_items WHERE activity_id = ${row.id}`);
+      const items = getDefaultChecklistItems(row.type);
+      for (const item of items) {
+        await db.execute(sql`
+          INSERT INTO activity_checklist_items (id, activity_id, item_key, label, completed, sort_order)
+          VALUES (${crypto.randomUUID()}, ${row.id}, ${item.key}, ${item.label}, false, ${item.sort})
+        `);
+      }
+    }
+    if (stale.rows.length > 0) {
+      console.log(`[Migration] Regenerated checklist items for ${stale.rows.length} activities`);
+    }
+  } catch (e) {
+    console.error("[Migration] checklist regeneration error:", e);
+  }
 
   app.use(
     session({

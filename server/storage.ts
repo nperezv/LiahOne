@@ -508,7 +508,7 @@ const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort
   otro:           [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
 };
 
-function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
+export function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
   // Baptism gets the legacy base + extra items (no section prefixes)
   if (activityType === "servicio_bautismal") {
     return [...BASE_CHECKLIST_ITEMS, ...BAPTISM_EXTRA_CHECKLIST_ITEMS];
