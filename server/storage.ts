@@ -450,76 +450,62 @@ const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
 ];
 
 // Checklist por tipo de actividad — secciones prog_ / coord_ / log_
-// PROGRAMA (sort 0-9) · COORDINACIÓN (sort 10-19) · LOGÍSTICA (sort 20-29)
+// PROGRAMA (sort 1-9) · COORDINACIÓN (sort 11-19) · LOGÍSTICA (sort 21-29)
+// Campos requeridos para desbloquear la siguiente sección:
+//   Programa  → prog_preside, prog_dirige, prog_oracion_apertura, prog_oracion_cierre
+//   Coordinación → coord_invitaciones, coord_asistentes, coord_objetivos
+//   Logística → log_espacio
+
+// Bloques reutilizables
+const PROG_BASE_ITEMS = [
+  { key: "prog_preside",          label: "Preside",             sort: 1 },
+  { key: "prog_dirige",           label: "Dirige",              sort: 2 },
+  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 3 },
+  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 4 },
+  { key: "prog_flyer",            label: "Flyer",               sort: 9 },
+];
+// Tipos donde se esperan mensajes/ponencias (al menos uno requerido)
+const PROG_CON_MENSAJE = [
+  { key: "prog_preside",          label: "Preside",             sort: 1 },
+  { key: "prog_dirige",           label: "Dirige",              sort: 2 },
+  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 3 },
+  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 4 },
+  { key: "prog_mensaje_1",        label: "Mensaje",             sort: 5 },
+  { key: "prog_flyer",            label: "Flyer",               sort: 9 },
+];
+const COORD_BASE_ITEMS = [
+  { key: "coord_invitaciones", label: "Invitaciones",         sort: 11 },
+  { key: "coord_enlace",       label: "Enlace compartido",    sort: 12 },
+  { key: "coord_asistentes",   label: "Asistentes esperados", sort: 13 },
+  { key: "coord_objetivos",    label: "Objetivos",            sort: 14 },
+];
+const LOG_BASE_ITEMS = [
+  { key: "log_espacio",    label: "Espacio reservado",        sort: 21 },
+  { key: "log_arreglo",    label: "Arreglo del lugar",        sort: 22 },
+  { key: "log_equipo",     label: "Equipo y tecnología",      sort: 23 },
+  { key: "log_refrigerio", label: "Refrigerio (si aplica)",   sort: 24 },
+  { key: "log_limpieza",   label: "Responsable de limpieza",  sort: 25 },
+];
 
 const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort: number }>> = {
-  actividad_org: [
-    { key: "prog_agenda",          label: "Programa/agenda de la actividad preparado",       sort: 0  },
-    { key: "prog_flyer",           label: "Flyer o imagen promocional subido",               sort: 1  },
-    { key: "coord_invitaciones",   label: "Invitaciones o avisos enviados",                  sort: 10 },
-    { key: "coord_participantes",  label: "Participantes y ponentes confirmados",             sort: 11 },
-    { key: "coord_presupuesto",    label: "Solicitud de presupuesto enviada (si aplica)",     sort: 12 },
-    { key: "log_espacio",          label: "Espacio reservado en calendario de la iglesia",    sort: 20 },
-    { key: "log_arreglo",          label: "Arreglo de espacios (sillas, decoración, etc.)",  sort: 21 },
-    { key: "log_equipo",           label: "Equipo y tecnología coordinado",                  sort: 22 },
-    { key: "log_refrigerio",       label: "Refrigerio/comida coordinado (si aplica)",         sort: 23 },
-    { key: "log_limpieza",         label: "Limpieza de ambientes al terminar",               sort: 24 },
-  ],
-  hermanamiento: [
-    { key: "prog_agenda",          label: "Programa y actividades de hermanamiento preparados", sort: 0  },
-    { key: "prog_flyer",           label: "Flyer o invitación lista",                          sort: 1  },
-    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                             sort: 10 },
-    { key: "coord_participantes",  label: "Participantes confirmados",                         sort: 11 },
-    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",                  sort: 12 },
-    { key: "log_espacio",          label: "Espacio reservado",                                 sort: 20 },
-    { key: "log_arreglo",          label: "Arreglo del lugar coordinado",                      sort: 21 },
-    { key: "log_refrigerio",       label: "Refrigerio/comida coordinado",                      sort: 22 },
-    { key: "log_limpieza",         label: "Limpieza post-actividad asignada",                  sort: 23 },
-  ],
+  actividad_org:  [...PROG_BASE_ITEMS,   ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
+  hermanamiento:  [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
   fiesta: [
-    { key: "prog_agenda",          label: "Programa y agenda de la fiesta preparados",      sort: 0  },
-    { key: "prog_musica",          label: "Música/entretenimiento coordinado",              sort: 1  },
-    { key: "prog_decoracion_plan", label: "Plan de decoración definido",                   sort: 2  },
-    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                         sort: 10 },
-    { key: "coord_catering",       label: "Comida/catering confirmado",                    sort: 11 },
-    { key: "coord_presupuesto",    label: "Presupuesto aprobado",                          sort: 12 },
-    { key: "log_espacio",          label: "Espacio reservado y preparado",                 sort: 20 },
-    { key: "log_decoracion",       label: "Decoración lista",                              sort: 21 },
-    { key: "log_equipo",           label: "Equipo de sonido/iluminación listo",            sort: 22 },
-    { key: "log_limpieza",         label: "Limpieza post-fiesta asignada",                 sort: 23 },
+    ...PROG_BASE_ITEMS,
+    ...COORD_BASE_ITEMS,
+    ...LOG_BASE_ITEMS,
+    { key: "log_decoracion", label: "Decoración lista", sort: 26 },
   ],
   deportiva: [
-    { key: "prog_agenda",          label: "Programa/agenda del evento deportivo preparado",  sort: 0  },
-    { key: "prog_reglas",          label: "Reglas y formato del torneo/partido definidos",   sort: 1  },
-    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                           sort: 10 },
-    { key: "coord_equipos",        label: "Equipos/participantes confirmados",               sort: 11 },
-    { key: "coord_material",       label: "Material deportivo preparado",                    sort: 12 },
-    { key: "coord_arbitros",       label: "Árbitros/coordinadores confirmados",              sort: 13 },
-    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",                sort: 14 },
-    { key: "log_espacio",          label: "Espacio/cancha reservada",                        sort: 20 },
-    { key: "log_refrigerio",       label: "Agua y refrigerio listos",                        sort: 21 },
-    { key: "log_primeros_auxilios",label: "Botiquín/primeros auxilios listos",               sort: 22 },
-    { key: "log_limpieza",         label: "Limpieza post-evento asignada",                   sort: 23 },
+    ...PROG_BASE_ITEMS,
+    ...COORD_BASE_ITEMS,
+    { key: "coord_equipos",  label: "Equipos/participantes",  sort: 15 },
+    { key: "coord_arbitros", label: "Árbitros/coordinadores", sort: 16 },
+    { key: "coord_material", label: "Material deportivo",     sort: 17 },
+    ...LOG_BASE_ITEMS,
   ],
-  capacitacion: [
-    { key: "prog_agenda",          label: "Agenda y objetivos de capacitación definidos",   sort: 0  },
-    { key: "prog_materiales",      label: "Materiales y presentaciones listos",             sort: 1  },
-    { key: "coord_ponentes",       label: "Ponentes/facilitadores confirmados",             sort: 10 },
-    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                         sort: 11 },
-    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",               sort: 12 },
-    { key: "log_espacio",          label: "Sala/espacio reservado",                        sort: 20 },
-    { key: "log_equipo",           label: "Equipo y tecnología listos",                    sort: 21 },
-    { key: "log_refrigerio",       label: "Refrigerio coordinado (si aplica)",             sort: 22 },
-    { key: "log_limpieza",         label: "Limpieza post-actividad asignada",              sort: 23 },
-  ],
-  otro: [
-    { key: "prog_agenda",          label: "Programa/agenda preparado",                  sort: 0  },
-    { key: "coord_invitaciones",   label: "Avisos/invitaciones enviados",               sort: 10 },
-    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",           sort: 11 },
-    { key: "log_espacio",          label: "Espacio reservado",                         sort: 20 },
-    { key: "log_equipo",           label: "Equipo necesario listo",                    sort: 21 },
-    { key: "log_limpieza",         label: "Limpieza post-actividad asignada",          sort: 22 },
-  ],
+  capacitacion:   [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
+  otro:           [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
 };
 
 function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {

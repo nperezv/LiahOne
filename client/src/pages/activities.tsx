@@ -79,6 +79,36 @@ interface ChecklistItem {
   sortOrder: number;
 }
 
+// ── Field metadata — defines input type and placeholder per section_data key ──
+
+type FieldType = "text" | "textarea" | "checkbox" | "number";
+
+const FIELD_META: Record<string, { type: FieldType; placeholder?: string }> = {
+  prog_preside:          { type: "text",     placeholder: "Nombre de quien preside" },
+  prog_dirige:           { type: "text",     placeholder: "Nombre de quien dirige" },
+  prog_oracion_apertura: { type: "text",     placeholder: "Nombre" },
+  prog_oracion_cierre:   { type: "text",     placeholder: "Nombre" },
+  prog_mensaje_1:        { type: "text",     placeholder: "Nombre del ponente y tema del mensaje" },
+  coord_invitaciones:    { type: "textarea", placeholder: "¿Cómo se compartirán/compartieron las invitaciones?" },
+  coord_enlace:          { type: "checkbox" },
+  coord_asistentes:      { type: "number",   placeholder: "Número estimado" },
+  coord_objetivos:       { type: "textarea", placeholder: "Objetivos y justificante de la actividad…" },
+  coord_equipos:         { type: "text",     placeholder: "Equipos o participantes confirmados" },
+  coord_arbitros:        { type: "text",     placeholder: "Árbitros o coordinadores confirmados" },
+  coord_material:        { type: "textarea", placeholder: "Material deportivo necesario" },
+  log_espacio:           { type: "text",     placeholder: "Lugar/espacio confirmado" },
+  log_arreglo:           { type: "textarea", placeholder: "Arreglo de sillas, decoración, etc." },
+  log_equipo:            { type: "textarea", placeholder: "Equipo de sonido, proyector, etc." },
+  log_refrigerio:        { type: "textarea", placeholder: "Detalles del refrigerio (si aplica)" },
+  log_limpieza:          { type: "text",     placeholder: "Responsable de la limpieza" },
+  log_decoracion:        { type: "textarea", placeholder: "Plan y responsable de la decoración" },
+};
+
+// Required keys per section — completing these unlocks the next section
+const PROG_REQUIRED  = ["prog_preside", "prog_dirige", "prog_oracion_apertura", "prog_oracion_cierre"];
+const COORD_REQUIRED = ["coord_invitaciones", "coord_asistentes", "coord_objetivos"];
+const LOG_REQUIRED   = ["log_espacio"];
+
 // ── SectionPanel — editable sections that auto-complete checklist items ───────
 
 const SECTION_CONFIG = {
@@ -93,6 +123,59 @@ function sectionOfKey(key: string): "programa" | "coordinacion" | "logistica" {
   return "programa";
 }
 
+function SectionField({
+  itemKey, label, completed, value, onChange,
+}: {
+  itemKey: string; label: string; completed: boolean; value: string; onChange: (v: string) => void;
+}) {
+  const meta = FIELD_META[itemKey] ?? { type: "text" as FieldType };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        {completed
+          ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+          : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+        <label className="text-sm font-medium">{label}</label>
+      </div>
+      {meta.type === "checkbox" ? (
+        <label className="flex items-center gap-2 cursor-pointer text-sm ml-5">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-primary"
+            checked={value === "true"}
+            onChange={e => onChange(e.target.checked ? "true" : "")}
+          />
+          Sí, se compartió
+        </label>
+      ) : meta.type === "textarea" ? (
+        <Textarea
+          className="text-sm min-h-[72px] resize-none"
+          placeholder={meta.placeholder}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
+      ) : meta.type === "number" ? (
+        <Input
+          type="number"
+          min={0}
+          className="text-sm w-36"
+          placeholder={meta.placeholder}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
+      ) : (
+        <Input
+          className="text-sm"
+          placeholder={meta.placeholder}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 function SectionEditDialog({
   section, items, activityId, sectionData, open, onOpenChange,
 }: {
@@ -105,18 +188,28 @@ function SectionEditDialog({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+
+  // Build initial fields from checklist items + any extra prog_mensaje_* from sectionData
   const [fields, setFields] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const item of items) init[item.itemKey] = sectionData[item.itemKey] ?? "";
+    // restore any extra messages already saved
+    for (const k of Object.keys(sectionData)) {
+      if (k.startsWith("prog_mensaje_") && !(k in init)) init[k] = sectionData[k];
+    }
     return init;
   });
 
-  // Sync when dialog reopens with fresh data
-  useState(() => {
-    const init: Record<string, string> = {};
-    for (const item of items) init[item.itemKey] = sectionData[item.itemKey] ?? "";
-    setFields(init);
+  // Count extra message slots (prog_mensaje_2, _3, …)
+  const [extraMsgCount, setExtraMsgCount] = useState(() => {
+    let n = 0;
+    for (const k of Object.keys(sectionData)) {
+      if (/^prog_mensaje_(\d+)$/.test(k) && Number(k.split("_")[2]) > 1) n++;
+    }
+    return n;
   });
+
+  const hasMessages = items.some(i => i.itemKey === "prog_mensaje_1");
 
   const saveMut = useMutation({
     mutationFn: () => apiRequest("PATCH", `/api/activities/${activityId}/section`, { section, fields }),
@@ -129,31 +222,79 @@ function SectionEditDialog({
   });
 
   const cfg = SECTION_CONFIG[section];
+  const displayItems = items.filter(i => i.itemKey !== "prog_flyer");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className={cfg.color}>{cfg.label}</DialogTitle>
-          <p className="text-xs text-muted-foreground">Completa los campos para marcar esta sección como lista. Los ítems se marcan automáticamente al guardar.</p>
+          <p className="text-xs text-muted-foreground">Completa los campos — los ítems se marcan automáticamente al guardar.</p>
         </DialogHeader>
         <div className="space-y-4 py-1">
-          {items.filter(i => i.itemKey !== "prog_flyer").map((item) => (
-            <div key={item.itemKey} className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                {item.completed
-                  ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                <label className="text-sm font-medium">{item.label}</label>
-              </div>
-              <Textarea
-                className="text-sm min-h-[64px] resize-none"
-                placeholder="Describe cómo está gestionado este punto…"
+          {displayItems.map((item) => {
+            if (item.itemKey === "prog_mensaje_1" && hasMessages) {
+              // Render message block with dynamic add button
+              return (
+                <div key="mensajes" className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    {item.completed
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                      : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                    <span className="text-sm font-medium">Mensajes / Ponencias</span>
+                  </div>
+                  {/* First message (required checklist item) */}
+                  <div className="ml-5">
+                    <Input
+                      className="text-sm"
+                      placeholder="Ponente y tema del 1er mensaje"
+                      value={fields["prog_mensaje_1"] ?? ""}
+                      onChange={e => setFields(f => ({ ...f, prog_mensaje_1: e.target.value }))}
+                    />
+                  </div>
+                  {/* Extra messages */}
+                  {Array.from({ length: extraMsgCount }, (_, i) => i + 2).map(n => (
+                    <div key={n} className="ml-5 flex gap-2">
+                      <Input
+                        className="text-sm flex-1"
+                        placeholder={`Ponente y tema del ${n}º mensaje`}
+                        value={fields[`prog_mensaje_${n}`] ?? ""}
+                        onChange={e => setFields(f => ({ ...f, [`prog_mensaje_${n}`]: e.target.value }))}
+                      />
+                      <Button
+                        type="button" size="sm" variant="ghost"
+                        className="h-9 px-2 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setFields(f => { const nf = { ...f }; delete nf[`prog_mensaje_${n}`]; return nf; });
+                          setExtraMsgCount(c => c - 1);
+                        }}
+                      >×</Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="ml-5 h-7 text-xs"
+                    onClick={() => {
+                      setExtraMsgCount(c => c + 1);
+                      setFields(f => ({ ...f, [`prog_mensaje_${extraMsgCount + 2}`]: "" }));
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Agregar mensaje
+                  </Button>
+                </div>
+              );
+            }
+            return (
+              <SectionField
+                key={item.itemKey}
+                itemKey={item.itemKey}
+                label={item.label}
+                completed={item.completed}
                 value={fields[item.itemKey] ?? ""}
-                onChange={(e) => setFields(f => ({ ...f, [item.itemKey]: e.target.value }))}
+                onChange={v => setFields(f => ({ ...f, [item.itemKey]: v }))}
               />
-            </div>
-          ))}
+            );
+          })}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -202,12 +343,30 @@ function SectionPanel({
   for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
 
   const sections = (["programa", "coordinacion", "logistica"] as const).filter(s => bySection[s].length > 0);
-  const totalCompleted = items.filter(i => i.completed).length;
+  const totalCompleted = items.filter(i => i.completed && i.itemKey !== "prog_flyer").length;
+  const totalRequired  = items.filter(i => i.itemKey !== "prog_flyer").length;
+
+  // Sequential locking: check required keys per section
+  const isCompleted = (keys: string[]) => keys.every(k => {
+    const item = items.find(i => i.itemKey === k);
+    return !item || item.completed; // if key not in this activity's checklist, skip
+  });
+  const progDone  = isCompleted(PROG_REQUIRED);
+  // If this type has messages, prog_mensaje_1 is also required
+  const hasMensaje1 = bySection.programa.some(i => i.itemKey === "prog_mensaje_1");
+  const progFullDone = progDone && (!hasMensaje1 || isCompleted(["prog_mensaje_1"]));
+  const coordDone = isCompleted(COORD_REQUIRED);
+
+  const sectionLocked: Record<string, boolean> = {
+    programa:     false,
+    coordinacion: !progFullDone,
+    logistica:    !coordDone,
+  };
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground font-medium">
-        Preparación — {totalCompleted}/{items.length} completados
+        Preparación — {totalCompleted}/{totalRequired} completados
       </p>
 
       {/* Flyer upload always visible for programa */}
@@ -218,21 +377,27 @@ function SectionPanel({
       {sections.map(sec => {
         const cfg = SECTION_CONFIG[sec];
         const secItems = bySection[sec];
-        const secCompleted = secItems.filter(i => i.completed).length;
-        const allDone = secCompleted === secItems.length;
+        const secCompleted = secItems.filter(i => i.completed && i.itemKey !== "prog_flyer").length;
+        const secTotal    = secItems.filter(i => i.itemKey !== "prog_flyer").length;
+        const allDone = secCompleted === secTotal && secTotal > 0;
         const canEdit = sec === "logistica" ? canEditLogistica : canEditPrograma;
+        const locked  = sectionLocked[sec];
 
         return (
-          <div key={sec} className="rounded-lg border px-3 py-2.5">
+          <div key={sec} className={`rounded-lg border px-3 py-2.5 transition-opacity ${locked ? "opacity-50" : ""}`}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <cfg.icon className={`h-3.5 w-3.5 shrink-0 ${cfg.color}`} />
                 <span className={`text-xs font-semibold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
-                <span className="text-xs text-muted-foreground ml-1">{secCompleted}/{secItems.length}</span>
+                <span className="text-xs text-muted-foreground ml-1">{secCompleted}/{secTotal}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {allDone && <CheckCheck className="h-3.5 w-3.5 text-green-500" />}
-                {canEdit && (
+                {locked ? (
+                  <span className="text-[10px] text-muted-foreground italic">
+                    {sec === "coordinacion" ? "Completa Programa primero" : "Completa Coordinación primero"}
+                  </span>
+                ) : canEdit && (
                   <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
                     onClick={() => setEditSection(sec)}>
                     <Pencil className="h-3 w-3 mr-1" />
@@ -242,14 +407,33 @@ function SectionPanel({
               </div>
             </div>
             <div className="mt-2 space-y-1">
-              {secItems.map(item => (
-                <div key={item.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {secItems.filter(i => i.itemKey !== "prog_flyer").map(item => (
+                <div key={item.id} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                   {item.completed
-                    ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
-                    : <Square className="h-3 w-3 shrink-0" />}
-                  <span className={item.completed ? "line-through" : ""}>{item.label}</span>
+                    ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0 mt-0.5" />
+                    : <Square className="h-3 w-3 shrink-0 mt-0.5" />}
+                  <div className="min-w-0">
+                    <span className={item.completed ? "line-through" : ""}>{item.label}</span>
+                    {item.completed && sectionData[item.itemKey] && item.itemKey !== "prog_flyer" && (
+                      <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">
+                        {sectionData[item.itemKey] === "true" ? "Sí" : sectionData[item.itemKey]}
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
+              {/* Show extra saved messages (prog_mensaje_2+) in read mode */}
+              {Object.entries(sectionData)
+                .filter(([k]) => /^prog_mensaje_[2-9]$/.test(k) && sectionData[k])
+                .map(([k, v]) => (
+                  <div key={k} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="line-through">Mensaje adicional</span>
+                      <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">{v}</p>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         );
