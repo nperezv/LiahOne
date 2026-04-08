@@ -195,7 +195,7 @@ export default function RecurringSeriesPage() {
           <Button onClick={openCreate} className="rounded-full">
             <Plus className="h-4 w-4 mr-2" /> Nueva serie
           </Button>
-          <Link href="/activities">
+          <Link href="/dashboard">
             <Button variant="outline" className="rounded-full">
               <ArrowLeft className="h-4 w-4 mr-2" /> Volver
             </Button>
