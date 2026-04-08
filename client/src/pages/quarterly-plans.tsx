@@ -243,10 +243,7 @@ function PlanDetail({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="outline" className="rounded-full" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-lg font-semibold">
@@ -279,6 +276,9 @@ function PlanDetail({
               </Button>
             </>
           )}
+          <Button variant="outline" className="rounded-full" onClick={onBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
         </div>
       </div>
 

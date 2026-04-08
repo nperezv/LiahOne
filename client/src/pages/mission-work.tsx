@@ -4472,14 +4472,14 @@ export default function MissionWork() {
 
     return (
       <div className="p-4 md:p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="outline" className="rounded-full" onClick={() => setSection(null)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold mb-1">Servicios Bautismales</h1>
             <p className="text-sm text-muted-foreground">Planificación y programa de los servicios bautismales</p>
           </div>
+          <Button variant="outline" className="rounded-full" onClick={() => setSection(null)}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
         </div>
 
         {baptismServicesQuery.isLoading ? (
@@ -4584,16 +4584,14 @@ export default function MissionWork() {
     const meta = SECTION_META[section as PersonaTipo];
     return (
       <div className="p-8">
-        <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" className="rounded-full" onClick={() => setSection(null)}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold mb-1">{meta.label}</h1>
-              <p className="text-sm text-muted-foreground">{meta.subtitle}</p>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">{meta.label}</h1>
+            <p className="text-sm text-muted-foreground">{meta.subtitle}</p>
           </div>
+          <Button variant="outline" className="rounded-full" onClick={() => setSection(null)}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
         </div>
 
         <TabContent tipo={section as PersonaTipo} onSelect={handleSelect} />

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -204,23 +204,23 @@ export default function ProfilePage() {
 
   return (
     <div className="container max-w-2xl mx-auto py-8 px-4">
-      <Button
-        variant="outline"
-        className="rounded-full mb-6"
-        onClick={() => setLocation("/dashboard")}
-        data-testid="button-back-to-dashboard"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-      </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Mi Perfil</h1>
+          <p className="text-muted-foreground mt-1">Gestiona la información de tu cuenta</p>
+        </div>
+        <Button
+          variant="outline"
+          className="rounded-full"
+          onClick={() => setLocation("/dashboard")}
+          data-testid="button-back-to-dashboard"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+        </Button>
+      </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Mi Perfil</CardTitle>
-          <CardDescription>
-            Gestiona la información de tu cuenta
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 pt-6">
           <div className="flex items-start gap-6">
             <button
               type="button"

@@ -1052,23 +1052,15 @@ export default function AdminUsersPage() {
 
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4">
-      <Button
-        variant="outline"
-        className="rounded-full mb-6"
-        onClick={() => setLocation("/dashboard")}
-        data-testid="button-back-to-dashboard"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-      </Button>
-
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
           <p className="text-muted-foreground mt-1">
             Administra todos los usuarios del sistema
           </p>
         </div>
-        <Dialog
+        <div className="flex gap-2">
+          <Dialog
           open={isCreateDialogOpen}
           onOpenChange={(open) => {
             setIsCreateDialogOpen(open);
@@ -1321,6 +1313,15 @@ export default function AdminUsersPage() {
             </Form>
           </DialogContent>
         </Dialog>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setLocation("/dashboard")}
+            data-testid="button-back-to-dashboard"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
+        </div>
       </div>
 
       <Dialog
