@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, Truck, CheckCheck, Eye } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/auth-tokens";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -466,10 +467,12 @@ function FlyerUpload({ activityId, flyerUrl, canUpload }: { activityId: string; 
     try {
       const form = new FormData();
       form.append("flyer", file);
+      const token = getAccessToken();
       const res = await fetch(`/api/activities/${activityId}/flyer`, {
         method: "POST",
         body: form,
         credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(await res.text());
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
