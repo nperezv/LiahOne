@@ -1987,9 +1987,16 @@ export default function BudgetPage() {
               );
               const assignedAmount = toBudgetNumber(currentBudget?.amount);
 
-              // Calculate spending for this organization
+              // Calculate spending for this organization (current quarter only)
               const orgSpending = (requests as any[])
-                .filter((r: any) => r.organizationId === org.id && (r.status === "aprobado" || r.status === "completado"))
+                .filter((r: any) => {
+                  if (r.organizationId !== org.id) return false;
+                  if (r.status !== "aprobado" && r.status !== "completado") return false;
+                  const d = new Date(r.activityDate ?? r.createdAt);
+                  const rYear = d.getFullYear();
+                  const rQuarter = Math.floor(d.getMonth() / 3) + 1;
+                  return rYear === currentYear && rQuarter === currentQuarter;
+                })
                 .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
               const available = assignedAmount - orgSpending;
