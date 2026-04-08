@@ -171,25 +171,18 @@ function ActivityCard({ act, index }: { act: any; index: number }) {
     >
       {/* Flyer or gradient hero */}
       {act.flyer_url ? (
-        <div
-          className="relative overflow-hidden"
-          style={{
-            aspectRatio: "4 / 5",
-            background: "rgba(0,0,0,0.6)",
-          }}
-        >
+        <div className="relative overflow-hidden" style={{ height: 200 }}>
           <img
             src={act.flyer_url}
             alt={act.title}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-cover"
             style={{ transition: "transform .4s ease" }}
-            onMouseEnter={(e) => ((e.target as HTMLImageElement).style.transform = "scale(1.03)")}
+            onMouseEnter={(e) => ((e.target as HTMLImageElement).style.transform = "scale(1.04)")}
             onMouseLeave={(e) => ((e.target as HTMLImageElement).style.transform = "scale(1)")}
           />
-          {/* subtle bottom fade so content below blends */}
           <div
-            className="absolute inset-x-0 bottom-0"
-            style={{ height: 60, background: "linear-gradient(to top, rgba(8,6,18,0.85) 0%, transparent 100%)" }}
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(to top, rgba(8,6,18,0.7) 0%, transparent 60%)" }}
           />
           {/* Date badge over image */}
           <div
