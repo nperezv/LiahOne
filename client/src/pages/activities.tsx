@@ -229,9 +229,6 @@ function SectionField({
 
   const labelEl = (
     <div className="flex items-center gap-2">
-      {completed
-        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-        : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
       <label className="text-sm font-medium">{label}</label>
       {optional && <span className="text-[10px] text-muted-foreground">(opcional)</span>}
     </div>
