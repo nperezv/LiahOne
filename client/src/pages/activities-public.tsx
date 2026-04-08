@@ -75,13 +75,17 @@ function useInjectStyles() {
 
 function parseDateParts(dateStr: string) {
   const d = new Date(dateStr);
+  // Use UTC values so the time matches what was entered (stored as UTC)
+  const utcH = d.getUTCHours();
+  const utcM = d.getUTCMinutes();
+  const timeStr = `${String(utcH).padStart(2, "0")}:${String(utcM).padStart(2, "0")}`;
   return {
-    weekday: d.toLocaleDateString("es-MX", { weekday: "long" }),
-    day:     String(d.getDate()).padStart(2, "0"),
-    month:   d.toLocaleDateString("es-MX", { month: "short" }).replace(".", "").toUpperCase(),
-    year:    d.getFullYear(),
-    time:    d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-    full:    d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+    weekday: d.toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" }),
+    day:     String(d.getUTCDate()).padStart(2, "0"),
+    month:   d.toLocaleDateString("es-ES", { month: "short", timeZone: "UTC" }).replace(".", "").toUpperCase(),
+    year:    d.getUTCFullYear(),
+    time:    timeStr,
+    full:    d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }),
   };
 }
 
@@ -264,10 +268,12 @@ function ActivityCard({ act, index }: { act: any; index: number }) {
 export function ActivitiesLobby() {
   useInjectStyles();
 
+  const [showPast, setShowPast] = useState(false);
+
   const { data, isLoading } = useQuery<{ activities: any[]; wardName: string | null }>({
-    queryKey: ["/api/actividades"],
+    queryKey: ["/api/actividades", showPast ? "past" : "upcoming"],
     queryFn: async () => {
-      const res = await fetch("/api/actividades");
+      const res = await fetch(showPast ? "/api/actividades?past=1" : "/api/actividades");
       if (!res.ok) throw new Error("Error");
       return res.json();
     },
@@ -342,11 +348,55 @@ export function ActivitiesLobby() {
           style={{ fontSize: 18, color: "rgba(248,250,252,0.55)", lineHeight: 1.6 }}
         >
           {isLoading
-            ? "Cargando próximas actividades…"
+            ? (showPast ? "Cargando actividades pasadas…" : "Cargando próximas actividades…")
             : count > 0
-            ? `${count} ${count === 1 ? "actividad próxima" : "actividades próximas"} abiertas a la comunidad`
-            : "Las próximas actividades aparecerán aquí"}
+            ? showPast
+              ? `${count} ${count === 1 ? "actividad pasada" : "actividades pasadas"}`
+              : `${count} ${count === 1 ? "actividad próxima" : "actividades próximas"} abiertas a la comunidad`
+            : showPast ? "No hay actividades pasadas registradas" : "Las próximas actividades aparecerán aquí"}
         </motion.p>
+
+        {/* upcoming / past toggle */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-6 flex items-center gap-1 pub-pill rounded-full p-1"
+          style={{ fontSize: 13 }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowPast(false)}
+            style={{
+              padding: "6px 18px",
+              borderRadius: 999,
+              fontWeight: showPast ? 400 : 600,
+              color: showPast ? "rgba(248,250,252,0.5)" : "#fff",
+              background: showPast ? "transparent" : "rgba(139,92,246,0.35)",
+              border: "none",
+              cursor: "pointer",
+              transition: "all .2s",
+            }}
+          >
+            Próximas
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPast(true)}
+            style={{
+              padding: "6px 18px",
+              borderRadius: 999,
+              fontWeight: showPast ? 600 : 400,
+              color: showPast ? "#fff" : "rgba(248,250,252,0.5)",
+              background: showPast ? "rgba(139,92,246,0.35)" : "transparent",
+              border: "none",
+              cursor: "pointer",
+              transition: "all .2s",
+            }}
+          >
+            Pasadas
+          </button>
+        </motion.div>
 
         {/* scroll cue */}
         {!isLoading && count > 0 && (

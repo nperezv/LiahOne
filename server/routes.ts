@@ -52,7 +52,12 @@ import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
 import { registerActivityPublicRoutes } from "./activity-public-routes";
-import { registerRecurringSeriesRoutes, getOccurrencesInRange, countOccurrencesBetween } from "./recurring-series-routes";
+import {
+  registerRecurringSeriesRoutes,
+  getOccurrencesInRange, getMonthlyOccurrencesInRange, getQuarterlyOccurrencesInRange,
+  countOccurrencesBetween, countMonthlyOccurrencesBetween, countQuarterlyOccurrencesBetween,
+  getWeekdayOccurrenceInMonthUTC,
+} from "./recurring-series-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -1009,6 +1014,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`
     ALTER TABLE activities
       ADD COLUMN IF NOT EXISTS notified_rotation boolean NOT NULL DEFAULT false
+  `);
+  await db.execute(sql`
+    ALTER TABLE recurring_series
+      ADD COLUMN IF NOT EXISTS end_date date
+  `);
+  await db.execute(sql`
+    ALTER TABLE recurring_series
+      ADD COLUMN IF NOT EXISTS frequency varchar(20) NOT NULL DEFAULT 'weekly'
+  `);
+  await db.execute(sql`
+    ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS section_data jsonb NOT NULL DEFAULT '{}'
   `);
 
   app.use(
@@ -7589,6 +7606,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── PATCH /api/activities/:id/basic ──────────────────────────────────────
+  // Edit basic activity info (title, description, date, location, isPublic)
+  app.patch("/api/activities/:id/basic", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(user.role);
+      const belongsToOrg = activity.organizationId === user.organizationId;
+      if (!isObispado && !(isOrgMember && belongsToOrg)) {
+        return res.status(403).json({ error: "Sin permiso" });
+      }
+
+      const { title, description, date, location, isPublic } = req.body;
+      const updated = await storage.updateActivity(req.params.id, {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(date !== undefined && { date: new Date(date) }),
+        ...(location !== undefined && { location }),
+        ...(isPublic !== undefined && { isPublic }),
+      });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: "Error al actualizar actividad" });
+    }
+  });
+
+  // ── PATCH /api/activities/:id/section ─────────────────────────────────────
+  // Update section form data and auto-mark checklist items as complete/incomplete
+  app.patch("/api/activities/:id/section", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(user.role);
+      const isLiderAct = user.role === "lider_actividades";
+      const belongsToOrg = activity.organizationId === user.organizationId;
+
+      const { section, fields } = req.body as { section: string; fields: Record<string, string> };
+      if (!section || !fields || typeof fields !== "object") {
+        return res.status(400).json({ error: "Faltan datos de sección" });
+      }
+
+      // Permission check per section
+      const canEditPrograma = isObispado || (isOrgMember && belongsToOrg);
+      const canEditLogistica = isObispado || isLiderAct || (isOrgMember && belongsToOrg);
+      if (section === "logistica" && !canEditLogistica) return res.status(403).json({ error: "Sin permiso" });
+      if ((section === "programa" || section === "coordinacion") && !canEditPrograma) return res.status(403).json({ error: "Sin permiso" });
+
+      // Merge new fields into existing section_data
+      await db.execute(sql`
+        UPDATE activities
+        SET section_data = section_data || ${JSON.stringify(fields)}::jsonb
+        WHERE id = ${req.params.id}
+      `);
+
+      // Auto-mark checklist items based on field values
+      for (const [key, value] of Object.entries(fields)) {
+        const isComplete = typeof value === "string" && value.trim().length > 0;
+        await db.execute(sql`
+          UPDATE activity_checklist_items
+          SET completed = ${isComplete},
+              completed_at = ${isComplete ? new Date().toISOString() : null},
+              completed_by = ${isComplete ? user.id : null}
+          WHERE activity_id = ${req.params.id} AND item_key = ${key}
+        `);
+      }
+
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[Activities] PATCH section error:", err);
+      res.status(500).json({ error: "Error al guardar sección" });
+    }
+  });
+
   // ── POST /api/activities/:id/flyer ────────────────────────────────────────
   // Upload flyer image for an activity
   app.post("/api/activities/:id/flyer", requireAuth, multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single("flyer"), async (req: Request, res: Response) => {
@@ -9016,17 +9112,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const orgIds: string[] = series.rotation_org_ids ?? [];
         if (!orgIds.length) continue;
 
+        const seriesStart = new Date(series.rotation_start_date);
+        const freq: string = series.frequency ?? "weekly";
+
         const windowEnd = new Date(now);
-        windowEnd.setDate(windowEnd.getDate() + 7 * 8); // 8 weeks ahead
-        const occurrences = getOccurrencesInRange(series.day_of_week, now, windowEnd);
+        if (freq === "quarterly") windowEnd.setFullYear(windowEnd.getFullYear() + 1);
+        else if (freq === "monthly") windowEnd.setMonth(windowEnd.getMonth() + 6);
+        else windowEnd.setDate(windowEnd.getDate() + 7 * 8);
+        // Respect end_date if set
+        if (series.end_date) {
+          const endDate = new Date(series.end_date);
+          if (endDate < windowEnd) windowEnd.setTime(endDate.getTime());
+        }
+        if (windowEnd < now) continue; // series has ended
+        const weekOfMonth = getWeekdayOccurrenceInMonthUTC(seriesStart);
+
+        let occurrences: Date[];
+        if (freq === "monthly") {
+          occurrences = getMonthlyOccurrencesInRange(series.day_of_week, weekOfMonth, now, windowEnd);
+        } else if (freq === "quarterly") {
+          occurrences = getQuarterlyOccurrencesInRange(series.day_of_week, weekOfMonth, seriesStart, now, windowEnd);
+        } else {
+          occurrences = getOccurrencesInRange(series.day_of_week, now, windowEnd);
+        }
 
         for (const date of occurrences) {
           // Check if instance already exists for this series + date
           const [hh, mm] = (series.time_of_day as string).split(":").map(Number);
-          date.setHours(hh, mm, 0, 0);
+          date.setUTCHours(hh, mm, 0, 0); // store as UTC so display is timezone-consistent
 
-          const dateStart = new Date(date); dateStart.setHours(0, 0, 0, 0);
-          const dateEnd   = new Date(date); dateEnd.setHours(23, 59, 59, 999);
+          const dateStart = new Date(date); dateStart.setUTCHours(0, 0, 0, 0);
+          const dateEnd   = new Date(date); dateEnd.setUTCHours(23, 59, 59, 999);
 
           const existing = await db.execute(sql`
             SELECT id FROM activities
@@ -9037,9 +9153,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `);
           if (existing.rows.length > 0) continue;
 
-          // Calculate which org owns this occurrence
-          const startDate = new Date(series.rotation_start_date);
-          const nth = countOccurrencesBetween(series.day_of_week, startDate, date);
+          // Calculate rotation index based on frequency
+          let nth: number;
+          if (freq === "monthly") {
+            nth = countMonthlyOccurrencesBetween(series.day_of_week, weekOfMonth, seriesStart, date);
+          } else if (freq === "quarterly") {
+            nth = countQuarterlyOccurrencesBetween(series.day_of_week, weekOfMonth, seriesStart, date);
+          } else {
+            nth = countOccurrencesBetween(series.day_of_week, seriesStart, date);
+          }
           const orgId = orgIds[(nth - 1 + orgIds.length) % orgIds.length];
 
           // Generate slug
@@ -9053,26 +9175,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rnd = Math.random().toString(36).slice(2, 6);
           const slug = `${baseSlug}-${dateStr}-${rnd}`;
 
-          await db.execute(sql`
-            INSERT INTO activities
-              (title, description, location, date, type, status,
-               organization_id, created_by, approval_status,
-               is_public, slug, recurring_series_id)
-            VALUES (
-              ${series.title},
-              ${series.description ?? null},
-              ${series.location ?? null},
-              ${date.toISOString()},
-              'actividad_org',
-              'borrador',
-              ${orgId},
-              ${systemUserId},
-              'approved',
-              true,
-              ${slug},
-              ${series.id}
-            )
-          `);
+          await storage.createActivity({
+            title: series.title,
+            description: series.description ?? null,
+            location: series.location ?? null,
+            date: date,
+            type: "actividad_org",
+            status: "borrador",
+            organizationId: orgId,
+            createdBy: systemUserId,
+            approvalStatus: "approved",
+            isPublic: true,
+            slug,
+            recurringSeriesId: series.id,
+          } as any);
           console.log(`[RecurringSeries] Generated instance for series "${series.title}" on ${date.toISOString().slice(0, 10)}, org=${orgId}`);
         }
       }

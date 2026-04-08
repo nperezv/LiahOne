@@ -51,13 +51,21 @@ function useSeriesInstances(seriesId: string | null) {
 
 // ── Form default ──────────────────────────────────────────────────────────────
 
+const FREQUENCY_LABELS: Record<string, string> = {
+  weekly:    "Semanal",
+  monthly:   "Mensual",
+  quarterly: "Trimestral",
+};
+
 const EMPTY_FORM = {
   title: "",
   description: "",
   location: "",
+  frequency: "weekly",
   dayOfWeek: "5",
   timeOfDay: "20:00",
   rotationStartDate: "",
+  rotationEndDate: "",
   notifyDaysBefore: "7",
 };
 
@@ -142,9 +150,11 @@ export default function RecurringSeriesPage() {
       title: s.title ?? "",
       description: s.description ?? "",
       location: s.location ?? "",
+      frequency: s.frequency ?? "weekly",
       dayOfWeek: String(s.day_of_week ?? 5),
       timeOfDay: s.time_of_day ?? "20:00",
       rotationStartDate: s.rotation_start_date?.slice(0, 10) ?? "",
+      rotationEndDate: s.end_date?.slice(0, 10) ?? "",
       notifyDaysBefore: String(s.notify_days_before ?? 14),
     });
     setRotationOrgIds(s.rotation_org_ids ?? []);
@@ -156,10 +166,12 @@ export default function RecurringSeriesPage() {
       title: form.title,
       description: form.description || null,
       location: form.location || null,
+      frequency: form.frequency,
       dayOfWeek: Number(form.dayOfWeek),
       timeOfDay: form.timeOfDay,
       rotationOrgIds,
       rotationStartDate: form.rotationStartDate,
+      rotationEndDate: form.rotationEndDate || null,
       notifyDaysBefore: Number(form.notifyDaysBefore),
     };
     if (editing) { updateSeries.mutate({ id: editing.id, body }); }
@@ -243,7 +255,9 @@ export default function RecurringSeriesPage() {
                     <div className="flex-1">
                       <CardTitle className="text-base">{s.title}</CardTitle>
                       <CardDescription className="mt-0.5">
-                        {DAY_NAMES[s.day_of_week]} · {s.time_of_day} · {s.instance_count ?? 0} instancias generadas
+                        {FREQUENCY_LABELS[s.frequency ?? "weekly"]} · {DAY_NAMES[s.day_of_week]} · {s.time_of_day}
+                        {s.end_date ? ` · hasta ${formatDateEs(s.end_date)}` : ""}
+                        {" · "}{s.instance_count ?? 0} instancias
                       </CardDescription>
                     </div>
                     <Badge variant={s.active ? "default" : "secondary"}>
@@ -365,9 +379,20 @@ export default function RecurringSeriesPage() {
                 placeholder="Noche de Hermanamiento" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>Día de la semana</Label>
+                <Label>Frecuencia</Label>
+                <Select value={form.frequency} onValueChange={(v) => setForm({ ...form, frequency: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="monthly">Mensual</SelectItem>
+                    <SelectItem value="quarterly">Trimestral</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{form.frequency === "weekly" ? "Día de la semana" : "Día base"}</Label>
                 <Select value={form.dayOfWeek} onValueChange={(v) => setForm({ ...form, dayOfWeek: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -380,6 +405,11 @@ export default function RecurringSeriesPage() {
                 <Input type="time" value={form.timeOfDay} onChange={(e) => setForm({ ...form, timeOfDay: e.target.value })} />
               </div>
             </div>
+            {form.frequency !== "weekly" && form.rotationStartDate && (
+              <p className="text-xs text-muted-foreground -mt-2 px-0.5">
+                {form.frequency === "monthly" ? "Mensual" : "Trimestral"} — el {DAY_NAMES[Number(form.dayOfWeek)]} correspondiente al patrón de la fecha de inicio.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -389,9 +419,10 @@ export default function RecurringSeriesPage() {
                 <p className="text-xs text-muted-foreground">El primer {DAY_NAMES[Number(form.dayOfWeek)]} desde esta fecha será el índice 0 de la rotación.</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Avisar con N días de antelación</Label>
-                <Input type="number" min={1} max={60} value={form.notifyDaysBefore}
-                  onChange={(e) => setForm({ ...form, notifyDaysBefore: e.target.value })} />
+                <Label>Fecha de fin <span className="text-muted-foreground">(opcional)</span></Label>
+                <Input type="date" value={form.rotationEndDate}
+                  onChange={(e) => setForm({ ...form, rotationEndDate: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Dejar vacío para serie indefinida.</p>
               </div>
             </div>
 

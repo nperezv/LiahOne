@@ -9,23 +9,39 @@ import { db } from "./db";
 
 export function registerActivityPublicRoutes(app: Express) {
   // ── GET /api/actividades — upcoming approved public activities ──────────────
-  app.get("/api/actividades", async (_req, res) => {
+  app.get("/api/actividades", async (req, res) => {
     try {
+      const past = req.query.past === "1";
       const [rows, tplResult] = await Promise.all([
-        db.execute(sql`
-          SELECT
-            a.id, a.title, a.description, a.date, a.location,
-            a.flyer_url, a.slug, a.asistencia_esperada,
-            o.name AS organization_name
-          FROM activities a
-          LEFT JOIN organizations o ON o.id = a.organization_id
-          WHERE a.approval_status = 'approved'
-            AND a.is_public = true
-            AND a.date >= NOW()
-            AND a.slug IS NOT NULL
-          ORDER BY a.date ASC
-          LIMIT 50
-        `),
+        past
+          ? db.execute(sql`
+              SELECT
+                a.id, a.title, a.description, a.date, a.location,
+                a.flyer_url, a.slug, a.asistencia_esperada,
+                o.name AS organization_name
+              FROM activities a
+              LEFT JOIN organizations o ON o.id = a.organization_id
+              WHERE a.approval_status = 'approved'
+                AND a.is_public = true
+                AND a.date < NOW()
+                AND a.slug IS NOT NULL
+              ORDER BY a.date DESC
+              LIMIT 50
+            `)
+          : db.execute(sql`
+              SELECT
+                a.id, a.title, a.description, a.date, a.location,
+                a.flyer_url, a.slug, a.asistencia_esperada,
+                o.name AS organization_name
+              FROM activities a
+              LEFT JOIN organizations o ON o.id = a.organization_id
+              WHERE a.approval_status = 'approved'
+                AND a.is_public = true
+                AND a.date >= NOW()
+                AND a.slug IS NOT NULL
+              ORDER BY a.date ASC
+              LIMIT 50
+            `),
         db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
       ]);
       const wardName: string = (tplResult.rows[0] as any)?.ward_name ?? null;

@@ -2,10 +2,13 @@ import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, Truck, CheckCheck, Eye } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,17 +22,9 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useUpdateActivityChecklistItem } from "@/hooks/use-api";
+import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
 import {
@@ -58,18 +53,7 @@ const APPROVAL_STATUS_CONFIG: Record<string, { label: string; variant: string; i
   cancelled:      { label: "Cancelada",      variant: "destructive", icon: null },
 };
 
-const CHECKLIST_SECTIONS: Record<string, { label: string; color: string; roles: string[] }> = {
-  programa:     { label: "Programa",     color: "text-blue-700 dark:text-blue-400",   roles: ["presidente_organizacion","consejero_organizacion","secretario_organizacion","obispo","consejero_obispo"] },
-  coordinacion: { label: "Coordinación", color: "text-violet-700 dark:text-violet-400", roles: ["presidente_organizacion","consejero_organizacion","secretario_organizacion","obispo","consejero_obispo"] },
-  logistica:    { label: "Logística",    color: "text-amber-700 dark:text-amber-400", roles: ["lider_actividades","obispo","consejero_obispo"] },
-};
 
-const ACTIVITY_STATUS_LABELS: Record<string, string> = {
-  borrador: "Borrador",
-  en_preparacion: "En Preparación",
-  listo: "Listo",
-  realizado: "Realizado",
-};
 
 const activitySchema = z.object({
   title: z.string().min(1, "El título es requerido"),
@@ -95,47 +79,118 @@ interface ChecklistItem {
   sortOrder: number;
 }
 
-function ChecklistPanel({
-  items,
-  activityId,
-  canEdit,
-  isOrgActivity,
-  userRole,
+// ── SectionPanel — editable sections that auto-complete checklist items ───────
+
+const SECTION_CONFIG = {
+  programa:     { label: "Programa",     color: "text-blue-700 dark:text-blue-400",     icon: ClipboardList },
+  coordinacion: { label: "Coordinación", color: "text-violet-700 dark:text-violet-400", icon: Users },
+  logistica:    { label: "Logística",    color: "text-amber-700 dark:text-amber-400",    icon: Truck },
+} as const;
+
+function sectionOfKey(key: string): "programa" | "coordinacion" | "logistica" {
+  if (key.startsWith("coord_")) return "coordinacion";
+  if (key.startsWith("log_"))   return "logistica";
+  return "programa";
+}
+
+function SectionEditDialog({
+  section, items, activityId, sectionData, open, onOpenChange,
+}: {
+  section: "programa" | "coordinacion" | "logistica";
+  items: ChecklistItem[];
+  activityId: string;
+  sectionData: Record<string, string>;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [fields, setFields] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const item of items) init[item.itemKey] = sectionData[item.itemKey] ?? "";
+    return init;
+  });
+
+  // Sync when dialog reopens with fresh data
+  useState(() => {
+    const init: Record<string, string> = {};
+    for (const item of items) init[item.itemKey] = sectionData[item.itemKey] ?? "";
+    setFields(init);
+  });
+
+  const saveMut = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activityId}/section`, { section, fields }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/activities"] });
+      onOpenChange(false);
+      toast({ title: "Sección guardada" });
+    },
+    onError: () => toast({ title: "Error al guardar", variant: "destructive" }),
+  });
+
+  const cfg = SECTION_CONFIG[section];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className={cfg.color}>{cfg.label}</DialogTitle>
+          <p className="text-xs text-muted-foreground">Completa los campos para marcar esta sección como lista. Los ítems se marcan automáticamente al guardar.</p>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          {items.filter(i => i.itemKey !== "prog_flyer").map((item) => (
+            <div key={item.itemKey} className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                {item.completed
+                  ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                <label className="text-sm font-medium">{item.label}</label>
+              </div>
+              <Textarea
+                className="text-sm min-h-[64px] resize-none"
+                placeholder="Describe cómo está gestionado este punto…"
+                value={fields[item.itemKey] ?? ""}
+                onChange={(e) => setFields(f => ({ ...f, [item.itemKey]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+            {saveMut.isPending ? "Guardando…" : "Guardar sección"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SectionPanel({
+  items, activityId, sectionData, canEditPrograma, canEditLogistica, flyerUrl, canUploadFlyer,
 }: {
   items: ChecklistItem[];
   activityId: string;
-  canEdit: boolean;
-  isOrgActivity?: boolean;
-  userRole?: string;
+  sectionData: Record<string, string>;
+  canEditPrograma: boolean;
+  canEditLogistica: boolean;
+  flyerUrl?: string | null;
+  canUploadFlyer: boolean;
 }) {
-  const updateMutation = useUpdateActivityChecklistItem();
+  const hasSections = items.some(i => i.itemKey.startsWith("prog_") || i.itemKey.startsWith("coord_") || i.itemKey.startsWith("log_"));
+  const [editSection, setEditSection] = useState<"programa" | "coordinacion" | "logistica" | null>(null);
 
-  const toggle = (item: ChecklistItem, sectionRoles?: string[]) => {
-    if (!canEdit) return;
-    if (isOrgActivity && sectionRoles && userRole && !sectionRoles.includes(userRole) &&
-        !["obispo","consejero_obispo"].includes(userRole ?? "")) return;
-    updateMutation.mutate({ activityId, itemId: item.id, data: { completed: !item.completed } });
-  };
-
-  const completed = items.filter((i) => i.completed).length;
-
-  if (!isOrgActivity) {
+  if (!hasSections) {
+    // Flat read-only list for baptism / legacy activities
+    const completed = items.filter(i => i.completed).length;
     return (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground font-medium mb-3">
-          Checklist de preparación — {completed}/{items.length} completados
-        </p>
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className={`flex items-center gap-2 text-sm cursor-pointer group ${canEdit ? "hover:text-foreground" : ""}`}
-            onClick={() => toggle(item)}
-          >
-            {item.completed ? (
-              <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-            ) : (
-              <Square className="h-4 w-4 text-muted-foreground shrink-0" />
-            )}
+        <p className="text-xs text-muted-foreground font-medium">Checklist — {completed}/{items.length} completados</p>
+        {items.map(item => (
+          <div key={item.id} className="flex items-center gap-2 text-sm">
+            {item.completed
+              ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+              : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
             <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.label}</span>
           </div>
         ))}
@@ -143,50 +198,73 @@ function ChecklistPanel({
     );
   }
 
-  // Sectioned checklist for actividad_org
-  const sections = ["programa", "coordinacion", "logistica"] as const;
   const bySection: Record<string, ChecklistItem[]> = { programa: [], coordinacion: [], logistica: [] };
-  for (const item of items) {
-    const key = item.itemKey.startsWith("prog_") ? "programa"
-      : item.itemKey.startsWith("coord_") ? "coordinacion"
-      : item.itemKey.startsWith("log_") ? "logistica"
-      : "programa";
-    bySection[key].push(item);
-  }
+  for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
+
+  const sections = (["programa", "coordinacion", "logistica"] as const).filter(s => bySection[s].length > 0);
+  const totalCompleted = items.filter(i => i.completed).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-xs text-muted-foreground font-medium">
-        Checklist — {completed}/{items.length} completados
+        Preparación — {totalCompleted}/{items.length} completados
       </p>
-      {sections.map((sec) => {
-        const cfg = CHECKLIST_SECTIONS[sec];
-        const secItems = bySection[sec] ?? [];
-        if (!secItems.length) return null;
-        const canEditSection = ["obispo","consejero_obispo"].includes(userRole ?? "") ||
-          cfg.roles.includes(userRole ?? "");
+
+      {/* Flyer upload always visible for programa */}
+      {bySection.programa.some(i => i.itemKey === "prog_flyer") && (
+        <FlyerUpload activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} />
+      )}
+
+      {sections.map(sec => {
+        const cfg = SECTION_CONFIG[sec];
+        const secItems = bySection[sec];
+        const secCompleted = secItems.filter(i => i.completed).length;
+        const allDone = secCompleted === secItems.length;
+        const canEdit = sec === "logistica" ? canEditLogistica : canEditPrograma;
+
         return (
-          <div key={sec}>
-            <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${cfg.color}`}>{cfg.label}</p>
-            <div className="space-y-1.5 ml-1">
-              {secItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center gap-2 text-sm ${canEditSection ? "cursor-pointer hover:text-foreground" : "opacity-60"}`}
-                  onClick={() => canEditSection && toggle(item, cfg.roles)}
-                >
-                  {item.completed ? (
-                    <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                  ) : (
-                    <Square className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.label}</span>
+          <div key={sec} className="rounded-lg border px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <cfg.icon className={`h-3.5 w-3.5 shrink-0 ${cfg.color}`} />
+                <span className={`text-xs font-semibold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
+                <span className="text-xs text-muted-foreground ml-1">{secCompleted}/{secItems.length}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {allDone && <CheckCheck className="h-3.5 w-3.5 text-green-500" />}
+                {canEdit && (
+                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                    onClick={() => setEditSection(sec)}>
+                    <Pencil className="h-3 w-3 mr-1" />
+                    {allDone ? "Editar" : "Completar"}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="mt-2 space-y-1">
+              {secItems.map(item => (
+                <div key={item.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {item.completed
+                    ? <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                    : <Square className="h-3 w-3 shrink-0" />}
+                  <span className={item.completed ? "line-through" : ""}>{item.label}</span>
                 </div>
               ))}
             </div>
           </div>
         );
       })}
+
+      {editSection && (
+        <SectionEditDialog
+          section={editSection}
+          items={bySection[editSection]}
+          activityId={activityId}
+          sectionData={sectionData}
+          open={true}
+          onOpenChange={(v) => { if (!v) setEditSection(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -328,9 +406,237 @@ function ApprovalActions({
   );
 }
 
+function BasicEditForm({ activity, onCancel }: { activity: any; onCancel: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [fields, setFields] = useState({
+    title: activity.title ?? "",
+    description: activity.description ?? "",
+    date: activity.date ? activity.date.slice(0, 16) : "",
+    location: activity.location ?? "",
+    isPublic: activity.isPublic ?? false,
+  });
+
+  const mut = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/basic`, fields),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({ title: "Actividad actualizada" });
+      onCancel();
+    },
+    onError: () => toast({ title: "Error al guardar", variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-3 rounded-lg border px-4 py-3 bg-muted/30">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Información básica</p>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Título</label>
+        <Input value={fields.title} onChange={e => setFields(f => ({ ...f, title: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Descripción</label>
+        <Textarea className="min-h-[72px] resize-none text-sm" value={fields.description} onChange={e => setFields(f => ({ ...f, description: e.target.value }))} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Fecha y hora</label>
+          <Input type="datetime-local" value={fields.date} onChange={e => setFields(f => ({ ...f, date: e.target.value }))} />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Ubicación</label>
+          <Input value={fields.location} onChange={e => setFields(f => ({ ...f, location: e.target.value }))} />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="basic-public" className="h-4 w-4 accent-primary" checked={fields.isPublic} onChange={e => setFields(f => ({ ...f, isPublic: e.target.checked }))} />
+        <label htmlFor="basic-public" className="text-sm cursor-pointer flex items-center gap-1.5">
+          <Globe className="h-3.5 w-3.5 text-muted-foreground" /> Publicar en landing pública
+        </label>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" onClick={() => mut.mutate()} disabled={mut.isPending}>
+          {mut.isPending ? "Guardando…" : "Guardar"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
+
+function ActivityCard({
+  activity,
+  organizations,
+  userRole,
+  orgId,
+  canDelete,
+  canSeeChecklist,
+  canEditPrograma,
+  canEditLogistica,
+  canUploadFlyer,
+  canEditBasic,
+  onDelete,
+}: {
+  activity: any;
+  organizations: any[];
+  userRole?: string;
+  orgId?: string;
+  canDelete: boolean;
+  canSeeChecklist: boolean;
+  canEditPrograma: boolean;
+  canEditLogistica: boolean;
+  canUploadFlyer: boolean;
+  canEditBasic: boolean;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+
+  const isPast = new Date(activity.date) < new Date();
+  const isOrgActivity = activity.type === "actividad_org";
+  const approvalCfg = APPROVAL_STATUS_CONFIG[activity.approvalStatus ?? "draft"];
+  const isRecurring = !!(activity as any).recurringSeriesId;
+
+  const dateDisplay = (() => {
+    const d = new Date(activity.date);
+    return (
+      d.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) +
+      " · " + String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0")
+    );
+  })();
+
+  const orgName = activity.organizationId
+    ? organizations.find((o: any) => o.id === activity.organizationId)?.name
+    : null;
+
+  const totalItems = activity.checklistItems?.length ?? 0;
+  const doneItems = activity.checklistItems?.filter((i: any) => i.completed).length ?? 0;
+
+  return (
+    <div className={`rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md ${isPast ? "opacity-75" : ""}`}>
+      {/* Card header — always visible, click to expand */}
+      <div className="p-4 cursor-pointer select-none" onClick={() => setExpanded(e => !e)}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+              <span className="font-semibold text-sm leading-tight">{activity.title}</span>
+              {isRecurring && (
+                <Badge variant="outline" className="text-[10px] gap-1 border-cyan-400 text-cyan-700 dark:border-cyan-500 dark:text-cyan-400">
+                  <RefreshCw className="h-2.5 w-2.5" /> Recurrente
+                </Badge>
+              )}
+              {activity.quarterlyPlanItemId && (
+                <Badge variant="outline" className="text-[10px] gap-1 border-violet-400 text-violet-700">
+                  <LayoutList className="h-2.5 w-2.5" /> Plan
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CalendarDays className="h-3 w-3 shrink-0" />{dateDisplay}
+              </span>
+              {activity.location && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3 shrink-0" />{activity.location}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isOrgActivity && !isRecurring && approvalCfg ? (
+              <Badge variant={approvalCfg.variant as any} className="gap-1 text-xs">
+                {approvalCfg.icon}{approvalCfg.label}
+              </Badge>
+            ) : isPast ? (
+              <Badge variant="secondary" className="text-xs">Realizada</Badge>
+            ) : null}
+            {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          </div>
+        </div>
+        {/* Bottom meta */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+          <Badge variant="outline" className="text-[10px]">
+            {ACTIVITY_TYPE_LABELS[activity.type] || activity.type || "Otro"}
+          </Badge>
+          {orgName && <Badge variant="outline" className="text-[10px]">{orgName}</Badge>}
+          {canSeeChecklist && totalItems > 0 && (
+            <span className="text-[10px] text-muted-foreground ml-auto">{doneItems}/{totalItems} preparación</span>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t px-4 py-3 space-y-3">
+          {/* Toolbar: mode toggle + delete */}
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              {canEditBasic && (
+                <Button
+                  size="sm"
+                  variant={editMode ? "default" : "outline"}
+                  className="h-7 px-2.5 text-xs gap-1"
+                  onClick={() => setEditMode(m => !m)}
+                >
+                  {editMode ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+                  {editMode ? "Lectura" : "Editar"}
+                </Button>
+              )}
+            </div>
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2.5 text-xs text-destructive hover:text-destructive gap-1"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Eliminar
+              </Button>
+            )}
+          </div>
+
+          {/* Basic edit form (edit mode only) */}
+          {editMode && <BasicEditForm activity={activity} onCancel={() => setEditMode(false)} />}
+
+          {/* Description (read mode) */}
+          {!editMode && activity.description && (
+            <p className="text-sm text-muted-foreground">{activity.description}</p>
+          )}
+
+          {/* Section panel */}
+          {canSeeChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
+            <SectionPanel
+              items={activity.checklistItems}
+              activityId={activity.id}
+              sectionData={(activity as any).sectionData ?? {}}
+              canEditPrograma={editMode ? canEditPrograma : false}
+              canEditLogistica={editMode ? canEditLogistica : false}
+              flyerUrl={activity.flyerUrl}
+              canUploadFlyer={editMode ? canUploadFlyer : false}
+            />
+          )}
+
+          {/* Flyer for non-checklist org activities */}
+          {!canSeeChecklist && isOrgActivity && (
+            <FlyerUpload activityId={activity.id} flyerUrl={activity.flyerUrl} canUpload={editMode ? canUploadFlyer : false} />
+          )}
+
+          {/* Approval actions */}
+          {isOrgActivity && (
+            <ApprovalActions activity={activity} userRole={userRole} orgId={orgId} />
+          )}
+
+          {!canSeeChecklist && !isOrgActivity && !activity.description && (
+            <p className="text-sm text-muted-foreground italic">Sin detalles adicionales</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ActivitiesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
 
   const { user } = useAuth();
   const { data: activities = [], isLoading } = useActivities();
@@ -355,15 +661,16 @@ export default function ActivitiesPage() {
     isLiderActividades ||
     (isOrgMember && activity.organizationId === user?.organizationId);
 
-  const canEditChecklist = (activity: any) =>
-    isObispado ||
-    isLiderActividades ||
-    (isOrgMember && activity.organizationId === user?.organizationId);
-
-  // Filter activities based on user role
-  const filteredActivities = isOrgMember
+  // Filter activities based on user role, then by archive toggle
+  const [showArchive, setShowArchive] = useState(false);
+  const now = new Date();
+  const roleFilteredActivities = isOrgMember
     ? activities.filter((a: any) => a.organizationId === user?.organizationId)
     : activities;
+  const filteredActivities = roleFilteredActivities.filter((a: any) => showArchive
+    ? new Date(a.date) < now
+    : new Date(a.date) >= now
+  );
 
   const form = useForm<ActivityFormValues>({
     resolver: zodResolver(activitySchema),
@@ -407,12 +714,8 @@ export default function ActivitiesPage() {
     }
   };
 
-  const toggleExpand = (activityId: string) => {
-    setExpandedActivityId((prev) => (prev === activityId ? null : activityId));
-  };
-
-  const upcomingActivities = filteredActivities.filter((a: any) => new Date(a.date) >= new Date());
-  const pastActivities = filteredActivities.filter((a: any) => new Date(a.date) < new Date());
+  const upcomingActivities = roleFilteredActivities.filter((a: any) => new Date(a.date) >= now);
+  const pastActivities = roleFilteredActivities.filter((a: any) => new Date(a.date) < now);
 
   if (isLoading) {
     return (
@@ -423,7 +726,6 @@ export default function ActivitiesPage() {
     );
   }
 
-  const colSpan = canDelete ? 8 : 7;
 
   return (
     <div className="p-8">
@@ -433,6 +735,16 @@ export default function ActivitiesPage() {
           <p className="text-sm text-muted-foreground">Gestiona las actividades del barrio</p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <div className="flex rounded-full border border-border/70 bg-muted/40 p-0.5 text-xs shrink-0">
+            <button type="button" onClick={() => setShowArchive(false)}
+              className={`rounded-full px-3 py-1 transition-colors ${!showArchive ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>
+              Próximas
+            </button>
+            <button type="button" onClick={() => setShowArchive(true)}
+              className={`rounded-full px-3 py-1 transition-colors ${showArchive ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>
+              Archivo
+            </button>
+          </div>
           <Button
             variant="outline"
             onClick={() => exportActivities(filteredActivities)}
@@ -635,171 +947,43 @@ export default function ActivitiesPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Todas las Actividades</CardTitle>
-          <CardDescription>Actividades programadas y realizadas — haz clic en una fila para ver los detalles</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-6"></TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Ubicación</TableHead>
-                <TableHead>Organización</TableHead>
-                <TableHead>Estado</TableHead>
-                {canDelete && <TableHead>Acciones</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredActivities.length > 0 ? (
-                filteredActivities.map((activity: any) => {
-                  const isPast = new Date(activity.date) < new Date();
-                  const isExpanded = expandedActivityId === activity.id;
-                  const statusLabel = activity.status ? ACTIVITY_STATUS_LABELS[activity.status] : isPast ? "Realizada" : "Próxima";
-                  const statusVariant = activity.status === "realizado" || isPast ? "secondary" : activity.status === "listo" ? "default" : "outline";
-
-                  const showChecklist = canSeeChecklist(activity);
-                  const canEdit = canEditChecklist(activity);
-
-                  const isOrgActivity = activity.type === "actividad_org";
-                  const approvalCfg = APPROVAL_STATUS_CONFIG[activity.approvalStatus ?? "draft"];
-                  const canUploadFlyer = isOrgActivity && (
-                    isObispado ||
-                    (isOrgMember && activity.organizationId === user?.organizationId) ||
-                    (isLiderActividades && activity.organizationId === user?.organizationId)
-                  );
-
-                  return (
-                    <>
-                      <TableRow
-                        key={activity.id}
-                        data-testid={`row-activity-${activity.id}`}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => toggleExpand(activity.id)}
-                      >
-                        <TableCell className="pr-0">
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {activity.title}
-                            {isOrgActivity && activity.quarterlyPlanItemId && (
-                              <Badge variant="outline" className="text-[10px] gap-1 border-violet-400 text-violet-700">
-                                <LayoutList className="h-2.5 w-2.5" /> Plan Trimestral
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {ACTIVITY_TYPE_LABELS[activity.type] || activity.type || "Otro"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {new Date(activity.date).toLocaleDateString("es-ES", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </TableCell>
-                        <TableCell className="text-sm">{activity.location || "-"}</TableCell>
-                        <TableCell>
-                          {activity.organizationId ? (
-                            <Badge variant="outline">
-                              {organizations.find((o: any) => o.id === activity.organizationId)?.name || "Organización"}
-                            </Badge>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">Barrio</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {isOrgActivity && approvalCfg ? (
-                            <Badge variant={approvalCfg.variant as any} className="gap-1">
-                              {approvalCfg.icon}{approvalCfg.label}
-                            </Badge>
-                          ) : (
-                            <Badge variant={statusVariant as any}>{statusLabel}</Badge>
-                          )}
-                        </TableCell>
-                        {canDelete && (
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(activity.id);
-                              }}
-                              data-testid={`button-delete-activity-${activity.id}`}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className="h-4 w-4 lg:mr-1" />
-                              <span className="sr-only lg:not-sr-only">Eliminar</span>
-                            </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                      {isExpanded && (
-                        <TableRow key={`${activity.id}-detail`}>
-                          <TableCell colSpan={colSpan} className="bg-muted/30 px-8 py-4">
-                            <div className="space-y-4">
-                              {activity.description && (
-                                <p className="text-sm text-muted-foreground">{activity.description}</p>
-                              )}
-                              {isOrgActivity && (
-                                <FlyerUpload
-                                  activityId={activity.id}
-                                  flyerUrl={activity.flyerUrl}
-                                  canUpload={canUploadFlyer}
-                                />
-                              )}
-                              {showChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
-                                <ChecklistPanel
-                                  items={activity.checklistItems}
-                                  activityId={activity.id}
-                                  canEdit={canEdit}
-                                  isOrgActivity={isOrgActivity}
-                                  userRole={user?.role}
-                                />
-                              )}
-                              {isOrgActivity && (
-                                <ApprovalActions
-                                  activity={activity}
-                                  userRole={user?.role}
-                                  orgId={user?.organizationId}
-                                />
-                              )}
-                              {!showChecklist && !activity.description && (
-                                <p className="text-sm text-muted-foreground italic">Sin detalles adicionales</p>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={colSpan} className="text-center py-8 text-muted-foreground">
-                    No hay actividades programadas
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="text-base font-semibold mb-3">
+          {showArchive ? "Archivo de Actividades" : "Próximas Actividades"}
+        </h2>
+        {filteredActivities.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-10 text-center">
+            {showArchive ? "No hay actividades pasadas" : "No hay actividades próximas"}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {filteredActivities.map((activity: any) => {
+              const belongsToMyOrg = activity.organizationId === user?.organizationId;
+              const actCanUploadFlyer = isObispado || ((isOrgMember || isLiderActividades) && belongsToMyOrg);
+              const actCanEditPrograma = isObispado || (isOrgMember && belongsToMyOrg);
+              const actCanEditLogistica = isObispado || isLiderActividades || (isOrgMember && belongsToMyOrg);
+              const actCanEditBasic = isObispado || (isOrgMember && belongsToMyOrg) || isLiderActividades;
+              const actCanDelete = canDelete && (isObispado || (isOrgMember && belongsToMyOrg));
+              return (
+                <ActivityCard
+                  key={activity.id}
+                  activity={activity}
+                  organizations={organizations}
+                  userRole={user?.role}
+                  orgId={user?.organizationId}
+                  canDelete={actCanDelete}
+                  canSeeChecklist={canSeeChecklist(activity)}
+                  canEditPrograma={actCanEditPrograma}
+                  canEditLogistica={actCanEditLogistica}
+                  canUploadFlyer={actCanUploadFlyer}
+                  canEditBasic={actCanEditBasic}
+                  onDelete={() => handleDelete(activity.id)}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

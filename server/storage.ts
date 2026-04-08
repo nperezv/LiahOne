@@ -449,32 +449,85 @@ const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
   { key: "visibilidad_evento", label: "Visibilidad del evento definida (público o privado)", sort: 8 },
 ];
 
-// Checklist unificado para actividades de organización (plan trimestral)
-// Sección: PROGRAMA (sort 0-9), COORDINACIÓN (sort 10-19), LOGÍSTICA (sort 20-29)
-const ORG_ACTIVITY_CHECKLIST_ITEMS = [
-  // PROGRAMA
-  { key: "prog_agenda", label: "Programa/agenda de la actividad preparado", sort: 0, section: "programa" },
-  { key: "prog_flyer", label: "Flyer o imagen promocional subido", sort: 1, section: "programa" },
-  // COORDINACIÓN
-  { key: "coord_invitaciones", label: "Invitaciones o avisos enviados", sort: 10, section: "coordinacion" },
-  { key: "coord_participantes", label: "Participantes y ponentes confirmados", sort: 11, section: "coordinacion" },
-  { key: "coord_presupuesto", label: "Solicitud de presupuesto enviada (si aplica)", sort: 12, section: "coordinacion" },
-  // LOGÍSTICA (a cargo del lider_actividades de la org)
-  { key: "log_espacio", label: "Espacio reservado en calendario de la iglesia", sort: 20, section: "logistica" },
-  { key: "log_arreglo", label: "Arreglo de espacios (sillas, decoración, etc.)", sort: 21, section: "logistica" },
-  { key: "log_equipo", label: "Equipo y tecnología coordinado", sort: 22, section: "logistica" },
-  { key: "log_refrigerio", label: "Refrigerio/comida coordinado (si aplica)", sort: 23, section: "logistica" },
-  { key: "log_limpieza", label: "Limpieza de ambientes al terminar", sort: 24, section: "logistica" },
-];
+// Checklist por tipo de actividad — secciones prog_ / coord_ / log_
+// PROGRAMA (sort 0-9) · COORDINACIÓN (sort 10-19) · LOGÍSTICA (sort 20-29)
+
+const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort: number }>> = {
+  actividad_org: [
+    { key: "prog_agenda",          label: "Programa/agenda de la actividad preparado",       sort: 0  },
+    { key: "prog_flyer",           label: "Flyer o imagen promocional subido",               sort: 1  },
+    { key: "coord_invitaciones",   label: "Invitaciones o avisos enviados",                  sort: 10 },
+    { key: "coord_participantes",  label: "Participantes y ponentes confirmados",             sort: 11 },
+    { key: "coord_presupuesto",    label: "Solicitud de presupuesto enviada (si aplica)",     sort: 12 },
+    { key: "log_espacio",          label: "Espacio reservado en calendario de la iglesia",    sort: 20 },
+    { key: "log_arreglo",          label: "Arreglo de espacios (sillas, decoración, etc.)",  sort: 21 },
+    { key: "log_equipo",           label: "Equipo y tecnología coordinado",                  sort: 22 },
+    { key: "log_refrigerio",       label: "Refrigerio/comida coordinado (si aplica)",         sort: 23 },
+    { key: "log_limpieza",         label: "Limpieza de ambientes al terminar",               sort: 24 },
+  ],
+  hermanamiento: [
+    { key: "prog_agenda",          label: "Programa y actividades de hermanamiento preparados", sort: 0  },
+    { key: "prog_flyer",           label: "Flyer o invitación lista",                          sort: 1  },
+    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                             sort: 10 },
+    { key: "coord_participantes",  label: "Participantes confirmados",                         sort: 11 },
+    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",                  sort: 12 },
+    { key: "log_espacio",          label: "Espacio reservado",                                 sort: 20 },
+    { key: "log_arreglo",          label: "Arreglo del lugar coordinado",                      sort: 21 },
+    { key: "log_refrigerio",       label: "Refrigerio/comida coordinado",                      sort: 22 },
+    { key: "log_limpieza",         label: "Limpieza post-actividad asignada",                  sort: 23 },
+  ],
+  fiesta: [
+    { key: "prog_agenda",          label: "Programa y agenda de la fiesta preparados",      sort: 0  },
+    { key: "prog_musica",          label: "Música/entretenimiento coordinado",              sort: 1  },
+    { key: "prog_decoracion_plan", label: "Plan de decoración definido",                   sort: 2  },
+    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                         sort: 10 },
+    { key: "coord_catering",       label: "Comida/catering confirmado",                    sort: 11 },
+    { key: "coord_presupuesto",    label: "Presupuesto aprobado",                          sort: 12 },
+    { key: "log_espacio",          label: "Espacio reservado y preparado",                 sort: 20 },
+    { key: "log_decoracion",       label: "Decoración lista",                              sort: 21 },
+    { key: "log_equipo",           label: "Equipo de sonido/iluminación listo",            sort: 22 },
+    { key: "log_limpieza",         label: "Limpieza post-fiesta asignada",                 sort: 23 },
+  ],
+  deportiva: [
+    { key: "prog_agenda",          label: "Programa/agenda del evento deportivo preparado",  sort: 0  },
+    { key: "prog_reglas",          label: "Reglas y formato del torneo/partido definidos",   sort: 1  },
+    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                           sort: 10 },
+    { key: "coord_equipos",        label: "Equipos/participantes confirmados",               sort: 11 },
+    { key: "coord_material",       label: "Material deportivo preparado",                    sort: 12 },
+    { key: "coord_arbitros",       label: "Árbitros/coordinadores confirmados",              sort: 13 },
+    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",                sort: 14 },
+    { key: "log_espacio",          label: "Espacio/cancha reservada",                        sort: 20 },
+    { key: "log_refrigerio",       label: "Agua y refrigerio listos",                        sort: 21 },
+    { key: "log_primeros_auxilios",label: "Botiquín/primeros auxilios listos",               sort: 22 },
+    { key: "log_limpieza",         label: "Limpieza post-evento asignada",                   sort: 23 },
+  ],
+  capacitacion: [
+    { key: "prog_agenda",          label: "Agenda y objetivos de capacitación definidos",   sort: 0  },
+    { key: "prog_materiales",      label: "Materiales y presentaciones listos",             sort: 1  },
+    { key: "coord_ponentes",       label: "Ponentes/facilitadores confirmados",             sort: 10 },
+    { key: "coord_invitaciones",   label: "Invitaciones enviadas",                         sort: 11 },
+    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",               sort: 12 },
+    { key: "log_espacio",          label: "Sala/espacio reservado",                        sort: 20 },
+    { key: "log_equipo",           label: "Equipo y tecnología listos",                    sort: 21 },
+    { key: "log_refrigerio",       label: "Refrigerio coordinado (si aplica)",             sort: 22 },
+    { key: "log_limpieza",         label: "Limpieza post-actividad asignada",              sort: 23 },
+  ],
+  otro: [
+    { key: "prog_agenda",          label: "Programa/agenda preparado",                  sort: 0  },
+    { key: "coord_invitaciones",   label: "Avisos/invitaciones enviados",               sort: 10 },
+    { key: "coord_presupuesto",    label: "Presupuesto aprobado (si aplica)",           sort: 11 },
+    { key: "log_espacio",          label: "Espacio reservado",                         sort: 20 },
+    { key: "log_equipo",           label: "Equipo necesario listo",                    sort: 21 },
+    { key: "log_limpieza",         label: "Limpieza post-actividad asignada",          sort: 22 },
+  ],
+};
 
 function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
-  const items = [...BASE_CHECKLIST_ITEMS];
+  // Baptism gets the legacy base + extra items (no section prefixes)
   if (activityType === "servicio_bautismal") {
-    items.push(...BAPTISM_EXTRA_CHECKLIST_ITEMS);
-  } else if (activityType === "actividad_org") {
-    return ORG_ACTIVITY_CHECKLIST_ITEMS;
+    return [...BASE_CHECKLIST_ITEMS, ...BAPTISM_EXTRA_CHECKLIST_ITEMS];
   }
-  return items;
+  return CHECKLIST_BY_TYPE[activityType] ?? CHECKLIST_BY_TYPE["otro"];
 }
 
 export class DatabaseStorage implements IStorage {

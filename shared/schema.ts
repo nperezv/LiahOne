@@ -870,6 +870,9 @@ export const activities = pgTable("activities", {
   slug: varchar("slug").unique(),
   flyerUrl: text("flyer_url"),
   quarterlyPlanItemId: varchar("quarterly_plan_item_id"), // references quarterly_plan_items(id)
+  recurringSeriesId: varchar("recurring_series_id"),
+  notifiedRotation: boolean("notified_rotation").notNull().default(false),
+  sectionData: jsonb("section_data").$type<Record<string, string>>().default({}),
 });
 
 export const activityChecklistItems = pgTable("activity_checklist_items", {
