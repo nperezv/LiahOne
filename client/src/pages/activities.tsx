@@ -296,8 +296,15 @@ function SectionEditDialog({
   const { toast } = useToast();
   const { data: rawMembers = [] } = useMembers();
   const { data: rawHymns = [] } = useHymns();
+  const { data: organizations = [] } = useOrganizations();
 
   const requiresMsgAndHymns = TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType);
+
+  // Find bishopric org ID to reliably filter bishops/counselors
+  const bishopricOrgId = useMemo(
+    () => (organizations as any[]).find(o => o.type === "obispado")?.id ?? null,
+    [organizations]
+  );
 
   // All members normalized
   const allMemberOptions = useMemo<MemberOption[]>(
@@ -307,15 +314,17 @@ function SectionEditDialog({
     [rawMembers]
   );
 
-  // Bishopric only (preside)
+  // Bishopric only (preside) — filter by org ID for reliability
   const bishopricOptions = useMemo<MemberOption[]>(
-    () => Array.from(new Set(
-      (rawMembers as any[])
-        .filter(m => m.organizationType === "obispado")
-        .map(m => normalizeMemberName(m.nameSurename))
-        .filter(Boolean)
-    )).map(v => ({ value: v as string })),
-    [rawMembers]
+    () => {
+      const filtered = bishopricOrgId
+        ? (rawMembers as any[]).filter(m => m.organizationId === bishopricOrgId)
+        : (rawMembers as any[]).filter(m => m.organizationType === "obispado");
+      return Array.from(new Set(
+        filtered.map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
+      )).map(v => ({ value: v as string }));
+    },
+    [rawMembers, bishopricOrgId]
   );
 
   // Org presidency members (dirige) — filter by org if available, else all
