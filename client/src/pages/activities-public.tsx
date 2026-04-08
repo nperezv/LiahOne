@@ -307,7 +307,7 @@ export function ActivitiesLobby() {
               animation: "scroll-hint 2s ease-in-out infinite",
             }}
           />
-          {wardName ? `Comunidad · ${wardName}` : "Comunidad · Barrio"}
+          {wardName ?? "Barrio"}
         </motion.div>
 
         {/* heading */}
