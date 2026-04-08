@@ -460,17 +460,21 @@ const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
 const PROG_BASE_ITEMS = [
   { key: "prog_preside",          label: "Preside",             sort: 1 },
   { key: "prog_dirige",           label: "Dirige",              sort: 2 },
-  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 3 },
-  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 4 },
+  { key: "prog_himno_apertura",   label: "Himno de apertura",   sort: 3 },
+  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 4 },
+  { key: "prog_himno_cierre",     label: "Himno de cierre",     sort: 7 },
+  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
-// Tipos donde se esperan mensajes/ponencias (al menos uno requerido)
+// Tipos donde se esperan mensajes/pensamientos espirituales (al menos uno requerido)
 const PROG_CON_MENSAJE = [
   { key: "prog_preside",          label: "Preside",             sort: 1 },
   { key: "prog_dirige",           label: "Dirige",              sort: 2 },
-  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 3 },
-  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 4 },
+  { key: "prog_himno_apertura",   label: "Himno de apertura",   sort: 3 },
+  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 4 },
   { key: "prog_mensaje_1",        label: "Mensaje",             sort: 5 },
+  { key: "prog_himno_cierre",     label: "Himno de cierre",     sort: 7 },
+  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
 const COORD_BASE_ITEMS = [
@@ -1561,7 +1565,7 @@ export class DatabaseStorage implements IStorage {
   // ========================================
 
   async getAllActivities(): Promise<Array<Activity & { checklistItems: ActivityChecklistItem[] }>> {
-    const allActivities = await db.select().from(activities).orderBy(desc(activities.date));
+    const allActivities = await db.select().from(activities).orderBy(asc(activities.date));
     if (allActivities.length === 0) return [];
 
     const activityIds = allActivities.map((a) => a.id);

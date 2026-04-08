@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, Truck, CheckCheck, Eye } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, Truck, CheckCheck, Eye, Music } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
+import { normalizeMemberName } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -25,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity } from "@/hooks/use-api";
+import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
 import {
@@ -80,16 +81,100 @@ interface ChecklistItem {
   sortOrder: number;
 }
 
+// ── Autocomplete types & components ───────────────────────────────────────────
+
+type HymnOption   = { value: string; number: number; title: string };
+type MemberOption = { value: string };
+
+const filterHymnOptions = (options: HymnOption[], query: string) => {
+  const t = query.trim();
+  if (!t) return options;
+  const lo = t.toLowerCase();
+  return options.filter(o => String(o.number).startsWith(t) || o.value.toLowerCase().includes(lo));
+};
+
+const filterMemberOptions = (options: MemberOption[], query: string) => {
+  const t = query.trim();
+  if (!t) return options;
+  return options.filter(o => o.value.toLowerCase().includes(t.toLowerCase()));
+};
+
+function HymnAutocomplete({ value, options, placeholder, onChange }: {
+  value: string; options: HymnOption[]; placeholder?: string; onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => filterHymnOptions(options, value), [options, value]);
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Music className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <Input
+          className="text-sm pl-8"
+          value={value}
+          placeholder={placeholder ?? "Número o nombre del himno"}
+          autoComplete="off"
+          onChange={e => { onChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+        />
+      </div>
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 20).map(o => (
+            <li key={o.number} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent"
+              onMouseDown={e => { e.preventDefault(); onChange(o.value); setOpen(false); }}>
+              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.number}</span>
+              <span className="truncate">{o.title}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function MemberAutocomplete({ value, options, placeholder, onChange }: {
+  value: string; options: MemberOption[]; placeholder?: string; onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
+  return (
+    <div className="relative">
+      <Input
+        className="text-sm"
+        value={value}
+        placeholder={placeholder ?? "Nombre del miembro"}
+        autoComplete="off"
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      />
+      {open && value.trim().length > 0 && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 15).map(o => (
+            <li key={o.value} className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={e => { e.preventDefault(); onChange(o.value); setOpen(false); }}>
+              {o.value}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Field metadata — defines input type and placeholder per section_data key ──
 
 type FieldType = "text" | "textarea" | "checkbox" | "number";
 
-const FIELD_META: Record<string, { type: FieldType; placeholder?: string }> = {
-  prog_preside:          { type: "text",     placeholder: "Nombre de quien preside" },
-  prog_dirige:           { type: "text",     placeholder: "Nombre de quien dirige" },
-  prog_oracion_apertura: { type: "text",     placeholder: "Nombre" },
-  prog_oracion_cierre:   { type: "text",     placeholder: "Nombre" },
-  prog_mensaje_1:        { type: "text",     placeholder: "Nombre del ponente y tema del mensaje" },
+const FIELD_META: Record<string, { type: FieldType; placeholder?: string; inputKind?: "member" | "hymn" }> = {
+  prog_preside:          { type: "text", inputKind: "member", placeholder: "Nombre de quien preside" },
+  prog_dirige:           { type: "text", inputKind: "member", placeholder: "Nombre de quien dirige" },
+  prog_himno_apertura:   { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del himno" },
+  prog_oracion_apertura: { type: "text", inputKind: "member", placeholder: "Nombre" },
+  prog_himno_cierre:     { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del himno" },
+  prog_oracion_cierre:   { type: "text", inputKind: "member", placeholder: "Nombre" },
+  prog_mensaje_1:        { type: "text", inputKind: "member", placeholder: "Nombre del ponente y tema" },
   coord_invitaciones:    { type: "textarea", placeholder: "¿Cómo se compartirán/compartieron las invitaciones?" },
   coord_enlace:          { type: "checkbox" },
   coord_asistentes:      { type: "number",   placeholder: "Número estimado" },
@@ -125,57 +210,67 @@ function sectionOfKey(key: string): "programa" | "coordinacion" | "logistica" {
 }
 
 function SectionField({
-  itemKey, label, completed, value, onChange,
+  itemKey, label, completed, value, onChange, memberOptions, hymnOptions, optional,
 }: {
   itemKey: string; label: string; completed: boolean; value: string; onChange: (v: string) => void;
+  memberOptions: MemberOption[]; hymnOptions: HymnOption[]; optional?: boolean;
 }) {
   const meta = FIELD_META[itemKey] ?? { type: "text" as FieldType };
 
+  const labelEl = (
+    <div className="flex items-center gap-2">
+      {completed
+        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+        : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+      <label className="text-sm font-medium">{label}</label>
+      {optional && <span className="text-[10px] text-muted-foreground">(opcional)</span>}
+    </div>
+  );
+
+  if (meta.type === "checkbox") return (
+    <div className="space-y-1.5">
+      {labelEl}
+      <label className="flex items-center gap-2 cursor-pointer text-sm ml-5">
+        <input type="checkbox" className="h-4 w-4 accent-primary"
+          checked={value === "true"} onChange={e => onChange(e.target.checked ? "true" : "")} />
+        Sí, se compartió
+      </label>
+    </div>
+  );
+
+  if (meta.type === "textarea") return (
+    <div className="space-y-1.5">
+      {labelEl}
+      <Textarea className="text-sm min-h-[72px] resize-none" placeholder={meta.placeholder}
+        value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+
+  if (meta.type === "number") return (
+    <div className="space-y-1.5">
+      {labelEl}
+      <Input type="number" min={0} className="text-sm w-36" placeholder={meta.placeholder}
+        value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+
+  // text — with optional member/hymn autocomplete
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        {completed
-          ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-          : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-        <label className="text-sm font-medium">{label}</label>
-      </div>
-      {meta.type === "checkbox" ? (
-        <label className="flex items-center gap-2 cursor-pointer text-sm ml-5">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-primary"
-            checked={value === "true"}
-            onChange={e => onChange(e.target.checked ? "true" : "")}
-          />
-          Sí, se compartió
-        </label>
-      ) : meta.type === "textarea" ? (
-        <Textarea
-          className="text-sm min-h-[72px] resize-none"
-          placeholder={meta.placeholder}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-        />
-      ) : meta.type === "number" ? (
-        <Input
-          type="number"
-          min={0}
-          className="text-sm w-36"
-          placeholder={meta.placeholder}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-        />
+      {labelEl}
+      {meta.inputKind === "member" ? (
+        <MemberAutocomplete value={value} options={memberOptions} placeholder={meta.placeholder} onChange={onChange} />
+      ) : meta.inputKind === "hymn" ? (
+        <HymnAutocomplete value={value} options={hymnOptions} placeholder={meta.placeholder} onChange={onChange} />
       ) : (
-        <Input
-          className="text-sm"
-          placeholder={meta.placeholder}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-        />
+        <Input className="text-sm" placeholder={meta.placeholder} value={value} onChange={e => onChange(e.target.value)} />
       )}
     </div>
   );
 }
+
+// Keys that are optional (don't block completion)
+const OPTIONAL_PROG_KEYS = new Set(["prog_himno_apertura", "prog_himno_cierre"]);
 
 function SectionEditDialog({
   section, items, activityId, sectionData, open, onOpenChange,
@@ -189,19 +284,31 @@ function SectionEditDialog({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { data: rawMembers = [] } = useMembers();
+  const { data: rawHymns = [] } = useHymns();
 
-  // Build initial fields from checklist items + any extra prog_mensaje_* from sectionData
+  const memberOptions = useMemo<MemberOption[]>(
+    () => Array.from(new Set(
+      rawMembers.map((m: any) => normalizeMemberName(m.nameSurename)).filter(Boolean)
+    )).map(v => ({ value: v as string })),
+    [rawMembers]
+  );
+  const hymnOptions = useMemo<HymnOption[]>(
+    () => (rawHymns as any[]).map(h => ({ value: `${h.number} - ${h.title}`, number: h.number, title: h.title })),
+    [rawHymns]
+  );
+
   const [fields, setFields] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const item of items) init[item.itemKey] = sectionData[item.itemKey] ?? "";
-    // restore any extra messages already saved
     for (const k of Object.keys(sectionData)) {
-      if (k.startsWith("prog_mensaje_") && !(k in init)) init[k] = sectionData[k];
+      if ((k.startsWith("prog_mensaje_") || k.startsWith("prog_pensamiento_")) && !(k in init))
+        init[k] = sectionData[k];
     }
     return init;
   });
 
-  // Count extra message slots (prog_mensaje_2, _3, …)
+  // Dynamic extra entries: mensajes y pensamientos espirituales
   const [extraMsgCount, setExtraMsgCount] = useState(() => {
     let n = 0;
     for (const k of Object.keys(sectionData)) {
@@ -209,11 +316,25 @@ function SectionEditDialog({
     }
     return n;
   });
+  const [pensamientos, setPensamientos] = useState<string[]>(() => {
+    const list: string[] = [];
+    for (const k of Object.keys(sectionData)) {
+      if (/^prog_pensamiento_(\d+)$/.test(k)) list.push(sectionData[k]);
+    }
+    return list;
+  });
 
   const hasMessages = items.some(i => i.itemKey === "prog_mensaje_1");
+  const setField = (k: string, v: string) => setFields(f => ({ ...f, [k]: v }));
+
+  const allFields = useMemo(() => {
+    const f = { ...fields };
+    pensamientos.forEach((p, i) => { f[`prog_pensamiento_${i + 1}`] = p; });
+    return f;
+  }, [fields, pensamientos]);
 
   const saveMut = useMutation({
-    mutationFn: () => apiRequest("PATCH", `/api/activities/${activityId}/section`, { section, fields }),
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activityId}/section`, { section, fields: allFields }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/activities"] });
       onOpenChange(false);
@@ -230,57 +351,75 @@ function SectionEditDialog({
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className={cfg.color}>{cfg.label}</DialogTitle>
-          <p className="text-xs text-muted-foreground">Completa los campos — los ítems se marcan automáticamente al guardar.</p>
+          <DialogDescription className="text-xs">
+            Completa los campos — los ítems se marcan automáticamente al guardar.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-1">
           {displayItems.map((item) => {
             if (item.itemKey === "prog_mensaje_1" && hasMessages) {
-              // Render message block with dynamic add button
               return (
-                <div key="mensajes" className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    {item.completed
-                      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                    <span className="text-sm font-medium">Mensajes / Ponencias</span>
-                  </div>
-                  {/* First message (required checklist item) */}
-                  <div className="ml-5">
-                    <Input
-                      className="text-sm"
-                      placeholder="Ponente y tema del 1er mensaje"
+                <div key="mensajes" className="space-y-3 rounded-lg border px-3 py-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mensajes / Ponencias</p>
+                  {/* First message — required */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {item.completed
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                        : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                      <label className="text-sm font-medium">Mensaje 1</label>
+                    </div>
+                    <MemberAutocomplete
                       value={fields["prog_mensaje_1"] ?? ""}
-                      onChange={e => setFields(f => ({ ...f, prog_mensaje_1: e.target.value }))}
+                      options={memberOptions}
+                      placeholder="Ponente y tema del mensaje"
+                      onChange={v => setField("prog_mensaje_1", v)}
                     />
                   </div>
                   {/* Extra messages */}
                   {Array.from({ length: extraMsgCount }, (_, i) => i + 2).map(n => (
-                    <div key={n} className="ml-5 flex gap-2">
-                      <Input
-                        className="text-sm flex-1"
-                        placeholder={`Ponente y tema del ${n}º mensaje`}
+                    <div key={n} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">Mensaje {n}</label>
+                        <Button type="button" size="sm" variant="ghost"
+                          className="h-6 px-1.5 text-xs text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setFields(f => { const nf = { ...f }; delete nf[`prog_mensaje_${n}`]; return nf; });
+                            setExtraMsgCount(c => c - 1);
+                          }}>Quitar</Button>
+                      </div>
+                      <MemberAutocomplete
                         value={fields[`prog_mensaje_${n}`] ?? ""}
-                        onChange={e => setFields(f => ({ ...f, [`prog_mensaje_${n}`]: e.target.value }))}
+                        options={memberOptions}
+                        placeholder="Ponente y tema del mensaje"
+                        onChange={v => setField(`prog_mensaje_${n}`, v)}
                       />
-                      <Button
-                        type="button" size="sm" variant="ghost"
-                        className="h-9 px-2 text-destructive hover:text-destructive"
-                        onClick={() => {
-                          setFields(f => { const nf = { ...f }; delete nf[`prog_mensaje_${n}`]; return nf; });
-                          setExtraMsgCount(c => c - 1);
-                        }}
-                      >×</Button>
                     </div>
                   ))}
-                  <Button
-                    type="button" size="sm" variant="outline"
-                    className="ml-5 h-7 text-xs"
-                    onClick={() => {
-                      setExtraMsgCount(c => c + 1);
-                      setFields(f => ({ ...f, [`prog_mensaje_${extraMsgCount + 2}`]: "" }));
-                    }}
-                  >
+                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs w-full"
+                    onClick={() => { setExtraMsgCount(c => c + 1); setField(`prog_mensaje_${extraMsgCount + 2}`, ""); }}>
                     <Plus className="h-3 w-3 mr-1" /> Agregar mensaje
+                  </Button>
+
+                  {/* Pensamientos espirituales */}
+                  {pensamientos.length > 0 && (
+                    <div className="pt-2 space-y-2 border-t">
+                      <p className="text-xs font-medium text-muted-foreground">Pensamientos espirituales</p>
+                      {pensamientos.map((p, i) => (
+                        <div key={i} className="flex gap-2">
+                          <MemberAutocomplete value={p} options={memberOptions}
+                            placeholder={`Ponente del pensamiento ${i + 1}`}
+                            onChange={v => setPensamientos(arr => arr.map((x, j) => j === i ? v : x))} />
+                          <Button type="button" size="sm" variant="ghost"
+                            className="h-9 px-1.5 text-xs text-destructive hover:text-destructive"
+                            onClick={() => setPensamientos(arr => arr.filter((_, j) => j !== i))}>Quitar</Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs w-full"
+                    onClick={() => setPensamientos(arr => [...arr, ""])}>
+                    <Plus className="h-3 w-3 mr-1" /> Agregar pensamiento espiritual
                   </Button>
                 </div>
               );
@@ -292,7 +431,10 @@ function SectionEditDialog({
                 label={item.label}
                 completed={item.completed}
                 value={fields[item.itemKey] ?? ""}
-                onChange={v => setFields(f => ({ ...f, [item.itemKey]: v }))}
+                onChange={v => setField(item.itemKey, v)}
+                memberOptions={memberOptions}
+                hymnOptions={hymnOptions}
+                optional={OPTIONAL_PROG_KEYS.has(item.itemKey)}
               />
             );
           })}
