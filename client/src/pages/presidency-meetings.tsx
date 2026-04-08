@@ -509,6 +509,7 @@ export default function PresidencyMeetingsPage() {
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [goalSlideIndex, setGoalSlideIndex] = useState(0);
   const [budgetSlideIndex, setBudgetSlideIndex] = useState(0);
+  const [budgetQuarterOffset, setBudgetQuarterOffset] = useState<0 | -1>(0);
   const goalDragStartX = React.useRef<number | null>(null);
   const budgetDragStartX = React.useRef<number | null>(null);
   const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -711,8 +712,17 @@ export default function PresidencyMeetingsPage() {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+
+    // Budget view quarter (supports offset -1 for previous quarter)
+    const budgetViewQuarter = budgetQuarterOffset === 0
+      ? currentQuarter
+      : currentQuarter === 1 ? 4 : currentQuarter - 1;
+    const budgetViewYear = budgetQuarterOffset === 0
+      ? currentYear
+      : currentQuarter === 1 ? currentYear - 1 : currentYear;
+
     const currentOrgBudget = (organizationBudgets as any[]).find(
-      (budget: any) => budget.year === currentYear && budget.quarter === currentQuarter
+      (budget: any) => budget.year === budgetViewYear && budget.quarter === budgetViewQuarter
     );
     const assignedBudget = Number(currentOrgBudget?.amount ?? 0);
 
@@ -721,7 +731,7 @@ export default function PresidencyMeetingsPage() {
         if (request.organizationId !== organizationId) return false;
         if (request.status !== "aprobado" && request.status !== "completado") return false;
         const d = new Date(request.activityDate ?? request.createdAt);
-        return d.getFullYear() === currentYear && Math.floor(d.getMonth() / 3) + 1 === currentQuarter;
+        return d.getFullYear() === budgetViewYear && Math.floor(d.getMonth() / 3) + 1 === budgetViewQuarter;
       }
     );
 
@@ -884,7 +894,7 @@ export default function PresidencyMeetingsPage() {
       latestMeeting,
       budgetSlides,
     };
-  }, [activities, assignments, attendance, birthdays, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationInterviews, organizationMembers.length, sundaysInMonth.length]);
+  }, [activities, assignments, attendance, birthdays, budgetQuarterOffset, budgetRequests, goals, meetings, organizationBudgets, organizationId, organizationInterviews, organizationMembers.length, sundaysInMonth.length]);
 
   useEffect(() => {
     const maxGoalSlide = dashboardStats.goalsWithPercentage.length;
@@ -1971,9 +1981,31 @@ export default function PresidencyMeetingsPage() {
         </Card>
 
         <Card className="flex h-full flex-col rounded-3xl border-border/70">
-          <CardHeader>
-            <CardTitle className="text-base">Presupuesto de organización</CardTitle>
-            <CardDescription>Uso del trimestre actual</CardDescription>
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Presupuesto de organización</CardTitle>
+                <CardDescription>
+                  {budgetQuarterOffset === 0 ? "Trimestre actual" : "Trimestre anterior"}
+                </CardDescription>
+              </div>
+              <div className="flex rounded-full border border-border/70 bg-muted/40 p-0.5 text-xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setBudgetQuarterOffset(0); setBudgetSlideIndex(0); }}
+                  className={`rounded-full px-2.5 py-1 transition-colors ${budgetQuarterOffset === 0 ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+                >
+                  Actual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBudgetQuarterOffset(-1); setBudgetSlideIndex(0); }}
+                  className={`rounded-full px-2.5 py-1 transition-colors ${budgetQuarterOffset === -1 ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+                >
+                  Anterior
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent
             className="flex flex-1 flex-col px-5 pb-5 pt-1 sm:px-4 sm:pb-4 sm:pt-0"
