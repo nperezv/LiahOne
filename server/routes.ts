@@ -50,6 +50,7 @@ import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./pus
 import { registerInventoryRoutes } from "./inventory-routes";
 import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
+import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -805,6 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   registerMissionRoutes(app, requireAuth);
   registerBaptismPublicRoutes(app);
+  registerQuarterlyPlanRoutes(app, requireAuth);
 
   // One-time fix: update baptism_services with 'Por confirmar' location
   // to use the configured meeting center name.
@@ -895,6 +897,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Auto-migration: ensure hymns table has all required columns, missing entries, and external URLs
   await applyHymnStartupMigrations();
+
+  // Auto-migration: quarterly_plans and quarterly_plan_items tables
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS quarterly_plans (
+      id               varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      organization_id  varchar REFERENCES organizations(id) ON DELETE CASCADE,
+      quarter          integer NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+      year             integer NOT NULL,
+      status           text NOT NULL DEFAULT 'draft',
+      submitted_at     timestamp with time zone,
+      submitted_by     varchar REFERENCES users(id),
+      reviewed_at      timestamp with time zone,
+      reviewed_by      varchar REFERENCES users(id),
+      review_comment   text,
+      created_at       timestamp with time zone NOT NULL DEFAULT now(),
+      updated_at       timestamp with time zone NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS quarterly_plans_org_quarter_year_idx
+      ON quarterly_plans (organization_id, quarter, year)
+      WHERE organization_id IS NOT NULL
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS quarterly_plans_barrio_quarter_year_idx
+      ON quarterly_plans (quarter, year)
+      WHERE organization_id IS NULL
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS quarterly_plan_items (
+      id                  varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      quarterly_plan_id   varchar NOT NULL REFERENCES quarterly_plans(id) ON DELETE CASCADE,
+      title               text NOT NULL,
+      description         text,
+      activity_date       date NOT NULL,
+      location            text,
+      estimated_attendance integer,
+      budget              numeric(10,2),
+      notes               text,
+      "order"             integer NOT NULL DEFAULT 0,
+      activity_id         varchar REFERENCES activities(id),
+      created_at          timestamp with time zone NOT NULL DEFAULT now(),
+      updated_at          timestamp with time zone NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    ALTER TABLE service_tasks
+      ADD COLUMN IF NOT EXISTS quarterly_plan_item_id varchar REFERENCES quarterly_plan_items(id) ON DELETE SET NULL
+  `);
+  // Add technology_specialist to role enum if missing
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'role' AND e.enumlabel = 'technology_specialist'
+      ) THEN
+        ALTER TYPE role ADD VALUE 'technology_specialist';
+      END IF;
+    END$$
+  `);
 
   app.use(
     session({

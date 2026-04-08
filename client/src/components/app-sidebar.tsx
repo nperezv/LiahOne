@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList } from "lucide-react";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList, LayoutList } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -48,6 +48,7 @@ const ROUTE_PREFETCHERS: Record<string, () => Promise<any>> = {
   "/goals": () => import("@/pages/goals"),
   "/birthdays": () => import("@/pages/birthdays"),
   "/activities": () => import("@/pages/activities"),
+  "/quarterly-plans": () => import("@/pages/quarterly-plans"),
   "/calendar": () => import("@/pages/calendar"),
   "/agenda": () => import("@/pages/agenda"),
   "/reports": () => import("@/pages/reports"),
@@ -212,6 +213,16 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     title: "Actividades",
     url: "/activities",
     icon: CalendarDays,
+  },
+  {
+    title: "Planes Trimestrales",
+    url: "/quarterly-plans",
+    icon: LayoutList,
+    roles: [
+      "presidente_organizacion", "consejero_organizacion", "secretario_organizacion",
+      "lider_actividades", "technology_specialist",
+      "obispo", "consejero_obispo", "secretario", "secretario_ejecutivo",
+    ],
   },
   {
     title: "Agenda",

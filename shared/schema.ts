@@ -89,6 +89,7 @@ export const roleEnum = pgEnum("role", [
   "secretario_organizacion",
   "bibliotecario",
   "lider_actividades",
+  "technology_specialist",
   "mission_leader",
   "ward_missionary",
   "full_time_missionary",
@@ -883,6 +884,7 @@ export const serviceTasks = pgTable("service_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   baptismServiceId: varchar("baptism_service_id"),
   activityId: varchar("activity_id").references(() => activities.id, { onDelete: "cascade" }),
+  quarterlyPlanItemId: varchar("quarterly_plan_item_id"), // references quarterly_plan_items(id) — FK enforced by DB migration
   assignedTo: varchar("assigned_to").references(() => users.id),
   assignedRole: text("assigned_role"),
   organizationId: varchar("organization_id").references(() => organizations.id),
@@ -895,6 +897,91 @@ export const serviceTasks = pgTable("service_tasks", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ========================================
+// QUARTERLY PLANS
+// ========================================
+
+export const quarterlyPlans = pgTable("quarterly_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  quarter: integer("quarter").notNull(),
+  year: integer("year").notNull(),
+  status: text("status").notNull().default("draft"), // draft | submitted | approved | rejected
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  submittedBy: varchar("submitted_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewComment: text("review_comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const quarterlyPlanItems = pgTable("quarterly_plan_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quarterlyPlanId: varchar("quarterly_plan_id").notNull().references(() => quarterlyPlans.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  activityDate: date("activity_date").notNull(),
+  location: text("location"),
+  estimatedAttendance: integer("estimated_attendance"),
+  budget: numeric("budget", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  order: integer("order").notNull().default(0),
+  activityId: varchar("activity_id").references(() => activities.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const quarterlyPlansRelations = relations(quarterlyPlans, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [quarterlyPlans.organizationId],
+    references: [organizations.id],
+  }),
+  submitter: one(users, {
+    fields: [quarterlyPlans.submittedBy],
+    references: [users.id],
+  }),
+  reviewer: one(users, {
+    fields: [quarterlyPlans.reviewedBy],
+    references: [users.id],
+  }),
+  items: many(quarterlyPlanItems),
+}));
+
+export const quarterlyPlanItemsRelations = relations(quarterlyPlanItems, ({ one, many }) => ({
+  plan: one(quarterlyPlans, {
+    fields: [quarterlyPlanItems.quarterlyPlanId],
+    references: [quarterlyPlans.id],
+  }),
+  activity: one(activities, {
+    fields: [quarterlyPlanItems.activityId],
+    references: [activities.id],
+  }),
+  serviceTasks: many(serviceTasks),
+}));
+
+// Zod schemas for quarterly plans
+export const insertQuarterlyPlanSchema = createInsertSchema(quarterlyPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+  submittedBy: true,
+  reviewedAt: true,
+  reviewedBy: true,
+});
+
+export const insertQuarterlyPlanItemSchema = createInsertSchema(quarterlyPlanItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type QuarterlyPlan = typeof quarterlyPlans.$inferSelect;
+export type InsertQuarterlyPlan = z.infer<typeof insertQuarterlyPlanSchema>;
+export type QuarterlyPlanItem = typeof quarterlyPlanItems.$inferSelect;
+export type InsertQuarterlyPlanItem = z.infer<typeof insertQuarterlyPlanItemSchema>;
 
 export const agendaEvents = pgTable("agenda_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1272,6 +1359,10 @@ export const serviceTasksRelations = relations(serviceTasks, ({ one }) => ({
   activity: one(activities, {
     fields: [serviceTasks.activityId],
     references: [activities.id],
+  }),
+  quarterlyPlanItem: one(quarterlyPlanItems, {
+    fields: [serviceTasks.quarterlyPlanItemId],
+    references: [quarterlyPlanItems.id],
   }),
   assignedToUser: one(users, {
     fields: [serviceTasks.assignedTo],

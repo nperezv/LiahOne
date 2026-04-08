@@ -1998,3 +1998,184 @@ export function useInventoryLocationDetail(locationCode?: string) {
     queryFn: async () => apiRequest("GET", `/loc/${locationCode}`),
   });
 }
+
+// ========================================
+// QUARTERLY PLANS
+// ========================================
+
+export interface QuarterlyPlanItem {
+  id: string;
+  quarterlyPlanId: string;
+  title: string;
+  description?: string | null;
+  activityDate: string; // YYYY-MM-DD
+  location?: string | null;
+  estimatedAttendance?: number | null;
+  budget?: string | null;
+  notes?: string | null;
+  order: number;
+  activityId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuarterlyPlan {
+  id: string;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  quarter: number;
+  year: number;
+  status: "draft" | "submitted" | "approved" | "rejected";
+  submittedAt?: string | null;
+  submittedByName?: string | null;
+  reviewedAt?: string | null;
+  reviewedByName?: string | null;
+  reviewComment?: string | null;
+  itemCount?: number;
+  items?: QuarterlyPlanItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuarterlyPlanSemaphore {
+  quarter: number;
+  year: number;
+  plans: Array<QuarterlyPlan & { semaphore: "green" | "yellow" | "red" }>;
+}
+
+export function useQuarterlyPlans() {
+  return useQuery<QuarterlyPlan[]>({
+    queryKey: ["/api/quarterly-plans"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useQuarterlyPlan(id?: string) {
+  return useQuery<QuarterlyPlan>({
+    queryKey: ["/api/quarterly-plans", id],
+    enabled: Boolean(id),
+    queryFn: async () => apiRequest("GET", `/api/quarterly-plans/${id}`),
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useQuarterlyPlanSemaphore() {
+  return useQuery<QuarterlyPlanSemaphore>({
+    queryKey: ["/api/quarterly-plans/dashboard/semaphore"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useCreateQuarterlyPlan() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: { organizationId?: string | null; quarter: number; year: number }) =>
+      apiRequest("POST", "/api/quarterly-plans", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans"] });
+      toast({ title: "Plan creado", description: "El plan trimestral ha sido creado." });
+    },
+    onError: (err: any) => {
+      const msg = err?.message ?? "No se pudo crear el plan.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+}
+
+export function useSubmitQuarterlyPlan() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/quarterly-plans/${id}/submit`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans"] });
+      toast({ title: "Plan enviado", description: "El plan fue enviado para revisión." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message ?? "No se pudo enviar el plan.", variant: "destructive" });
+    },
+  });
+}
+
+export function useReviewQuarterlyPlan() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ id, action, comment }: { id: string; action: "approved" | "rejected"; comment?: string }) =>
+      apiRequest("PATCH", `/api/quarterly-plans/${id}/review`, { action, comment }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans"] });
+      const msg = vars.action === "approved" ? "Plan aprobado." : "Plan rechazado.";
+      toast({ title: "Revisión guardada", description: msg });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message ?? "No se pudo revisar el plan.", variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteQuarterlyPlan() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/quarterly-plans/${id}`, undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans"] });
+      toast({ title: "Plan eliminado" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message ?? "No se pudo eliminar el plan.", variant: "destructive" });
+    },
+  });
+}
+
+export function useCreateQuarterlyPlanItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ planId, data }: { planId: string; data: Omit<QuarterlyPlanItem, "id" | "quarterlyPlanId" | "order" | "activityId" | "createdAt" | "updatedAt"> }) =>
+      apiRequest("POST", `/api/quarterly-plans/${planId}/items`, data),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans", vars.planId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans"] });
+      toast({ title: "Actividad agregada" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message ?? "No se pudo agregar la actividad.", variant: "destructive" });
+    },
+  });
+}
+
+export function useUpdateQuarterlyPlanItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ planId, itemId, data }: { planId: string; itemId: string; data: Partial<QuarterlyPlanItem> }) =>
+      apiRequest("PUT", `/api/quarterly-plans/${planId}/items/${itemId}`, data),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans", vars.planId] });
+      toast({ title: "Actividad actualizada" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message ?? "No se pudo actualizar la actividad.", variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteQuarterlyPlanItem() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ planId, itemId }: { planId: string; itemId: string }) =>
+      apiRequest("DELETE", `/api/quarterly-plans/${planId}/items/${itemId}`, undefined),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans", vars.planId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quarterly-plans"] });
+      toast({ title: "Actividad eliminada" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message ?? "No se pudo eliminar la actividad.", variant: "destructive" });
+    },
+  });
+}
