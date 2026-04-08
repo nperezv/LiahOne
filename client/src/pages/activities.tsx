@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns } from "@/hooks/use-api";
+import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
 import {
@@ -297,14 +297,9 @@ function SectionEditDialog({
   const { data: rawMembers = [] } = useMembers();
   const { data: rawHymns = [] } = useHymns();
   const { data: organizations = [] } = useOrganizations();
+  const { data: users = [] } = useUsers();
 
   const requiresMsgAndHymns = TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType);
-
-  // Find bishopric org ID to reliably filter bishops/counselors
-  const bishopricOrgId = useMemo(
-    () => (organizations as any[]).find(o => o.type === "obispado")?.id ?? null,
-    [organizations]
-  );
 
   // All members normalized
   const allMemberOptions = useMemo<MemberOption[]>(
@@ -314,17 +309,17 @@ function SectionEditDialog({
     [rawMembers]
   );
 
-  // Bishopric only (preside) — filter by org ID for reliability
+  // Bishopric only (preside) — use users table filtered by role, same as sacramental meeting
   const bishopricOptions = useMemo<MemberOption[]>(
     () => {
-      const filtered = bishopricOrgId
-        ? (rawMembers as any[]).filter(m => m.organizationId === bishopricOrgId)
-        : (rawMembers as any[]).filter(m => m.organizationType === "obispado");
-      return Array.from(new Set(
-        filtered.map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
-      )).map(v => ({ value: v as string }));
+      const getMemberLabel = (m: any) => m?.fullName || m?.name || m?.email || "";
+      return (users as any[])
+        .filter(m => ["obispo", "consejero_obispo"].includes(m.role))
+        .map(m => getMemberLabel(m))
+        .filter(Boolean)
+        .map(v => ({ value: v as string }));
     },
-    [rawMembers, bishopricOrgId]
+    [users]
   );
 
   // Org presidency members (dirige) — filter by org if available, else all
