@@ -25,7 +25,7 @@ interface MenuItem {
   title: string;
   url?: string;
   icon: any;
-  subItems?: { title: string; url: string }[];
+  subItems?: { title: string; url: string; roles?: string[] }[];
   roles?: string[]; // If undefined, visible to all. If defined, only visible to these roles.
   presidentOnly?: boolean; // If true, presidents only see their own sub-item
   organizationTypes?: string[]; // If defined, only visible to these organization types.
@@ -211,17 +211,18 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   },
   {
     title: "Actividades",
-    url: "/activities",
     icon: CalendarDays,
-  },
-  {
-    title: "Planes Trimestrales",
-    url: "/quarterly-plans",
-    icon: LayoutList,
-    roles: [
-      "presidente_organizacion", "consejero_organizacion", "secretario_organizacion",
-      "lider_actividades", "technology_specialist",
-      "obispo", "consejero_obispo", "secretario", "secretario_ejecutivo",
+    subItems: [
+      { title: "Registro de actividades", url: "/activities" },
+      {
+        title: "Planes Trimestrales",
+        url: "/quarterly-plans",
+        roles: [
+          "presidente_organizacion", "consejero_organizacion", "secretario_organizacion",
+          "lider_actividades", "technology_specialist",
+          "obispo", "consejero_obispo", "secretario", "secretario_ejecutivo",
+        ],
+      },
     ],
   },
   {
@@ -469,7 +470,11 @@ function AppSidebarInner() {
               {secondaryMenuItems.map((item) => {
                 const title = getRenamedTitle(item, user?.role);
                 if (item.subItems) {
-                  const isActive = item.subItems.some(sub => location === sub.url);
+                  const visibleSubItems = item.subItems.filter(sub =>
+                    !sub.roles || sub.roles.includes(user?.role ?? "")
+                  );
+                  if (visibleSubItems.length === 0) return null;
+                  const isActive = visibleSubItems.some(sub => location === sub.url);
                   return (
                     <Collapsible key={title} defaultOpen={isActive}>
                       <SidebarMenuItem>
@@ -485,7 +490,7 @@ function AppSidebarInner() {
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <SidebarMenuSub>
-                            {item.subItems.map((subItem) => (
+                            {visibleSubItems.map((subItem) => (
                               <SidebarMenuSubItem key={subItem.url}>
                                 <SidebarMenuSubButton
                                   asChild

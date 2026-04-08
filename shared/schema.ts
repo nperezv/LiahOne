@@ -206,6 +206,7 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "capacitacion",
   "fiesta",
   "hermanamiento",
+  "actividad_org",
   "otro",
 ]);
 
@@ -866,6 +867,9 @@ export const activities = pgTable("activities", {
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedBy: varchar("approved_by").references(() => users.id),
   isPublic: boolean("is_public").notNull().default(false),
+  slug: varchar("slug").unique(),
+  flyerUrl: text("flyer_url"),
+  quarterlyPlanItemId: varchar("quarterly_plan_item_id"), // references quarterly_plan_items(id)
 });
 
 export const activityChecklistItems = pgTable("activity_checklist_items", {

@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -43,7 +46,22 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   capacitacion: "Capacitación",
   fiesta: "Fiesta",
   hermanamiento: "Hermanamiento",
+  actividad_org: "Actividad de Org.",
   otro: "Otro",
+};
+
+const APPROVAL_STATUS_CONFIG: Record<string, { label: string; variant: string; icon: React.ReactNode }> = {
+  draft:          { label: "Borrador",       variant: "secondary", icon: null },
+  submitted:      { label: "En revisión",    variant: "default",   icon: <Send className="h-3 w-3" /> },
+  approved:       { label: "Aprobada",       variant: "default",   icon: <CheckCircle2 className="h-3 w-3 text-green-600" /> },
+  needs_revision: { label: "Requiere rev.",  variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
+  cancelled:      { label: "Cancelada",      variant: "destructive", icon: null },
+};
+
+const CHECKLIST_SECTIONS: Record<string, { label: string; color: string; roles: string[] }> = {
+  programa:     { label: "Programa",     color: "text-blue-700 dark:text-blue-400",   roles: ["presidente_organizacion","consejero_organizacion","secretario_organizacion","obispo","consejero_obispo"] },
+  coordinacion: { label: "Coordinación", color: "text-violet-700 dark:text-violet-400", roles: ["presidente_organizacion","consejero_organizacion","secretario_organizacion","obispo","consejero_obispo"] },
+  logistica:    { label: "Logística",    color: "text-amber-700 dark:text-amber-400", roles: ["lider_actividades","obispo","consejero_obispo"] },
 };
 
 const ACTIVITY_STATUS_LABELS: Record<string, string> = {
@@ -59,7 +77,7 @@ const activitySchema = z.object({
   date: z.string().min(1, "La fecha es requerida"),
   location: z.string().optional(),
   organizationId: z.string().optional(),
-  type: z.enum(["servicio_bautismal", "deportiva", "capacitacion", "fiesta", "hermanamiento", "otro"]),
+  type: z.enum(["servicio_bautismal", "deportiva", "capacitacion", "fiesta", "hermanamiento", "actividad_org", "otro"]),
   isPublic: z.boolean().default(false),
 });
 
@@ -81,39 +99,231 @@ function ChecklistPanel({
   items,
   activityId,
   canEdit,
+  isOrgActivity,
+  userRole,
 }: {
   items: ChecklistItem[];
   activityId: string;
   canEdit: boolean;
+  isOrgActivity?: boolean;
+  userRole?: string;
 }) {
   const updateMutation = useUpdateActivityChecklistItem();
 
-  const toggle = (item: ChecklistItem) => {
+  const toggle = (item: ChecklistItem, sectionRoles?: string[]) => {
     if (!canEdit) return;
+    if (isOrgActivity && sectionRoles && userRole && !sectionRoles.includes(userRole) &&
+        !["obispo","consejero_obispo"].includes(userRole ?? "")) return;
     updateMutation.mutate({ activityId, itemId: item.id, data: { completed: !item.completed } });
   };
 
   const completed = items.filter((i) => i.completed).length;
 
+  if (!isOrgActivity) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground font-medium mb-3">
+          Checklist de preparación — {completed}/{items.length} completados
+        </p>
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className={`flex items-center gap-2 text-sm cursor-pointer group ${canEdit ? "hover:text-foreground" : ""}`}
+            onClick={() => toggle(item)}
+          >
+            {item.completed ? (
+              <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+            ) : (
+              <Square className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Sectioned checklist for actividad_org
+  const sections = ["programa", "coordinacion", "logistica"] as const;
+  const bySection: Record<string, ChecklistItem[]> = { programa: [], coordinacion: [], logistica: [] };
+  for (const item of items) {
+    const key = item.itemKey.startsWith("prog_") ? "programa"
+      : item.itemKey.startsWith("coord_") ? "coordinacion"
+      : item.itemKey.startsWith("log_") ? "logistica"
+      : "programa";
+    bySection[key].push(item);
+  }
+
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground font-medium mb-3">
-        Checklist de preparación — {completed}/{items.length} completados
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground font-medium">
+        Checklist — {completed}/{items.length} completados
       </p>
-      {items.map((item) => (
-        <div
-          key={item.id}
-          className={`flex items-center gap-2 text-sm cursor-pointer group ${canEdit ? "hover:text-foreground" : ""}`}
-          onClick={() => toggle(item)}
-        >
-          {item.completed ? (
-            <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-          ) : (
-            <Square className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
-          <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.label}</span>
+      {sections.map((sec) => {
+        const cfg = CHECKLIST_SECTIONS[sec];
+        const secItems = bySection[sec] ?? [];
+        if (!secItems.length) return null;
+        const canEditSection = ["obispo","consejero_obispo"].includes(userRole ?? "") ||
+          cfg.roles.includes(userRole ?? "");
+        return (
+          <div key={sec}>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${cfg.color}`}>{cfg.label}</p>
+            <div className="space-y-1.5 ml-1">
+              {secItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-2 text-sm ${canEditSection ? "cursor-pointer hover:text-foreground" : "opacity-60"}`}
+                  onClick={() => canEditSection && toggle(item, cfg.roles)}
+                >
+                  {item.completed ? (
+                    <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                  ) : (
+                    <Square className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                  <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FlyerUpload({ activityId, flyerUrl, canUpload }: { activityId: string; flyerUrl?: string | null; canUpload: boolean }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("flyer", file);
+      const res = await fetch(`/api/activities/${activityId}/flyer`, {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({ title: "Flyer subido correctamente" });
+    } catch {
+      toast({ title: "Error al subir flyer", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {flyerUrl ? (
+        <a href={flyerUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline">
+          <Image className="h-4 w-4" /> Ver flyer
+        </a>
+      ) : (
+        <span className="text-sm text-muted-foreground italic">Sin flyer</span>
+      )}
+      {canUpload && (
+        <>
+          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            {uploading ? "Subiendo..." : flyerUrl ? "Cambiar flyer" : "Subir flyer"}
+          </Button>
+          <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFile} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ApprovalActions({
+  activity,
+  userRole,
+  orgId,
+}: {
+  activity: any;
+  userRole?: string;
+  orgId?: string;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [rejectComment, setRejectComment] = useState("");
+  const [rejectOpen, setRejectOpen] = useState(false);
+
+  const isObispado = ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(userRole ?? "");
+  const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(userRole ?? "");
+  const belongsToOrg = activity.organizationId === orgId;
+
+  const submitMut = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/submit`, {}),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/activities"] }); toast({ title: "Actividad enviada para aprobación" }); },
+    onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+  });
+  const approveMut = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/approve`, {}),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/activities"] }); toast({ title: "Actividad aprobada" }); },
+    onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+  });
+  const rejectMut = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/reject`, { comment: rejectComment }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/activities"] }); setRejectOpen(false); toast({ title: "Actividad devuelta para revisión" }); },
+    onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+  });
+
+  const canSubmit = (isOrgMember && belongsToOrg) || isObispado;
+  const status = activity.approvalStatus;
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+      {canSubmit && (status === "draft" || status === "needs_revision") && (
+        <Button size="sm" variant="outline" onClick={() => submitMut.mutate()} disabled={submitMut.isPending}>
+          <Send className="h-3.5 w-3.5 mr-1" />
+          {submitMut.isPending ? "Enviando..." : "Enviar al obispo"}
+        </Button>
+      )}
+      {isObispado && status === "submitted" && (
+        <>
+          <Button size="sm" className="border-green-500 text-green-700" variant="outline" onClick={() => approveMut.mutate()} disabled={approveMut.isPending}>
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+            {approveMut.isPending ? "Aprobando..." : "Aprobar"}
+          </Button>
+          <Button size="sm" variant="outline" className="border-red-400 text-red-700" onClick={() => setRejectOpen(true)}>
+            <XCircle className="h-3.5 w-3.5 mr-1" /> Rechazar
+          </Button>
+        </>
+      )}
+      {status === "approved" && activity.slug && (
+        <a href={`/actividades/${activity.slug}`} target="_blank" rel="noopener noreferrer">
+          <Button size="sm" variant="outline">
+            <Globe className="h-3.5 w-3.5 mr-1" /> Ver página pública
+          </Button>
+        </a>
+      )}
+      {activity.approvalComment && (
+        <p className="w-full text-xs text-red-600 mt-1">Comentario: {activity.approvalComment}</p>
+      )}
+
+      {rejectOpen && (
+        <div className="w-full space-y-2 mt-2">
+          <input
+            className="w-full border rounded px-3 py-1.5 text-sm"
+            placeholder="Motivo del rechazo (opcional)"
+            value={rejectComment}
+            onChange={(e) => setRejectComment(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={() => rejectMut.mutate()} disabled={rejectMut.isPending}>
+              {rejectMut.isPending ? "Rechazando..." : "Confirmar rechazo"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setRejectOpen(false)}>Cancelar</Button>
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -455,6 +665,14 @@ export default function ActivitiesPage() {
                   const showChecklist = canSeeChecklist(activity);
                   const canEdit = canEditChecklist(activity);
 
+                  const isOrgActivity = activity.type === "actividad_org";
+                  const approvalCfg = APPROVAL_STATUS_CONFIG[activity.approvalStatus ?? "draft"];
+                  const canUploadFlyer = isOrgActivity && (
+                    isObispado ||
+                    (isOrgMember && activity.organizationId === user?.organizationId) ||
+                    (isLiderActividades && activity.organizationId === user?.organizationId)
+                  );
+
                   return (
                     <>
                       <TableRow
@@ -470,7 +688,16 @@ export default function ActivitiesPage() {
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           )}
                         </TableCell>
-                        <TableCell className="font-medium">{activity.title}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {activity.title}
+                            {isOrgActivity && activity.quarterlyPlanItemId && (
+                              <Badge variant="outline" className="text-[10px] gap-1 border-violet-400 text-violet-700">
+                                <LayoutList className="h-2.5 w-2.5" /> Plan Trimestral
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
                             {ACTIVITY_TYPE_LABELS[activity.type] || activity.type || "Otro"}
@@ -496,7 +723,13 @@ export default function ActivitiesPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant as any}>{statusLabel}</Badge>
+                          {isOrgActivity && approvalCfg ? (
+                            <Badge variant={approvalCfg.variant as any} className="gap-1">
+                              {approvalCfg.icon}{approvalCfg.label}
+                            </Badge>
+                          ) : (
+                            <Badge variant={statusVariant as any}>{statusLabel}</Badge>
+                          )}
                         </TableCell>
                         {canDelete && (
                           <TableCell>
@@ -519,22 +752,37 @@ export default function ActivitiesPage() {
                       {isExpanded && (
                         <TableRow key={`${activity.id}-detail`}>
                           <TableCell colSpan={colSpan} className="bg-muted/30 px-8 py-4">
-                            {showChecklist && activity.checklistItems && activity.checklistItems.length > 0 ? (
-                              <ChecklistPanel
-                                items={activity.checklistItems}
-                                activityId={activity.id}
-                                canEdit={canEdit}
-                              />
-                            ) : (
-                              <div className="space-y-1 text-sm text-muted-foreground">
-                                {activity.description && (
-                                  <p>{activity.description}</p>
-                                )}
-                                {!activity.description && (
-                                  <p className="italic">Sin detalles adicionales</p>
-                                )}
-                              </div>
-                            )}
+                            <div className="space-y-4">
+                              {activity.description && (
+                                <p className="text-sm text-muted-foreground">{activity.description}</p>
+                              )}
+                              {isOrgActivity && (
+                                <FlyerUpload
+                                  activityId={activity.id}
+                                  flyerUrl={activity.flyerUrl}
+                                  canUpload={canUploadFlyer}
+                                />
+                              )}
+                              {showChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
+                                <ChecklistPanel
+                                  items={activity.checklistItems}
+                                  activityId={activity.id}
+                                  canEdit={canEdit}
+                                  isOrgActivity={isOrgActivity}
+                                  userRole={user?.role}
+                                />
+                              )}
+                              {isOrgActivity && (
+                                <ApprovalActions
+                                  activity={activity}
+                                  userRole={user?.role}
+                                  orgId={user?.organizationId}
+                                />
+                              )}
+                              {!showChecklist && !activity.description && (
+                                <p className="text-sm text-muted-foreground italic">Sin detalles adicionales</p>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}

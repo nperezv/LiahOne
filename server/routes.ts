@@ -51,6 +51,7 @@ import { registerInventoryRoutes } from "./inventory-routes";
 import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
+import { registerActivityPublicRoutes } from "./activity-public-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -807,6 +808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerMissionRoutes(app, requireAuth);
   registerBaptismPublicRoutes(app);
   registerQuarterlyPlanRoutes(app, requireAuth);
+  registerActivityPublicRoutes(app);
 
   // One-time fix: update baptism_services with 'Por confirmar' location
   // to use the configured meeting center name.
@@ -957,6 +959,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ALTER TYPE role ADD VALUE 'technology_specialist';
       END IF;
     END$$
+  `);
+
+  // Add actividad_org to activity_type enum if missing
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'activity_type' AND e.enumlabel = 'actividad_org'
+      ) THEN
+        ALTER TYPE activity_type ADD VALUE 'actividad_org';
+      END IF;
+    END$$
+  `);
+
+  // Auto-migration: slug, flyer_url, quarterly_plan_item_id on activities
+  await db.execute(sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS slug varchar UNIQUE`);
+  await db.execute(sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS flyer_url text`);
+  await db.execute(sql`
+    ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS quarterly_plan_item_id varchar
+        REFERENCES quarterly_plan_items(id) ON DELETE SET NULL
   `);
 
   app.use(
@@ -7373,6 +7397,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── PATCH /api/activities/:id/submit ──────────────────────────────────────
+  app.patch("/api/activities/:id/submit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+      const isObispado = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(user.role);
+      const canSubmit = isObispado || (isOrgMember && activity.organizationId === user.organizationId);
+      if (!canSubmit) return res.status(403).json({ error: "Sin permiso" });
+
+      if (activity.approvalStatus !== "draft" && activity.approvalStatus !== "needs_revision") {
+        return res.status(409).json({ error: "Solo se pueden enviar actividades en borrador o con revisión pendiente" });
+      }
+
+      const updated = await storage.updateActivity(req.params.id, {
+        approvalStatus: "submitted",
+        submittedAt: new Date(),
+      } as any);
+
+      // Notify obispado
+      const allUsers = await storage.getAllUsers();
+      const obispadoUsers = allUsers.filter((u: any) =>
+        ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(u.role)
+      );
+      for (const ou of obispadoUsers) {
+        await storage.createNotification({
+          userId: ou.id,
+          type: "reminder",
+          title: "Actividad enviada para aprobación",
+          description: `${activity.title} — lista para tu revisión`,
+          relatedId: activity.id,
+          isRead: false,
+        });
+        if (isPushConfigured()) {
+          await sendPushNotification(ou.id, {
+            title: "Actividad para aprobar",
+            body: `${activity.title} fue enviada para aprobación`,
+            url: "/activities",
+          });
+        }
+      }
+
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: "Error al enviar actividad" });
+    }
+  });
+
+  // ── PATCH /api/activities/:id/approve ─────────────────────────────────────
+  app.patch("/api/activities/:id/approve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(user.role)) {
+        return res.status(403).json({ error: "Sin permiso" });
+      }
+
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+      if (activity.approvalStatus !== "submitted") {
+        return res.status(409).json({ error: "Solo se pueden aprobar actividades enviadas" });
+      }
+
+      // Generate unique slug: title-slug + short id
+      const baseSlug = activity.title
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40);
+      const shortId = Math.random().toString(36).slice(2, 8);
+      const slug = `${baseSlug}-${shortId}`;
+
+      const updated = await storage.updateActivity(req.params.id, {
+        approvalStatus: "approved",
+        approvedAt: new Date(),
+        approvedBy: user.id,
+        isPublic: true,
+        slug,
+      } as any);
+
+      // Notify org presidency
+      if (activity.organizationId) {
+        const allUsers = await storage.getAllUsers();
+        const orgMembers = allUsers.filter((u: any) =>
+          u.organizationId === activity.organizationId &&
+          ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(u.role)
+        );
+        for (const member of orgMembers) {
+          await storage.createNotification({
+            userId: member.id,
+            type: "reminder",
+            title: "Actividad aprobada",
+            description: `${activity.title} fue aprobada. Slug público: /actividades/${slug}`,
+            relatedId: activity.id,
+            isRead: false,
+          });
+          if (isPushConfigured()) {
+            await sendPushNotification(member.id, {
+              title: "Actividad aprobada",
+              body: `${activity.title} fue aprobada y ya es pública`,
+              url: `/actividades/${slug}`,
+            });
+          }
+        }
+      }
+
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: "Error al aprobar actividad" });
+    }
+  });
+
+  // ── PATCH /api/activities/:id/reject ──────────────────────────────────────
+  app.patch("/api/activities/:id/reject", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(user.role)) {
+        return res.status(403).json({ error: "Sin permiso" });
+      }
+
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+      const { comment } = z.object({ comment: z.string().optional() }).parse(req.body);
+
+      const updated = await storage.updateActivity(req.params.id, {
+        approvalStatus: "needs_revision",
+        approvalComment: comment ?? null,
+      } as any);
+
+      // Notify org
+      if (activity.organizationId) {
+        const allUsers = await storage.getAllUsers();
+        const orgMembers = allUsers.filter((u: any) =>
+          u.organizationId === activity.organizationId &&
+          ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(u.role)
+        );
+        for (const member of orgMembers) {
+          await storage.createNotification({
+            userId: member.id,
+            type: "reminder",
+            title: "Actividad requiere revisión",
+            description: `${activity.title}: ${comment ?? "Revisa los detalles y vuelve a enviar"}`,
+            relatedId: activity.id,
+            isRead: false,
+          });
+          if (isPushConfigured()) {
+            await sendPushNotification(member.id, {
+              title: "Actividad requiere revisión",
+              body: `${activity.title} necesita correcciones`,
+              url: "/activities",
+            });
+          }
+        }
+      }
+
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: "Error al rechazar actividad" });
+    }
+  });
+
+  // ── POST /api/activities/:id/flyer ────────────────────────────────────────
+  // Upload flyer image for an activity
+  app.post("/api/activities/:id/flyer", requireAuth, multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single("flyer"), async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+      const isObispado = ["obispo", "consejero_obispo"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(user.role);
+      if (!isObispado && !(isOrgMember && activity.organizationId === user.organizationId)) {
+        return res.status(403).json({ error: "Sin permiso" });
+      }
+
+      if (!req.file) return res.status(400).json({ error: "No se recibió archivo" });
+
+      const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
+      const filename = `activity-flyer-${req.params.id}-${Date.now()}.${ext}`;
+      const uploadDir = path.join(process.cwd(), "uploads", "flyers");
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      const flyerUrl = `/uploads/flyers/${filename}`;
+      const updated = await storage.updateActivity(req.params.id, { flyerUrl } as any);
+
+      // Mark flyer checklist item as completed
+      await db.execute(sql`
+        UPDATE activity_checklist_items
+        SET completed = true, completed_at = NOW(), completed_by = ${user.id}
+        WHERE activity_id = ${req.params.id} AND item_key = 'prog_flyer' AND completed = false
+      `);
+
+      res.json({ flyerUrl, activity: updated });
+    } catch (err) {
+      res.status(500).json({ error: "Error al subir flyer" });
+    }
+  });
+
   // ========================================
   // ASSIGNMENTS
   // ========================================
@@ -8612,6 +8839,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ========================================
+  // ACTIVITY DEADLINE REMINDERS + AUTO-CANCEL
+  // ========================================
+  // Runs daily at 08:00. For actividad_org activities:
+  //   T-14: notify org to finalize and submit to bishop
+  //   T-13 to T-11: escalating urgent reminders
+  //   T-10: auto-cancel if still not submitted
+  const sentActivityDeadlineKeys = new Set<string>();
+  let lastActivityDeadlineDate = "";
+
+  async function sendAutomaticActivityDeadlineReminders() {
+    try {
+      const now = new Date();
+      if (now.getHours() !== birthdaySendHour) return;
+
+      const todayKey = getServerDayKey(now);
+      if (lastActivityDeadlineDate !== todayKey) {
+        sentActivityDeadlineKeys.clear();
+        lastActivityDeadlineDate = todayKey;
+      }
+
+      const allUsers = await storage.getAllUsers();
+
+      // Find actividad_org activities in draft/needs_revision/submitted with date in next 10-14 days
+      const windowStart = new Date(now);
+      windowStart.setDate(windowStart.getDate() + 10);
+      windowStart.setHours(0, 0, 0, 0);
+      const windowEnd = new Date(now);
+      windowEnd.setDate(windowEnd.getDate() + 14);
+      windowEnd.setHours(23, 59, 59, 999);
+
+      const pendingResult = await db.execute(sql`
+        SELECT a.id, a.title, a.date, a.organization_id, a.approval_status
+        FROM activities a
+        WHERE a.type = 'actividad_org'
+          AND a.approval_status IN ('draft', 'needs_revision', 'submitted')
+          AND a.date >= ${windowStart.toISOString()}
+          AND a.date <= ${windowEnd.toISOString()}
+      `);
+
+      for (const act of pendingResult.rows as any[]) {
+        const actDate = new Date(act.date);
+        const daysUntil = Math.ceil((actDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const dedupeKey = `act_deadline:${todayKey}:${act.id}:d${daysUntil}`;
+        if (sentActivityDeadlineKeys.has(dedupeKey)) continue;
+
+        const orgMembers = act.organization_id
+          ? allUsers.filter((u: any) =>
+              u.organizationId === act.organization_id &&
+              ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(u.role)
+            )
+          : [];
+        const obispadoMembers = allUsers.filter((u: any) =>
+          ["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(u.role)
+        );
+
+        if (daysUntil <= 10 && act.approval_status !== "submitted") {
+          // AUTO-CANCEL
+          await db.execute(sql`
+            UPDATE activities
+            SET approval_status = 'cancelled', updated_at = NOW()
+            WHERE id = ${act.id}
+          `);
+          // Remove quarterly_plan_item link
+          await db.execute(sql`
+            UPDATE quarterly_plan_items SET activity_id = NULL
+            WHERE activity_id = ${act.id}
+          `);
+
+          const recipients = [...orgMembers, ...obispadoMembers];
+          for (const r of recipients) {
+            await storage.createNotification({
+              userId: r.id,
+              type: "reminder",
+              title: "Actividad cancelada automáticamente",
+              description: `${act.title} fue cancelada por no haber sido enviada para aprobación a tiempo.`,
+              relatedId: act.id,
+              isRead: false,
+            });
+            if (isPushConfigured()) {
+              await sendPushNotification(r.id, {
+                title: "Actividad cancelada",
+                body: `${act.title} fue cancelada por no enviarse al obispo a tiempo`,
+                url: "/activities",
+              });
+            }
+          }
+          sentActivityDeadlineKeys.add(dedupeKey);
+          console.log(`[ActivityDeadline] Auto-cancelled activity ${act.id} (${act.title}) — ${daysUntil} days remaining`);
+
+        } else if (daysUntil === 14 || (daysUntil < 14 && daysUntil > 10 && act.approval_status !== "submitted")) {
+          // REMINDER: submit now
+          const isUrgent = daysUntil < 14;
+          const title = isUrgent
+            ? `⚠️ Urgente: envía "${act.title}" al obispo`
+            : `Recordatorio: envía "${act.title}" al obispo`;
+          const body = isUrgent
+            ? `Faltan ${daysUntil} días. Si no se envía hoy, será cancelada automáticamente al llegar a 10 días.`
+            : `Plazo límite: hoy. La actividad debe estar lista y enviada para aprobación.`;
+
+          for (const r of orgMembers) {
+            await storage.createNotification({
+              userId: r.id,
+              type: "reminder",
+              title,
+              description: body,
+              relatedId: act.id,
+              isRead: false,
+            });
+            if (isPushConfigured()) {
+              await sendPushNotification(r.id, {
+                title,
+                body: `${act.title} — ${body}`,
+                url: "/activities",
+              });
+            }
+          }
+          sentActivityDeadlineKeys.add(dedupeKey);
+        }
+      }
+    } catch (err) {
+      console.error("[ActivityDeadline] Error:", err);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
@@ -8621,6 +8973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   startHourlyAlignedTask(sendAutomaticBaptismServiceReminders);
   startHourlyAlignedTask(sendAutomaticBaptismReadinessReminders);
   startHourlyAlignedTask(sendAutomaticLogisticsDeadlineReminders);
+  startHourlyAlignedTask(sendAutomaticActivityDeadlineReminders);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);

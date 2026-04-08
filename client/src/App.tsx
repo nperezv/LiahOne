@@ -59,6 +59,8 @@ const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
 const MissionWorkPage = lazy(() => import("@/pages/mission-work"));
 const BaptismPublicPage = lazy(() => import("@/pages/baptism-public"));
 const BaptismLobbyPage  = lazy(() => import("@/pages/baptism-lobby"));
+const ActivitiesLobbyPage = lazy(() => import("@/pages/activities-public").then(m => ({ default: m.ActivitiesLobby })));
+const ActivityPublicDetailPage = lazy(() => import("@/pages/activities-public").then(m => ({ default: m.ActivityPublicDetail })));
 const ActivityLogisticsPage = lazy(() => import("@/pages/activity-logistics"));
 
 function RouteLoadingFallback() {
@@ -229,6 +231,8 @@ function Router() {
       <Route path="/donar" component={DonationsPage} />
       <Route path="/bautismo" component={BaptismLobbyPage} />
       <Route path="/bautismo/:slug" component={BaptismPublicPage} />
+      <Route path="/actividades" component={ActivitiesLobbyPage} />
+      <Route path="/actividades/:slug" component={ActivityPublicDetailPage} />
       <Route path="/">
         <Redirect to="/welcome" />
       </Route>

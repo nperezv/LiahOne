@@ -449,10 +449,30 @@ const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
   { key: "visibilidad_evento", label: "Visibilidad del evento definida (público o privado)", sort: 8 },
 ];
 
+// Checklist unificado para actividades de organización (plan trimestral)
+// Sección: PROGRAMA (sort 0-9), COORDINACIÓN (sort 10-19), LOGÍSTICA (sort 20-29)
+const ORG_ACTIVITY_CHECKLIST_ITEMS = [
+  // PROGRAMA
+  { key: "prog_agenda", label: "Programa/agenda de la actividad preparado", sort: 0, section: "programa" },
+  { key: "prog_flyer", label: "Flyer o imagen promocional subido", sort: 1, section: "programa" },
+  // COORDINACIÓN
+  { key: "coord_invitaciones", label: "Invitaciones o avisos enviados", sort: 10, section: "coordinacion" },
+  { key: "coord_participantes", label: "Participantes y ponentes confirmados", sort: 11, section: "coordinacion" },
+  { key: "coord_presupuesto", label: "Solicitud de presupuesto enviada (si aplica)", sort: 12, section: "coordinacion" },
+  // LOGÍSTICA (a cargo del lider_actividades de la org)
+  { key: "log_espacio", label: "Espacio reservado en calendario de la iglesia", sort: 20, section: "logistica" },
+  { key: "log_arreglo", label: "Arreglo de espacios (sillas, decoración, etc.)", sort: 21, section: "logistica" },
+  { key: "log_equipo", label: "Equipo y tecnología coordinado", sort: 22, section: "logistica" },
+  { key: "log_refrigerio", label: "Refrigerio/comida coordinado (si aplica)", sort: 23, section: "logistica" },
+  { key: "log_limpieza", label: "Limpieza de ambientes al terminar", sort: 24, section: "logistica" },
+];
+
 function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
   const items = [...BASE_CHECKLIST_ITEMS];
   if (activityType === "servicio_bautismal") {
     items.push(...BAPTISM_EXTRA_CHECKLIST_ITEMS);
+  } else if (activityType === "actividad_org") {
+    return ORG_ACTIVITY_CHECKLIST_ITEMS;
   }
   return items;
 }
