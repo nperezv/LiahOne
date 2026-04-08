@@ -439,7 +439,7 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
           status: "borrador",
           organizationId: orgId,
           createdBy: systemUserId,
-          approvalStatus: "draft",
+          approvalStatus: series.is_public ? "approved" : "draft",
           isPublic: series.is_public ?? false,
           slug: series.is_public ? slug : undefined,
           recurringSeriesId: series.id,
