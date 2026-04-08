@@ -264,7 +264,7 @@ function ActivityCard({ act, index }: { act: any; index: number }) {
 export function ActivitiesLobby() {
   useInjectStyles();
 
-  const { data: activities, isLoading } = useQuery<any[]>({
+  const { data, isLoading } = useQuery<{ activities: any[]; wardName: string | null }>({
     queryKey: ["/api/actividades"],
     queryFn: async () => {
       const res = await fetch("/api/actividades");
@@ -274,7 +274,9 @@ export function ActivitiesLobby() {
     staleTime: 60_000,
   });
 
-  const count = activities?.length ?? 0;
+  const activities = data?.activities ?? [];
+  const wardName = data?.wardName ?? null;
+  const count = activities.length;
 
   return (
     <div
@@ -305,7 +307,7 @@ export function ActivitiesLobby() {
               animation: "scroll-hint 2s ease-in-out infinite",
             }}
           />
-          Comunidad · Barrio
+          {wardName ? `Comunidad · ${wardName}` : "Comunidad · Barrio"}
         </motion.div>
 
         {/* heading */}
