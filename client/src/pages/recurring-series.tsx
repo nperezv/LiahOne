@@ -58,7 +58,7 @@ const EMPTY_FORM = {
   dayOfWeek: "5",
   timeOfDay: "20:00",
   rotationStartDate: "",
-  notifyDaysBefore: "14",
+  notifyDaysBefore: "7",
 };
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -104,6 +104,16 @@ export default function RecurringSeriesPage() {
       toast({ title: "Serie eliminada" });
     },
     onError: () => toast({ title: "Error al eliminar", variant: "destructive" }),
+  });
+
+  const generateNow = useMutation({
+    mutationFn: (seriesId: string) => apiRequest("POST", `/api/recurring-series/${seriesId}/generate-now`),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/recurring-series"] });
+      if (selectedSeries) qc.invalidateQueries({ queryKey: ["/api/recurring-series", selectedSeries.id, "instances"] });
+      toast({ title: `Generadas ${data.created} instancias (${data.skipped} ya existían)` });
+    },
+    onError: () => toast({ title: "Error al generar", variant: "destructive" }),
   });
 
   const swapInstances = useMutation({
@@ -245,6 +255,11 @@ export default function RecurringSeriesPage() {
                   <Button size="sm" variant="outline" className="rounded-full h-7 px-3 text-xs"
                     onClick={(e) => { e.stopPropagation(); openEdit(s); }}>
                     <Pencil className="h-3 w-3 mr-1" /> Editar
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-full h-7 px-3 text-xs"
+                    disabled={generateNow.isPending}
+                    onClick={(e) => { e.stopPropagation(); generateNow.mutate(s.id); }}>
+                    <RefreshCw className={`h-3 w-3 mr-1 ${generateNow.isPending ? "animate-spin" : ""}`} /> Generar ahora
                   </Button>
                   <Button size="sm" variant="outline" className="rounded-full h-7 px-3 text-xs text-destructive border-destructive/40"
                     onClick={(e) => { e.stopPropagation(); if (confirm("¿Eliminar esta serie?")) deleteSeries.mutate(s.id); }}>

@@ -213,4 +213,77 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
       res.status(500).json({ error: "Error al intercambiar" });
     }
   });
+
+  // ── POST /api/recurring-series/:id/generate-now ───────────────────────────
+  // Immediately generate next 8 weeks of instances for this series.
+  app.post("/api/recurring-series/:id/generate-now", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
+    try {
+      const seriesResult = await db.execute(sql`
+        SELECT * FROM recurring_series WHERE id = ${req.params.id} AND active = true
+      `);
+      if (!seriesResult.rows.length) return res.status(404).json({ error: "Serie no encontrada o inactiva" });
+      const series = seriesResult.rows[0] as any;
+
+      const systemUser = await db.execute(sql`SELECT id FROM users WHERE role = 'obispo' LIMIT 1`);
+      const systemUserId = (systemUser.rows[0] as any)?.id;
+      if (!systemUserId) return res.status(500).json({ error: "No se encontró un usuario obispo para crear instancias" });
+
+      const orgIds: string[] = series.rotation_org_ids ?? [];
+      if (!orgIds.length) return res.status(400).json({ error: "La serie no tiene organizaciones en rotación" });
+
+      const now = new Date();
+      const windowEnd = new Date(now);
+      windowEnd.setDate(windowEnd.getDate() + 7 * 8);
+
+      const occurrences = getOccurrencesInRange(series.day_of_week, now, windowEnd);
+      let created = 0;
+      let skipped = 0;
+
+      for (const date of occurrences) {
+        const [hh, mm] = (series.time_of_day as string).split(":").map(Number);
+        date.setHours(hh, mm, 0, 0);
+        const dateStart = new Date(date); dateStart.setHours(0, 0, 0, 0);
+        const dateEnd   = new Date(date); dateEnd.setHours(23, 59, 59, 999);
+
+        const existing = await db.execute(sql`
+          SELECT id FROM activities
+          WHERE recurring_series_id = ${series.id}
+            AND date >= ${dateStart.toISOString()}
+            AND date <= ${dateEnd.toISOString()}
+          LIMIT 1
+        `);
+        if (existing.rows.length > 0) { skipped++; continue; }
+
+        const startDate = new Date(series.rotation_start_date);
+        const nth = countOccurrencesBetween(series.day_of_week, startDate, date);
+        const orgId = orgIds[(nth - 1 + orgIds.length) % orgIds.length];
+
+        const baseSlug = (series.title as string)
+          .toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 35);
+        const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
+        const rnd = Math.random().toString(36).slice(2, 6);
+        const slug = `${baseSlug}-${dateStr}-${rnd}`;
+
+        await db.execute(sql`
+          INSERT INTO activities
+            (title, description, location, date, type, status,
+             organization_id, created_by, approval_status,
+             is_public, slug, recurring_series_id)
+          VALUES (
+            ${series.title}, ${series.description ?? null}, ${series.location ?? null},
+            ${date.toISOString()}, 'actividad_org', 'borrador', ${orgId},
+            ${systemUserId}, 'approved', true, ${slug}, ${series.id}
+          )
+        `);
+        created++;
+      }
+
+      res.json({ created, skipped, total: occurrences.length });
+    } catch (err) {
+      console.error("[RecurringSeries] generate-now error:", err);
+      res.status(500).json({ error: "Error al generar instancias" });
+    }
+  });
 }
