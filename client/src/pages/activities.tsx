@@ -992,13 +992,33 @@ function FlyerUpload({ activityId, flyerUrl, canUpload }: { activityId: string; 
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
 
+  async function compressImage(file: File, maxPx = 1920, quality = 0.85): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("canvas toBlob failed")), "image/jpeg", quality);
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
+      const blob = await compressImage(file);
       const form = new FormData();
-      form.append("flyer", file);
+      form.append("flyer", blob, "flyer.jpg");
       const token = getAccessToken();
       const res = await fetch(`/api/activities/${activityId}/flyer`, {
         method: "POST",
@@ -1013,6 +1033,7 @@ function FlyerUpload({ activityId, flyerUrl, canUpload }: { activityId: string; 
       toast({ title: "Error al subir flyer", variant: "destructive" });
     } finally {
       setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
