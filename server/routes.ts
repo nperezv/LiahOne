@@ -52,6 +52,7 @@ import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
 import { registerActivityPublicRoutes } from "./activity-public-routes";
+import { registerRecurringSeriesRoutes, getOccurrencesInRange, countOccurrencesBetween } from "./recurring-series-routes";
 import { computePlan, findOverlappingPlanIds, toRangeFromEvent } from "./agenda/planner";
 import { parseAgendaCommand } from "./agenda/command-parser";
 import { getPreferredReminderChannels } from "./agenda/reminder-utils";
@@ -809,6 +810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerBaptismPublicRoutes(app);
   registerQuarterlyPlanRoutes(app, requireAuth);
   registerActivityPublicRoutes(app);
+  registerRecurringSeriesRoutes(app);
 
   // One-time fix: update baptism_services with 'Por confirmar' location
   // to use the configured meeting center name.
@@ -981,6 +983,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE activities
       ADD COLUMN IF NOT EXISTS quarterly_plan_item_id varchar
         REFERENCES quarterly_plan_items(id) ON DELETE SET NULL
+  `);
+
+  // Auto-migration: recurring_series table + activity columns
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS recurring_series (
+      id                  varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      title               text NOT NULL,
+      description         text,
+      location            text,
+      day_of_week         smallint NOT NULL DEFAULT 5,
+      time_of_day         varchar(5) NOT NULL DEFAULT '20:00',
+      rotation_org_ids    jsonb NOT NULL DEFAULT '[]',
+      rotation_start_date date NOT NULL,
+      notify_days_before  int NOT NULL DEFAULT 14,
+      active              boolean NOT NULL DEFAULT true,
+      created_at          timestamp NOT NULL DEFAULT now()
+    )
+  `);
+  await db.execute(sql`
+    ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS recurring_series_id varchar
+        REFERENCES recurring_series(id) ON DELETE SET NULL
+  `);
+  await db.execute(sql`
+    ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS notified_rotation boolean NOT NULL DEFAULT false
   `);
 
   app.use(
@@ -8964,6 +8992,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ── Rolling generator: ensure next 8 weeks of each active recurring series ──
+  let lastRecurringGenerateDate = "";
+  async function maintainRecurringSeries() {
+    try {
+      const now = new Date();
+      if (now.getHours() !== 7) return; // run once at 07:00
+      const todayKey = getServerDayKey(now);
+      if (lastRecurringGenerateDate === todayKey) return;
+      lastRecurringGenerateDate = todayKey;
+
+      const seriesResult = await db.execute(sql`
+        SELECT * FROM recurring_series WHERE active = true
+      `);
+
+      const systemUser = await db.execute(sql`
+        SELECT id FROM users WHERE role = 'obispo' LIMIT 1
+      `);
+      const systemUserId = (systemUser.rows[0] as any)?.id;
+      if (!systemUserId) return;
+
+      for (const series of seriesResult.rows as any[]) {
+        const orgIds: string[] = series.rotation_org_ids ?? [];
+        if (!orgIds.length) continue;
+
+        const windowEnd = new Date(now);
+        windowEnd.setDate(windowEnd.getDate() + 7 * 8); // 8 weeks ahead
+        const occurrences = getOccurrencesInRange(series.day_of_week, now, windowEnd);
+
+        for (const date of occurrences) {
+          // Check if instance already exists for this series + date
+          const [hh, mm] = (series.time_of_day as string).split(":").map(Number);
+          date.setHours(hh, mm, 0, 0);
+
+          const dateStart = new Date(date); dateStart.setHours(0, 0, 0, 0);
+          const dateEnd   = new Date(date); dateEnd.setHours(23, 59, 59, 999);
+
+          const existing = await db.execute(sql`
+            SELECT id FROM activities
+            WHERE recurring_series_id = ${series.id}
+              AND date >= ${dateStart.toISOString()}
+              AND date <= ${dateEnd.toISOString()}
+            LIMIT 1
+          `);
+          if (existing.rows.length > 0) continue;
+
+          // Calculate which org owns this occurrence
+          const startDate = new Date(series.rotation_start_date);
+          const nth = countOccurrencesBetween(series.day_of_week, startDate, date);
+          const orgId = orgIds[(nth - 1 + orgIds.length) % orgIds.length];
+
+          // Generate slug
+          const baseSlug = (series.title as string)
+            .toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")
+            .slice(0, 35);
+          const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
+          const rnd = Math.random().toString(36).slice(2, 6);
+          const slug = `${baseSlug}-${dateStr}-${rnd}`;
+
+          await db.execute(sql`
+            INSERT INTO activities
+              (title, description, location, date, type, status,
+               organization_id, created_by, approval_status,
+               is_public, slug, recurring_series_id)
+            VALUES (
+              ${series.title},
+              ${series.description ?? null},
+              ${series.location ?? null},
+              ${date.toISOString()},
+              'actividad_org',
+              'borrador',
+              ${orgId},
+              ${systemUserId},
+              'approved',
+              true,
+              ${slug},
+              ${series.id}
+            )
+          `);
+          console.log(`[RecurringSeries] Generated instance for series "${series.title}" on ${date.toISOString().slice(0, 10)}, org=${orgId}`);
+        }
+      }
+    } catch (err) {
+      console.error("[RecurringSeries] maintainRecurringSeries error:", err);
+    }
+  }
+
+  // ── Rotation reminders: T-notify_days_before push + email ────────────────
+  let lastRecurringReminderDate = "";
+  async function sendRecurringActivityRotationReminders() {
+    try {
+      const now = new Date();
+      if (now.getHours() !== 9) return; // run once at 09:00
+      const todayKey = getServerDayKey(now);
+      if (lastRecurringReminderDate === todayKey) return;
+      lastRecurringReminderDate = todayKey;
+
+      const allUsers = await storage.getAllUsers();
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName ?? "Barrio";
+
+      // Get series notify_days_before per series
+      const seriesMap = new Map<string, number>();
+      const seriesRows = await db.execute(sql`SELECT id, notify_days_before FROM recurring_series WHERE active = true`);
+      for (const s of seriesRows.rows as any[]) {
+        seriesMap.set(s.id, Number(s.notify_days_before ?? 14));
+      }
+
+      // Find all instances due for notification today
+      // We check each series separately because notify_days_before may differ
+      for (const [seriesId, daysBefore] of seriesMap.entries()) {
+        const targetDate = new Date(now);
+        targetDate.setDate(targetDate.getDate() + daysBefore);
+        const targetStart = new Date(targetDate); targetStart.setHours(0, 0, 0, 0);
+        const targetEnd   = new Date(targetDate); targetEnd.setHours(23, 59, 59, 999);
+
+        const instances = await db.execute(sql`
+          SELECT a.id, a.title, a.date, a.organization_id,
+                 o.name AS organization_name
+          FROM activities a
+          LEFT JOIN organizations o ON o.id = a.organization_id
+          WHERE a.recurring_series_id = ${seriesId}
+            AND a.notified_rotation = false
+            AND a.date >= ${targetStart.toISOString()}
+            AND a.date <= ${targetEnd.toISOString()}
+        `);
+
+        for (const inst of instances.rows as any[]) {
+          const actDate = new Date(inst.date);
+          const formattedDate = actDate.toLocaleDateString("es-ES", {
+            weekday: "long", day: "numeric", month: "long", year: "numeric",
+          });
+          const orgName: string = inst.organization_name ?? "vuestra organización";
+
+          // Build recipient list: org leaders + barrio lider_actividades + obispado
+          const recipients = allUsers.filter((u: any) => {
+            if (!u.active) return false;
+            // Org presidency + lider_actividades of assigned org
+            if (u.organizationId === inst.organization_id &&
+                ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(u.role))
+              return true;
+            // Barrio's lider_actividades (org type = barrio)
+            if (u.role === "lider_actividades") return true;
+            // Obispado
+            if (["obispo", "consejero_obispo", "secretario_ejecutivo"].includes(u.role)) return true;
+            return false;
+          });
+
+          const uniqueRecipients = [...new Map(recipients.map((u: any) => [u.id, u])).values()];
+
+          const pushTitle  = `📅 En ${daysBefore} días — ${inst.title}`;
+          const pushBody   = `Le toca a ${orgName} organizar la Noche de Hermanamiento el ${formattedDate}.`;
+
+          for (const user of uniqueRecipients as any[]) {
+            // Push notification
+            if (isPushConfigured()) {
+              try {
+                await sendPushNotification(user.id, { title: pushTitle, body: pushBody });
+              } catch (_) { /* non-fatal */ }
+            }
+
+            // Email
+            if (user.email) {
+              try {
+                const nodemailer = await import("nodemailer");
+                const transporter = nodemailer.default.createTransport({
+                  host: process.env.SMTP_HOST,
+                  port: Number(process.env.SMTP_PORT ?? 587),
+                  secure: process.env.SMTP_SECURE === "true",
+                  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+                });
+                await transporter.sendMail({
+                  from: `"${wardName}" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+                  to: user.email,
+                  subject: `📅 En ${daysBefore} días — ${inst.title} (${orgName})`,
+                  html: `
+                    <p>Hola${user.name ? ` ${user.name}` : ""},</p>
+                    <p>Te recordamos que en <strong>${daysBefore} días</strong> le corresponde a
+                    <strong>${orgName}</strong> organizar:</p>
+                    <p style="font-size:18px;font-weight:bold;">${inst.title}</p>
+                    <p>📅 ${formattedDate}</p>
+                    ${inst.location ? `<p>📍 ${inst.location}</p>` : ""}
+                    <p>Por favor, coordina con tu presidencia y prepara el programa con antelación.</p>
+                    <br/>
+                    <p style="color:#888;font-size:12px;">— ${wardName}</p>
+                  `,
+                });
+              } catch (_) { /* non-fatal */ }
+            }
+          }
+
+          // Mark as notified
+          await db.execute(sql`
+            UPDATE activities SET notified_rotation = true WHERE id = ${inst.id}
+          `);
+          console.log(`[RecurringSeries] Notified ${uniqueRecipients.length} users for instance ${inst.id} (org=${orgName})`);
+        }
+      }
+    } catch (err) {
+      console.error("[RecurringSeries] sendRecurringActivityRotationReminders error:", err);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
@@ -8974,6 +9207,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   startHourlyAlignedTask(sendAutomaticBaptismReadinessReminders);
   startHourlyAlignedTask(sendAutomaticLogisticsDeadlineReminders);
   startHourlyAlignedTask(sendAutomaticActivityDeadlineReminders);
+  startHourlyAlignedTask(maintainRecurringSeries);
+  startHourlyAlignedTask(sendRecurringActivityRotationReminders);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);

@@ -33,6 +33,7 @@ const GoalsPage = lazy(() => import("@/pages/goals"));
 const BirthdaysPage = lazy(() => import("@/pages/birthdays"));
 const ActivitiesPage = lazy(() => import("@/pages/activities"));
 const QuarterlyPlansPage = lazy(() => import("@/pages/quarterly-plans"));
+const RecurringSeriesPage = lazy(() => import("@/pages/recurring-series"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
 const AgendaPage = lazy(() => import("@/pages/agenda"));
 const ReportsPage = lazy(() => import("@/pages/reports"));
@@ -138,6 +139,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/quarterly-plans">
           <QuarterlyPlansPage />
+        </Route>
+        <Route path="/recurring-series">
+          <RecurringSeriesPage />
         </Route>
         <Route path="/calendar">
           <CalendarPage />

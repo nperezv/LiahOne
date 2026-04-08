@@ -223,6 +223,11 @@ const ALL_MENU_ITEMS: MenuItem[] = [
           "obispo", "consejero_obispo", "secretario", "secretario_ejecutivo",
         ],
       },
+      {
+        title: "Actividades Recurrentes",
+        url: "/recurring-series",
+        roles: ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"],
+      },
     ],
   },
   {
