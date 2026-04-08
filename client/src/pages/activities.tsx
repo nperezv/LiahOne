@@ -419,7 +419,7 @@ function SectionEditDialog({
                     </div>
                     <MemberAutocomplete
                       value={fields["prog_mensaje_1"] ?? ""}
-                      options={memberOptions}
+                      options={allMemberOptions}
                       placeholder="Ponente y tema del mensaje"
                       onChange={v => setField("prog_mensaje_1", v)}
                     />
@@ -438,7 +438,7 @@ function SectionEditDialog({
                       </div>
                       <MemberAutocomplete
                         value={fields[`prog_mensaje_${n}`] ?? ""}
-                        options={memberOptions}
+                        options={allMemberOptions}
                         placeholder="Ponente y tema del mensaje"
                         onChange={v => setField(`prog_mensaje_${n}`, v)}
                       />
