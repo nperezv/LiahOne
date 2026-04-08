@@ -5,7 +5,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { serviceTasks, users, assignments } from "@shared/schema";
+import { serviceTasks, users } from "@shared/schema";
 import { storage } from "./storage";
 import { sendPushNotification, isPushConfigured } from "./push-service";
 
@@ -30,28 +30,15 @@ export async function createActivityTasksAndAssignments(opts: {
   const { activityId, activityTitle, activityDate, organizationId, createdBy } = opts;
   const dateStr = fmtDate(activityDate);
 
-  // Find org lider_actividades
+  // Find org lider_actividades (only the org's own lider, not barrio's)
   const [orgLider] = await db
     .select({ id: users.id, organizationId: users.organizationId })
     .from(users)
     .where(and(eq(users.role, "lider_actividades" as any), eq(users.organizationId, organizationId)))
     .limit(1);
 
-  // Find barrio lider_actividades (org type = barrio, may be same as org lider if it's a barrio activity)
-  const barrioLiderResult = await db.execute(sql`
-    SELECT u.id, u.organization_id
-    FROM users u
-    JOIN organizations o ON o.id = u.organization_id
-    WHERE u.role = 'lider_actividades' AND o.type = 'barrio'
-    LIMIT 1
-  `);
-  const barrioLider = barrioLiderResult.rows[0] as any;
-
-  // Collect unique lider IDs
-  const liderIds = Array.from(new Set([
-    orgLider?.id,
-    barrioLider?.id,
-  ].filter(Boolean) as string[]));
+  // Only assign to the org's own lider_actividades
+  const liderIds: string[] = orgLider ? [orgLider.id] : [];
 
   // Find org presidency (presidente, consejeros)
   const presidencyRows = await db.execute(sql`
