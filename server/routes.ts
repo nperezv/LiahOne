@@ -1049,13 +1049,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`UPDATE activity_checklist_items SET label = 'Última oración' WHERE item_key = 'prog_oracion_cierre' AND label = 'Oración de cierre'`);
 
   // Auto-migration: regenerate checklist items for non-baptism activities that still
-  // have old-format items (prog_agenda, coord_participantes, etc.)
+  // have old-format items (prog_agenda, coord_invitaciones, log_espacio, etc.)
   try {
     const stale = await db.execute(sql`
       SELECT DISTINCT a.id, a.type
       FROM activities a
       JOIN activity_checklist_items ci ON ci.activity_id = a.id
-      WHERE ci.item_key = 'prog_agenda'
+      WHERE (ci.item_key = 'prog_agenda' OR ci.item_key = 'coord_invitaciones' OR ci.item_key = 'log_espacio')
         AND a.type != 'servicio_bautismal'
     `);
     for (const row of stale.rows as Array<{ id: string; type: string }>) {

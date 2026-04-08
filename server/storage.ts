@@ -479,39 +479,31 @@ const PROG_CON_MENSAJE = [
 ];
 // Exported so frontend knows which types require message+hymns
 export const TYPES_REQUIRING_MSG_AND_HYMNS = ["capacitacion", "hermanamiento"] as const;
-const COORD_BASE_ITEMS = [
-  { key: "coord_invitaciones", label: "Invitaciones",         sort: 11 },
-  { key: "coord_enlace",       label: "Enlace compartido",    sort: 12 },
-  { key: "coord_asistentes",   label: "Asistentes esperados", sort: 13 },
-  { key: "coord_objetivos",    label: "Objetivos",            sort: 14 },
-];
-const LOG_BASE_ITEMS = [
-  { key: "log_espacio",    label: "Espacio reservado",        sort: 21 },
-  { key: "log_arreglo",    label: "Arreglo del lugar",        sort: 22 },
-  { key: "log_equipo",     label: "Equipo y tecnología",      sort: 23 },
-  { key: "log_refrigerio", label: "Refrigerio (si aplica)",   sort: 24 },
-  { key: "log_limpieza",   label: "Responsable de limpieza",  sort: 25 },
+export const COORD_BASE_ITEMS = [
+  { key: "coord_espacio",    label: "Reserva de ambientes",  sort: 11 },
+  { key: "coord_arreglo",    label: "Arreglo y preparación", sort: 12 },
+  { key: "coord_equipo",     label: "Equipo y tecnología",   sort: 13 },
+  { key: "coord_refrigerio", label: "Refrigerio",            sort: 14 },
+  { key: "coord_limpieza",   label: "Limpieza",              sort: 15 },
 ];
 
 const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort: number }>> = {
-  actividad_org:  [...PROG_BASE_ITEMS,   ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
-  hermanamiento:  [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
+  actividad_org:  [...PROG_BASE_ITEMS,  ...COORD_BASE_ITEMS],
+  hermanamiento:  [...PROG_CON_MENSAJE, ...COORD_BASE_ITEMS],
   fiesta: [
     ...PROG_BASE_ITEMS,
     ...COORD_BASE_ITEMS,
-    ...LOG_BASE_ITEMS,
-    { key: "log_decoracion", label: "Decoración lista", sort: 26 },
+    { key: "coord_decoracion", label: "Decoración", sort: 16 },
   ],
   deportiva: [
     ...PROG_BASE_ITEMS,
     ...COORD_BASE_ITEMS,
-    { key: "coord_equipos",  label: "Equipos/participantes",  sort: 15 },
-    { key: "coord_arbitros", label: "Árbitros/coordinadores", sort: 16 },
-    { key: "coord_material", label: "Material deportivo",     sort: 17 },
-    ...LOG_BASE_ITEMS,
+    { key: "coord_equipos",    label: "Equipos/participantes",  sort: 16 },
+    { key: "coord_arbitros",   label: "Árbitros/coordinadores", sort: 17 },
+    { key: "coord_material",   label: "Material deportivo",     sort: 18 },
   ],
-  capacitacion:   [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
-  otro:           [...PROG_CON_MENSAJE,  ...COORD_BASE_ITEMS, ...LOG_BASE_ITEMS],
+  capacitacion:   [...PROG_CON_MENSAJE, ...COORD_BASE_ITEMS],
+  otro:           [...PROG_CON_MENSAJE, ...COORD_BASE_ITEMS],
 };
 
 export function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {

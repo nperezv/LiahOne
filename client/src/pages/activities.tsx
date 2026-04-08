@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, Truck, CheckCheck, Eye, Music } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
 import { normalizeMemberName } from "@/lib/utils";
@@ -26,6 +26,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns, useUsers, useAllMemberCallings } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
@@ -175,19 +178,6 @@ const FIELD_META: Record<string, { type: FieldType; placeholder?: string; inputK
   prog_himno_cierre:     { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del último himno" },
   prog_oracion_cierre:   { type: "text", inputKind: "member", placeholder: "Nombre" },
   prog_mensaje_1:        { type: "text", inputKind: "member", placeholder: "Nombre del ponente y tema" },
-  coord_invitaciones:    { type: "textarea", placeholder: "¿Cómo se compartirán/compartieron las invitaciones?" },
-  coord_enlace:          { type: "checkbox" },
-  coord_asistentes:      { type: "number",   placeholder: "Número estimado" },
-  coord_objetivos:       { type: "textarea", placeholder: "Objetivos y justificante de la actividad…" },
-  coord_equipos:         { type: "text",     placeholder: "Equipos o participantes confirmados" },
-  coord_arbitros:        { type: "text",     placeholder: "Árbitros o coordinadores confirmados" },
-  coord_material:        { type: "textarea", placeholder: "Material deportivo necesario" },
-  log_espacio:           { type: "text",     placeholder: "Lugar/espacio confirmado" },
-  log_arreglo:           { type: "textarea", placeholder: "Arreglo de sillas, decoración, etc." },
-  log_equipo:            { type: "textarea", placeholder: "Equipo de sonido, proyector, etc." },
-  log_refrigerio:        { type: "textarea", placeholder: "Detalles del refrigerio (si aplica)" },
-  log_limpieza:          { type: "text",     placeholder: "Responsable de la limpieza" },
-  log_decoracion:        { type: "textarea", placeholder: "Plan y responsable de la decoración" },
 };
 
 // Types that require at least one message AND hymns in the program
@@ -196,8 +186,7 @@ const TYPES_REQUIRING_MSG_AND_HYMNS = ["capacitacion", "hermanamiento"];
 // Required keys per section — completing these unlocks the next section
 const PROG_REQUIRED_BASE = ["prog_preside", "prog_dirige", "prog_oracion_apertura", "prog_oracion_cierre"];
 const PROG_REQUIRED_WITH_MSG = [...PROG_REQUIRED_BASE, "prog_mensaje_1", "prog_himno_apertura", "prog_himno_cierre"];
-const COORD_REQUIRED = ["coord_invitaciones", "coord_asistentes", "coord_objetivos"];
-const LOG_REQUIRED   = ["log_espacio"];
+const COORD_REQUIRED = ["coord_espacio", "coord_arreglo", "coord_limpieza"];
 
 function getProgRequired(activityType: string) {
   return TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType)
@@ -210,12 +199,10 @@ function getProgRequired(activityType: string) {
 const SECTION_CONFIG = {
   programa:     { label: "Programa",     color: "text-blue-700 dark:text-blue-400",     icon: ClipboardList },
   coordinacion: { label: "Coordinación", color: "text-violet-700 dark:text-violet-400", icon: Users },
-  logistica:    { label: "Logística",    color: "text-amber-700 dark:text-amber-400",    icon: Truck },
 } as const;
 
-function sectionOfKey(key: string): "programa" | "coordinacion" | "logistica" {
+function sectionOfKey(key: string): "programa" | "coordinacion" {
   if (key.startsWith("coord_")) return "coordinacion";
-  if (key.startsWith("log_"))   return "logistica";
   return "programa";
 }
 
@@ -280,10 +267,305 @@ function SectionField({
 const HYMN_KEYS = new Set(["prog_himno_apertura", "prog_himno_cierre"]);
 const MSG_KEYS  = new Set(["prog_mensaje_1"]);
 
+// ── CoordSectionForm — rich accordion form matching activity-logistics.tsx ────
+
+type ArregloTask = { persona: string; asignacion: string };
+
+function CoordSectionForm({
+  activityId, sectionData, memberOptions, onSaved,
+}: {
+  activityId: string;
+  sectionData: Record<string, string>;
+  memberOptions: MemberOption[];
+  onSaved: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const parseArr = <T,>(key: string, fallback: T[]): T[] => {
+    try { return JSON.parse(sectionData[key] || "null") ?? fallback; } catch { return fallback; }
+  };
+
+  const [espacioNotas, setEspacioNotas] = useState(sectionData["coord_espacio_notas"] ?? "");
+  const [arregloTasks, setArregloTasks] = useState<ArregloTask[]>(
+    () => parseArr("coord_arreglo_tasks", [{ persona: "", asignacion: "" }])
+  );
+  const [equipoResponsable, setEquipoResponsable] = useState(sectionData["coord_equipo_responsable"] ?? "");
+  const [equipoLista, setEquipoLista] = useState(sectionData["coord_equipo_lista"] ?? "");
+  const [refrigerioAplica, setRefrigerioAplica] = useState(sectionData["coord_refrigerio_aplica"] !== "false");
+  const [refrigerioDetalle, setRefrigerioDetalle] = useState(sectionData["coord_refrigerio_detalle"] ?? "");
+  const [refrigerioResponsables, setRefrigerioResponsables] = useState<string[]>(
+    () => parseArr("coord_refrigerio_responsables", [""])
+  );
+  const [limpiezaResponsables, setLimpiezaResponsables] = useState<string[]>(
+    () => parseArr("coord_limpieza_responsables", [""])
+  );
+  const [limpiezaNotas, setLimpiezaNotas] = useState(sectionData["coord_limpieza_notas"] ?? "");
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const secEspacio    = espacioNotas.trim() ? "listo" : "";
+      const secArreglo    = arregloTasks.some(t => t.persona.trim()) ? "listo" : "";
+      const secEquipo     = equipoResponsable.trim() ? "listo" : "";
+      const secRefrigerio = !refrigerioAplica ? "no_aplica"
+        : refrigerioResponsables.some(r => r.trim()) && refrigerioDetalle.trim() ? "listo" : "";
+      const secLimpieza   = limpiezaResponsables.some(r => r.trim()) ? "listo" : "";
+
+      const fields: Record<string, string> = {
+        coord_espacio:    secEspacio,
+        coord_arreglo:    secArreglo,
+        coord_equipo:     secEquipo,
+        coord_refrigerio: secRefrigerio,
+        coord_limpieza:   secLimpieza,
+        coord_espacio_notas:             espacioNotas,
+        coord_arreglo_tasks:             JSON.stringify(arregloTasks.filter(t => t.persona.trim())),
+        coord_equipo_responsable:        equipoResponsable,
+        coord_equipo_lista:              equipoLista,
+        coord_refrigerio_aplica:         refrigerioAplica ? "true" : "false",
+        coord_refrigerio_detalle:        refrigerioDetalle,
+        coord_refrigerio_responsables:   JSON.stringify(refrigerioResponsables.filter(r => r.trim())),
+        coord_limpieza_responsables:     JSON.stringify(limpiezaResponsables.filter(r => r.trim())),
+        coord_limpieza_notas:            limpiezaNotas,
+      };
+      return apiRequest("PATCH", `/api/activities/${activityId}/section`, { section: "coordinacion", fields });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({ title: "Coordinación guardada" });
+      onSaved();
+    },
+    onError: () => toast({ title: "Error al guardar", variant: "destructive" }),
+  });
+
+  const dot = (done: boolean) => (
+    <span className={`h-2 w-2 rounded-full shrink-0 ${done ? "bg-primary" : "bg-muted-foreground/30"}`} />
+  );
+  const itemCls = (done: boolean) =>
+    `border rounded-lg px-3 border-b-0 transition-colors ${done ? "border-primary/40 bg-primary/5" : ""}`;
+
+  const secEspacio    = !!espacioNotas.trim();
+  const secArreglo    = arregloTasks.some(t => t.persona.trim());
+  const secEquipo     = !!equipoResponsable.trim();
+  const secRefrigerio = !refrigerioAplica || (refrigerioResponsables.some(r => r.trim()) && !!refrigerioDetalle.trim());
+  const secLimpieza   = limpiezaResponsables.some(r => r.trim());
+  const completedCount = [secEspacio, secArreglo, secEquipo, secRefrigerio, secLimpieza].filter(Boolean).length;
+
+  return (
+    <div className="space-y-4 py-1">
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>{completedCount} de 5 listos</span>
+          {completedCount === 5 && <span className="text-green-600 font-medium">Completo</span>}
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${(completedCount / 5) * 100}%` }} />
+        </div>
+      </div>
+
+      <Accordion type="multiple" className="space-y-1">
+
+        {/* Reserva de ambientes */}
+        <AccordionItem value="espacio" className={itemCls(secEspacio)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Reserva de ambientes</span>
+              <span className="ml-auto mr-2">{dot(secEspacio)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-2 pt-1">
+              <Button type="button" variant="outline" size="sm" className="w-full text-xs"
+                onClick={() => window.open("https://www.churchofjesuschrist.org/calendar", "_blank")}>
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Ir al calendario de la iglesia
+              </Button>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Confirmación / notas del espacio</Label>
+                <Textarea className="text-sm min-h-[56px] resize-none"
+                  placeholder="Ej: Salón cultural reservado para el sábado 9h-12h"
+                  value={espacioNotas} onChange={e => setEspacioNotas(e.target.value)} />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Arreglo y preparación */}
+        <AccordionItem value="arreglo" className={itemCls(secArreglo)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Arreglo y preparación</span>
+              <span className="ml-auto mr-2">{dot(secArreglo)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-2 pt-1">
+              <Label className="text-xs text-muted-foreground block">Tareas asignadas</Label>
+              {arregloTasks.map((task, i) => (
+                <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground mb-0.5 block">Persona asignada</Label>
+                        <MemberAutocomplete value={task.persona} options={memberOptions}
+                          placeholder="Nombre del miembro" className="h-7 text-sm"
+                          onChange={v => { const u = [...arregloTasks]; u[i] = { ...u[i], persona: v }; setArregloTasks(u); }} />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground mb-0.5 block">Asignación</Label>
+                        <Input className="h-7 text-sm" placeholder="Ej: Decorar el salón"
+                          value={task.asignacion}
+                          onChange={e => { const u = [...arregloTasks]; u[i] = { ...u[i], asignacion: e.target.value }; setArregloTasks(u); }} />
+                      </div>
+                    </div>
+                    {arregloTasks.length > 1 && (
+                      <button type="button" className="text-muted-foreground hover:text-destructive mt-0.5 shrink-0"
+                        onClick={() => setArregloTasks(arregloTasks.filter((_, j) => j !== i))}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setArregloTasks([...arregloTasks, { persona: "", asignacion: "" }])}>
+                <Plus className="h-3 w-3" /> Añadir tarea
+              </button>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Equipo y tecnología */}
+        <AccordionItem value="equipo" className={itemCls(secEquipo)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Tv2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Equipo y tecnología</span>
+              <span className="ml-auto mr-2">{dot(secEquipo)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                <MemberAutocomplete value={equipoResponsable} options={memberOptions}
+                  placeholder="Nombre" className="h-8 text-sm" onChange={setEquipoResponsable} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Lista de equipo / notas</Label>
+                <Textarea className="text-sm min-h-[56px] resize-none"
+                  placeholder="Micrófono, proyector, sillas extra…"
+                  value={equipoLista} onChange={e => setEquipoLista(e.target.value)} />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Refrigerio */}
+        <AccordionItem value="refrigerio" className={itemCls(secRefrigerio)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Utensils className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Refrigerio</span>
+              <span className="ml-auto mr-2">{dot(secRefrigerio)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Switch checked={refrigerioAplica} onCheckedChange={setRefrigerioAplica} />
+                <span className="text-xs text-muted-foreground">Habrá refrigerio</span>
+              </label>
+              {refrigerioAplica && (<>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Qué se preparará</Label>
+                  <Textarea className="text-sm min-h-[44px] resize-none"
+                    placeholder="Ej: Pastas, refrescos, tarta…"
+                    value={refrigerioDetalle} onChange={e => setRefrigerioDetalle(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground block">Responsables</Label>
+                  {refrigerioResponsables.map((name, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <MemberAutocomplete value={name} options={memberOptions}
+                          placeholder="Nombre del miembro" className="h-7 text-sm"
+                          onChange={v => { const u = [...refrigerioResponsables]; u[i] = v; setRefrigerioResponsables(u); }} />
+                      </div>
+                      {refrigerioResponsables.length > 1 && (
+                        <button type="button" className="text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => setRefrigerioResponsables(refrigerioResponsables.filter((_, j) => j !== i))}>
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setRefrigerioResponsables([...refrigerioResponsables, ""])}>
+                    <Plus className="h-3 w-3" /> Añadir responsable
+                  </button>
+                </div>
+              </>)}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Limpieza */}
+        <AccordionItem value="limpieza" className={itemCls(secLimpieza)}>
+          <AccordionTrigger className="py-3 hover:no-underline">
+            <div className="flex items-center gap-2 flex-1">
+              <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium">Limpieza</span>
+              <span className="ml-auto mr-2">{dot(secLimpieza)}</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-1">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground block">Responsables</Label>
+                {limpiezaResponsables.map((name, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <MemberAutocomplete value={name} options={memberOptions}
+                        placeholder="Nombre del miembro" className="h-7 text-sm"
+                        onChange={v => { const u = [...limpiezaResponsables]; u[i] = v; setLimpiezaResponsables(u); }} />
+                    </div>
+                    {limpiezaResponsables.length > 1 && (
+                      <button type="button" className="text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => setLimpiezaResponsables(limpiezaResponsables.filter((_, j) => j !== i))}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setLimpiezaResponsables([...limpiezaResponsables, ""])}>
+                  <Plus className="h-3 w-3" /> Añadir responsable
+                </button>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Notas / tareas</Label>
+                <Textarea className="text-sm min-h-[44px] resize-none"
+                  value={limpiezaNotas} onChange={e => setLimpiezaNotas(e.target.value)} />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+      </Accordion>
+
+      <Button className="w-full" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+        {saveMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando…</> : "Guardar coordinación"}
+      </Button>
+    </div>
+  );
+}
+
 function SectionEditDialog({
   section, items, activityId, sectionData, open, onOpenChange, activityType, activityOrgId,
 }: {
-  section: "programa" | "coordinacion" | "logistica";
+  section: "programa" | "coordinacion";
   items: ChecklistItem[];
   activityId: string;
   sectionData: Record<string, string>;
@@ -416,7 +698,15 @@ function SectionEditDialog({
             Completa los campos — los ítems se marcan automáticamente al guardar.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-1">
+        {section === "coordinacion" && (
+          <CoordSectionForm
+            activityId={activityId}
+            sectionData={sectionData}
+            memberOptions={allMemberOptions}
+            onSaved={() => onOpenChange(false)}
+          />
+        )}
+        {section !== "coordinacion" && <div className="space-y-4 py-1">
           {displayItems.map((item) => {
             if (item.itemKey === "prog_mensaje_1" && hasMessages) {
               return (
@@ -463,7 +753,7 @@ function SectionEditDialog({
                       <p className="text-xs font-medium text-muted-foreground">Pensamientos espirituales</p>
                       {pensamientos.map((p, i) => (
                         <div key={i} className="flex gap-2">
-                          <MemberAutocomplete value={p} options={memberOptions}
+                          <MemberAutocomplete value={p} options={allMemberOptions}
                             placeholder={`Ponente del pensamiento ${i + 1}`}
                             onChange={v => setPensamientos(arr => arr.map((x, j) => j === i ? v : x))} />
                           <Button type="button" size="sm" variant="ghost"
@@ -499,34 +789,35 @@ function SectionEditDialog({
               );
             }
           })}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-            {saveMut.isPending ? "Guardando…" : "Guardar sección"}
-          </Button>
-        </DialogFooter>
+        </div>}
+        {section !== "coordinacion" && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+              {saveMut.isPending ? "Guardando…" : "Guardar sección"}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
 function SectionPanel({
-  items, activityId, sectionData, canEditPrograma, canEditLogistica, flyerUrl, canUploadFlyer,
+  items, activityId, sectionData, canEditPrograma, flyerUrl, canUploadFlyer,
   activityType, activityOrgId,
 }: {
   items: ChecklistItem[];
   activityId: string;
   sectionData: Record<string, string>;
   canEditPrograma: boolean;
-  canEditLogistica: boolean;
   flyerUrl?: string | null;
   canUploadFlyer: boolean;
   activityType: string;
   activityOrgId?: string | null;
 }) {
-  const hasSections = items.some(i => i.itemKey.startsWith("prog_") || i.itemKey.startsWith("coord_") || i.itemKey.startsWith("log_"));
-  const [editSection, setEditSection] = useState<"programa" | "coordinacion" | "logistica" | null>(null);
+  const hasSections = items.some(i => i.itemKey.startsWith("prog_") || i.itemKey.startsWith("coord_"));
+  const [editSection, setEditSection] = useState<"programa" | "coordinacion" | null>(null);
 
   if (!hasSections) {
     // Flat read-only list for baptism / legacy activities
@@ -546,26 +837,24 @@ function SectionPanel({
     );
   }
 
-  const bySection: Record<string, ChecklistItem[]> = { programa: [], coordinacion: [], logistica: [] };
+  const bySection: Record<string, ChecklistItem[]> = { programa: [], coordinacion: [] };
   for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
 
-  const sections = (["programa", "coordinacion", "logistica"] as const).filter(s => bySection[s].length > 0);
+  const sections = (["programa", "coordinacion"] as const).filter(s => bySection[s].length > 0);
   const totalCompleted = items.filter(i => i.completed && i.itemKey !== "prog_flyer").length;
   const totalRequired  = items.filter(i => i.itemKey !== "prog_flyer").length;
 
-  // Sequential locking: check required keys per section
+  // Sequential locking: coordinacion unlocks only after programa is complete
   const isCompleted = (keys: string[]) => keys.every(k => {
     const item = items.find(i => i.itemKey === k);
-    return !item || item.completed; // if key not in this activity's checklist, skip
+    return !item || item.completed;
   });
   const progRequired = getProgRequired(activityType);
   const progFullDone = isCompleted(progRequired);
-  const coordDone = isCompleted(COORD_REQUIRED);
 
   const sectionLocked: Record<string, boolean> = {
     programa:     false,
     coordinacion: !progFullDone,
-    logistica:    !coordDone,
   };
 
   return (
@@ -585,7 +874,6 @@ function SectionPanel({
         const secCompleted = secItems.filter(i => i.completed && i.itemKey !== "prog_flyer").length;
         const secTotal    = secItems.filter(i => i.itemKey !== "prog_flyer").length;
         const allDone = secCompleted === secTotal && secTotal > 0;
-        const canEdit = sec === "logistica" ? canEditLogistica : canEditPrograma;
         const locked  = sectionLocked[sec];
 
         return (
@@ -599,10 +887,8 @@ function SectionPanel({
               <div className="flex items-center gap-2 shrink-0">
                 {allDone && <CheckCheck className="h-3.5 w-3.5 text-green-500" />}
                 {locked ? (
-                  <span className="text-[10px] text-muted-foreground italic">
-                    {sec === "coordinacion" ? "Completa Programa primero" : "Completa Coordinación primero"}
-                  </span>
-                ) : canEdit && (
+                  <span className="text-[10px] text-muted-foreground italic">Completa Programa primero</span>
+                ) : canEditPrograma && (
                   <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
                     onClick={() => setEditSection(sec)}>
                     <Pencil className="h-3 w-3 mr-1" />
@@ -621,7 +907,9 @@ function SectionPanel({
                     <span className={item.completed ? "line-through" : ""}>{item.label}</span>
                     {item.completed && sectionData[item.itemKey] && item.itemKey !== "prog_flyer" && (
                       <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">
-                        {sectionData[item.itemKey] === "true" ? "Sí" : sectionData[item.itemKey]}
+                        {["listo", "no_aplica"].includes(sectionData[item.itemKey])
+                          ? (sectionData[item.itemKey] === "no_aplica" ? "No aplica" : "✓")
+                          : (sectionData[item.itemKey] === "true" ? "Sí" : sectionData[item.itemKey])}
                       </p>
                     )}
                   </div>
@@ -865,7 +1153,6 @@ function ActivityCard({
   canDelete,
   canSeeChecklist,
   canEditPrograma,
-  canEditLogistica,
   canUploadFlyer,
   canEditBasic,
   onDelete,
@@ -877,7 +1164,6 @@ function ActivityCard({
   canDelete: boolean;
   canSeeChecklist: boolean;
   canEditPrograma: boolean;
-  canEditLogistica: boolean;
   canUploadFlyer: boolean;
   canEditBasic: boolean;
   onDelete: () => void;
@@ -1003,7 +1289,6 @@ function ActivityCard({
               activityId={activity.id}
               sectionData={(activity as any).sectionData ?? {}}
               canEditPrograma={editMode ? canEditPrograma : false}
-              canEditLogistica={editMode ? canEditLogistica : false}
               flyerUrl={activity.flyerUrl}
               canUploadFlyer={editMode ? canUploadFlyer : false}
               activityType={activity.type}
@@ -1356,7 +1641,6 @@ export default function ActivitiesPage() {
               const belongsToMyOrg = activity.organizationId === user?.organizationId;
               const actCanUploadFlyer = isObispado || ((isOrgMember || isLiderActividades) && belongsToMyOrg);
               const actCanEditPrograma = isObispado || (isOrgMember && belongsToMyOrg);
-              const actCanEditLogistica = isObispado || isLiderActividades || (isOrgMember && belongsToMyOrg);
               const actCanEditBasic = isObispado || (isOrgMember && belongsToMyOrg) || isLiderActividades;
               const actCanDelete = canDelete && (isObispado || (isOrgMember && belongsToMyOrg));
               return (
@@ -1369,7 +1653,6 @@ export default function ActivitiesPage() {
                   canDelete={actCanDelete}
                   canSeeChecklist={canSeeChecklist(activity)}
                   canEditPrograma={actCanEditPrograma}
-                  canEditLogistica={actCanEditLogistica}
                   canUploadFlyer={actCanUploadFlyer}
                   canEditBasic={actCanEditBasic}
                   onDelete={() => handleDelete(activity.id)}
