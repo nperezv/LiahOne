@@ -42,6 +42,9 @@ import {
   notifications,
   interviews,
   organizationInterviews,
+  serviceTasks,
+  users,
+  organizations,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -7351,6 +7354,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/activities/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+      res.json(activity);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/activities", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await storage.getUser(req.session.userId!);
@@ -7359,6 +7372,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: req.session.userId,
       });
       const activity = await storage.createActivity(activityData);
+
+      // Create coordination task for lider_actividades of the activity's org
+      if (activity.organizationId) {
+        try {
+          const [lider] = await db
+            .select({ id: users.id, organizationId: users.organizationId })
+            .from(users)
+            .innerJoin(organizations, eq(organizations.id, users.organizationId))
+            .where(and(eq(users.role, "lider_actividades" as any), eq(users.organizationId, activity.organizationId)))
+            .limit(1);
+          if (lider) {
+            const d = new Date(activity.date);
+            const dateStr = `${String(d.getUTCDate()).padStart(2,"0")}/${String(d.getUTCMonth()+1).padStart(2,"0")}/${d.getUTCFullYear()}`;
+            await db.insert(serviceTasks).values({
+              activityId: activity.id,
+              assignedTo: lider.id,
+              assignedRole: "lider_actividades",
+              organizationId: lider.organizationId,
+              title: `Coordinación y Logística: ${activity.title}`,
+              description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para la actividad del ${dateStr}`,
+              status: "pending",
+              dueDate: new Date(activity.date),
+              createdBy: req.session.userId!,
+            } as any);
+          }
+        } catch (taskErr) {
+          console.error("[POST /api/activities] Failed to create lider_actividades task:", taskErr);
+        }
+      }
 
       // Notify relevant users about new activity
       const allUsers = await storage.getAllUsers();

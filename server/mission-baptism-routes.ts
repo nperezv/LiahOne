@@ -3573,50 +3573,37 @@ export function registerMissionBaptismRoutes(
       }
 
       let rows;
+      const baseSelect = sql`
+        SELECT
+          st.id,
+          st.title,
+          st.description,
+          st.status,
+          st.assigned_to,
+          st.assigned_role,
+          st.due_date,
+          st.completed_at,
+          st.created_at,
+          st.updated_at,
+          st.baptism_service_id,
+          st.activity_id,
+          bs.service_at,
+          bs.location_name,
+          bs.approval_status,
+          a.title  AS activity_title,
+          a.date   AS activity_date,
+          a.location AS activity_location,
+          a.type   AS activity_type,
+          a.organization_id AS activity_organization_id
+        FROM service_tasks st
+        LEFT JOIN baptism_services bs ON bs.id = st.baptism_service_id
+        LEFT JOIN activities a ON a.id = st.activity_id
+      `;
       if (user.role === "lider_actividades") {
-        const result = await db.execute(sql`
-          SELECT
-            st.id,
-            st.title,
-            st.description,
-            st.status,
-            st.assigned_to,
-            st.assigned_role,
-            st.due_date,
-            st.completed_at,
-            st.created_at,
-            st.updated_at,
-            st.baptism_service_id,
-            bs.service_at,
-            bs.location_name,
-            bs.approval_status
-          FROM service_tasks st
-          LEFT JOIN baptism_services bs ON bs.id = st.baptism_service_id
-          WHERE st.assigned_to = ${user.id}
-          ORDER BY st.created_at DESC
-        `);
+        const result = await db.execute(sql`${baseSelect} WHERE st.assigned_to = ${user.id} ORDER BY COALESCE(st.due_date, st.created_at) ASC`);
         rows = result.rows;
       } else {
-        const result = await db.execute(sql`
-          SELECT
-            st.id,
-            st.title,
-            st.description,
-            st.status,
-            st.assigned_to,
-            st.assigned_role,
-            st.due_date,
-            st.completed_at,
-            st.created_at,
-            st.updated_at,
-            st.baptism_service_id,
-            bs.service_at,
-            bs.location_name,
-            bs.approval_status
-          FROM service_tasks st
-          LEFT JOIN baptism_services bs ON bs.id = st.baptism_service_id
-          ORDER BY st.created_at DESC
-        `);
+        const result = await db.execute(sql`${baseSelect} ORDER BY COALESCE(st.due_date, st.created_at) ASC`);
         rows = result.rows;
       }
 

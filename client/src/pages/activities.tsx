@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { BudgetRequestDialog } from "@/components/budget-request-dialog";
 import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns, useUsers, useAllMemberCallings } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
@@ -198,7 +199,7 @@ function getProgRequired(activityType: string) {
 
 const SECTION_CONFIG = {
   programa:     { label: "Programa",     color: "text-blue-700 dark:text-blue-400",     icon: ClipboardList },
-  coordinacion: { label: "Coordinación", color: "text-violet-700 dark:text-violet-400", icon: Users },
+  coordinacion: { label: "Coordinación y Logística", color: "text-violet-700 dark:text-violet-400", icon: Users },
 } as const;
 
 function sectionOfKey(key: string): "programa" | "coordinacion" {
@@ -290,6 +291,8 @@ function CoordSectionForm({
   const [arregloTasks, setArregloTasks] = useState<ArregloTask[]>(
     () => parseArr("coord_arreglo_tasks", [{ persona: "", asignacion: "" }])
   );
+  const [arregloPresupuesto, setArregloPresupuesto] = useState(sectionData["coord_arreglo_presupuesto"] === "true");
+  const [arregloBudgetOpen, setArregloBudgetOpen] = useState(false);
   const [equipoResponsable, setEquipoResponsable] = useState(sectionData["coord_equipo_responsable"] ?? "");
   const [equipoLista, setEquipoLista] = useState(sectionData["coord_equipo_lista"] ?? "");
   const [refrigerioAplica, setRefrigerioAplica] = useState(sectionData["coord_refrigerio_aplica"] !== "false");
@@ -297,6 +300,8 @@ function CoordSectionForm({
   const [refrigerioResponsables, setRefrigerioResponsables] = useState<string[]>(
     () => parseArr("coord_refrigerio_responsables", [""])
   );
+  const [refrigerioPresupuesto, setRefrigerioPresupuesto] = useState(sectionData["coord_refrigerio_presupuesto"] === "true");
+  const [refrigerioBudgetOpen, setRefrigeriBudgetOpen] = useState(false);
   const [limpiezaResponsables, setLimpiezaResponsables] = useState<string[]>(
     () => parseArr("coord_limpieza_responsables", [""])
   );
@@ -317,15 +322,17 @@ function CoordSectionForm({
         coord_equipo:     secEquipo,
         coord_refrigerio: secRefrigerio,
         coord_limpieza:   secLimpieza,
-        coord_espacio_notas:             espacioNotas,
-        coord_arreglo_tasks:             JSON.stringify(arregloTasks.filter(t => t.persona.trim())),
-        coord_equipo_responsable:        equipoResponsable,
-        coord_equipo_lista:              equipoLista,
-        coord_refrigerio_aplica:         refrigerioAplica ? "true" : "false",
-        coord_refrigerio_detalle:        refrigerioDetalle,
-        coord_refrigerio_responsables:   JSON.stringify(refrigerioResponsables.filter(r => r.trim())),
-        coord_limpieza_responsables:     JSON.stringify(limpiezaResponsables.filter(r => r.trim())),
-        coord_limpieza_notas:            limpiezaNotas,
+        coord_espacio_notas:                espacioNotas,
+        coord_arreglo_tasks:                JSON.stringify(arregloTasks.filter(t => t.persona.trim())),
+        coord_arreglo_presupuesto:          arregloPresupuesto ? "true" : "false",
+        coord_equipo_responsable:           equipoResponsable,
+        coord_equipo_lista:                 equipoLista,
+        coord_refrigerio_aplica:            refrigerioAplica ? "true" : "false",
+        coord_refrigerio_detalle:           refrigerioDetalle,
+        coord_refrigerio_responsables:      JSON.stringify(refrigerioResponsables.filter(r => r.trim())),
+        coord_refrigerio_presupuesto:       refrigerioPresupuesto ? "true" : "false",
+        coord_limpieza_responsables:        JSON.stringify(limpiezaResponsables.filter(r => r.trim())),
+        coord_limpieza_notas:               limpiezaNotas,
       };
       return apiRequest("PATCH", `/api/activities/${activityId}/section`, { section: "coordinacion", fields });
     },
@@ -401,6 +408,18 @@ function CoordSectionForm({
           </AccordionTrigger>
           <AccordionContent>
             <div className="space-y-2 pt-1">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Switch checked={arregloPresupuesto} onCheckedChange={setArregloPresupuesto} />
+                  <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
+                </label>
+                {arregloPresupuesto && (
+                  <Button type="button" size="sm" variant={sectionData["coord_arreglo_presupuesto_solicitado"] === "true" ? "default" : "outline"} className="text-xs"
+                    onClick={() => setArregloBudgetOpen(true)}>
+                    {sectionData["coord_arreglo_presupuesto_solicitado"] === "true" ? "✓ Presupuesto solicitado" : "Solicitar presupuesto"}
+                  </Button>
+                )}
+              </div>
               <Label className="text-xs text-muted-foreground block">Tareas asignadas</Label>
               {arregloTasks.map((task, i) => (
                 <div key={i} className="rounded-lg border bg-muted/20 p-3 space-y-2">
@@ -478,6 +497,18 @@ function CoordSectionForm({
                 <span className="text-xs text-muted-foreground">Habrá refrigerio</span>
               </label>
               {refrigerioAplica && (<>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Switch checked={refrigerioPresupuesto} onCheckedChange={setRefrigerioPresupuesto} />
+                    <span className="text-xs text-muted-foreground">Necesito solicitar presupuesto</span>
+                  </label>
+                  {refrigerioPresupuesto && (
+                    <Button type="button" size="sm" variant={sectionData["coord_refrigerio_presupuesto_solicitado"] === "true" ? "default" : "outline"} className="text-xs"
+                      onClick={() => setRefrigeriBudgetOpen(true)}>
+                      {sectionData["coord_refrigerio_presupuesto_solicitado"] === "true" ? "✓ Presupuesto solicitado" : "Solicitar presupuesto"}
+                    </Button>
+                  )}
+                </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Qué se preparará</Label>
                   <Textarea className="text-sm min-h-[44px] resize-none"
@@ -558,6 +589,13 @@ function CoordSectionForm({
       <Button className="w-full" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
         {saveMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando…</> : "Guardar coordinación"}
       </Button>
+
+      <BudgetRequestDialog open={arregloBudgetOpen} onOpenChange={setArregloBudgetOpen}
+        defaultDescription="Arreglo y preparación de la actividad"
+        onSuccess={() => saveMut.mutate()} />
+      <BudgetRequestDialog open={refrigerioBudgetOpen} onOpenChange={setRefrigeriBudgetOpen}
+        defaultDescription="Refrigerio para la actividad"
+        onSuccess={() => saveMut.mutate()} />
     </div>
   );
 }

@@ -10,9 +10,10 @@
  */
 
 import type { Express, Request, Response, RequestHandler } from "express";
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
+import { serviceTasks, users, organizations } from "@shared/schema";
 
 const ADMIN_ROLES = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
 
@@ -429,7 +430,7 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
         const rnd = Math.random().toString(36).slice(2, 6);
         const slug = `${baseSlug}-${dateStr}-${rnd}`;
 
-        await storage.createActivity({
+        const newActivity = await storage.createActivity({
           title: series.title,
           description: series.description ?? null,
           location: series.location ?? null,
@@ -444,6 +445,35 @@ export function registerRecurringSeriesRoutes(app: Express, requireAuth: Request
           recurringSeriesId: series.id,
         } as any);
         created++;
+
+        // Create coordination task for lider_actividades
+        if (orgId) {
+          try {
+            const [lider] = await db
+              .select({ id: users.id, organizationId: users.organizationId })
+              .from(users)
+              .where(and(eq(users.role, "lider_actividades" as any), eq(users.organizationId, orgId)))
+              .limit(1);
+            if (lider) {
+              const dd = String(date.getUTCDate()).padStart(2,"0");
+              const mm = String(date.getUTCMonth()+1).padStart(2,"0");
+              const yyyy = date.getUTCFullYear();
+              await db.insert(serviceTasks).values({
+                activityId: newActivity.id,
+                assignedTo: lider.id,
+                assignedRole: "lider_actividades",
+                organizationId: lider.organizationId,
+                title: `Coordinación y Logística: ${series.title}`,
+                description: `Coordinar espacio, arreglo, equipo, refrigerio y limpieza para la actividad del ${dd}/${mm}/${yyyy}`,
+                status: "pending",
+                dueDate: date,
+                createdBy: systemUserId,
+              } as any);
+            }
+          } catch (taskErr) {
+            console.error("[RecurringSeries] Failed to create lider_actividades task:", taskErr);
+          }
+        }
       }
 
       res.json({ created, skipped, backfilled, total: occurrences.length });
