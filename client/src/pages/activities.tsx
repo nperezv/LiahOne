@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns, useUsers } from "@/hooks/use-api";
+import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns, useUsers, useAllMemberCallings } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
 import {
@@ -298,6 +298,9 @@ function SectionEditDialog({
   const { data: rawHymns = [] } = useHymns();
   const { data: organizations = [] } = useOrganizations();
   const { data: users = [] } = useUsers();
+  const { user } = useAuth();
+  const canReadCallings = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user?.role || "");
+  const { data: memberCallings = [] } = useAllMemberCallings({ enabled: canReadCallings });
 
   const requiresMsgAndHymns = TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType);
 
@@ -322,9 +325,18 @@ function SectionEditDialog({
     [users]
   );
 
-  // Org presidency members (dirige) — filter by org if available, else all
+  // Org presidency members (dirige) — use member callings filtered by activityOrgId
   const orgMemberOptions = useMemo<MemberOption[]>(
     () => {
+      if (activityOrgId && (memberCallings as any[]).length > 0) {
+        const names = (memberCallings as any[])
+          .filter(c => c.organizationId === activityOrgId && c.isActive && c.memberName)
+          .map(c => normalizeMemberName(c.memberName) || c.memberName)
+          .filter(Boolean);
+        const unique = Array.from(new Set(names));
+        if (unique.length > 0) return unique.map(v => ({ value: v as string }));
+      }
+      // Fallback to directory members filtered by organizationId, then all
       const filtered = activityOrgId
         ? (rawMembers as any[]).filter(m => m.organizationId === activityOrgId)
         : (rawMembers as any[]);
@@ -332,7 +344,7 @@ function SectionEditDialog({
         filtered.map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
       )).map(v => ({ value: v as string }));
     },
-    [rawMembers, activityOrgId]
+    [memberCallings, rawMembers, activityOrgId]
   );
 
   const hymnOptions = useMemo<HymnOption[]>(
