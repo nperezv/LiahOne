@@ -466,7 +466,7 @@ const PROG_BASE_ITEMS = [
   { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
-// Tipos donde se esperan mensajes/pensamientos espirituales (al menos uno requerido)
+// Tipos donde mensaje e himnos son REQUERIDOS (capacitación y hermanamiento)
 const PROG_CON_MENSAJE = [
   { key: "prog_preside",          label: "Preside",             sort: 1 },
   { key: "prog_dirige",           label: "Dirige",              sort: 2 },
@@ -477,6 +477,8 @@ const PROG_CON_MENSAJE = [
   { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
+// Exported so frontend knows which types require message+hymns
+export const TYPES_REQUIRING_MSG_AND_HYMNS = ["capacitacion", "hermanamiento"] as const;
 const COORD_BASE_ITEMS = [
   { key: "coord_invitaciones", label: "Invitaciones",         sort: 11 },
   { key: "coord_enlace",       label: "Enlace compartido",    sort: 12 },

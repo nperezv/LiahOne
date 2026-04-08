@@ -190,10 +190,20 @@ const FIELD_META: Record<string, { type: FieldType; placeholder?: string; inputK
   log_decoracion:        { type: "textarea", placeholder: "Plan y responsable de la decoración" },
 };
 
+// Types that require at least one message AND hymns in the program
+const TYPES_REQUIRING_MSG_AND_HYMNS = ["capacitacion", "hermanamiento"];
+
 // Required keys per section — completing these unlocks the next section
-const PROG_REQUIRED  = ["prog_preside", "prog_dirige", "prog_oracion_apertura", "prog_oracion_cierre"];
+const PROG_REQUIRED_BASE = ["prog_preside", "prog_dirige", "prog_oracion_apertura", "prog_oracion_cierre"];
+const PROG_REQUIRED_WITH_MSG = [...PROG_REQUIRED_BASE, "prog_mensaje_1", "prog_himno_apertura", "prog_himno_cierre"];
 const COORD_REQUIRED = ["coord_invitaciones", "coord_asistentes", "coord_objetivos"];
 const LOG_REQUIRED   = ["log_espacio"];
+
+function getProgRequired(activityType: string) {
+  return TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType)
+    ? PROG_REQUIRED_WITH_MSG
+    : PROG_REQUIRED_BASE;
+}
 
 // ── SectionPanel — editable sections that auto-complete checklist items ───────
 
@@ -269,11 +279,12 @@ function SectionField({
   );
 }
 
-// Keys that are optional (don't block completion)
-const OPTIONAL_PROG_KEYS = new Set(["prog_himno_apertura", "prog_himno_cierre"]);
+// Keys that are optional for types that don't require msg+hymns
+const HYMN_KEYS = new Set(["prog_himno_apertura", "prog_himno_cierre"]);
+const MSG_KEYS  = new Set(["prog_mensaje_1"]);
 
 function SectionEditDialog({
-  section, items, activityId, sectionData, open, onOpenChange,
+  section, items, activityId, sectionData, open, onOpenChange, activityType, activityOrgId,
 }: {
   section: "programa" | "coordinacion" | "logistica";
   items: ChecklistItem[];
@@ -281,22 +292,59 @@ function SectionEditDialog({
   sectionData: Record<string, string>;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  activityType: string;
+  activityOrgId?: string | null;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: rawMembers = [] } = useMembers();
   const { data: rawHymns = [] } = useHymns();
 
-  const memberOptions = useMemo<MemberOption[]>(
+  const requiresMsgAndHymns = TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType);
+
+  // All members normalized
+  const allMemberOptions = useMemo<MemberOption[]>(
     () => Array.from(new Set(
-      rawMembers.map((m: any) => normalizeMemberName(m.nameSurename)).filter(Boolean)
+      (rawMembers as any[]).map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
     )).map(v => ({ value: v as string })),
     [rawMembers]
   );
+
+  // Bishopric only (preside)
+  const bishopricOptions = useMemo<MemberOption[]>(
+    () => Array.from(new Set(
+      (rawMembers as any[])
+        .filter(m => m.organizationType === "obispado")
+        .map(m => normalizeMemberName(m.nameSurename))
+        .filter(Boolean)
+    )).map(v => ({ value: v as string })),
+    [rawMembers]
+  );
+
+  // Org presidency members (dirige) — filter by org if available, else all
+  const orgMemberOptions = useMemo<MemberOption[]>(
+    () => {
+      const filtered = activityOrgId
+        ? (rawMembers as any[]).filter(m => m.organizationId === activityOrgId)
+        : (rawMembers as any[]);
+      return Array.from(new Set(
+        filtered.map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
+      )).map(v => ({ value: v as string }));
+    },
+    [rawMembers, activityOrgId]
+  );
+
   const hymnOptions = useMemo<HymnOption[]>(
     () => (rawHymns as any[]).map(h => ({ value: `${h.number} - ${h.title}`, number: h.number, title: h.title })),
     [rawHymns]
   );
+
+  // Select appropriate member options per field key
+  const memberOptionsForKey = (key: string): MemberOption[] => {
+    if (key === "prog_preside") return bishopricOptions.length > 0 ? bishopricOptions : allMemberOptions;
+    if (key === "prog_dirige")  return orgMemberOptions.length > 0 ? orgMemberOptions : allMemberOptions;
+    return allMemberOptions;
+  };
 
   const [fields, setFields] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -424,19 +472,24 @@ function SectionEditDialog({
                 </div>
               );
             }
-            return (
-              <SectionField
-                key={item.itemKey}
-                itemKey={item.itemKey}
-                label={item.label}
-                completed={item.completed}
-                value={fields[item.itemKey] ?? ""}
-                onChange={v => setField(item.itemKey, v)}
-                memberOptions={memberOptions}
-                hymnOptions={hymnOptions}
-                optional={OPTIONAL_PROG_KEYS.has(item.itemKey)}
-              />
-            );
+            {
+              const isOptional =
+                (HYMN_KEYS.has(item.itemKey) && !requiresMsgAndHymns) ||
+                (MSG_KEYS.has(item.itemKey) && !requiresMsgAndHymns);
+              return (
+                <SectionField
+                  key={item.itemKey}
+                  itemKey={item.itemKey}
+                  label={item.label}
+                  completed={item.completed}
+                  value={fields[item.itemKey] ?? ""}
+                  onChange={v => setField(item.itemKey, v)}
+                  memberOptions={memberOptionsForKey(item.itemKey)}
+                  hymnOptions={hymnOptions}
+                  optional={isOptional}
+                />
+              );
+            }
           })}
         </div>
         <DialogFooter>
@@ -452,6 +505,7 @@ function SectionEditDialog({
 
 function SectionPanel({
   items, activityId, sectionData, canEditPrograma, canEditLogistica, flyerUrl, canUploadFlyer,
+  activityType, activityOrgId,
 }: {
   items: ChecklistItem[];
   activityId: string;
@@ -460,6 +514,8 @@ function SectionPanel({
   canEditLogistica: boolean;
   flyerUrl?: string | null;
   canUploadFlyer: boolean;
+  activityType: string;
+  activityOrgId?: string | null;
 }) {
   const hasSections = items.some(i => i.itemKey.startsWith("prog_") || i.itemKey.startsWith("coord_") || i.itemKey.startsWith("log_"));
   const [editSection, setEditSection] = useState<"programa" | "coordinacion" | "logistica" | null>(null);
@@ -494,10 +550,8 @@ function SectionPanel({
     const item = items.find(i => i.itemKey === k);
     return !item || item.completed; // if key not in this activity's checklist, skip
   });
-  const progDone  = isCompleted(PROG_REQUIRED);
-  // If this type has messages, prog_mensaje_1 is also required
-  const hasMensaje1 = bySection.programa.some(i => i.itemKey === "prog_mensaje_1");
-  const progFullDone = progDone && (!hasMensaje1 || isCompleted(["prog_mensaje_1"]));
+  const progRequired = getProgRequired(activityType);
+  const progFullDone = isCompleted(progRequired);
   const coordDone = isCompleted(COORD_REQUIRED);
 
   const sectionLocked: Record<string, boolean> = {
@@ -590,6 +644,8 @@ function SectionPanel({
           sectionData={sectionData}
           open={true}
           onOpenChange={(v) => { if (!v) setEditSection(null); }}
+          activityType={activityType}
+          activityOrgId={activityOrgId}
         />
       )}
     </div>
@@ -942,6 +998,8 @@ function ActivityCard({
               canEditLogistica={editMode ? canEditLogistica : false}
               flyerUrl={activity.flyerUrl}
               canUploadFlyer={editMode ? canUploadFlyer : false}
+              activityType={activity.type}
+              activityOrgId={activity.organizationId}
             />
           )}
 
