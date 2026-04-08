@@ -172,7 +172,7 @@ const FIELD_META: Record<string, { type: FieldType; placeholder?: string; inputK
   prog_dirige:           { type: "text", inputKind: "member", placeholder: "Nombre de quien dirige" },
   prog_himno_apertura:   { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del himno" },
   prog_oracion_apertura: { type: "text", inputKind: "member", placeholder: "Nombre" },
-  prog_himno_cierre:     { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del himno" },
+  prog_himno_cierre:     { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del último himno" },
   prog_oracion_cierre:   { type: "text", inputKind: "member", placeholder: "Nombre" },
   prog_mensaje_1:        { type: "text", inputKind: "member", placeholder: "Nombre del ponente y tema" },
   coord_invitaciones:    { type: "textarea", placeholder: "¿Cómo se compartirán/compartieron las invitaciones?" },
@@ -405,15 +405,10 @@ function SectionEditDialog({
             if (item.itemKey === "prog_mensaje_1" && hasMessages) {
               return (
                 <div key="mensajes" className="space-y-3 rounded-lg border px-3 py-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mensajes / Ponencias</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mensajes</p>
                   {/* First message — required */}
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      {item.completed
-                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                        : <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                      <label className="text-sm font-medium">Mensaje 1</label>
-                    </div>
+                    <label className="text-sm font-medium">Mensaje 1</label>
                     <MemberAutocomplete
                       value={fields["prog_mensaje_1"] ?? ""}
                       options={allMemberOptions}

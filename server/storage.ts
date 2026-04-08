@@ -462,8 +462,8 @@ const PROG_BASE_ITEMS = [
   { key: "prog_dirige",           label: "Dirige",              sort: 2 },
   { key: "prog_himno_apertura",   label: "Himno de apertura",   sort: 3 },
   { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 4 },
-  { key: "prog_himno_cierre",     label: "Himno de cierre",     sort: 7 },
-  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 8 },
+  { key: "prog_himno_cierre",     label: "Último himno",        sort: 7 },
+  { key: "prog_oracion_cierre",   label: "Última oración",      sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
 // Tipos donde mensaje e himnos son REQUERIDOS (capacitación y hermanamiento)
@@ -473,8 +473,8 @@ const PROG_CON_MENSAJE = [
   { key: "prog_himno_apertura",   label: "Himno de apertura",   sort: 3 },
   { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 4 },
   { key: "prog_mensaje_1",        label: "Mensaje",             sort: 5 },
-  { key: "prog_himno_cierre",     label: "Himno de cierre",     sort: 7 },
-  { key: "prog_oracion_cierre",   label: "Oración de cierre",   sort: 8 },
+  { key: "prog_himno_cierre",     label: "Último himno",        sort: 7 },
+  { key: "prog_oracion_cierre",   label: "Última oración",      sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
 // Exported so frontend knows which types require message+hymns

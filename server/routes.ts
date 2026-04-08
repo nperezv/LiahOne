@@ -1044,6 +1044,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false
   `);
 
+  // Auto-migration: update renamed checklist item labels
+  await db.execute(sql`UPDATE activity_checklist_items SET label = 'Último himno'   WHERE item_key = 'prog_himno_cierre'   AND label = 'Himno de cierre'`);
+  await db.execute(sql`UPDATE activity_checklist_items SET label = 'Última oración' WHERE item_key = 'prog_oracion_cierre' AND label = 'Oración de cierre'`);
+
   // Auto-migration: regenerate checklist items for non-baptism activities that still
   // have old-format items (prog_agenda, coord_participantes, etc.)
   try {
