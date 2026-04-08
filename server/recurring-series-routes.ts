@@ -9,15 +9,16 @@
  * POST   /api/recurring-series/:id/swap     swap org on two specific instance dates
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, RequestHandler } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 
-function requireAdmin(req: Request, res: Response): boolean {
+const ADMIN_ROLES = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
+
+function isAdmin(req: Request, res: Response): boolean {
   const user = (req as any).user;
   if (!user) { res.status(401).json({ error: "No autenticado" }); return false; }
-  const allowed = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
-  if (!allowed.includes(user.role)) { res.status(403).json({ error: "Sin permiso" }); return false; }
+  if (!ADMIN_ROLES.includes(user.role)) { res.status(403).json({ error: "Sin permiso" }); return false; }
   return true;
 }
 
@@ -72,10 +73,10 @@ function generateSlug(title: string, date: Date): string {
   return `${base}-${dateStr}-${rnd}`;
 }
 
-export function registerRecurringSeriesRoutes(app: Express) {
+export function registerRecurringSeriesRoutes(app: Express, requireAuth: RequestHandler) {
   // ── GET /api/recurring-series ─────────────────────────────────────────────
-  app.get("/api/recurring-series", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+  app.get("/api/recurring-series", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
     try {
       const rows = await db.execute(sql`
         SELECT rs.*,
@@ -91,8 +92,8 @@ export function registerRecurringSeriesRoutes(app: Express) {
   });
 
   // ── POST /api/recurring-series ────────────────────────────────────────────
-  app.post("/api/recurring-series", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+  app.post("/api/recurring-series", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
     try {
       const { title, description, location, dayOfWeek, timeOfDay, rotationOrgIds, rotationStartDate, notifyDaysBefore } = req.body;
       if (!title || !rotationStartDate || !Array.isArray(rotationOrgIds) || rotationOrgIds.length === 0) {
@@ -121,8 +122,8 @@ export function registerRecurringSeriesRoutes(app: Express) {
   });
 
   // ── PATCH /api/recurring-series/:id ──────────────────────────────────────
-  app.patch("/api/recurring-series/:id", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+  app.patch("/api/recurring-series/:id", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
     try {
       const { title, description, location, dayOfWeek, timeOfDay, rotationOrgIds, rotationStartDate, notifyDaysBefore, active } = req.body;
       const result = await db.execute(sql`
@@ -148,8 +149,8 @@ export function registerRecurringSeriesRoutes(app: Express) {
   });
 
   // ── DELETE /api/recurring-series/:id ─────────────────────────────────────
-  app.delete("/api/recurring-series/:id", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+  app.delete("/api/recurring-series/:id", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
     try {
       // Detach future instances (keep past ones as historical record)
       const now = new Date().toISOString();
@@ -168,8 +169,8 @@ export function registerRecurringSeriesRoutes(app: Express) {
   });
 
   // ── GET /api/recurring-series/:id/instances ───────────────────────────────
-  app.get("/api/recurring-series/:id/instances", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+  app.get("/api/recurring-series/:id/instances", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
     try {
       const rows = await db.execute(sql`
         SELECT a.id, a.title, a.date, a.organization_id, a.approval_status,
@@ -189,8 +190,8 @@ export function registerRecurringSeriesRoutes(app: Express) {
 
   // ── POST /api/recurring-series/:id/swap ───────────────────────────────────
   // Body: { activityIdA: string, activityIdB: string }
-  app.post("/api/recurring-series/:id/swap", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+  app.post("/api/recurring-series/:id/swap", requireAuth, async (req, res) => {
+    if (!isAdmin(req, res)) return;
     try {
       const { activityIdA, activityIdB } = req.body;
       if (!activityIdA || !activityIdB) return res.status(400).json({ error: "Faltan IDs de actividades" });

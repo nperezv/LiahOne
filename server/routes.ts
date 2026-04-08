@@ -810,7 +810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerBaptismPublicRoutes(app);
   registerQuarterlyPlanRoutes(app, requireAuth);
   registerActivityPublicRoutes(app);
-  registerRecurringSeriesRoutes(app);
+  registerRecurringSeriesRoutes(app, requireAuth);
 
   // One-time fix: update baptism_services with 'Por confirmar' location
   // to use the configured meeting center name.
