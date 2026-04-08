@@ -74,7 +74,11 @@ function useInjectStyles() {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function parseDateParts(dateStr: string) {
-  const d = new Date(dateStr);
+  // PostgreSQL returns timestamps without Z suffix — normalize to UTC
+  const normalized = /Z$|[+-]\d{2}:\d{2}$/.test(dateStr)
+    ? dateStr
+    : dateStr.replace(" ", "T") + "Z";
+  const d = new Date(normalized);
   // Use UTC values so the time matches what was entered (stored as UTC)
   const utcH = d.getUTCHours();
   const utcM = d.getUTCMinutes();
