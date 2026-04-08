@@ -35,7 +35,7 @@ function formatDateEs(dateStr: string) {
 function useRecurringSeries() {
   return useQuery<any[]>({
     queryKey: ["/api/recurring-series"],
-    queryFn: () => apiRequest("GET", "/api/recurring-series").then((r) => r.json()),
+    queryFn: () => apiRequest("GET", "/api/recurring-series"),
     staleTime: 30_000,
   });
 }
@@ -43,7 +43,7 @@ function useRecurringSeries() {
 function useSeriesInstances(seriesId: string | null) {
   return useQuery<any[]>({
     queryKey: ["/api/recurring-series", seriesId, "instances"],
-    queryFn: () => apiRequest("GET", `/api/recurring-series/${seriesId}/instances`).then((r) => r.json()),
+    queryFn: () => apiRequest("GET", `/api/recurring-series/${seriesId}/instances`),
     enabled: Boolean(seriesId),
     staleTime: 30_000,
   });
@@ -84,20 +84,20 @@ export default function RecurringSeriesPage() {
   // ── Mutations ───────────────────────────────────────────────────────────────
 
   const createSeries = useMutation({
-    mutationFn: (body: any) => apiRequest("POST", "/api/recurring-series", body).then((r) => r.json()),
+    mutationFn: (body: any) => apiRequest("POST", "/api/recurring-series", body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/recurring-series"] }); setFormOpen(false); toast({ title: "Serie creada" }); },
     onError: () => toast({ title: "Error al crear", variant: "destructive" }),
   });
 
   const updateSeries = useMutation({
     mutationFn: ({ id, body }: { id: string; body: any }) =>
-      apiRequest("PATCH", `/api/recurring-series/${id}`, body).then((r) => r.json()),
+      apiRequest("PATCH", `/api/recurring-series/${id}`, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/recurring-series"] }); setFormOpen(false); toast({ title: "Serie actualizada" }); },
     onError: () => toast({ title: "Error al actualizar", variant: "destructive" }),
   });
 
   const deleteSeries = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/recurring-series/${id}`).then((r) => r.json()),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/recurring-series/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/recurring-series"] });
       if (selectedSeries) setSelectedSeries(null);
@@ -108,7 +108,7 @@ export default function RecurringSeriesPage() {
 
   const swapInstances = useMutation({
     mutationFn: ({ seriesId, a, b }: { seriesId: string; a: string; b: string }) =>
-      apiRequest("POST", `/api/recurring-series/${seriesId}/swap`, { activityIdA: a, activityIdB: b }).then((r) => r.json()),
+      apiRequest("POST", `/api/recurring-series/${seriesId}/swap`, { activityIdA: a, activityIdB: b }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/recurring-series", selectedSeries?.id, "instances"] });
       setSwapMode([]);
