@@ -289,7 +289,7 @@ export function ActivitiesLobby() {
       if (!res.ok) throw new Error("Error");
       return res.json();
     },
-    staleTime: 60_000,
+    staleTime: 0,
   });
 
   const activities = data?.activities ?? [];

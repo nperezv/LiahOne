@@ -1028,6 +1028,7 @@ function FlyerUpload({ activityId, flyerUrl, canUpload }: { activityId: string; 
       });
       if (!res.ok) throw new Error(await res.text());
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/actividades"] });
       toast({ title: "Flyer subido correctamente" });
     } catch {
       toast({ title: "Error al subir flyer", variant: "destructive" });
