@@ -290,6 +290,7 @@ export function ActivitiesLobby() {
       return res.json();
     },
     staleTime: 0,
+    gcTime: 0,
   });
 
   const activities = data?.activities ?? [];
