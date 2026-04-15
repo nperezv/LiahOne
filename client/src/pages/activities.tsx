@@ -1262,8 +1262,11 @@ function ActivityCard({
     ? organizations.find((o: any) => o.id === activity.organizationId)?.name
     : null;
 
-  const totalItems = activity.checklistItems?.length ?? 0;
-  const doneItems = activity.checklistItems?.filter((i: any) => i.completed).length ?? 0;
+  const countableItems = (activity.checklistItems ?? []).filter(
+    (i: any) => i.itemKey !== "prog_flyer" && !isOptionalKey(i.itemKey, activity.type ?? "otro")
+  );
+  const totalItems = countableItems.length;
+  const doneItems = countableItems.filter((i: any) => i.completed).length;
 
   return (
     <div className={`rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md ${isPast ? "opacity-75" : ""}`}>
