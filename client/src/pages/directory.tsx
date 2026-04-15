@@ -589,7 +589,7 @@ export default function DirectoryPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8" style={{ contain: "none" }}>
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Directorio</h1>
@@ -942,7 +942,7 @@ export default function DirectoryPage() {
                     <div
                       role="button"
                       tabIndex={0}
-                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card/90 pr-4 will-change-transform dark:bg-gradient-to-r dark:from-[#101829]/95 dark:to-[#0d1422]/95 ${
+                      className={`relative z-10 flex min-h-[68px] w-full items-center gap-3 bg-card/90 pr-4 dark:bg-gradient-to-r dark:from-[#101829]/95 dark:to-[#0d1422]/95 ${
                         isActive && pointerDragging.current ? "transition-none" : ""
                       }`}
                       style={{
