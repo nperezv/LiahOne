@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent } from "react";
+import { useMemo, useRef, useState, useEffect, type PointerEvent } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -244,6 +244,16 @@ export default function DirectoryPage() {
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
     user?.role || ""
   );
+
+  // Remove contain: layout paint from app-page-content so position: sticky works
+  // relative to the <main> scroll container (not the contained element)
+  useEffect(() => {
+    const el = document.querySelector(".app-page-content") as HTMLElement | null;
+    if (el) el.style.contain = "none";
+    return () => {
+      if (el) el.style.removeProperty("contain");
+    };
+  }, []);
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
@@ -799,7 +809,7 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <div className="sticky top-0 z-20 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-border/40">
+      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-border/40">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <Users className="h-4 w-4 text-primary" />

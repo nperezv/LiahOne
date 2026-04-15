@@ -905,6 +905,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`
     ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS meeting_center_address text NOT NULL DEFAULT ''
   `);
+  // Auto-migration: add requires_registration to activities if missing
+  await db.execute(sql`
+    ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
+  `);
 
   // Auto-migration: ensure hymns table has all required columns, missing entries, and external URLs
   await applyHymnStartupMigrations();
@@ -7681,7 +7685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── PATCH /api/activities/:id/basic ──────────────────────────────────────
-  // Edit basic activity info (title, description, date, location, isPublic)
+  // Edit basic activity info (title, description, date, location, isPublic, type, requiresRegistration)
   app.patch("/api/activities/:id/basic", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -7695,13 +7699,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Sin permiso" });
       }
 
-      const { title, description, date, location, isPublic } = req.body;
+      const { title, description, date, location, isPublic, type, requiresRegistration } = req.body;
+
+      // If type changed, reset checklist items
+      if (type !== undefined && type !== activity.type) {
+        await db.execute(sql`DELETE FROM activity_checklist_items WHERE activity_id = ${req.params.id}`);
+        const checklistDefs = getDefaultChecklistItems(type);
+        if (checklistDefs.length > 0) {
+          for (const item of checklistDefs) {
+            await db.execute(sql`
+              INSERT INTO activity_checklist_items (id, activity_id, item_key, label, sort_order, completed)
+              VALUES (gen_random_uuid(), ${req.params.id}, ${item.key}, ${item.label}, ${item.sort}, false)
+            `);
+          }
+        }
+      }
+
       const updated = await storage.updateActivity(req.params.id, {
         ...(title !== undefined && { title }),
         ...(description !== undefined && { description }),
         ...(date !== undefined && { date: new Date(date) }),
         ...(location !== undefined && { location }),
         ...(isPublic !== undefined && { isPublic }),
+        ...(type !== undefined && { type }),
+        ...(requiresRegistration !== undefined && { requiresRegistration }),
       });
       res.json(updated);
     } catch (err) {
@@ -7821,9 +7842,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY no configurada" });
 
+      // Fetch meeting center address from settings
+      const template = await storage.getPdfTemplate();
+      const meetingAddress = template?.meetingCenterAddress?.trim() || template?.meetingCenterName?.trim() || "";
+
+      // Fetch secretary phone for registration activities
+      let secretaryPhone = "";
+      if ((activity as any).requiresRegistration && activity.organizationId) {
+        const allUsers = await storage.getAllUsers();
+        const orgSecretary = allUsers.find((u: any) =>
+          u.organizationId === activity.organizationId &&
+          ["secretario_organizacion"].includes(u.role) &&
+          u.phone
+        );
+        if (orgSecretary) secretaryPhone = (orgSecretary as any).phone || "";
+      }
+
       const activityDate = new Date(activity.date);
       const fechaPrompt = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
       const horaPrompt = activityDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+      const requiresReg = !!(activity as any).requiresRegistration;
 
       const tipoLabels: Record<string, string> = {
         servicio_bautismal: "Servicio Bautismal",
@@ -7835,6 +7874,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         otro: "Actividad General",
       };
 
+      // Background variety guidance per type
+      const fondoGuia: Record<string, string> = {
+        servicio_bautismal: "solemne (preferible solemne-bautismo)",
+        deportiva: "energetico (preferible energetico-deportes o energetico-competicion)",
+        capacitacion: "espiritual (preferible espiritual-conferencia o espiritual-escrituras)",
+        fiesta: "festivo (preferible festivo-fiesta o festivo-naciones)",
+        hermanamiento: "calido (preferible calido-hermanamiento o calido-raices)",
+        actividad_org: "espiritual o calido según el contexto",
+        otro: "elige el más adecuado al contexto",
+      };
+
       const validFondos = [
         "calido-hermanamiento", "calido-limpieza", "calido-raices", "calido-servicio", "calido-talentos",
         "cultural-arte", "cultural-historia-familiar", "cultural-musica",
@@ -7844,16 +7894,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "solemne-bautismo", "solemne-conferencia", "solemne-formal",
       ];
 
+      const ctaInstructions = requiresReg
+        ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
+        : `CTA: debe invitar a asistir libremente, sin inscripción previa. Sugiere traer amigos y familiares.`;
+
       const prompt = `Eres un experto en neuromarketing y copywriting para comunidades religiosas LDS.
 Genera el copy para un flyer de esta actividad:
 - Tipo: ${tipoLabels[activity.type ?? "otro"] ?? "Actividad"}
 - Nombre: ${activity.title}
 - Fecha: ${fechaPrompt}
 - Hora: ${horaPrompt}
-- Lugar: ${activity.location ?? "Por confirmar"}
+- Lugar: ${meetingAddress || activity.location || "Por confirmar"}
 - Descripción adicional: ${activity.description ?? "Sin descripción"}
+- Requiere inscripción: ${requiresReg ? "Sí" : "No"}
 
-Fondos disponibles — elige el MÁS apropiado según el contenido de la actividad:
+Fondos disponibles — para este tipo (${tipoLabels[activity.type ?? "otro"]}), la recomendación es: ${fondoGuia[activity.type ?? "otro"] ?? "elige el más adecuado"}
 calido: hermanamiento, limpieza, raices, servicio, talentos
 cultural: arte, historia-familiar, musica
 energetico: aventura, competicion, deportes, juegos
@@ -7861,19 +7916,21 @@ espiritual: ayuno, conferencia, escrituras, oracion, templo
 festivo: anonuevo, fiesta, halloween, naciones, navidad, navidad-plata, pascua
 solemne: bautismo, conferencia, formal
 
+${ctaInstructions}
+
 Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adicional:
 {
   "titulo": "título emocional máximo 5 palabras",
   "hook": "frase de impacto máximo 10 palabras, sutil toque LDS",
   "descripcion": "descripción corta máximo 20 palabras, cálida y motivadora",
-  "cta": "llamada a la acción máximo 6 palabras",
+  "cta": "llamada a la acción máximo 6 palabras${secretaryPhone && requiresReg ? ` (incluye el teléfono ${secretaryPhone})` : ""}",
   "fondo": "nombre-del-fondo-elegido"
 }`;
 
       const client = new Anthropic({ apiKey });
       const message = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 350,
+        max_tokens: 400,
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -7888,11 +7945,21 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
         throw new Error("Respuesta incompleta");
       }
       if (!validFondos.includes(copy.fondo)) {
-        copy.fondo = "espiritual-conferencia";
+        // Fallback by type
+        const fallbacks: Record<string, string> = {
+          deportiva: "energetico-deportes",
+          fiesta: "festivo-fiesta",
+          hermanamiento: "calido-hermanamiento",
+          capacitacion: "espiritual-conferencia",
+          servicio_bautismal: "solemne-bautismo",
+          actividad_org: "espiritual-conferencia",
+        };
+        copy.fondo = fallbacks[activity.type ?? "otro"] ?? "espiritual-conferencia";
       }
 
       copy.fecha_display = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
       copy.hora_display = horaPrompt + " hrs";
+      copy.address = meetingAddress || activity.location || "";
 
       res.json(copy);
     } catch (err: any) {
@@ -7900,6 +7967,44 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
       res.status(500).json({ error: err.message ?? "Error al generar copy" });
     }
   });
+
+  // ── POST /api/activities/:id/reservation-receipt ────────────────────────────
+  // Upload reservation receipt image for logistics
+  app.post("/api/activities/:id/reservation-receipt", requireAuth,
+    multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }).single("receipt"),
+    async (req: Request, res: Response) => {
+      try {
+        const user = (req as any).user;
+        const activity = await storage.getActivity(req.params.id);
+        if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+        const isObispado = ["obispo", "consejero_obispo"].includes(user.role);
+        const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(user.role);
+        if (!isObispado && !(isOrgMember && activity.organizationId === user.organizationId)) {
+          return res.status(403).json({ error: "Sin permiso" });
+        }
+
+        if (!req.file) return res.status(400).json({ error: "No se recibió archivo" });
+
+        const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
+        const filename = `activity-receipt-${req.params.id}-${Date.now()}.${ext}`;
+        const uploadDir = path.join(process.cwd(), "uploads", "receipts");
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+
+        const receiptUrl = `/uploads/receipts/${filename}`;
+        // Store the receipt URL in sectionData
+        const sectionData = (activity as any).sectionData ?? {};
+        sectionData.coord_espacio_comprobante = receiptUrl;
+        await storage.updateActivity(req.params.id, { sectionData } as any);
+
+        res.json({ receiptUrl });
+      } catch (err) {
+        res.status(500).json({ error: "Error al subir comprobante" });
+      }
+    }
+  );
 
   // ========================================
   // ASSIGNMENTS

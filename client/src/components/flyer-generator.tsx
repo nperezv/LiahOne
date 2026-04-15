@@ -32,12 +32,12 @@ interface FlyCopy {
   fondo: string;
   fecha_display: string;
   hora_display: string;
+  address?: string;
 }
 
-function FlyerCanvas({ copy, activityType, location }: {
+function FlyerCanvas({ copy, activityType }: {
   copy: FlyCopy;
   activityType: string;
-  location?: string | null;
 }) {
   const gold = "#D4AF37";
   const tipoLabel = TIPO_LABELS[activityType] ?? "Actividad";
@@ -189,7 +189,7 @@ function FlyerCanvas({ copy, activityType, location }: {
                 {copy.hora_display}
               </span>
             </div>
-            {location && (
+            {copy.address && (
               <span
                 style={{
                   fontFamily: "Outfit, sans-serif",
@@ -198,7 +198,7 @@ function FlyerCanvas({ copy, activityType, location }: {
                   fontWeight: 400,
                 }}
               >
-                {location}
+                {copy.address}
               </span>
             )}
           </div>
@@ -235,7 +235,7 @@ interface FlyerGeneratorProps {
   activityId: string;
   flyerUrl?: string | null;
   canUpload: boolean;
-  activity: { type: string; location?: string | null };
+  activity: { type: string };
 }
 
 export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: FlyerGeneratorProps) {
@@ -354,7 +354,6 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
             <FlyerCanvas
               copy={copy}
               activityType={activity.type}
-              location={activity.location}
             />
           </div>
         </div>
@@ -394,7 +393,6 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
                   <FlyerCanvas
                     copy={copy}
                     activityType={activity.type}
-                    location={activity.location}
                   />
                 </div>
               </div>

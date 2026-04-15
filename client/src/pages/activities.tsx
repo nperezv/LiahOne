@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink, Upload, FileCheck } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
 import { normalizeMemberName } from "@/lib/utils";
@@ -70,6 +70,7 @@ const activitySchema = z.object({
   organizationId: z.string().optional(),
   type: z.enum(["servicio_bautismal", "deportiva", "capacitacion", "fiesta", "hermanamiento", "actividad_org", "otro"]),
   isPublic: z.boolean().default(false),
+  requiresRegistration: z.boolean().default(false),
 });
 
 type ActivityFormValues = z.infer<typeof activitySchema>;
@@ -184,6 +185,9 @@ const FIELD_META: Record<string, { type: FieldType; placeholder?: string; inputK
 
 // Types that require at least one message AND hymns in the program
 const TYPES_REQUIRING_MSG_AND_HYMNS = ["capacitacion", "hermanamiento"];
+// Types that don't use hymns or discourses (their checklist doesn't include them)
+const TYPES_WITHOUT_HYMNS = ["deportiva", "fiesta"];
+const HYMN_AND_MSG_KEYS = new Set(["prog_himno_apertura", "prog_himno_cierre", "prog_mensaje_1"]);
 
 // Required keys per section — completing these unlocks the next section
 const PROG_REQUIRED_BASE = ["prog_preside", "prog_dirige", "prog_oracion_apertura", "prog_oracion_cierre"];
@@ -194,6 +198,12 @@ function getProgRequired(activityType: string) {
   return TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType)
     ? PROG_REQUIRED_WITH_MSG
     : PROG_REQUIRED_BASE;
+}
+
+// Whether a checklist item is optional (doesn't count toward progress) for the given type
+function isOptionalKey(itemKey: string, activityType: string): boolean {
+  if (HYMN_AND_MSG_KEYS.has(itemKey) && !TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType)) return true;
+  return false;
 }
 
 // ── SectionPanel — editable sections that auto-complete checklist items ───────
@@ -289,6 +299,8 @@ function CoordSectionForm({
   };
 
   const [espacioNotas, setEspacioNotas] = useState(sectionData["coord_espacio_notas"] ?? "");
+  const [receiptUrl, setReceiptUrl] = useState(sectionData["coord_espacio_comprobante"] ?? "");
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [arregloTasks, setArregloTasks] = useState<ArregloTask[]>(
     () => parseArr("coord_arreglo_tasks", [{ persona: "", asignacion: "" }])
   );
@@ -307,6 +319,30 @@ function CoordSectionForm({
     () => parseArr("coord_limpieza_responsables", [""])
   );
   const [limpiezaNotas, setLimpiezaNotas] = useState(sectionData["coord_limpieza_notas"] ?? "");
+
+  async function uploadReceipt(file: File) {
+    setUploadingReceipt(true);
+    try {
+      const form = new FormData();
+      form.append("receipt", file);
+      const token = getAccessToken();
+      const res = await fetch(`/api/activities/${activityId}/reservation-receipt`, {
+        method: "POST",
+        body: form,
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Error al subir");
+      const data = await res.json();
+      setReceiptUrl(data.receiptUrl);
+      qc.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({ title: "Comprobante subido" });
+    } catch {
+      toast({ title: "Error al subir comprobante", variant: "destructive" });
+    } finally {
+      setUploadingReceipt(false);
+    }
+  }
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -393,6 +429,29 @@ function CoordSectionForm({
                 <Textarea className="text-sm min-h-[56px] resize-none"
                   placeholder="Ej: Salón cultural reservado para el sábado 9h-12h"
                   value={espacioNotas} onChange={e => setEspacioNotas(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground block">Comprobante de reserva</Label>
+                {receiptUrl ? (
+                  <div className="flex items-center gap-2">
+                    <a href={receiptUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                      <FileCheck className="h-3.5 w-3.5" /> Ver comprobante
+                    </a>
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                      <RefreshCw className="h-3 w-3" /> Reemplazar
+                      <input type="file" accept="image/*,application/pdf" className="hidden"
+                        onChange={e => { if (e.target.files?.[0]) uploadReceipt(e.target.files[0]); }} />
+                    </label>
+                  </div>
+                ) : (
+                  <label className={`flex items-center gap-1.5 text-xs cursor-pointer w-fit rounded border px-2 py-1.5 transition-colors ${uploadingReceipt ? "opacity-50" : "hover:bg-accent"}`}>
+                    {uploadingReceipt ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    {uploadingReceipt ? "Subiendo..." : "Subir comprobante"}
+                    <input type="file" accept="image/*,application/pdf" className="hidden" disabled={uploadingReceipt}
+                      onChange={e => { if (e.target.files?.[0]) uploadReceipt(e.target.files[0]); }} />
+                  </label>
+                )}
               </div>
             </div>
           </AccordionContent>
@@ -880,8 +939,8 @@ function SectionPanel({
   for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
 
   const sections = (["programa", "coordinacion"] as const).filter(s => bySection[s].length > 0);
-  const totalCompleted = items.filter(i => i.completed && i.itemKey !== "prog_flyer").length;
-  const totalRequired  = items.filter(i => i.itemKey !== "prog_flyer").length;
+  const totalCompleted = items.filter(i => i.completed && i.itemKey !== "prog_flyer" && !isOptionalKey(i.itemKey, activityType)).length;
+  const totalRequired  = items.filter(i => i.itemKey !== "prog_flyer" && !isOptionalKey(i.itemKey, activityType)).length;
 
   // Sequential locking: coordinacion unlocks only after programa is complete
   const isCompleted = (keys: string[]) => keys.every(k => {
@@ -910,8 +969,8 @@ function SectionPanel({
       {sections.map(sec => {
         const cfg = SECTION_CONFIG[sec];
         const secItems = bySection[sec];
-        const secCompleted = secItems.filter(i => i.completed && i.itemKey !== "prog_flyer").length;
-        const secTotal    = secItems.filter(i => i.itemKey !== "prog_flyer").length;
+        const secCompleted = secItems.filter(i => i.completed && i.itemKey !== "prog_flyer" && !isOptionalKey(i.itemKey, activityType)).length;
+        const secTotal    = secItems.filter(i => i.itemKey !== "prog_flyer" && !isOptionalKey(i.itemKey, activityType)).length;
         const allDone = secCompleted === secTotal && secTotal > 0;
         const locked  = sectionLocked[sec];
 
@@ -1083,13 +1142,17 @@ function BasicEditForm({ activity, onCancel }: { activity: any; onCancel: () => 
     date: activity.date ? activity.date.slice(0, 16) : "",
     location: activity.location ?? "",
     isPublic: activity.isPublic ?? false,
+    requiresRegistration: activity.requiresRegistration ?? false,
+    type: activity.type ?? "otro",
   });
+
+  const typeChanged = fields.type !== activity.type;
 
   const mut = useMutation({
     mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/basic`, fields),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/activities"] });
-      toast({ title: "Actividad actualizada" });
+      toast({ title: typeChanged ? "Tipo actualizado — el checklist se regeneró" : "Actividad actualizada" });
       onCancel();
     },
     onError: () => toast({ title: "Error al guardar", variant: "destructive" }),
@@ -1116,12 +1179,36 @@ function BasicEditForm({ activity, onCancel }: { activity: any; onCancel: () => 
           <Input value={fields.location} onChange={e => setFields(f => ({ ...f, location: e.target.value }))} />
         </div>
       </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Tipo de actividad</label>
+        <Select value={fields.type} onValueChange={v => setFields(f => ({ ...f, type: v }))}>
+          <SelectTrigger className="text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(ACTIVITY_TYPE_LABELS).map(([val, lbl]) => (
+              <SelectItem key={val} value={val}>{lbl}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {typeChanged && (
+          <p className="text-xs text-amber-600">Al guardar, el checklist de preparación se regenerará para este tipo.</p>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <input type="checkbox" id="basic-public" className="h-4 w-4 accent-primary" checked={fields.isPublic} onChange={e => setFields(f => ({ ...f, isPublic: e.target.checked }))} />
         <label htmlFor="basic-public" className="text-sm cursor-pointer flex items-center gap-1.5">
           <Globe className="h-3.5 w-3.5 text-muted-foreground" /> Publicar en landing pública
         </label>
       </div>
+      {fields.isPublic && (
+        <div className="flex items-center gap-2 pl-5">
+          <input type="checkbox" id="basic-registration" className="h-4 w-4 accent-primary" checked={fields.requiresRegistration} onChange={e => setFields(f => ({ ...f, requiresRegistration: e.target.checked }))} />
+          <label htmlFor="basic-registration" className="text-sm cursor-pointer text-muted-foreground">
+            Requiere inscripción previa
+          </label>
+        </div>
+      )}
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={() => mut.mutate()} disabled={mut.isPending}>
           {mut.isPending ? "Guardando…" : "Guardar"}
@@ -1364,6 +1451,7 @@ export default function ActivitiesPage() {
         organizationId: organizationId,
         type: data.type,
         isPublic: data.isPublic,
+        requiresRegistration: data.requiresRegistration,
         responsiblePerson: user?.name || "Sin asignar",
       },
       {
@@ -1569,6 +1657,29 @@ export default function ActivitiesPage() {
                         </FormItem>
                       )}
                     />
+
+                    {form.watch("isPublic") && (
+                      <FormField
+                        control={form.control}
+                        name="requiresRegistration"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center gap-3 rounded-lg border border-dashed p-3 ml-4">
+                            <FormControl>
+                              <input
+                                type="checkbox"
+                                checked={field.value}
+                                onChange={field.onChange}
+                                className="h-4 w-4 accent-primary"
+                                id="requires-reg-checkbox"
+                              />
+                            </FormControl>
+                            <FormLabel htmlFor="requires-reg-checkbox" className="cursor-pointer font-normal text-sm text-muted-foreground">
+                              Requiere inscripción previa
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel">

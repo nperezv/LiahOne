@@ -466,6 +466,14 @@ const PROG_BASE_ITEMS = [
   { key: "prog_oracion_cierre",   label: "Última oración",      sort: 8 },
   { key: "prog_flyer",            label: "Flyer",               sort: 9 },
 ];
+// Sin himnos — para actividades deportivas, fiestas, etc.
+const PROG_SIN_HIMNOS = [
+  { key: "prog_preside",          label: "Preside",             sort: 1 },
+  { key: "prog_dirige",           label: "Dirige",              sort: 2 },
+  { key: "prog_oracion_apertura", label: "Oración de apertura", sort: 4 },
+  { key: "prog_oracion_cierre",   label: "Última oración",      sort: 8 },
+  { key: "prog_flyer",            label: "Flyer",               sort: 9 },
+];
 // Tipos donde mensaje e himnos son REQUERIDOS (capacitación y hermanamiento)
 const PROG_CON_MENSAJE = [
   { key: "prog_preside",          label: "Preside",             sort: 1 },
@@ -479,6 +487,8 @@ const PROG_CON_MENSAJE = [
 ];
 // Exported so frontend knows which types require message+hymns
 export const TYPES_REQUIRING_MSG_AND_HYMNS = ["capacitacion", "hermanamiento"] as const;
+// Exported so frontend knows which types DON'T use hymns (no required hymns in checklist)
+export const TYPES_WITHOUT_HYMNS = ["deportiva", "fiesta"] as const;
 export const COORD_BASE_ITEMS = [
   { key: "coord_espacio",    label: "Reserva de ambientes",  sort: 11 },
   { key: "coord_arreglo",    label: "Arreglo y preparación", sort: 12 },
@@ -491,12 +501,12 @@ const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort
   actividad_org:  [...PROG_BASE_ITEMS,  ...COORD_BASE_ITEMS],
   hermanamiento:  [...PROG_CON_MENSAJE, ...COORD_BASE_ITEMS],
   fiesta: [
-    ...PROG_BASE_ITEMS,
+    ...PROG_SIN_HIMNOS,
     ...COORD_BASE_ITEMS,
     { key: "coord_decoracion", label: "Decoración", sort: 16 },
   ],
   deportiva: [
-    ...PROG_BASE_ITEMS,
+    ...PROG_SIN_HIMNOS,
     ...COORD_BASE_ITEMS,
     { key: "coord_equipos",    label: "Equipos/participantes",  sort: 16 },
     { key: "coord_arbitros",   label: "Árbitros/coordinadores", sort: 17 },
