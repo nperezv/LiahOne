@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A0E08"/>
+      <stop offset="40%" stop-color="#220F08"/>
+      <stop offset="100%" stop-color="#120A06"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#C0622A" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#C0622A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="25%" cy="75%" r="40%">
+      <stop offset="0%" stop-color="#E8A87C" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#E8A87C" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx="80%" cy="65%" r="35%">
+      <stop offset="0%" stop-color="#8B4513" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#8B4513" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softblur"><feGaussianBlur stdDeviation="20"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="768" rx="620" ry="520" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="270" cy="1440" rx="460" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="864" cy="1248" rx="420" ry="360" fill="url(#g3)" filter="url(#blur)"/>
+
+  <!-- Organic curved lines (warmth, embrace) -->
+  <g stroke="#E8A87C" stroke-width="1" fill="none" opacity="0.1">
+    <path d="M 0 800 Q 270 600 540 800 Q 810 1000 1080 800"/>
+    <path d="M 0 900 Q 270 700 540 900 Q 810 1100 1080 900"/>
+    <path d="M 0 1000 Q 270 800 540 1000 Q 810 1200 1080 1000"/>
+    <path d="M 0 700 Q 270 500 540 700 Q 810 900 1080 700"/>
+  </g>
+
+  <!-- Warm circular motif center -->
+  <g transform="translate(540,800)" fill="none">
+    <circle cx="0" cy="0" r="280" stroke="#C0622A" stroke-width="1" opacity="0.1"/>
+    <circle cx="0" cy="0" r="220" stroke="#E8A87C" stroke-width="1" opacity="0.14"/>
+    <circle cx="0" cy="0" r="160" stroke="#C0622A" stroke-width="1.5" opacity="0.18"/>
+    <circle cx="0" cy="0" r="100" stroke="#E8A87C" stroke-width="2" opacity="0.22"/>
+    <circle cx="0" cy="0" r="50" fill="#C0622A" opacity="0.06"/>
+    <circle cx="0" cy="0" r="20" fill="#E8A87C" opacity="0.1"/>
+  </g>
+
+  <!-- Leaf / botanical shapes -->
+  <g opacity="0.1" fill="#C0622A">
+    <ellipse cx="120" cy="400" rx="40" ry="80" transform="rotate(-30 120 400)"/>
+    <ellipse cx="80" cy="500" rx="30" ry="60" transform="rotate(20 80 500)"/>
+    <ellipse cx="960" cy="350" rx="40" ry="80" transform="rotate(30 960 350)"/>
+    <ellipse cx="1000" cy="480" rx="30" ry="60" transform="rotate(-20 1000 480)"/>
+    <ellipse cx="100" cy="1400" rx="35" ry="70" transform="rotate(-40 100 1400)"/>
+    <ellipse cx="980" cy="1500" rx="35" ry="70" transform="rotate(40 980 1500)"/>
+  </g>
+
+  <!-- Warm dots -->
+  <g fill="#E8A87C">
+    <circle cx="200" cy="250" r="3" opacity="0.4"/>
+    <circle cx="850" cy="200" r="4" opacity="0.35"/>
+    <circle cx="150" cy="700" r="3" opacity="0.4"/>
+    <circle cx="950" cy="600" r="4" opacity="0.35"/>
+    <circle cx="300" cy="1200" r="3" opacity="0.35"/>
+    <circle cx="800" cy="1350" r="4" opacity="0.4"/>
+    <circle cx="400" cy="1700" r="3" opacity="0.35"/>
+    <circle cx="700" cy="1600" r="4" opacity="0.4"/>
+    <circle cx="550" cy="300" r="3" opacity="0.4"/>
+    <circle cx="100" cy="1100" r="4" opacity="0.35"/>
+    <circle cx="1000" cy="1200" r="3" opacity="0.35"/>
+  </g>
+
+  <!-- Small stars/sparkles -->
+  <g fill="#E8A87C" opacity="0.35">
+    <polygon points="350,500 355,515 370,515 358,524 363,539 350,530 337,539 342,524 330,515 345,515"/>
+    <polygon points="750,1100 754,1112 766,1112 756,1119 760,1131 750,1124 740,1131 744,1119 734,1112 746,1112"/>
+    <polygon points="200,1600 204,1610 214,1610 206,1616 209,1626 200,1620 191,1626 194,1616 186,1610 196,1610"/>
+  </g>
+
+  <defs>
+    <linearGradient id="warmline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C0622A" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C0622A" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#C0622A" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#warmline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#warmline)"/>
+
+</svg>

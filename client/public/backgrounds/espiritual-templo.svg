@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0A0F1E"/>
+      <stop offset="50%" stop-color="#0D1628"/>
+      <stop offset="100%" stop-color="#060B14"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="50%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="50%" cy="70%" r="40%">
+      <stop offset="0%" stop-color="#1A3A6E" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1A3A6E" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur1"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="blur2"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <!-- Base background -->
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+
+  <!-- Ambient glows -->
+  <ellipse cx="540" cy="580" rx="600" ry="400" fill="url(#glow1)" filter="url(#blur2)"/>
+  <ellipse cx="540" cy="1400" rx="500" ry="350" fill="url(#glow2)" filter="url(#blur2)"/>
+
+  <!-- Star field -->
+  <g opacity="0.6">
+    <circle cx="120" cy="180" r="1.5" fill="#E8D5A3"/>
+    <circle cx="340" cy="95" r="1" fill="#E8D5A3"/>
+    <circle cx="680" cy="140" r="2" fill="#E8D5A3"/>
+    <circle cx="890" cy="210" r="1.5" fill="#E8D5A3"/>
+    <circle cx="960" cy="80" r="1" fill="#C9A96E"/>
+    <circle cx="200" cy="420" r="1" fill="#E8D5A3"/>
+    <circle cx="450" cy="310" r="1.5" fill="#C9A96E"/>
+    <circle cx="780" cy="380" r="1" fill="#E8D5A3"/>
+    <circle cx="1020" cy="450" r="2" fill="#E8D5A3"/>
+    <circle cx="60" cy="600" r="1" fill="#C9A96E"/>
+    <circle cx="310" cy="550" r="1.5" fill="#E8D5A3"/>
+    <circle cx="840" cy="520" r="1" fill="#E8D5A3"/>
+    <circle cx="70" cy="1200" r="1.5" fill="#E8D5A3"/>
+    <circle cx="980" cy="1100" r="1" fill="#C9A96E"/>
+    <circle cx="150" cy="1500" r="2" fill="#E8D5A3"/>
+    <circle cx="950" cy="1600" r="1.5" fill="#E8D5A3"/>
+  </g>
+
+  <!-- Light rays from top center -->
+  <g opacity="0.07" filter="url(#blur1)">
+    <polygon points="540,0 200,1920 480,1920" fill="#C9A96E"/>
+    <polygon points="540,0 580,1920 680,1920" fill="#C9A96E"/>
+    <polygon points="540,0 100,1920 300,1920" fill="#C9A96E"/>
+    <polygon points="540,0 750,1920 900,1920" fill="#C9A96E"/>
+  </g>
+
+  <!-- Central golden circle / emanating rings -->
+  <g filter="url(#softglow)">
+    <circle cx="540" cy="720" r="280" fill="none" stroke="#C9A96E" stroke-width="1" opacity="0.12"/>
+    <circle cx="540" cy="720" r="220" fill="none" stroke="#C9A96E" stroke-width="1" opacity="0.18"/>
+    <circle cx="540" cy="720" r="160" fill="none" stroke="#C9A96E" stroke-width="1.5" opacity="0.25"/>
+    <circle cx="540" cy="720" r="100" fill="none" stroke="#C9A96E" stroke-width="2" opacity="0.35"/>
+    <circle cx="540" cy="720" r="50" fill="#C9A96E" opacity="0.08"/>
+    <circle cx="540" cy="720" r="20" fill="#C9A96E" opacity="0.15"/>
+  </g>
+
+  <!-- Decorative horizontal lines -->
+  <line x1="0" y1="1600" x2="1080" y2="1600" stroke="#C9A96E" stroke-width="1" opacity="0.15"/>
+  <line x1="0" y1="1610" x2="1080" y2="1610" stroke="#C9A96E" stroke-width="0.5" opacity="0.08"/>
+
+  <!-- Bottom ornamental band -->
+  <rect x="0" y="1840" width="1080" height="80" fill="#C9A96E" opacity="0.06"/>
+
+  <!-- Top ornamental band -->
+  <rect x="0" y="0" width="1080" height="4" fill="url(#topline)"/>
+  <defs>
+    <linearGradient id="topline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="bottomline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="1916" width="1080" height="4" fill="url(#bottomline)"/>
+
+  <!-- Corner ornaments -->
+  <g opacity="0.25" stroke="#C9A96E" stroke-width="1.5" fill="none">
+    <path d="M 40 40 L 40 100 L 100 100"/>
+    <path d="M 1040 40 L 1040 100 L 980 100"/>
+    <path d="M 40 1880 L 40 1820 L 100 1820"/>
+    <path d="M 1040 1880 L 1040 1820 L 980 1820"/>
+  </g>
+
+  <!-- Subtle noise texture overlay -->
+  <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feBlend in="SourceGraphic" mode="overlay" result="blend"/><feComposite in="blend" in2="SourceGraphic" operator="in"/></filter>
+  <rect width="1080" height="1920" filter="url(#noise)" opacity="0.04"/>
+</svg>

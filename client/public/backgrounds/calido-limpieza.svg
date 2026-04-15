@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080C0A"/>
+      <stop offset="50%" stop-color="#0E1410"/>
+      <stop offset="100%" stop-color="#060A08"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#2E7D32" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#2E7D32" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="50%" cy="75%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="toplight" cx="50%" cy="20%" r="40%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="768" rx="620" ry="520" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1440" rx="580" ry="460" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="384" rx="450" ry="320" fill="url(#toplight)" filter="url(#blur)"/>
+
+  <!-- Clean grid lines (chapel floor tiles hint) -->
+  <g stroke="#2E7D32" stroke-width="0.6" opacity="0.08">
+    <line x1="0" y1="1400" x2="1080" y2="1400"/>
+    <line x1="0" y1="1500" x2="1080" y2="1500"/>
+    <line x1="0" y1="1600" x2="1080" y2="1600"/>
+    <line x1="0" y1="1700" x2="1080" y2="1700"/>
+    <line x1="0" y1="1800" x2="1080" y2="1800"/>
+    <line x1="180" y1="1400" x2="180" y2="1920"/>
+    <line x1="360" y1="1400" x2="360" y2="1920"/>
+    <line x1="540" y1="1400" x2="540" y2="1920"/>
+    <line x1="720" y1="1400" x2="720" y2="1920"/>
+    <line x1="900" y1="1400" x2="900" y2="1920"/>
+  </g>
+
+  <!-- Shine/sparkle effects (clean feeling) -->
+  <g filter="url(#softglow)" fill="white">
+    <polygon points="200,400 204,416 220,416 207,426 212,442 200,432 188,442 193,426 180,416 196,416" opacity="0.4"/>
+    <polygon points="880,500 884,514 898,514 886,523 890,537 880,528 870,537 874,523 862,514 876,514" opacity="0.35"/>
+    <polygon points="150,900 154,912 166,912 156,919 160,931 150,924 140,931 144,919 134,912 146,912" opacity="0.3"/>
+    <polygon points="930,1000 934,1012 946,1012 936,1019 940,1031 930,1024 920,1031 924,1019 914,1012 926,1012" opacity="0.3"/>
+  </g>
+
+  <!-- Radiating clean lines from center top -->
+  <g stroke="white" stroke-width="0.8" opacity="0.05">
+    <line x1="540" y1="300" x2="100" y2="1920"/>
+    <line x1="540" y1="300" x2="300" y2="1920"/>
+    <line x1="540" y1="300" x2="540" y2="1920"/>
+    <line x1="540" y1="300" x2="780" y2="1920"/>
+    <line x1="540" y1="300" x2="980" y2="1920"/>
+  </g>
+
+  <!-- Central rings -->
+  <g transform="translate(540,800)" fill="none" opacity="0.12">
+    <circle cx="0" cy="0" r="280" stroke="#2E7D32" stroke-width="1"/>
+    <circle cx="0" cy="0" r="220" stroke="#C9A96E" stroke-width="1"/>
+    <circle cx="0" cy="0" r="160" stroke="#2E7D32" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="100" stroke="#C9A96E" stroke-width="2"/>
+    <circle cx="0" cy="0" r="40" fill="#C9A96E" opacity="0.06"/>
+  </g>
+
+  <!-- Green and gold dots -->
+  <g fill="#C9A96E">
+    <circle cx="180" cy="250" r="2.5" opacity="0.45"/>
+    <circle cx="900" cy="230" r="2" opacity="0.4"/>
+    <circle cx="100" cy="700" r="2.5" opacity="0.4"/>
+    <circle cx="980" cy="650" r="2" opacity="0.35"/>
+    <circle cx="250" cy="1200" r="2.5" opacity="0.35"/>
+    <circle cx="830" cy="1300" r="2" opacity="0.35"/>
+    <circle cx="180" cy="1600" r="2.5" opacity="0.3"/>
+    <circle cx="900" cy="1650" r="2" opacity="0.3"/>
+  </g>
+  <g fill="#2E7D32">
+    <circle cx="350" cy="400" r="2" opacity="0.35"/>
+    <circle cx="730" cy="380" r="2.5" opacity="0.35"/>
+    <circle cx="300" cy="900" r="2" opacity="0.3"/>
+    <circle cx="780" cy="950" r="2.5" opacity="0.3"/>
+    <circle cx="400" cy="1500" r="2" opacity="0.25"/>
+    <circle cx="680" cy="1550" r="2.5" opacity="0.25"/>
+  </g>
+
+  <defs>
+    <linearGradient id="cleanline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2E7D32" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#2E7D32" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#cleanline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#cleanline)"/>
+</svg>

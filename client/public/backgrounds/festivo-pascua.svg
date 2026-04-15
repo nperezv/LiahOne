@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060C06"/>
+      <stop offset="40%" stop-color="#0A1208"/>
+      <stop offset="100%" stop-color="#040804"/>
+    </linearGradient>
+    <radialGradient id="sunrise" cx="50%" cy="60%" r="55%">
+      <stop offset="0%" stop-color="#F5C842" stop-opacity="0.2"/>
+      <stop offset="60%" stop-color="#4A9E4A" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#4A9E4A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="50%" cy="20%" r="40%">
+      <stop offset="0%" stop-color="#2D6E2D" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#2D6E2D" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="1152" rx="650" ry="550" fill="url(#sunrise)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="384" rx="580" ry="440" fill="url(#g2)" filter="url(#blur)"/>
+
+  <!-- Rising sun rays -->
+  <g transform="translate(540,1100)" opacity="0.08" fill="#F5C842">
+    <polygon points="0,0 -20,-600 20,-600"/>
+    <polygon points="0,0 -200,-570 -160,-570"/>
+    <polygon points="0,0 -380,-460 -340,-480"/>
+    <polygon points="0,0 200,-570 160,-570"/>
+    <polygon points="0,0 380,-460 340,-480"/>
+    <polygon points="0,0 -500,-300 -480,-340"/>
+    <polygon points="0,0 500,-300 480,-340"/>
+  </g>
+
+  <!-- Horizon glow -->
+  <defs>
+    <linearGradient id="horizon" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F5C842" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#F5C842" stop-opacity="0.12"/>
+      <stop offset="50%" stop-color="#F5C842" stop-opacity="0.18"/>
+      <stop offset="70%" stop-color="#F5C842" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#F5C842" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="1050" width="1080" height="100" fill="url(#horizon)"/>
+
+  <!-- Flower petals scattered (abstract circles) -->
+  <g fill="none" stroke="#4A9E4A" stroke-width="1" opacity="0.1">
+    <circle cx="180" cy="400" r="25"/>
+    <circle cx="900" cy="350" r="20"/>
+    <circle cx="120" cy="900" r="18"/>
+    <circle cx="960" cy="800" r="22"/>
+    <circle cx="300" cy="1400" r="20"/>
+    <circle cx="780" cy="1500" r="18"/>
+  </g>
+
+  <!-- Small petal dots -->
+  <g fill="#4A9E4A" opacity="0.25">
+    <circle cx="160" cy="380" r="4"/>
+    <circle cx="200" cy="360" r="3"/>
+    <circle cx="180" cy="420" r="3.5"/>
+    <circle cx="140" cy="410" r="3"/>
+    <circle cx="220" cy="400" r="4"/>
+
+    <circle cx="880" cy="330" r="3.5"/>
+    <circle cx="920" cy="310" r="3"/>
+    <circle cx="900" cy="370" r="4"/>
+    <circle cx="860" cy="360" r="3"/>
+    <circle cx="940" cy="350" r="3.5"/>
+  </g>
+
+  <!-- Gold sparkles -->
+  <g fill="#F5C842" filter="url(#softglow)">
+    <circle cx="350" cy="200" r="2.5" opacity="0.5"/>
+    <circle cx="730" cy="180" r="2" opacity="0.45"/>
+    <circle cx="100" cy="600" r="2.5" opacity="0.4"/>
+    <circle cx="980" cy="550" r="2" opacity="0.4"/>
+    <circle cx="400" cy="1300" r="2.5" opacity="0.35"/>
+    <circle cx="700" cy="1400" r="2" opacity="0.35"/>
+    <circle cx="250" cy="1700" r="2.5" opacity="0.3"/>
+    <circle cx="850" cy="1650" r="2" opacity="0.3"/>
+    <circle cx="540" cy="900" r="3" opacity="0.4"/>
+  </g>
+
+  <!-- Butterfly wing hints (abstract) -->
+  <g fill="none" stroke="#F5C842" stroke-width="0.8" opacity="0.08">
+    <path d="M 200,700 Q 150,650 120,700 Q 150,750 200,700"/>
+    <path d="M 200,700 Q 250,650 280,700 Q 250,750 200,700"/>
+    <path d="M 880,800 Q 830,750 800,800 Q 830,850 880,800"/>
+    <path d="M 880,800 Q 930,750 960,800 Q 930,850 880,800"/>
+  </g>
+
+  <defs>
+    <linearGradient id="springline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4A9E4A" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#F5C842" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#4A9E4A" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#springline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#springline)"/>
+</svg>

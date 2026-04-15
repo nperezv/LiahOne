@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#050A10"/>
+      <stop offset="45%" stop-color="#081018"/>
+      <stop offset="100%" stop-color="#030810"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#0A3D6E" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#0A3D6E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="50%" cy="75%" r="45%">
+      <stop offset="0%" stop-color="#1565C0" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#1565C0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="toplight" cx="50%" cy="15%" r="35%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="waterblur"><feGaussianBlur stdDeviation="20"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="672" rx="600" ry="480" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1440" rx="580" ry="460" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="288" rx="400" ry="280" fill="url(#toplight)" filter="url(#waterblur)"/>
+
+  <!-- Water ripple rings -->
+  <g transform="translate(540,1100)" fill="none" opacity="0.12">
+    <ellipse cx="0" cy="0" rx="400" ry="80" stroke="#4A90D9" stroke-width="1"/>
+    <ellipse cx="0" cy="0" rx="340" ry="68" stroke="#6EB5FF" stroke-width="1"/>
+    <ellipse cx="0" cy="0" rx="280" ry="56" stroke="#4A90D9" stroke-width="1.5"/>
+    <ellipse cx="0" cy="0" rx="220" ry="44" stroke="#6EB5FF" stroke-width="1"/>
+    <ellipse cx="0" cy="0" rx="160" ry="32" stroke="#4A90D9" stroke-width="1.5"/>
+    <ellipse cx="0" cy="0" rx="100" ry="20" stroke="#6EB5FF" stroke-width="2"/>
+    <ellipse cx="0" cy="0" rx="50" ry="10" stroke="#4A90D9" stroke-width="2"/>
+  </g>
+
+  <!-- Light from above - descending shaft -->
+  <defs>
+    <linearGradient id="shaft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="70%" stop-color="#4A90D9" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#4A90D9" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <polygon points="360,0 720,0 660,1100 420,1100" fill="url(#shaft)"/>
+  <polygon points="450,0 630,0 600,1100 480,1100" fill="url(#shaft)" opacity="0.6"/>
+
+  <!-- Gentle water waves -->
+  <g stroke="#4A90D9" stroke-width="1" fill="none" opacity="0.1">
+    <path d="M 0,1300 Q 180,1260 360,1300 Q 540,1340 720,1300 Q 900,1260 1080,1300"/>
+    <path d="M 0,1340 Q 180,1300 360,1340 Q 540,1380 720,1340 Q 900,1300 1080,1340"/>
+    <path d="M 0,1380 Q 180,1340 360,1380 Q 540,1420 720,1380 Q 900,1340 1080,1380"/>
+    <path d="M 0,1420 Q 180,1380 360,1420 Q 540,1460 720,1420 Q 900,1380 1080,1420"/>
+    <path d="M 0,1460 Q 180,1420 360,1460 Q 540,1500 720,1460 Q 900,1420 1080,1460"/>
+    <path d="M 0,1500 Q 180,1460 360,1500 Q 540,1540 720,1500 Q 900,1460 1080,1500"/>
+  </g>
+
+  <!-- White light particles -->
+  <g fill="white">
+    <circle cx="480" cy="200" r="2" opacity="0.5"/>
+    <circle cx="520" cy="350" r="1.5" opacity="0.45"/>
+    <circle cx="500" cy="500" r="2" opacity="0.4"/>
+    <circle cx="540" cy="650" r="1.5" opacity="0.35"/>
+    <circle cx="460" cy="800" r="2" opacity="0.3"/>
+    <!-- Side stars -->
+    <circle cx="150" cy="300" r="1.5" opacity="0.3"/>
+    <circle cx="930" cy="250" r="1.5" opacity="0.3"/>
+    <circle cx="100" cy="700" r="1" opacity="0.25"/>
+    <circle cx="980" cy="600" r="1" opacity="0.25"/>
+    <circle cx="200" cy="1600" r="1.5" opacity="0.2"/>
+    <circle cx="880" cy="1700" r="1.5" opacity="0.2"/>
+  </g>
+
+  <!-- Blue sparkles -->
+  <g fill="#6EB5FF">
+    <circle cx="300" cy="500" r="2" opacity="0.35"/>
+    <circle cx="780" cy="400" r="2.5" opacity="0.3"/>
+    <circle cx="120" cy="1000" r="2" opacity="0.3"/>
+    <circle cx="960" cy="900" r="2.5" opacity="0.3"/>
+    <circle cx="400" cy="1500" r="2" opacity="0.25"/>
+    <circle cx="700" cy="1600" r="2.5" opacity="0.25"/>
+  </g>
+
+  <defs>
+    <linearGradient id="blueline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1565C0" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#1565C0" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#blueline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#blueline)"/>
+</svg>

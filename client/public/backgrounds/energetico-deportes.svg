@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0A0A"/>
+      <stop offset="50%" stop-color="#140800"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FF6B00" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#FF6B00" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="80%" cy="20%" r="35%">
+      <stop offset="0%" stop-color="#FF9500" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#FF9500" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="sharpglow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="864" rx="650" ry="550" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="864" cy="384" rx="400" ry="350" fill="url(#g2)" filter="url(#blur)"/>
+
+  <!-- Dynamic diagonal stripes -->
+  <g opacity="0.06" fill="#FF6B00">
+    <polygon points="0,0 200,0 0,400"/>
+    <polygon points="300,0 600,0 0,700 0,300"/>
+    <polygon points="700,0 1080,0 1080,500 400,1920 100,1920"/>
+    <polygon points="1080,800 1080,1200 600,1920 200,1920"/>
+  </g>
+
+  <!-- Speed lines / motion lines -->
+  <g stroke="#FF6B00" opacity="0.12" stroke-width="1">
+    <line x1="0" y1="600" x2="1080" y2="800"/>
+    <line x1="0" y1="700" x2="1080" y2="900"/>
+    <line x1="0" y1="750" x2="1080" y2="950"/>
+    <line x1="0" y1="800" x2="1080" y2="1000"/>
+    <line x1="0" y1="850" x2="1080" y2="1050"/>
+  </g>
+
+  <!-- Hexagon grid (sports feel) -->
+  <g stroke="#FF6B00" stroke-width="0.8" fill="none" opacity="0.08">
+    <!-- Row 1 -->
+    <polygon points="270,200 310,230 310,280 270,310 230,280 230,230"/>
+    <polygon points="370,200 410,230 410,280 370,310 330,280 330,230"/>
+    <polygon points="470,200 510,230 510,280 470,310 430,280 430,230"/>
+    <polygon points="570,200 610,230 610,280 570,310 530,280 530,230"/>
+    <polygon points="670,200 710,230 710,280 670,310 630,280 630,230"/>
+    <polygon points="770,200 810,230 810,280 770,310 730,280 730,230"/>
+    <!-- Row 2 -->
+    <polygon points="320,290 360,320 360,370 320,400 280,370 280,320"/>
+    <polygon points="420,290 460,320 460,370 420,400 380,370 380,320"/>
+    <polygon points="520,290 560,320 560,370 520,400 480,370 480,320"/>
+    <polygon points="620,290 660,320 660,370 620,400 580,370 580,320"/>
+    <polygon points="720,290 760,320 760,370 720,400 680,370 680,320"/>
+  </g>
+
+  <!-- Central energy burst -->
+  <g transform="translate(540,900)" filter="url(#sharpglow)">
+    <circle cx="0" cy="0" r="200" fill="none" stroke="#FF6B00" stroke-width="1" opacity="0.15"/>
+    <circle cx="0" cy="0" r="150" fill="none" stroke="#FF9500" stroke-width="1.5" opacity="0.2"/>
+    <circle cx="0" cy="0" r="100" fill="none" stroke="#FF6B00" stroke-width="2" opacity="0.25"/>
+    <circle cx="0" cy="0" r="50" fill="#FF6B00" opacity="0.08"/>
+    <circle cx="0" cy="0" r="20" fill="#FF9500" opacity="0.15"/>
+
+    <!-- Radiating lines -->
+    <g stroke="#FF6B00" stroke-width="1" opacity="0.15">
+      <line x1="0" y1="-200" x2="0" y2="-100"/>
+      <line x1="0" y1="100" x2="0" y2="200"/>
+      <line x1="-200" y1="0" x2="-100" y2="0"/>
+      <line x1="100" y1="0" x2="200" y2="0"/>
+      <line x1="-141" y1="-141" x2="-71" y2="-71"/>
+      <line x1="71" y1="71" x2="141" y2="141"/>
+      <line x1="141" y1="-141" x2="71" y2="-71"/>
+      <line x1="-71" y1="71" x2="-141" y2="141"/>
+    </g>
+  </g>
+
+  <!-- Scattered bright dots -->
+  <g fill="#FF9500">
+    <circle cx="150" cy="300" r="3" opacity="0.5"/>
+    <circle cx="900" cy="250" r="4" opacity="0.45"/>
+    <circle cx="80" cy="1000" r="3" opacity="0.4"/>
+    <circle cx="1000" cy="800" r="4" opacity="0.45"/>
+    <circle cx="300" cy="1500" r="3" opacity="0.4"/>
+    <circle cx="800" cy="1600" r="4" opacity="0.45"/>
+    <circle cx="500" cy="1750" r="3" opacity="0.4"/>
+    <circle cx="700" cy="400" r="3" opacity="0.5"/>
+    <circle cx="200" cy="700" r="4" opacity="0.4"/>
+    <circle cx="950" cy="1300" r="3" opacity="0.45"/>
+  </g>
+
+  <!-- Bottom accent line -->
+  <defs>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF6B00" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FF6B00" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#FF6B00" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#accent)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#accent)"/>
+
+</svg>

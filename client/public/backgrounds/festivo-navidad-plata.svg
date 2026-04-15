@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060C18"/>
+      <stop offset="50%" stop-color="#0A1428"/>
+      <stop offset="100%" stop-color="#040810"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="70%" cy="18%" r="20%">
+      <stop offset="0%" stop-color="#E8F0FF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#E8F0FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ground" cx="50%" cy="100%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="50"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="756" cy="346" rx="400" ry="300" fill="url(#moon)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1920" rx="800" ry="300" fill="url(#ground)" filter="url(#blur)"/>
+
+  <!-- Moon -->
+  <circle cx="780" cy="200" r="70" fill="#E8F0FF" opacity="0.06" filter="url(#blur)"/>
+
+  <!-- Snowflakes - elegant minimal -->
+  <g stroke="white" fill="none" opacity="0.5">
+    <!-- Large -->
+    <g transform="translate(200,350)">
+      <line x1="0" y1="-24" x2="0" y2="24" stroke-width="1.5"/>
+      <line x1="-24" y1="0" x2="24" y2="0" stroke-width="1.5"/>
+      <line x1="-17" y1="-17" x2="17" y2="17" stroke-width="1"/>
+      <line x1="17" y1="-17" x2="-17" y2="17" stroke-width="1"/>
+      <circle cx="0" cy="0" r="4" fill="white" opacity="0.6"/>
+      <!-- Barbs -->
+      <line x1="-8" y1="-20" x2="-14" y2="-14" stroke-width="0.8"/>
+      <line x1="8" y1="-20" x2="14" y2="-14" stroke-width="0.8"/>
+      <line x1="20" y1="-8" x2="14" y2="-14" stroke-width="0.8"/>
+      <line x1="20" y1="8" x2="14" y2="14" stroke-width="0.8"/>
+    </g>
+    <g transform="translate(850,500)">
+      <line x1="0" y1="-20" x2="0" y2="20" stroke-width="1.5"/>
+      <line x1="-20" y1="0" x2="20" y2="0" stroke-width="1.5"/>
+      <line x1="-14" y1="-14" x2="14" y2="14" stroke-width="1"/>
+      <line x1="14" y1="-14" x2="-14" y2="14" stroke-width="1"/>
+      <circle cx="0" cy="0" r="3" fill="white" opacity="0.6"/>
+    </g>
+    <g transform="translate(120,800)" opacity="0.4">
+      <line x1="0" y1="-16" x2="0" y2="16" stroke-width="1"/>
+      <line x1="-16" y1="0" x2="16" y2="0" stroke-width="1"/>
+      <line x1="-11" y1="-11" x2="11" y2="11" stroke-width="0.8"/>
+      <line x1="11" y1="-11" x2="-11" y2="11" stroke-width="0.8"/>
+    </g>
+    <g transform="translate(960,900)" opacity="0.4">
+      <line x1="0" y1="-18" x2="0" y2="18" stroke-width="1"/>
+      <line x1="-18" y1="0" x2="18" y2="0" stroke-width="1"/>
+      <line x1="-13" y1="-13" x2="13" y2="13" stroke-width="0.8"/>
+      <line x1="13" y1="-13" x2="-13" y2="13" stroke-width="0.8"/>
+    </g>
+    <g transform="translate(400,1300)" opacity="0.35">
+      <line x1="0" y1="-14" x2="0" y2="14" stroke-width="1"/>
+      <line x1="-14" y1="0" x2="14" y2="0" stroke-width="1"/>
+      <line x1="-10" y1="-10" x2="10" y2="10" stroke-width="0.8"/>
+      <line x1="10" y1="-10" x2="-10" y2="10" stroke-width="0.8"/>
+    </g>
+    <g transform="translate(750,1500)" opacity="0.35">
+      <line x1="0" y1="-16" x2="0" y2="16" stroke-width="1"/>
+      <line x1="-16" y1="0" x2="16" y2="0" stroke-width="1"/>
+      <line x1="-11" y1="-11" x2="11" y2="11" stroke-width="0.8"/>
+      <line x1="11" y1="-11" x2="-11" y2="11" stroke-width="0.8"/>
+    </g>
+  </g>
+
+  <!-- Snow dots falling -->
+  <g fill="white">
+    <circle cx="100" cy="200" r="2" opacity="0.4"/>
+    <circle cx="350" cy="150" r="1.5" opacity="0.35"/>
+    <circle cx="600" cy="250" r="2.5" opacity="0.45"/>
+    <circle cx="900" cy="180" r="1.5" opacity="0.35"/>
+    <circle cx="1050" cy="320" r="2" opacity="0.4"/>
+    <circle cx="50" cy="500" r="1.5" opacity="0.3"/>
+    <circle cx="700" cy="600" r="2" opacity="0.35"/>
+    <circle cx="300" cy="700" r="1.5" opacity="0.3"/>
+    <circle cx="1000" cy="700" r="2" opacity="0.35"/>
+    <circle cx="500" cy="1000" r="1.5" opacity="0.25"/>
+    <circle cx="200" cy="1200" r="2" opacity="0.25"/>
+    <circle cx="850" cy="1100" r="1.5" opacity="0.25"/>
+    <circle cx="650" cy="1400" r="2" opacity="0.2"/>
+    <circle cx="150" cy="1600" r="1.5" opacity="0.2"/>
+    <circle cx="950" cy="1500" r="2" opacity="0.2"/>
+    <circle cx="450" cy="1750" r="1.5" opacity="0.15"/>
+    <circle cx="750" cy="1800" r="2" opacity="0.15"/>
+  </g>
+
+  <!-- Silver pine silhouettes -->
+  <g fill="#C8D8F0" opacity="0.05">
+    <polygon points="80,1920 160,1920 120,1700"/>
+    <polygon points="60,1800 140,1800 100,1580"/>
+    <polygon points="920,1920 1020,1920 970,1680"/>
+    <polygon points="940,1780 1040,1780 990,1540"/>
+    <polygon points="0,1920 60,1920 30,1750"/>
+    <polygon points="1020,1920 1080,1920 1050,1750"/>
+  </g>
+
+  <!-- Snow ground -->
+  <ellipse cx="540" cy="1920" rx="900" ry="80" fill="white" opacity="0.04"/>
+
+  <!-- Silver star top -->
+  <g filter="url(#glow)" opacity="0.7">
+    <polygon points="540,440 548,464 574,464 553,480 561,504 540,488 519,504 527,480 506,464 532,464" fill="white" opacity="0.8"/>
+    <line x1="540" y1="400" x2="540" y2="430" stroke="white" stroke-width="1.5" opacity="0.5"/>
+    <line x1="540" y1="510" x2="540" y2="540" stroke="white" stroke-width="1.5" opacity="0.5"/>
+    <line x1="500" y1="472" x2="530" y2="472" stroke="white" stroke-width="1.5" opacity="0.5"/>
+    <line x1="550" y1="472" x2="580" y2="472" stroke="white" stroke-width="1.5" opacity="0.5"/>
+  </g>
+
+  <defs>
+    <linearGradient id="topbot" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C8D8F0" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C8D8F0" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#C8D8F0" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#topbot)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#topbot)"/>
+</svg>

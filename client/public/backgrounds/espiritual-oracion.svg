@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#08051A"/>
+      <stop offset="50%" stop-color="#0E0A22"/>
+      <stop offset="100%" stop-color="#05030F"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="30%" r="45%">
+      <stop offset="0%" stop-color="#6B4FA0" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#6B4FA0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="50%" cy="65%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lightbeam" cx="50%" cy="20%" r="30%">
+      <stop offset="0%" stop-color="#E8D5FF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#E8D5FF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="medblur"><feGaussianBlur stdDeviation="25"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="576" rx="600" ry="480" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1248" rx="560" ry="460" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="384" rx="350" ry="280" fill="url(#lightbeam)" filter="url(#medblur)"/>
+
+  <!-- Light shaft from above -->
+  <g opacity="0.06" fill="#C9A96E">
+    <polygon points="490,0 550,0 620,1920 460,1920"/>
+    <polygon points="510,0 530,0 570,1920 490,1920"/>
+  </g>
+
+  <!-- Mandala-like pattern -->
+  <g transform="translate(540,760)" fill="none" opacity="0.12">
+    <circle cx="0" cy="0" r="300" stroke="#6B4FA0" stroke-width="1"/>
+    <circle cx="0" cy="0" r="260" stroke="#C9A96E" stroke-width="0.8"/>
+    <circle cx="0" cy="0" r="220" stroke="#6B4FA0" stroke-width="1"/>
+    <circle cx="0" cy="0" r="180" stroke="#C9A96E" stroke-width="1"/>
+    <circle cx="0" cy="0" r="140" stroke="#6B4FA0" stroke-width="1.2"/>
+    <circle cx="0" cy="0" r="100" stroke="#C9A96E" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="60" stroke="#6B4FA0" stroke-width="2"/>
+    <circle cx="0" cy="0" r="20" fill="#C9A96E" opacity="0.15"/>
+
+    <!-- Radial spokes at 12 positions -->
+    <g stroke="#C9A96E" stroke-width="0.8" opacity="0.5">
+      <line x1="0" y1="-300" x2="0" y2="-60"/>
+      <line x1="0" y1="60" x2="0" y2="300"/>
+      <line x1="-300" y1="0" x2="-60" y2="0"/>
+      <line x1="60" y1="0" x2="300" y2="0"/>
+      <line x1="-212" y1="-212" x2="-42" y2="-42"/>
+      <line x1="42" y1="42" x2="212" y2="212"/>
+      <line x1="212" y1="-212" x2="42" y2="-42"/>
+      <line x1="-42" y1="42" x2="-212" y2="212"/>
+      <!-- 30deg intervals -->
+      <line x1="-150" y1="-260" x2="-30" y2="-52"/>
+      <line x1="30" y1="52" x2="150" y2="260"/>
+      <line x1="150" y1="-260" x2="30" y2="-52"/>
+      <line x1="-30" y1="52" x2="-150" y2="260"/>
+    </g>
+  </g>
+
+  <!-- Stars and dots -->
+  <g fill="#E8D5FF">
+    <circle cx="140" cy="180" r="1.5" opacity="0.5"/>
+    <circle cx="380" cy="120" r="1" opacity="0.4"/>
+    <circle cx="700" cy="200" r="2" opacity="0.55"/>
+    <circle cx="940" cy="150" r="1.5" opacity="0.45"/>
+    <circle cx="80" cy="400" r="1" opacity="0.35"/>
+    <circle cx="1000" cy="500" r="1.5" opacity="0.4"/>
+    <circle cx="250" cy="1400" r="1" opacity="0.3"/>
+    <circle cx="850" cy="1500" r="1.5" opacity="0.3"/>
+    <circle cx="500" cy="1700" r="1" opacity="0.25"/>
+  </g>
+
+  <g fill="#C9A96E">
+    <circle cx="200" cy="600" r="2" opacity="0.35"/>
+    <circle cx="880" cy="700" r="2.5" opacity="0.3"/>
+    <circle cx="120" cy="1100" r="2" opacity="0.3"/>
+    <circle cx="960" cy="1000" r="2.5" opacity="0.3"/>
+    <circle cx="400" cy="1600" r="2" opacity="0.25"/>
+    <circle cx="700" cy="1650" r="2.5" opacity="0.3"/>
+  </g>
+
+  <defs>
+    <linearGradient id="violetline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6B4FA0" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#6B4FA0" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#violetline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#violetline)"/>
+
+</svg>

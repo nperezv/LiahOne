@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E0900"/>
+      <stop offset="50%" stop-color="#150E04"/>
+      <stop offset="100%" stop-color="#080600"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#8B6914" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#8B6914" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="30%" cy="70%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softblur"><feGaussianBlur stdDeviation="15"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="864" rx="620" ry="520" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="324" cy="1440" rx="460" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+
+  <!-- Abstract family tree structure -->
+  <g stroke="#C9A96E" stroke-width="1" fill="none" opacity="0.12">
+    <!-- Root -->
+    <line x1="540" y1="1600" x2="540" y2="1200"/>
+    <!-- Main branches -->
+    <line x1="540" y1="1200" x2="320" y2="900"/>
+    <line x1="540" y1="1200" x2="760" y2="900"/>
+    <!-- Sub branches left -->
+    <line x1="320" y1="900" x2="200" y2="650"/>
+    <line x1="320" y1="900" x2="440" y2="650"/>
+    <!-- Sub branches right -->
+    <line x1="760" y1="900" x2="640" y2="650"/>
+    <line x1="760" y1="900" x2="880" y2="650"/>
+    <!-- Nodes -->
+    <circle cx="540" cy="1200" r="12"/>
+    <circle cx="320" cy="900" r="10"/>
+    <circle cx="760" cy="900" r="10"/>
+    <circle cx="200" cy="650" r="8"/>
+    <circle cx="440" cy="650" r="8"/>
+    <circle cx="640" cy="650" r="8"/>
+    <circle cx="880" cy="650" r="8"/>
+    <!-- Level 3 -->
+    <line x1="200" cy="650" x2="140" y2="450"/>
+    <line x1="200" y1="650" x2="140" y2="450"/>
+    <line x1="200" y1="650" x2="260" y2="450"/>
+    <line x1="440" y1="650" x2="380" y2="450"/>
+    <line x1="440" y1="650" x2="500" y2="450"/>
+    <line x1="640" y1="650" x2="580" y2="450"/>
+    <line x1="640" y1="650" x2="700" y2="450"/>
+    <line x1="880" y1="650" x2="820" y2="450"/>
+    <line x1="880" y1="650" x2="940" y2="450"/>
+    <circle cx="140" cy="450" r="6"/>
+    <circle cx="260" cy="450" r="6"/>
+    <circle cx="380" cy="450" r="6"/>
+    <circle cx="500" cy="450" r="6"/>
+    <circle cx="580" cy="450" r="6"/>
+    <circle cx="700" cy="450" r="6"/>
+    <circle cx="820" cy="450" r="6"/>
+    <circle cx="940" cy="450" r="6"/>
+    <!-- Level 4 small -->
+    <circle cx="110" cy="300" r="4"/>
+    <circle cx="170" cy="300" r="4"/>
+    <circle cx="230" cy="300" r="4"/>
+    <circle cx="290" cy="300" r="4"/>
+    <circle cx="350" cy="300" r="4"/>
+    <circle cx="460" cy="300" r="4"/>
+    <circle cx="540" cy="300" r="4"/>
+    <circle cx="620" cy="300" r="4"/>
+    <circle cx="680" cy="300" r="4"/>
+    <circle cx="750" cy="300" r="4"/>
+    <circle cx="850" cy="300" r="4"/>
+    <circle cx="970" cy="300" r="4"/>
+    <line x1="140" y1="450" x2="110" y2="300"/>
+    <line x1="140" y1="450" x2="170" y2="300"/>
+    <line x1="260" y1="450" x2="230" y2="300"/>
+    <line x1="260" y1="450" x2="290" y2="300"/>
+    <line x1="380" y1="450" x2="350" y2="300"/>
+    <line x1="500" y1="450" x2="460" y2="300"/>
+    <line x1="500" y1="450" x2="540" y2="300"/>
+    <line x1="580" y1="450" x2="620" y2="300"/>
+    <line x1="700" y1="450" x2="680" y2="300"/>
+    <line x1="700" y1="450" x2="750" y2="300"/>
+    <line x1="820" y1="450" x2="850" y2="300"/>
+    <line x1="940" y1="450" x2="970" y2="300"/>
+  </g>
+
+  <!-- Old map compass rose (abstract) -->
+  <g transform="translate(540,1750)" stroke="#C9A96E" stroke-width="1" fill="none" opacity="0.1">
+    <line x1="0" y1="-80" x2="0" y2="80"/>
+    <line x1="-80" y1="0" x2="80" y2="0"/>
+    <line x1="-57" y1="-57" x2="57" y2="57"/>
+    <line x1="57" y1="-57" x2="-57" y2="57"/>
+    <circle cx="0" cy="0" r="80"/>
+    <circle cx="0" cy="0" r="40"/>
+    <polygon points="0,-80 8,-30 0,-45 -8,-30" fill="#C9A96E" opacity="0.3"/>
+  </g>
+
+  <!-- Aged paper texture suggestion -->
+  <g opacity="0.04" fill="#C9A96E">
+    <rect x="0" y="0" width="1080" height="1920" fill="url(#texture)"/>
+  </g>
+
+  <!-- Horizontal scroll/document lines -->
+  <g stroke="#8B6914" stroke-width="0.5" opacity="0.08">
+    <line x1="80" y1="1750" x2="1000" y2="1750"/>
+    <line x1="80" y1="1770" x2="1000" y2="1770"/>
+    <line x1="80" y1="1790" x2="800" y2="1790"/>
+    <line x1="80" y1="1810" x2="700" y2="1810"/>
+    <line x1="80" y1="1830" x2="900" y2="1830"/>
+  </g>
+
+  <!-- Warm sparkles -->
+  <g fill="#C9A96E">
+    <circle cx="150" cy="200" r="2" opacity="0.4"/>
+    <circle cx="920" cy="180" r="2.5" opacity="0.35"/>
+    <circle cx="80" cy="800" r="2" opacity="0.35"/>
+    <circle cx="1000" cy="900" r="2.5" opacity="0.4"/>
+    <circle cx="300" cy="1650" r="2" opacity="0.35"/>
+    <circle cx="800" cy="1700" r="2.5" opacity="0.4"/>
+  </g>
+
+  <defs>
+    <linearGradient id="sepialine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B6914" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#8B6914" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#sepialine)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#sepialine)"/>
+
+</svg>

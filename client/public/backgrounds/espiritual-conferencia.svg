@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#080A12"/>
+      <stop offset="50%" stop-color="#0C1020"/>
+      <stop offset="100%" stop-color="#060810"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#1E3A6E" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1E3A6E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="50%" cy="75%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="672" rx="620" ry="500" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1440" rx="580" ry="460" fill="url(#g2)" filter="url(#blur)"/>
+
+  <!-- Sacred geometry - Flower of Life base -->
+  <g transform="translate(540,800)" fill="none" stroke="#C9A96E" opacity="0.08">
+    <circle cx="0" cy="0" r="120"/>
+    <circle cx="120" cy="0" r="120"/>
+    <circle cx="-120" cy="0" r="120"/>
+    <circle cx="60" cy="104" r="120"/>
+    <circle cx="-60" cy="104" r="120"/>
+    <circle cx="60" cy="-104" r="120"/>
+    <circle cx="-60" cy="-104" r="120"/>
+    <!-- Outer ring -->
+    <circle cx="0" cy="0" r="240" stroke-width="0.8" opacity="0.5"/>
+    <circle cx="0" cy="0" r="360" stroke-width="0.5" opacity="0.3"/>
+  </g>
+
+  <!-- Gothic arch silhouette -->
+  <g fill="none" stroke="#C9A96E" stroke-width="1" opacity="0.1">
+    <!-- Central arch -->
+    <path d="M 390,1920 L 390,900 Q 390,600 540,500 Q 690,600 690,900 L 690,1920"/>
+    <!-- Inner arch -->
+    <path d="M 430,1920 L 430,920 Q 430,650 540,560 Q 650,650 650,920 L 650,1920"/>
+    <!-- Side arches -->
+    <path d="M 150,1920 L 150,1100 Q 150,900 270,820 Q 390,900 390,1100"/>
+    <path d="M 690,1100 Q 690,900 810,820 Q 930,900 930,1100 L 930,1920"/>
+  </g>
+
+  <!-- Grid of sacred proportion -->
+  <g stroke="#1E3A6E" stroke-width="0.8" opacity="0.12">
+    <!-- Vertical thirds -->
+    <line x1="360" y1="0" x2="360" y2="1920"/>
+    <line x1="720" y1="0" x2="720" y2="1920"/>
+    <!-- Golden ratio horizontal -->
+    <line x1="0" y1="720" x2="1080" y2="720"/>
+    <line x1="0" y1="1200" x2="1080" y2="1200"/>
+  </g>
+
+  <!-- Decorative crosses -->
+  <g stroke="#C9A96E" stroke-width="1" fill="none" opacity="0.15">
+    <line x1="540" y1="100" x2="540" y2="200"/>
+    <line x1="490" y1="150" x2="590" y2="150"/>
+    <line x1="200" y1="1700" x2="200" y2="1800"/>
+    <line x1="150" y1="1750" x2="250" y2="1750"/>
+    <line x1="880" y1="1700" x2="880" y2="1800"/>
+    <line x1="830" y1="1750" x2="930" y2="1750"/>
+  </g>
+
+  <!-- Gold dust -->
+  <g fill="#C9A96E">
+    <circle cx="200" cy="300" r="1.5" opacity="0.4"/>
+    <circle cx="880" cy="280" r="2" opacity="0.35"/>
+    <circle cx="100" cy="800" r="1.5" opacity="0.35"/>
+    <circle cx="980" cy="750" r="2" opacity="0.35"/>
+    <circle cx="250" cy="1300" r="1.5" opacity="0.3"/>
+    <circle cx="830" cy="1400" r="2" opacity="0.3"/>
+    <circle cx="180" cy="1700" r="1.5" opacity="0.25"/>
+    <circle cx="900" cy="1650" r="2" opacity="0.25"/>
+    <circle cx="540" cy="200" r="2.5" opacity="0.4"/>
+  </g>
+
+  <defs>
+    <linearGradient id="navyline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1E3A6E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#1E3A6E" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#navyline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#navyline)"/>
+</svg>

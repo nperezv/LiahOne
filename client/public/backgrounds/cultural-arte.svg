@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080508"/>
+      <stop offset="50%" stop-color="#0A0810"/>
+      <stop offset="100%" stop-color="#060408"/>
+    </linearGradient>
+    <radialGradient id="r1" cx="20%" cy="30%" r="35%"><stop offset="0%" stop-color="#E91E8C" stop-opacity="0.15"/><stop offset="100%" stop-color="#E91E8C" stop-opacity="0"/></radialGradient>
+    <radialGradient id="r2" cx="80%" cy="25%" r="30%"><stop offset="0%" stop-color="#00BCD4" stop-opacity="0.15"/><stop offset="100%" stop-color="#00BCD4" stop-opacity="0"/></radialGradient>
+    <radialGradient id="r3" cx="50%" cy="55%" r="35%"><stop offset="0%" stop-color="#FF9800" stop-opacity="0.12"/><stop offset="100%" stop-color="#FF9800" stop-opacity="0"/></radialGradient>
+    <radialGradient id="r4" cx="15%" cy="75%" r="30%"><stop offset="0%" stop-color="#4CAF50" stop-opacity="0.12"/><stop offset="100%" stop-color="#4CAF50" stop-opacity="0"/></radialGradient>
+    <radialGradient id="r5" cx="85%" cy="70%" r="30%"><stop offset="0%" stop-color="#9C27B0" stop-opacity="0.15"/><stop offset="100%" stop-color="#9C27B0" stop-opacity="0"/></radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="216" cy="576" rx="450" ry="380" fill="url(#r1)" filter="url(#blur)"/>
+  <ellipse cx="864" cy="480" rx="380" ry="320" fill="url(#r2)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1056" rx="500" ry="420" fill="url(#r3)" filter="url(#blur)"/>
+  <ellipse cx="162" cy="1440" rx="380" ry="320" fill="url(#r4)" filter="url(#blur)"/>
+  <ellipse cx="918" cy="1344" rx="380" ry="320" fill="url(#r5)" filter="url(#blur)"/>
+
+  <!-- Brushstroke shapes -->
+  <g opacity="0.08">
+    <ellipse cx="200" cy="500" rx="120" ry="20" fill="#E91E8C" transform="rotate(-25 200 500)"/>
+    <ellipse cx="850" cy="600" rx="100" ry="18" fill="#00BCD4" transform="rotate(15 850 600)"/>
+    <ellipse cx="300" cy="1100" rx="90" ry="16" fill="#FF9800" transform="rotate(-10 300 1100)"/>
+    <ellipse cx="780" cy="1300" rx="110" ry="18" fill="#9C27B0" transform="rotate(20 780 1300)"/>
+    <ellipse cx="500" cy="800" rx="80" ry="15" fill="#4CAF50" transform="rotate(-30 500 800)"/>
+  </g>
+
+  <!-- Geometric art shapes - triangles, circles, squares -->
+  <g fill="none" opacity="0.1">
+    <polygon points="200,300 240,240 160,240" stroke="#E91E8C" stroke-width="1.5"/>
+    <circle cx="880" cy="400" r="35" stroke="#00BCD4" stroke-width="1.5"/>
+    <rect x="140" y="900" width="50" height="50" stroke="#FF9800" stroke-width="1.5" transform="rotate(15 165 925)"/>
+    <polygon points="900,1200 940,1140 860,1140" stroke="#9C27B0" stroke-width="1.5"/>
+    <circle cx="200" cy="1500" r="28" stroke="#4CAF50" stroke-width="1.5"/>
+    <rect x="820" y="1600" width="44" height="44" stroke="#E91E8C" stroke-width="1.5" transform="rotate(-10 842 622)"/>
+  </g>
+
+  <!-- Spiral in center -->
+  <g transform="translate(540,900)" fill="none" stroke="#C9A96E" opacity="0.08">
+    <path d="M 0,0 Q 50,0 50,50 Q 50,100 0,100 Q -100,100 -100,0 Q -100,-150 0,-150 Q 200,-150 200,0 Q 200,200 0,200"/>
+  </g>
+
+  <!-- Dots palette -->
+  <g>
+    <circle cx="160" cy="200" r="3" fill="#E91E8C" opacity="0.4"/>
+    <circle cx="920" cy="250" r="3" fill="#00BCD4" opacity="0.4"/>
+    <circle cx="80" cy="700" r="2.5" fill="#FF9800" opacity="0.35"/>
+    <circle cx="1000" cy="800" r="3" fill="#9C27B0" opacity="0.35"/>
+    <circle cx="300" cy="1300" r="2.5" fill="#4CAF50" opacity="0.35"/>
+    <circle cx="800" cy="1400" r="3" fill="#E91E8C" opacity="0.35"/>
+    <circle cx="200" cy="1700" r="2.5" fill="#00BCD4" opacity="0.3"/>
+    <circle cx="900" cy="1650" r="3" fill="#FF9800" opacity="0.3"/>
+    <circle cx="540" cy="300" r="3" fill="#C9A96E" opacity="0.4"/>
+    <circle cx="540" cy="1600" r="3" fill="#C9A96E" opacity="0.35"/>
+  </g>
+
+  <defs>
+    <linearGradient id="artline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E91E8C" stop-opacity="0"/>
+      <stop offset="25%" stop-color="#00BCD4" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#FF9800" stop-opacity="0.6"/>
+      <stop offset="75%" stop-color="#9C27B0" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#4CAF50" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#artline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#artline)"/>
+</svg>

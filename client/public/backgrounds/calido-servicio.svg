@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#080E08"/>
+      <stop offset="50%" stop-color="#0D1A0A"/>
+      <stop offset="100%" stop-color="#060C06"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#4A7C3F" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#4A7C3F" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="30%" cy="70%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx="75%" cy="60%" r="35%">
+      <stop offset="0%" stop-color="#2D5A27" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#2D5A27" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="768" rx="620" ry="520" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="324" cy="1344" rx="460" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="810" cy="1152" rx="420" ry="360" fill="url(#g3)" filter="url(#blur)"/>
+
+  <!-- Ground/earth horizon -->
+  <ellipse cx="540" cy="1920" rx="900" ry="200" fill="#4A7C3F" opacity="0.07"/>
+  <ellipse cx="540" cy="1920" rx="700" ry="140" fill="#4A7C3F" opacity="0.05"/>
+
+  <!-- Hand / community shapes (abstract) -->
+  <g opacity="0.08" fill="#4A7C3F">
+    <ellipse cx="200" cy="1000" rx="80" ry="30" transform="rotate(-15 200 1000)"/>
+    <ellipse cx="880" cy="900" rx="70" ry="25" transform="rotate(15 880 900)"/>
+  </g>
+
+  <!-- Organic dot clusters -->
+  <g fill="#C9A96E">
+    <circle cx="180" cy="320" r="2.5" opacity="0.45"/>
+    <circle cx="220" cy="280" r="1.5" opacity="0.35"/>
+    <circle cx="260" cy="340" r="2" opacity="0.4"/>
+
+    <circle cx="850" cy="400" r="2.5" opacity="0.45"/>
+    <circle cx="890" cy="360" r="1.5" opacity="0.35"/>
+    <circle cx="820" cy="440" r="2" opacity="0.4"/>
+
+    <circle cx="120" cy="1200" r="2" opacity="0.35"/>
+    <circle cx="160" cy="1160" r="1.5" opacity="0.3"/>
+
+    <circle cx="950" cy="1300" r="2.5" opacity="0.4"/>
+    <circle cx="990" cy="1260" r="1.5" opacity="0.3"/>
+
+    <circle cx="400" cy="1700" r="2" opacity="0.35"/>
+    <circle cx="700" cy="1650" r="2.5" opacity="0.4"/>
+  </g>
+
+  <!-- Growing circles motif -->
+  <g transform="translate(540,840)" fill="none">
+    <circle cx="0" cy="0" r="300" stroke="#4A7C3F" stroke-width="1" opacity="0.1"/>
+    <circle cx="0" cy="0" r="240" stroke="#C9A96E" stroke-width="1" opacity="0.12"/>
+    <circle cx="0" cy="0" r="180" stroke="#4A7C3F" stroke-width="1.5" opacity="0.15"/>
+    <circle cx="0" cy="0" r="120" stroke="#C9A96E" stroke-width="1.5" opacity="0.18"/>
+    <circle cx="0" cy="0" r="60" stroke="#4A7C3F" stroke-width="2" opacity="0.2"/>
+    <circle cx="0" cy="0" r="25" fill="#C9A96E" opacity="0.08"/>
+  </g>
+
+  <!-- Leaf patterns scattered -->
+  <g opacity="0.12" stroke="#4A7C3F" stroke-width="1" fill="none">
+    <ellipse cx="100" cy="500" rx="20" ry="45" transform="rotate(-25 100 500)"/>
+    <line x1="100" y1="455" x2="100" y2="545" stroke="#4A7C3F" stroke-width="0.8" opacity="0.5" transform="rotate(-25 100 500)"/>
+    <ellipse cx="980" cy="600" rx="20" ry="45" transform="rotate(25 980 600)"/>
+    <line x1="980" y1="555" x2="980" y2="645" stroke="#4A7C3F" stroke-width="0.8" opacity="0.5" transform="rotate(25 980 600)"/>
+    <ellipse cx="150" cy="1450" rx="18" ry="40" transform="rotate(-30 150 1450)"/>
+    <ellipse cx="930" cy="1550" rx="18" ry="40" transform="rotate(30 930 1550)"/>
+  </g>
+
+  <defs>
+    <linearGradient id="greenline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4A7C3F" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#4A7C3F" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#greenline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#greenline)"/>
+
+</svg>

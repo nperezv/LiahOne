@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080514"/>
+      <stop offset="50%" stop-color="#0E0820"/>
+      <stop offset="100%" stop-color="#050310"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#6B21A8" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#6B21A8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="25%" cy="70%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx="80%" cy="30%" r="35%">
+      <stop offset="0%" stop-color="#4C1D95" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#4C1D95" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="864" rx="620" ry="520" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="270" cy="1344" rx="460" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="864" cy="576" rx="400" ry="340" fill="url(#g3)" filter="url(#blur)"/>
+
+  <!-- Sound wave lines -->
+  <g stroke="#9D4EDD" stroke-width="1.5" fill="none" opacity="0.15">
+    <!-- Center waves expanding outward -->
+    <path d="M 0,960 Q 135,800 270,960 Q 405,1120 540,960 Q 675,800 810,960 Q 945,1120 1080,960"/>
+    <path d="M 0,960 Q 135,760 270,960 Q 405,1160 540,960 Q 675,760 810,960 Q 945,1160 1080,960"/>
+    <path d="M 0,960 Q 135,720 270,960 Q 405,1200 540,960 Q 675,720 810,960 Q 945,1200 1080,960"/>
+    <path d="M 0,960 Q 135,880 270,960 Q 405,1040 540,960 Q 675,880 810,960 Q 945,1040 1080,960" opacity="0.8"/>
+    <path d="M 0,960 Q 135,660 270,960 Q 405,1260 540,960 Q 675,660 810,960 Q 945,1260 1080,960" opacity="0.6"/>
+  </g>
+
+  <!-- Vertical equalizer bars -->
+  <g fill="#9D4EDD" opacity="0.1">
+    <rect x="80" y="700" width="12" height="260" rx="6"/>
+    <rect x="110" y="780" width="12" height="180" rx="6"/>
+    <rect x="140" y="650" width="12" height="310" rx="6"/>
+    <rect x="170" y="720" width="12" height="240" rx="6"/>
+    <rect x="200" y="800" width="12" height="160" rx="6"/>
+
+    <rect x="868" y="720" width="12" height="240" rx="6"/>
+    <rect x="898" y="760" width="12" height="200" rx="6"/>
+    <rect x="928" y="680" width="12" height="280" rx="6"/>
+    <rect x="958" y="740" width="12" height="220" rx="6"/>
+    <rect x="988" y="800" width="12" height="160" rx="6"/>
+  </g>
+
+  <!-- Musical note hints (abstract circles) -->
+  <g fill="none" stroke="#C9A96E" stroke-width="1" opacity="0.12">
+    <circle cx="300" cy="400" r="30"/>
+    <circle cx="780" cy="500" r="25"/>
+    <circle cx="200" cy="1300" r="20"/>
+    <circle cx="880" cy="1400" r="28"/>
+    <circle cx="540" cy="300" r="35"/>
+    <circle cx="540" cy="1600" r="30"/>
+  </g>
+
+  <!-- Scattered dots -->
+  <g fill="#C9A96E">
+    <circle cx="150" cy="250" r="2.5" opacity="0.4"/>
+    <circle cx="900" cy="200" r="2" opacity="0.35"/>
+    <circle cx="80" cy="700" r="2.5" opacity="0.35"/>
+    <circle cx="1000" cy="650" r="2" opacity="0.35"/>
+    <circle cx="300" cy="1200" r="2.5" opacity="0.3"/>
+    <circle cx="800" cy="1300" r="2" opacity="0.3"/>
+    <circle cx="200" cy="1700" r="2.5" opacity="0.25"/>
+    <circle cx="900" cy="1650" r="2" opacity="0.25"/>
+  </g>
+
+  <defs>
+    <linearGradient id="purpleline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6B21A8" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#6B21A8" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#purpleline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#purpleline)"/>
+</svg>

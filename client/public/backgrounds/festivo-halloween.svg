@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0A0510"/>
+      <stop offset="50%" stop-color="#140A05"/>
+      <stop offset="100%" stop-color="#080310"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#FF6600" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#FF6600" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="30%" cy="70%" r="40%">
+      <stop offset="0%" stop-color="#7B1FA2" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#7B1FA2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx="75%" cy="65%" r="35%">
+      <stop offset="0%" stop-color="#E65100" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#E65100" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="768" rx="600" ry="500" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="324" cy="1344" rx="460" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="810" cy="1152" rx="420" ry="360" fill="url(#g3)" filter="url(#blur)"/>
+
+  <!-- Moon -->
+  <circle cx="820" cy="200" r="90" fill="#FFF0A0" opacity="0.07"/>
+  <circle cx="840" cy="185" r="80" fill="#0A0510" opacity="0.5"/>
+  <!-- Crescent effect -->
+
+  <!-- Abstract pumpkin shapes (just circles with face hints) -->
+  <g opacity="0.12" fill="#FF6600">
+    <circle cx="180" cy="1600" r="60"/>
+    <circle cx="900" cy="1550" r="50"/>
+    <circle cx="80" cy="900" r="35"/>
+    <circle cx="1000" cy="1100" r="40"/>
+  </g>
+
+  <!-- Spider web lines top left -->
+  <g stroke="#CC44FF" stroke-width="0.8" fill="none" opacity="0.1">
+    <line x1="0" y1="0" x2="200" y2="300"/>
+    <line x1="0" y1="0" x2="0" y2="300"/>
+    <line x1="0" y1="0" x2="300" y2="0"/>
+    <!-- Web arcs -->
+    <path d="M 50,0 Q 100,50 0,100"/>
+    <path d="M 100,0 Q 150,100 0,200"/>
+    <path d="M 150,0 Q 175,150 0,300"/>
+    <path d="M 0,50 Q 50,100 100,50"/>
+    <path d="M 0,100 Q 100,150 200,100"/>
+    <path d="M 0,150 Q 150,180 300,150"/>
+  </g>
+
+  <!-- Spider web lines top right -->
+  <g stroke="#CC44FF" stroke-width="0.8" fill="none" opacity="0.1">
+    <line x1="1080" y1="0" x2="880" y2="300"/>
+    <line x1="1080" y1="0" x2="1080" y2="300"/>
+    <line x1="1080" y1="0" x2="780" y2="0"/>
+    <path d="M 1030,0 Q 980,50 1080,100"/>
+    <path d="M 980,0 Q 930,100 1080,200"/>
+    <path d="M 930,0 Q 905,150 1080,300"/>
+    <path d="M 1080,50 Q 1030,100 980,50"/>
+    <path d="M 1080,100 Q 980,150 880,100"/>
+  </g>
+
+  <!-- Floating stars/sparkles -->
+  <g filter="url(#glow)">
+    <polygon points="200,500 205,518 223,518 209,529 215,547 200,536 185,547 191,529 177,518 195,518" fill="#FF9900" opacity="0.4"/>
+    <polygon points="880,600 884,614 898,614 886,622 891,636 880,628 869,636 874,622 862,614 876,614" fill="#CC44FF" opacity="0.35"/>
+    <polygon points="150,1200 154,1212 166,1212 156,1219 160,1231 150,1224 140,1231 144,1219 134,1212 146,1212" fill="#FF6600" opacity="0.4"/>
+    <polygon points="930,1400 934,1413 947,1413 936,1421 940,1434 930,1426 920,1434 924,1421 913,1413 926,1413" fill="#CC44FF" opacity="0.35"/>
+  </g>
+
+  <!-- Scattered dots -->
+  <g>
+    <circle cx="300" cy="250" r="2" fill="#FF9900" opacity="0.4"/>
+    <circle cx="750" cy="180" r="2.5" fill="#CC44FF" opacity="0.35"/>
+    <circle cx="100" cy="700" r="2" fill="#FF6600" opacity="0.4"/>
+    <circle cx="980" cy="800" r="2.5" fill="#FF9900" opacity="0.35"/>
+    <circle cx="400" cy="1300" r="2" fill="#CC44FF" opacity="0.35"/>
+    <circle cx="700" cy="1500" r="2.5" fill="#FF6600" opacity="0.4"/>
+    <circle cx="200" cy="1750" r="2" fill="#FF9900" opacity="0.35"/>
+    <circle cx="900" cy="1700" r="2.5" fill="#CC44FF" opacity="0.35"/>
+  </g>
+
+  <!-- Central ring -->
+  <g transform="translate(540,900)" fill="none" opacity="0.12">
+    <circle cx="0" cy="0" r="260" stroke="#FF6600" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="200" stroke="#CC44FF" stroke-width="1"/>
+    <circle cx="0" cy="0" r="140" stroke="#FF6600" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="80" stroke="#CC44FF" stroke-width="2"/>
+    <circle cx="0" cy="0" r="30" fill="#FF6600" opacity="0.1"/>
+  </g>
+
+  <defs>
+    <linearGradient id="orangeline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF6600" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FF9900" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#FF6600" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#orangeline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#orangeline)"/>
+
+</svg>

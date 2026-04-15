@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0202"/>
+      <stop offset="50%" stop-color="#140404"/>
+      <stop offset="100%" stop-color="#080101"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#CC0000" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#CC0000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="80%" cy="20%" r="30%">
+      <stop offset="0%" stop-color="#FF3300" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#FF3300" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="864" rx="650" ry="550" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="864" cy="384" rx="400" ry="300" fill="url(#g2)" filter="url(#blur)"/>
+
+  <!-- Bold diagonal slash -->
+  <g opacity="0.07" fill="#CC0000">
+    <polygon points="0,500 300,0 400,0 100,500"/>
+    <polygon points="980,0 1080,0 1080,200 980,200"/>
+    <polygon points="0,1400 200,900 300,900 100,1400"/>
+    <polygon points="700,1920 1080,1000 1080,1200 900,1920"/>
+  </g>
+
+  <!-- Target rings -->
+  <g transform="translate(540,900)" fill="none" filter="url(#glow)">
+    <circle cx="0" cy="0" r="300" stroke="#CC0000" stroke-width="1" opacity="0.12"/>
+    <circle cx="0" cy="0" r="240" stroke="#FF3300" stroke-width="1.5" opacity="0.15"/>
+    <circle cx="0" cy="0" r="180" stroke="#CC0000" stroke-width="2" opacity="0.18"/>
+    <circle cx="0" cy="0" r="120" stroke="#FF3300" stroke-width="2.5" opacity="0.22"/>
+    <circle cx="0" cy="0" r="60" stroke="#CC0000" stroke-width="3" opacity="0.28"/>
+    <circle cx="0" cy="0" r="15" fill="#CC0000" opacity="0.2"/>
+    <!-- Crosshair -->
+    <line x1="0" y1="-330" x2="0" y2="-310" stroke="#FF3300" stroke-width="2" opacity="0.3"/>
+    <line x1="0" y1="310" x2="0" y2="330" stroke="#FF3300" stroke-width="2" opacity="0.3"/>
+    <line x1="-330" y1="0" x2="-310" y2="0" stroke="#FF3300" stroke-width="2" opacity="0.3"/>
+    <line x1="310" y1="0" x2="330" y2="0" stroke="#FF3300" stroke-width="2" opacity="0.3"/>
+  </g>
+
+  <!-- Lightning bolt shapes -->
+  <g fill="#CC0000" opacity="0.12">
+    <polygon points="120,200 140,200 110,280 130,280 95,380 120,380 80,500 105,500 60,620"/>
+    <polygon points="960,300 980,300 950,380 970,380 935,480 960,480 920,600"/>
+  </g>
+
+  <!-- Scattered fire dots -->
+  <g fill="#FF3300">
+    <circle cx="150" cy="300" r="3" opacity="0.5"/>
+    <circle cx="900" cy="250" r="3.5" opacity="0.45"/>
+    <circle cx="80" cy="1000" r="3" opacity="0.4"/>
+    <circle cx="1000" cy="800" r="3.5" opacity="0.45"/>
+    <circle cx="300" cy="1500" r="3" opacity="0.4"/>
+    <circle cx="800" cy="1600" r="3.5" opacity="0.4"/>
+    <circle cx="500" cy="1750" r="3" opacity="0.35"/>
+    <circle cx="700" cy="400" r="3" opacity="0.5"/>
+  </g>
+
+  <defs>
+    <linearGradient id="redline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#CC0000" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FF3300" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#CC0000" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#redline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#redline)"/>
+</svg>

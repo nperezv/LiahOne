@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0C0800"/>
+      <stop offset="50%" stop-color="#1A1000"/>
+      <stop offset="100%" stop-color="#080500"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#D4A017" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#D4A017" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="30%" cy="75%" r="40%">
+      <stop offset="0%" stop-color="#FF8C00" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#FF8C00" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spotlight" cx="50%" cy="20%" r="30%">
+      <stop offset="0%" stop-color="#FFE066" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#FFE066" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="768" rx="620" ry="520" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="324" cy="1440" rx="460" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="384" rx="350" ry="260" fill="url(#spotlight)" filter="url(#blur)"/>
+
+  <!-- Stage spotlight cone -->
+  <defs>
+    <linearGradient id="cone" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#FFE066" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <polygon points="400,0 680,0 900,1200 180,1200" fill="url(#cone)"/>
+  <polygon points="460,0 620,0 720,1200 360,1200" fill="url(#cone)" opacity="0.6"/>
+
+  <!-- Curtain-like drapes sides -->
+  <g fill="#1A0800" opacity="0.4">
+    <path d="M 0,0 Q 60,300 30,600 Q 0,900 60,1200 Q 90,1500 0,1920 L 0,0"/>
+    <path d="M 1080,0 Q 1020,300 1050,600 Q 1080,900 1020,1200 Q 990,1500 1080,1920 L 1080,0"/>
+  </g>
+
+  <!-- Gold stars scattered -->
+  <g filter="url(#softglow)" fill="#FFE066">
+    <polygon points="200,300 204,312 216,312 206,319 210,331 200,324 190,331 194,319 184,312 196,312" opacity="0.5"/>
+    <polygon points="880,400 884,412 896,412 886,419 890,431 880,424 870,431 874,419 864,412 876,412" opacity="0.45"/>
+    <polygon points="150,800 154,812 166,812 156,819 160,831 150,824 140,831 144,819 134,812 146,812" opacity="0.4"/>
+    <polygon points="930,900 934,912 946,912 936,919 940,931 930,924 920,931 924,919 914,912 926,912" opacity="0.4"/>
+    <polygon points="400,1400 404,412 416,1412 406,1419 410,1431 400,1424 390,1431 394,1419 384,1412 396,1412" opacity="0.35"/>
+    <polygon points="700,1500 704,1512 716,1512 706,1519 710,1531 700,1524 690,1531 694,1519 684,1512 696,1512" opacity="0.35"/>
+  </g>
+
+  <!-- Amber dots -->
+  <g fill="#D4A017">
+    <circle cx="250" cy="200" r="2.5" opacity="0.45"/>
+    <circle cx="830" cy="250" r="2" opacity="0.4"/>
+    <circle cx="100" cy="600" r="2.5" opacity="0.4"/>
+    <circle cx="980" cy="700" r="2" opacity="0.35"/>
+    <circle cx="300" cy="1200" r="2.5" opacity="0.35"/>
+    <circle cx="800" cy="1300" r="2" opacity="0.35"/>
+    <circle cx="180" cy="1600" r="2.5" opacity="0.3"/>
+    <circle cx="900" cy="1700" r="2" opacity="0.3"/>
+    <circle cx="540" cy="1800" r="3" opacity="0.3"/>
+  </g>
+
+  <!-- Center radiance -->
+  <g transform="translate(540,750)" fill="none" opacity="0.1">
+    <circle cx="0" cy="0" r="280" stroke="#FFE066" stroke-width="1"/>
+    <circle cx="0" cy="0" r="220" stroke="#D4A017" stroke-width="1.5"/>
+    <circle cx="0" cy="0" r="160" stroke="#FFE066" stroke-width="1"/>
+    <circle cx="0" cy="0" r="100" stroke="#D4A017" stroke-width="2"/>
+    <circle cx="0" cy="0" r="40" fill="#FFE066" opacity="0.08"/>
+  </g>
+
+  <defs>
+    <linearGradient id="amberline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#D4A017" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFE066" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#D4A017" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#amberline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#amberline)"/>
+</svg>

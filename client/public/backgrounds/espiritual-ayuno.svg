@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#060810"/>
+      <stop offset="60%" stop-color="#090C18"/>
+      <stop offset="100%" stop-color="#040608"/>
+    </linearGradient>
+    <radialGradient id="beam" cx="50%" cy="0%" r="60%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="50%" cy="80%" r="40%">
+      <stop offset="0%" stop-color="#1A2744" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#1A2744" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="12" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="0" rx="700" ry="500" fill="url(#beam)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1920" rx="600" ry="400" fill="url(#glow2)" filter="url(#blur)"/>
+
+  <!-- Descending light column -->
+  <defs>
+    <linearGradient id="pillar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#C9A96E" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="440" y="0" width="200" height="1920" fill="url(#pillar)"/>
+  <rect x="490" y="0" width="100" height="1920" fill="url(#pillar)" opacity="0.6"/>
+
+  <!-- Horizontal silence lines -->
+  <g stroke="#C9A96E" stroke-width="0.5" opacity="0.08">
+    <line x1="0" y1="800" x2="1080" y2="800"/>
+    <line x1="0" y1="900" x2="1080" y2="900"/>
+    <line x1="0" y1="1000" x2="1080" y2="1000"/>
+    <line x1="0" y1="1100" x2="1080" y2="1100"/>
+    <line x1="0" y1="1200" x2="1080" y2="1200"/>
+  </g>
+
+  <!-- Golden dust particles -->
+  <g fill="#C9A96E" filter="url(#softglow)">
+    <circle cx="480" cy="300" r="2.5" opacity="0.6"/>
+    <circle cx="520" cy="450" r="2" opacity="0.5"/>
+    <circle cx="500" cy="600" r="3" opacity="0.55"/>
+    <circle cx="460" cy="750" r="2" opacity="0.45"/>
+    <circle cx="540" cy="850" r="2.5" opacity="0.5"/>
+    <circle cx="510" cy="1000" r="2" opacity="0.4"/>
+    <circle cx="490" cy="1150" r="2.5" opacity="0.35"/>
+  </g>
+
+  <!-- Side particles -->
+  <g fill="#C9A96E" opacity="0.25">
+    <circle cx="150" cy="400" r="1.5"/>
+    <circle cx="930" cy="350" r="1.5"/>
+    <circle cx="100" cy="800" r="1"/>
+    <circle cx="980" cy="750" r="1"/>
+    <circle cx="200" cy="1300" r="1.5"/>
+    <circle cx="880" cy="1400" r="1.5"/>
+    <circle cx="300" cy="1700" r="1"/>
+    <circle cx="780" cy="1650" r="1"/>
+  </g>
+
+  <!-- Concentric ovals of light -->
+  <g transform="translate(540,500)" fill="none" opacity="0.1">
+    <ellipse cx="0" cy="0" rx="350" ry="120" stroke="#C9A96E" stroke-width="1"/>
+    <ellipse cx="0" cy="0" rx="280" ry="95" stroke="#C9A96E" stroke-width="1"/>
+    <ellipse cx="0" cy="0" rx="210" ry="70" stroke="#C9A96E" stroke-width="1.5"/>
+    <ellipse cx="0" cy="0" rx="140" ry="46" stroke="#C9A96E" stroke-width="2"/>
+  </g>
+
+  <defs>
+    <linearGradient id="topbot" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#topbot)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#topbot)"/>
+</svg>

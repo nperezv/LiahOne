@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0C0806"/>
+      <stop offset="50%" stop-color="#160E08"/>
+      <stop offset="100%" stop-color="#080504"/>
+    </linearGradient>
+    <radialGradient id="g1" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#8B4513" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#8B4513" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="50%" cy="85%" r="40%">
+      <stop offset="0%" stop-color="#C9A96E" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#C9A96E" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="60"/></filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <ellipse cx="540" cy="960" rx="650" ry="550" fill="url(#g1)" filter="url(#blur)"/>
+  <ellipse cx="540" cy="1632" rx="500" ry="380" fill="url(#g2)" filter="url(#blur)"/>
+
+  <!-- Geometric border pattern top -->
+  <g stroke="#C9A96E" stroke-width="1" fill="none" opacity="0.15">
+    <!-- Top zigzag band -->
+    <polyline points="0,80 60,40 120,80 180,40 240,80 300,40 360,80 420,40 480,80 540,40 600,80 660,40 720,80 780,40 840,80 900,40 960,80 1020,40 1080,80"/>
+    <polyline points="0,100 60,60 120,100 180,60 240,100 300,60 360,100 420,60 480,100 540,60 600,100 660,60 720,100 780,60 840,100 900,60 960,100 1020,60 1080,100"/>
+    <!-- Bottom zigzag band -->
+    <polyline points="0,1820 60,1860 120,1820 180,1860 240,1820 300,1860 360,1820 420,1860 480,1820 540,1860 600,1820 660,1860 720,1820 780,1860 840,1820 900,1860 960,1820 1020,1860 1080,1820"/>
+    <polyline points="0,1840 60,1880 120,1840 180,1880 240,1840 300,1880 360,1840 420,1880 480,1840 540,1880 600,1840 660,1880 720,1840 780,1880 840,1840 900,1880 960,1840 1020,1880 1080,1840"/>
+  </g>
+
+  <!-- Central diamond grid -->
+  <g stroke="#8B4513" stroke-width="0.8" fill="none" opacity="0.1">
+    <g transform="translate(540,960)">
+      <!-- Diamond pattern -->
+      <rect x="-200" y="-200" width="400" height="400" transform="rotate(45)"/>
+      <rect x="-150" y="-150" width="300" height="300" transform="rotate(45)"/>
+      <rect x="-100" y="-100" width="200" height="200" transform="rotate(45)"/>
+      <rect x="-50" y="-50" width="100" height="100" transform="rotate(45)"/>
+      <!-- Outer diamonds -->
+      <rect x="-300" y="-300" width="600" height="600" transform="rotate(45)"/>
+    </g>
+  </g>
+
+  <!-- Side column decorations -->
+  <g stroke="#C9A96E" stroke-width="1" fill="none" opacity="0.12">
+    <!-- Left column -->
+    <line x1="60" y1="150" x2="60" y2="1770"/>
+    <line x1="80" y1="150" x2="80" y2="1770"/>
+    <!-- Tick marks left -->
+    <g>
+      <line x1="60" y1="300" x2="80" y2="300"/>
+      <line x1="60" y1="450" x2="80" y2="450"/>
+      <line x1="60" y1="600" x2="80" y2="600"/>
+      <line x1="60" y1="750" x2="80" y2="750"/>
+      <line x1="60" y1="900" x2="80" y2="900"/>
+      <line x1="60" y1="1050" x2="80" y2="1050"/>
+      <line x1="60" y1="1200" x2="80" y2="1200"/>
+      <line x1="60" y1="1350" x2="80" y2="1350"/>
+      <line x1="60" y1="1500" x2="80" y2="1500"/>
+      <line x1="60" y1="1650" x2="80" y2="1650"/>
+    </g>
+    <!-- Right column -->
+    <line x1="1000" y1="150" x2="1000" y2="1770"/>
+    <line x1="1020" y1="150" x2="1020" y2="1770"/>
+    <g>
+      <line x1="1000" y1="300" x2="1020" y2="300"/>
+      <line x1="1000" y1="450" x2="1020" y2="450"/>
+      <line x1="1000" y1="600" x2="1020" y2="600"/>
+      <line x1="1000" y1="750" x2="1020" y2="750"/>
+      <line x1="1000" y1="900" x2="1020" y2="900"/>
+      <line x1="1000" y1="1050" x2="1020" y2="1050"/>
+      <line x1="1000" y1="1200" x2="1020" y2="1200"/>
+      <line x1="1000" y1="1350" x2="1020" y2="1350"/>
+      <line x1="1000" y1="1500" x2="1020" y2="1500"/>
+      <line x1="1000" y1="1650" x2="1020" y2="1650"/>
+    </g>
+  </g>
+
+  <!-- Terracotta dots -->
+  <g fill="#C9A96E">
+    <circle cx="200" cy="300" r="2.5" opacity="0.4"/>
+    <circle cx="880" cy="280" r="2.5" opacity="0.4"/>
+    <circle cx="150" cy="700" r="2" opacity="0.35"/>
+    <circle cx="930" cy="650" r="2" opacity="0.35"/>
+    <circle cx="250" cy="1100" r="2.5" opacity="0.35"/>
+    <circle cx="830" cy="1200" r="2.5" opacity="0.35"/>
+    <circle cx="180" cy="1500" r="2" opacity="0.3"/>
+    <circle cx="900" cy="1550" r="2" opacity="0.3"/>
+    <circle cx="540" cy="200" r="3" opacity="0.45"/>
+    <circle cx="540" cy="1700" r="3" opacity="0.35"/>
+  </g>
+
+  <defs>
+    <linearGradient id="terraline" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B4513" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#C9A96E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#8B4513" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1080" height="3" fill="url(#terraline)"/>
+  <rect x="0" y="1917" width="1080" height="3" fill="url(#terraline)"/>
+</svg>
