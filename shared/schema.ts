@@ -855,7 +855,7 @@ export const activities = pgTable("activities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
   description: text("description"),
-  date: timestamp("date").notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
   location: text("location"),
   type: activityTypeEnum("type").notNull().default("otro"),
   status: activityStatusEnum("status").notNull().default("borrador"),

@@ -912,6 +912,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
   `);
 
+  // Auto-migration: convert activities.date to TIMESTAMPTZ (treats stored values as UTC wall-clock)
+  await db.execute(sql`
+    ALTER TABLE activities
+      ALTER COLUMN date TYPE TIMESTAMPTZ USING date AT TIME ZONE 'UTC'
+  `);
+
   // Auto-migration: remove sports-specific checklist items from deportiva activities (no longer in template)
   await db.execute(sql`
     DELETE FROM activity_checklist_items
