@@ -488,6 +488,7 @@ export default function DirectoryPage() {
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>, memberId: string, member: any) => {
+    if (event.pointerType === "mouse") return;
     pointerStartX.current = event.clientX;
     pointerDragging.current = true;
     longPressTriggered.current = false;
@@ -797,16 +798,13 @@ export default function DirectoryPage() {
       </div>
 
       <Card className="border-border/70">
-        <CardHeader className="px-0">
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Users className="h-5 w-5 text-primary" />
-            Miembros del barrio
-          </CardTitle>
-        </CardHeader>
-        <CardContent
-          className="space-y-4 px-0"
-          style={{ fontFamily: "system-ui, -apple-system" }}
-        >
+        <div className="sticky top-0 z-10 bg-background pb-3 pt-1">
+          <CardHeader className="px-0 pb-3">
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <Users className="h-5 w-5 text-primary" />
+              Miembros del barrio
+            </CardTitle>
+          </CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -824,6 +822,11 @@ export default function DirectoryPage() {
               {filteredMembers.length} miembros
             </Badge>
           </div>
+        </div>
+        <CardContent
+          className="space-y-4 px-0"
+          style={{ fontFamily: "system-ui, -apple-system" }}
+        >
 
           {isLoading ? (
             <div className="space-y-3">
@@ -1159,13 +1162,6 @@ export default function DirectoryPage() {
         </DialogContent>
       </Dialog>
 
-      <Button
-        type="button"
-        onClick={handleOpenCreate}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-2xl text-primary-foreground shadow-lg"
-      >
-        +
-      </Button>
 
       <AlertDialog open={Boolean(deleteCandidate)} onOpenChange={(open) => !open && setDeleteCandidate(null)}>
         <AlertDialogContent>
