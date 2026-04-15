@@ -800,7 +800,7 @@ export default function DirectoryPage() {
       </div>
 
       {/* Sticky title + search — outside Card so sticky works correctly */}
-      <div className="sticky top-0 z-20 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="sticky top-0 z-20 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-border/40 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <Users className="h-4 w-4 text-primary" />
