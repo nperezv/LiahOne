@@ -508,9 +508,6 @@ const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort
   deportiva: [
     ...PROG_SIN_HIMNOS,
     ...COORD_BASE_ITEMS,
-    { key: "coord_equipos",    label: "Equipos/participantes",  sort: 16 },
-    { key: "coord_arbitros",   label: "Árbitros/coordinadores", sort: 17 },
-    { key: "coord_material",   label: "Material deportivo",     sort: 18 },
   ],
   capacitacion:   [...PROG_CON_MENSAJE, ...COORD_BASE_ITEMS],
   otro:           [...PROG_CON_MENSAJE, ...COORD_BASE_ITEMS],

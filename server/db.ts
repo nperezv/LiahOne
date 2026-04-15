@@ -2,11 +2,17 @@
 // Supports both Neon (serverless) and standard PostgreSQL
 
 import { Pool as NeonPool, neonConfig } from '@neondatabase/serverless';
-import { Pool as PgPool } from 'pg';
+import { Pool as PgPool, types as pgTypes } from 'pg';
 import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import ws from "ws";
 import * as schema from "@shared/schema";
+
+// Parse TIMESTAMP WITHOUT TIME ZONE as UTC wall-clock time.
+// Without this, node-postgres treats naive timestamp strings as server-local time,
+// which causes a 2-hour offset when the server runs in UTC+2 (Europe/Madrid).
+// @neondatabase/serverless re-exports `types` from `pg`, so one call covers both drivers.
+pgTypes.setTypeParser(1114, (val: string) => new Date(val + "Z"));
 
 if (!process.env.DATABASE_URL) {
   throw new Error(

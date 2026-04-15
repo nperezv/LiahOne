@@ -92,6 +92,8 @@ import {
   sendBirthdayGreetingEmail,
   sendAgendaReminderEmail,
   sendBaptismReminderEmail,
+  sendBudgetDisbursementRequestEmail,
+  sendBudgetDisbursementCompletedEmail,
   verifyAccessToken,
 } from "./auth";
 
@@ -908,6 +910,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-migration: add requires_registration to activities if missing
   await db.execute(sql`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
+  `);
+
+  // Auto-migration: remove sports-specific checklist items from deportiva activities (no longer in template)
+  await db.execute(sql`
+    DELETE FROM activity_checklist_items
+    WHERE item_key IN ('coord_equipos', 'coord_arbitros', 'coord_material')
+      AND activity_id IN (SELECT id FROM activities WHERE type = 'deportiva')
   `);
 
   // Auto-migration: ensure hymns table has all required columns, missing entries, and external URLs
@@ -3153,6 +3162,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
           url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
           notificationId: approvalNotification.id,
         });
+      }
+
+      // Create disbursement assignment for secretario_financiero + notify
+      const allUsers = await storage.getAllUsers();
+      const financialSecretary = allUsers.find((u: any) => u.role === "secretario_financiero");
+      if (financialSecretary) {
+        const disbursementDue = new Date();
+        disbursementDue.setDate(disbursementDue.getDate() + 1);
+
+        const disbursementAssignment = await storage.createAssignment({
+          title: "Generar desembolso en el sistema de la Iglesia",
+          description: `El obispo ha firmado la solicitud "${budgetRequest.description}" por €${budgetRequest.amount}. Genera el desembolso en el sistema de la Iglesia (LCR/MLS Finance) y marca esta asignación como completada.`,
+          assignedTo: financialSecretary.id,
+          assignedBy: req.session.userId!,
+          dueDate: disbursementDue,
+          relatedTo: `budget:${budgetRequest.id}`,
+        });
+
+        const disbursementNotification = await storage.createNotification({
+          userId: financialSecretary.id,
+          type: "assignment_created",
+          title: "Nueva Asignación",
+          description: `Se te ha asignado: "${disbursementAssignment.title}"`,
+          relatedId: disbursementAssignment.id,
+          isRead: false,
+        });
+
+        if (isPushConfigured()) {
+          await sendPushNotification(financialSecretary.id, {
+            title: "Solicitud de gasto aprobada",
+            body: `El obispo firmó la solicitud "${budgetRequest.description}". Genera el desembolso en el sistema de la Iglesia.`,
+            url: `/assignments?highlight=${encodeURIComponent(disbursementAssignment.id)}`,
+            notificationId: disbursementNotification.id,
+          });
+        }
+
+        if (financialSecretary.email) {
+          const template = await storage.getPdfTemplate();
+          const bishop = allUsers.find((u: any) => u.id === req.session.userId!);
+          const madridHour = new Date().toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", hour12: false });
+          await sendBudgetDisbursementRequestEmail({
+            toEmail: financialSecretary.email,
+            recipientName: financialSecretary.name ?? "",
+            recipientSex: financialSecretary.sex ?? null,
+            bishopName: bishop?.name ?? "el obispo",
+            budgetDescription: budgetRequest.description,
+            budgetAmount: budgetRequest.amount,
+            wardName: template?.wardName,
+            timeLabel: madridHour,
+          }).catch((err) => console.error("[BudgetDisbursement email] Error:", err));
+        }
       }
 
       res.json({ ...budgetRequest, signedPlanUrl, signedPlanFilename });
@@ -5804,7 +5864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .slice(0, 5)
           .map(a => ({
             title: a.title,
-            date: new Date(a.date).toLocaleDateString("es-ES", { month: "short", day: "numeric" }),
+            date: new Date(a.date).toLocaleDateString("es-ES", { month: "short", day: "numeric", timeZone: "UTC" }),
             location: a.location || "",
           })),
         userRole: user.role,
@@ -7859,8 +7919,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const activityDate = new Date(activity.date);
-      const fechaPrompt = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-      const horaPrompt = activityDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+      const fechaPrompt = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+      const horaPrompt = activityDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
       const requiresReg = !!(activity as any).requiresRegistration;
 
@@ -7957,7 +8017,7 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
         copy.fondo = fallbacks[activity.type ?? "otro"] ?? "espiritual-conferencia";
       }
 
-      copy.fecha_display = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+      copy.fecha_display = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
       copy.hora_display = horaPrompt + " hrs";
       copy.address = meetingAddress || activity.location || "";
 
@@ -8297,6 +8357,56 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
             url: `/assignments?highlight=${encodeURIComponent(updatedAssignment.id)}`,
             notificationId: notification.id,
           });
+        }
+      }
+
+      // When secretario_financiero completes the disbursement assignment → notify bishop
+      const isDisbursementCompletion =
+        updatedAssignment.resolution === "completada" &&
+        updatedAssignment.relatedTo?.startsWith("budget:") &&
+        updatedAssignment.title === "Generar desembolso en el sistema de la Iglesia";
+
+      if (isDisbursementCompletion) {
+        const budgetId = updatedAssignment.relatedTo!.replace("budget:", "");
+        const budgetRequest = await storage.getBudgetRequest(budgetId);
+        if (budgetRequest) {
+          const allUsers = await storage.getAllUsers();
+          const bishop = allUsers.find((u: any) => u.role === "obispo");
+          if (bishop) {
+            const disbursementDoneNotification = await storage.createNotification({
+              userId: bishop.id,
+              type: "budget_approved",
+              title: "Desembolso generado — Acción requerida",
+              description: `El secretario financiero ha generado el desembolso para "${budgetRequest.description}". Por favor finaliza la aprobación en el sistema de la Iglesia.`,
+              relatedId: budgetRequest.id,
+              isRead: false,
+            });
+
+            if (isPushConfigured()) {
+              await sendPushNotification(bishop.id, {
+                title: "Desembolso generado",
+                body: `Entra al sistema de la Iglesia y finaliza la aprobación del desembolso para "${budgetRequest.description}".`,
+                url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
+                notificationId: disbursementDoneNotification.id,
+              });
+            }
+
+            if (bishop.email) {
+              const template = await storage.getPdfTemplate();
+              const secretary = allUsers.find((u: any) => u.id === updatedAssignment.assignedTo);
+              const madridHour = new Date().toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", hour12: false });
+              await sendBudgetDisbursementCompletedEmail({
+                toEmail: bishop.email,
+                recipientName: bishop.name ?? "",
+                recipientSex: bishop.sex ?? null,
+                secretaryName: secretary?.name ?? "el secretario financiero",
+                budgetDescription: budgetRequest.description,
+                budgetAmount: budgetRequest.amount,
+                wardName: template?.wardName,
+                timeLabel: madridHour,
+              }).catch((err) => console.error("[BudgetDisbursementCompleted email] Error:", err));
+            }
+          }
         }
       }
 

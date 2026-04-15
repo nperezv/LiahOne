@@ -1144,3 +1144,89 @@ export async function sendBaptismReminderEmail(payload: {
     text: body,
   });
 }
+
+export async function sendBudgetDisbursementRequestEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  recipientSex?: string | null;
+  bishopName: string;
+  budgetDescription: string;
+  budgetAmount: number | string;
+  wardName?: string | null;
+  timeLabel?: string;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Budget disbursement request email:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Solicitud de gasto aprobada — Generar desembolso",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        timeLabel: payload.timeLabel,
+      }),
+      "",
+      `El obispo ${payload.bishopName} ha firmado y aprobado la siguiente solicitud de gasto:`,
+      "",
+      `Concepto: ${payload.budgetDescription}`,
+      `Importe: €${payload.budgetAmount}`,
+      "",
+      "El siguiente paso es generar el desembolso correspondiente en el sistema de la Iglesia (LCR/MLS Finance).",
+      "",
+      "Una vez realizado, por favor ve al apartado de Asignaciones en la aplicación y marca como completada la asignación «Generar desembolso en el sistema de la Iglesia».",
+      "",
+      "Gracias por tu diligencia y servicio.",
+      "",
+      "Con aprecio fraternal,",
+      payload.wardName?.trim() || "Obispado",
+    ].join("\n"),
+  });
+}
+
+export async function sendBudgetDisbursementCompletedEmail(payload: {
+  toEmail: string;
+  recipientName: string;
+  recipientSex?: string | null;
+  secretaryName: string;
+  budgetDescription: string;
+  budgetAmount: number | string;
+  wardName?: string | null;
+  timeLabel?: string;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Budget disbursement completed email:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Desembolso generado — Acción requerida en el sistema de la Iglesia",
+    text: [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        timeLabel: payload.timeLabel,
+      }),
+      "",
+      `El secretario financiero ${payload.secretaryName} ha generado el desembolso en el sistema de la Iglesia para la siguiente solicitud:`,
+      "",
+      `Concepto: ${payload.budgetDescription}`,
+      `Importe: €${payload.budgetAmount}`,
+      "",
+      "Por favor, entra al sistema de la Iglesia (LCR/MLS Finance) y finaliza la aprobación del desembolso para que el pago pueda procesarse.",
+      "",
+      "Gracias.",
+      "",
+      "Con aprecio fraternal,",
+      payload.wardName?.trim() || "Secretario Financiero",
+    ].join("\n"),
+  });
+}

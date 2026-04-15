@@ -8,25 +8,33 @@ import { z } from "zod";
 const parseDateString = (dateStr: string | Date): Date => {
   if (dateStr instanceof Date) return dateStr;
   if (typeof dateStr !== "string") throw new Error("Invalid date");
-  
+
+  const trimmed = dateStr.trim();
+
+  // datetime-local inputs send "YYYY-MM-DDTHH:MM" or "YYYY-MM-DDTHH:MM:SS" with no timezone.
+  // Treat these as UTC wall-clock time to avoid server-local-timezone offset being applied.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+    return new Date(trimmed + "Z");
+  }
+
   // Try parsing as ISO first
-  const isoDate = new Date(dateStr);
+  const isoDate = new Date(trimmed);
   if (!isNaN(isoDate.getTime())) return isoDate;
   
   // Try DD/MM/YYYY format
-  const ddmmyyyy = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const ddmmyyyy = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (ddmmyyyy) {
     const [, day, month, year] = ddmmyyyy;
     return new Date(`${year}-${month}-${day}`);
   }
-  
+
   // Try MM/DD/YYYY format (for US dates)
-  const mmddyyyy = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const mmddyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mmddyyyy) {
     const [, month, day, year] = mmddyyyy;
-    return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+    return new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`);
   }
-  
+
   throw new Error("Invalid date format");
 };
 
