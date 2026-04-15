@@ -676,7 +676,7 @@ function SectionEditDialog({
   // Select appropriate member options per field key
   const memberOptionsForKey = (key: string): MemberOption[] => {
     if (key === "prog_preside") return bishopricOptions.length > 0 ? bishopricOptions : allMemberOptions;
-    if (key === "prog_dirige")  return allMemberOptions;
+    if (key === "prog_dirige")  return orgMemberOptions.length > 0 ? orgMemberOptions : allMemberOptions;
     return allMemberOptions;
   };
 
