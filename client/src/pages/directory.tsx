@@ -799,29 +799,30 @@ export default function DirectoryPage() {
         </div>
       </div>
 
+      <div className="sticky top-0 z-20 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-border/40">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Users className="h-4 w-4 text-primary" />
+            Miembros del barrio
+          </h2>
+          <Badge variant="outline" className="self-start border-border/60 text-muted-foreground sm:self-auto">
+            {filteredMembers.length} miembros
+          </Badge>
+        </div>
+        <div className="relative mt-2 w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar por nombre, teléfono o correo"
+            className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+      </div>
+
       <Card className="border-border/70">
-        <CardHeader className="px-0">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Users className="h-5 w-5 text-primary" />
-              Miembros del barrio
-            </CardTitle>
-            <Badge variant="outline" className="self-start border-border/60 text-muted-foreground sm:self-auto">
-              {filteredMembers.length} miembros
-            </Badge>
-          </div>
-          <div className="relative w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por nombre, teléfono o correo"
-              className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
-            />
-          </div>
-        </CardHeader>
         <CardContent
-          className="space-y-4 px-0"
+          className="space-y-4 px-0 pt-4"
           style={{ fontFamily: "system-ui, -apple-system" }}
         >
 
