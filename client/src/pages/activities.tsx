@@ -52,12 +52,13 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   otro: "Otro",
 };
 
-const APPROVAL_STATUS_CONFIG: Record<string, { label: string; variant: string; icon: React.ReactNode }> = {
-  draft:          { label: "Borrador",       variant: "secondary", icon: null },
-  submitted:      { label: "En revisión",    variant: "default",   icon: <Send className="h-3 w-3" /> },
-  approved:       { label: "Aprobada",       variant: "default",   icon: <CheckCircle2 className="h-3 w-3 text-green-600" /> },
-  needs_revision: { label: "Requiere rev.",  variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
-  cancelled:      { label: "Cancelada",      variant: "destructive", icon: null },
+const APPROVAL_STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+  draft:          { label: "Borrador",       className: "border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400", icon: null },
+  draft_ready:    { label: "Listo",          className: "border-blue-400 text-blue-700 dark:border-blue-500 dark:text-blue-400", icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
+  submitted:      { label: "Pendiente",      className: "border-amber-400 text-amber-700 dark:border-amber-500 dark:text-amber-400", icon: <Send className="h-2.5 w-2.5" /> },
+  approved:       { label: "Aprobada",       className: "border-green-500 text-green-700 dark:border-green-500 dark:text-green-400", icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
+  needs_revision: { label: "Corregir",       className: "border-red-400 text-red-700 dark:border-red-500 dark:text-red-400", icon: <XCircle className="h-2.5 w-2.5" /> },
+  cancelled:      { label: "Cancelada",      className: "border-red-300 text-red-500", icon: null },
 };
 
 
@@ -1247,7 +1248,6 @@ function ActivityCard({
 
   const isPast = new Date(activity.date) < new Date();
   const isOrgActivity = activity.type === "actividad_org";
-  const approvalCfg = APPROVAL_STATUS_CONFIG[activity.approvalStatus ?? "draft"];
   const isRecurring = !!(activity as any).recurringSeriesId;
 
   const dateDisplay = (() => {
@@ -1299,13 +1299,20 @@ function ActivityCard({
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {isOrgActivity && !isRecurring && approvalCfg ? (
-              <Badge variant={approvalCfg.variant as any} className="gap-1 text-xs">
-                {approvalCfg.icon}{approvalCfg.label}
-              </Badge>
-            ) : isPast ? (
-              <Badge variant="secondary" className="text-xs">Realizada</Badge>
-            ) : null}
+            {(() => {
+              if (isPast && activity.approvalStatus === "draft") {
+                return <Badge variant="outline" className="text-[10px] border-gray-300 text-gray-400">Realizada</Badge>;
+              }
+              const statusKey = activity.approvalStatus === "draft" && totalItems > 0 && doneItems === totalItems
+                ? "draft_ready"
+                : (activity.approvalStatus ?? "draft");
+              const cfg = APPROVAL_STATUS_CONFIG[statusKey] ?? APPROVAL_STATUS_CONFIG["draft"];
+              return (
+                <Badge variant="outline" className={`text-[10px] gap-1 ${cfg.className}`}>
+                  {cfg.icon}{cfg.label}
+                </Badge>
+              );
+            })()}
             {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           </div>
         </div>
