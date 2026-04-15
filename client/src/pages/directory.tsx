@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -211,6 +212,7 @@ export default function DirectoryPage() {
   const updateMemberMutation = useUpdateMember();
   const deleteMemberMutation = useDeleteMember();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
@@ -797,34 +799,31 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <Card className="border-border/70">
-        <div className="sticky top-0 z-10 bg-background pb-3 pt-1">
-          <CardHeader className="px-0 pb-3">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Users className="h-5 w-5 text-primary" />
-              Miembros del barrio
-            </CardTitle>
-          </CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por nombre, teléfono o correo"
-                className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
-            <Badge
-              variant="outline"
-              className="self-start border-border/60 text-muted-foreground sm:self-auto"
-            >
-              {filteredMembers.length} miembros
-            </Badge>
-          </div>
+      {/* Sticky title + search — outside Card so sticky works correctly */}
+      <div className="sticky top-0 z-20 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Users className="h-4 w-4 text-primary" />
+            Miembros del barrio
+          </h2>
+          <Badge variant="outline" className="self-start border-border/60 text-muted-foreground sm:self-auto">
+            {filteredMembers.length} miembros
+          </Badge>
         </div>
+        <div className="relative mt-2 w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar por nombre, teléfono o correo"
+            className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <Card className="border-border/70">
         <CardContent
-          className="space-y-4 px-0"
+          className="space-y-4 px-0 pt-4"
           style={{ fontFamily: "system-ui, -apple-system" }}
         >
 
@@ -865,7 +864,7 @@ export default function DirectoryPage() {
                     className="relative isolate overflow-hidden rounded-[14px] border border-border/60 bg-card dark:bg-gradient-to-b dark:from-[#0f1626] dark:to-[#0d1422]"
                   >
                     <div
-                      className={`absolute inset-0 m-0 flex h-full items-center justify-start rounded-[14px] border-0 text-foreground shadow-none transition-opacity duration-150 ${
+                      className={`md:hidden absolute inset-0 m-0 flex h-full items-center justify-start rounded-[14px] border-0 text-foreground shadow-none transition-opacity duration-150 ${
                         isRightSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       } ${contactDisabled ? "bg-muted" : "bg-gradient-to-r from-emerald-800 to-emerald-500"}`}
                     >
@@ -911,7 +910,7 @@ export default function DirectoryPage() {
                       </div>
                     </div>
                     <div
-                      className={`absolute inset-0 m-0 flex h-full items-center justify-end rounded-[14px] border-0 bg-muted text-foreground shadow-none transition-opacity duration-150 ${
+                      className={`md:hidden absolute inset-0 m-0 flex h-full items-center justify-end rounded-[14px] border-0 bg-muted text-foreground shadow-none transition-opacity duration-150 ${
                         isLeftSwipe ? "opacity-100" : "pointer-events-none opacity-0"
                       }`}
                     >
@@ -979,6 +978,37 @@ export default function DirectoryPage() {
                         <p className="text-left text-xs text-muted-foreground">
                           {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
                         </p>
+                      </div>
+                      {/* Desktop action buttons — visible on md+ only */}
+                      <div className="hidden md:flex items-center gap-1 shrink-0">
+                        {hasPhone ? (
+                          <a href={`tel:${member.phone}`} title="Llamar"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <span className="flex h-8 w-8 items-center justify-center rounded-md opacity-30">
+                            <Phone className="h-4 w-4" />
+                          </span>
+                        )}
+                        {hasPhone ? (
+                          <a href={whatsappLink} target="_blank" rel="noreferrer" title="WhatsApp"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                            <Send className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <span className="flex h-8 w-8 items-center justify-center rounded-md opacity-30">
+                            <Send className="h-4 w-4" />
+                          </span>
+                        )}
+                        <button type="button" title="Editar" onClick={() => handleEditMember(member)}
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button type="button" title="Eliminar" onClick={() => handleRequestDelete(member)}
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
