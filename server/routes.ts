@@ -42,6 +42,7 @@ import {
   notifications,
   interviews,
   organizationInterviews,
+  parseDateString,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -7792,7 +7793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updated = await storage.updateActivity(req.params.id, {
         ...(title !== undefined && { title }),
         ...(description !== undefined && { description }),
-        ...(date !== undefined && { date: new Date(date) }),
+        ...(date !== undefined && { date: parseDateString(date) }),
         ...(location !== undefined && { location }),
         ...(isPublic !== undefined && { isPublic }),
         ...(type !== undefined && { type }),

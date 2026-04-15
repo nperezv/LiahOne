@@ -74,11 +74,16 @@ function useInjectStyles() {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function parseDateParts(dateStr: string) {
-  // PostgreSQL returns timestamps without Z suffix — normalize to UTC
-  const normalized = /Z$|[+-]\d{2}:\d{2}$/.test(dateStr)
-    ? dateStr
-    : dateStr.replace(" ", "T") + "Z";
-  const d = new Date(normalized);
+  if (!dateStr) return { weekday: "", day: "?", month: "?", year: 0, time: "?:?", full: "" };
+  let s = String(dateStr).trim();
+  // "2024-04-13 18:00:00" → "2024-04-13T18:00:00"
+  s = s.replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T");
+  // "+00" (no colon, no minutes) → "+00:00"
+  s = s.replace(/([+-]\d{2})$/, "$1:00");
+  // no timezone suffix at all → treat as UTC
+  if (!/Z$|[+-]\d{2}/.test(s.slice(10))) s += "Z";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return { weekday: "", day: "?", month: "?", year: 0, time: "?:?", full: "" };
   // Use UTC values so the time matches what was entered (stored as UTC)
   const utcH = d.getUTCHours();
   const utcM = d.getUTCMinutes();

@@ -5,7 +5,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Helper to parse dates from various formats
-const parseDateString = (dateStr: string | Date): Date => {
+export const parseDateString = (dateStr: string | Date): Date => {
   if (dateStr instanceof Date) return dateStr;
   if (typeof dateStr !== "string") throw new Error("Invalid date");
 
