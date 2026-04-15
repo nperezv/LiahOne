@@ -1379,9 +1379,7 @@ function ActivityCard({
           )}
 
           {/* Approval actions */}
-          {isOrgActivity && (
-            <ApprovalActions activity={activity} userRole={userRole} orgId={orgId} />
-          )}
+          <ApprovalActions activity={activity} userRole={userRole} orgId={orgId} />
 
           {!canSeeChecklist && !isOrgActivity && !activity.description && (
             <p className="text-sm text-muted-foreground italic">Sin detalles adicionales</p>
