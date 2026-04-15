@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Upload, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
 import { normalizeMemberName } from "@/lib/utils";
@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BudgetRequestDialog } from "@/components/budget-request-dialog";
+import { FlyerGenerator } from "@/components/flyer-generator";
 import { useActivities, useCreateActivity, useOrganizations, useDeleteActivity, useMembers, useHymns, useUsers, useAllMemberCallings } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportActivities } from "@/lib/export";
@@ -901,9 +902,9 @@ function SectionPanel({
         Preparación — {totalCompleted}/{totalRequired} completados
       </p>
 
-      {/* Flyer upload always visible for programa */}
+      {/* Flyer always visible for programa */}
       {bySection.programa.some(i => i.itemKey === "prog_flyer") && (
-        <FlyerUpload activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} />
+        <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={activity} />
       )}
 
       {sections.map(sec => {
@@ -981,80 +982,6 @@ function SectionPanel({
           activityType={activityType}
           activityOrgId={activityOrgId}
         />
-      )}
-    </div>
-  );
-}
-
-function FlyerUpload({ activityId, flyerUrl, canUpload }: { activityId: string; flyerUrl?: string | null; canUpload: boolean }) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [uploading, setUploading] = useState(false);
-
-  async function compressImage(file: File, maxPx = 1920, quality = 0.85): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      const img = new window.Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxPx || height > maxPx) {
-          if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
-          else { width = Math.round(width * maxPx / height); height = maxPx; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error("canvas toBlob failed")), "image/jpeg", quality);
-      };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
-    });
-  }
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const blob = await compressImage(file);
-      const form = new FormData();
-      form.append("flyer", blob, "flyer.jpg");
-      const token = getAccessToken();
-      const res = await fetch(`/api/activities/${activityId}/flyer`, {
-        method: "POST",
-        body: form,
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(await res.text());
-      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/actividades"] });
-      toast({ title: "Flyer subido correctamente" });
-    } catch {
-      toast({ title: "Error al subir flyer", variant: "destructive" });
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-3">
-      {flyerUrl ? (
-        <a href={flyerUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline">
-          <Image className="h-4 w-4" /> Ver flyer
-        </a>
-      ) : (
-        <span className="text-sm text-muted-foreground italic">Sin flyer</span>
-      )}
-      {canUpload && (
-        <>
-          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <Upload className="h-3.5 w-3.5 mr-1" />
-            {uploading ? "Subiendo..." : flyerUrl ? "Cambiar flyer" : "Subir flyer"}
-          </Button>
-          <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFile} />
-        </>
       )}
     </div>
   );
@@ -1358,7 +1285,7 @@ function ActivityCard({
 
           {/* Flyer for non-checklist org activities */}
           {!canSeeChecklist && isOrgActivity && (
-            <FlyerUpload activityId={activity.id} flyerUrl={activity.flyerUrl} canUpload={editMode ? canUploadFlyer : false} />
+            <FlyerGenerator activityId={activity.id} flyerUrl={activity.flyerUrl} canUpload={editMode ? canUploadFlyer : false} activity={activity} />
           )}
 
           {/* Approval actions */}

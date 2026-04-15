@@ -48,6 +48,7 @@ import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-u
 import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
+import Anthropic from "@anthropic-ai/sdk";
 import { createActivityTasksAndAssignments, autoCompleteAssignmentsForSection } from "./activity-task-helpers";
 import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
@@ -7801,6 +7802,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ flyerUrl, activity: updated });
     } catch (err) {
       res.status(500).json({ error: "Error al subir flyer" });
+    }
+  });
+
+  // ── POST /api/activities/:id/generate-flyer-copy ────────────────────────────
+  app.post("/api/activities/:id/generate-flyer-copy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const activity = await storage.getActivity(req.params.id);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+
+      const isObispado = ["obispo", "consejero_obispo"].includes(user.role);
+      const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(user.role);
+      if (!isObispado && !(isOrgMember && activity.organizationId === user.organizationId)) {
+        return res.status(403).json({ error: "Sin permiso" });
+      }
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY no configurada" });
+
+      const activityDate = new Date(activity.date);
+      const fechaPrompt = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      const horaPrompt = activityDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+      const tipoLabels: Record<string, string> = {
+        servicio_bautismal: "Servicio Bautismal",
+        deportiva: "Deportiva / Juegos",
+        capacitacion: "Capacitación / Devocional",
+        fiesta: "Fiesta / Celebración",
+        hermanamiento: "Hermanamiento / Reunión Social",
+        actividad_org: "Actividad de Organización",
+        otro: "Actividad General",
+      };
+
+      const validFondos = [
+        "calido-hermanamiento", "calido-limpieza", "calido-raices", "calido-servicio", "calido-talentos",
+        "cultural-arte", "cultural-historia-familiar", "cultural-musica",
+        "energetico-aventura", "energetico-competicion", "energetico-deportes", "energetico-juegos",
+        "espiritual-ayuno", "espiritual-conferencia", "espiritual-escrituras", "espiritual-oracion", "espiritual-templo",
+        "festivo-anonuevo", "festivo-fiesta", "festivo-halloween", "festivo-naciones", "festivo-navidad", "festivo-navidad-plata", "festivo-pascua",
+        "solemne-bautismo", "solemne-conferencia", "solemne-formal",
+      ];
+
+      const prompt = `Eres un experto en neuromarketing y copywriting para comunidades religiosas LDS.
+Genera el copy para un flyer de esta actividad:
+- Tipo: ${tipoLabels[activity.type ?? "otro"] ?? "Actividad"}
+- Nombre: ${activity.title}
+- Fecha: ${fechaPrompt}
+- Hora: ${horaPrompt}
+- Lugar: ${activity.location ?? "Por confirmar"}
+- Descripción adicional: ${activity.description ?? "Sin descripción"}
+
+Fondos disponibles — elige el MÁS apropiado según el contenido de la actividad:
+calido: hermanamiento, limpieza, raices, servicio, talentos
+cultural: arte, historia-familiar, musica
+energetico: aventura, competicion, deportes, juegos
+espiritual: ayuno, conferencia, escrituras, oracion, templo
+festivo: anonuevo, fiesta, halloween, naciones, navidad, navidad-plata, pascua
+solemne: bautismo, conferencia, formal
+
+Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adicional:
+{
+  "titulo": "título emocional máximo 5 palabras",
+  "hook": "frase de impacto máximo 10 palabras, sutil toque LDS",
+  "descripcion": "descripción corta máximo 20 palabras, cálida y motivadora",
+  "cta": "llamada a la acción máximo 6 palabras",
+  "fondo": "nombre-del-fondo-elegido"
+}`;
+
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 350,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const content = message.content[0];
+      if (content.type !== "text") throw new Error("Respuesta inesperada");
+
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No se pudo parsear la respuesta");
+
+      const copy = JSON.parse(jsonMatch[0]);
+      if (!copy.titulo || !copy.hook || !copy.descripcion || !copy.cta || !copy.fondo) {
+        throw new Error("Respuesta incompleta");
+      }
+      if (!validFondos.includes(copy.fondo)) {
+        copy.fondo = "espiritual-conferencia";
+      }
+
+      copy.fecha_display = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+      copy.hora_display = horaPrompt + " hrs";
+
+      res.json(copy);
+    } catch (err: any) {
+      console.error("[generate-flyer-copy]", err);
+      res.status(500).json({ error: err.message ?? "Error al generar copy" });
     }
   });
 
