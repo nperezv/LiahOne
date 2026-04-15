@@ -912,10 +912,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
   `);
 
-  // Auto-migration: convert activities.date to TIMESTAMPTZ (treats stored values as UTC wall-clock)
+  // Auto-migration: convert activities.date to TIMESTAMPTZ — runs ONLY when column is still TIMESTAMP WITHOUT TIME ZONE
   await db.execute(sql`
-    ALTER TABLE activities
-      ALTER COLUMN date TYPE TIMESTAMPTZ USING date AT TIME ZONE 'UTC'
+    DO $$
+    BEGIN
+      IF (
+        SELECT data_type FROM information_schema.columns
+        WHERE table_name = 'activities' AND column_name = 'date'
+      ) = 'timestamp without time zone' THEN
+        ALTER TABLE activities
+          ALTER COLUMN date TYPE TIMESTAMPTZ USING date AT TIME ZONE 'UTC';
+      END IF;
+    END $$
   `);
 
   // Auto-migration: remove sports-specific checklist items from deportiva activities (no longer in template)
