@@ -904,7 +904,7 @@ function SectionPanel({
 
       {/* Flyer always visible for programa */}
       {bySection.programa.some(i => i.itemKey === "prog_flyer") && (
-        <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={activity} />
+        <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={{ type: activityType }} />
       )}
 
       {sections.map(sec => {
