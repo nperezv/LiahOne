@@ -174,102 +174,106 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "58%",
+          top: "52%",
+          bottom: "60px",
           left: 0,
           right: 0,
           padding: "0 72px",
           display: "flex",
           flexDirection: "column",
-          gap: "22px",
+          justifyContent: "space-between",
         }}
       >
-        {/* Hook — Playfair Display italic */}
-        <p
-          style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontStyle: "italic",
-            fontSize: "44px",
-            color: gold,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            margin: 0,
-          }}
-        >
-          {copy.hook}
-        </p>
+        {/* Upper content group */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+          {/* Hook — Playfair Display italic */}
+          <p
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: "italic",
+              fontSize: "44px",
+              color: gold,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              margin: 0,
+            }}
+          >
+            {copy.hook}
+          </p>
 
-        {/* Title — Raleway 900 uppercase */}
-        <h1
-          style={{
-            fontFamily: "'Raleway', sans-serif",
-            fontSize: "96px",
-            color: "#FFFFFF",
-            lineHeight: 1.0,
-            fontWeight: 900,
-            margin: 0,
-            textTransform: "uppercase",
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {copy.titulo}
-        </h1>
+          {/* Title — Raleway 900 uppercase */}
+          <h1
+            style={{
+              fontFamily: "'Raleway', sans-serif",
+              fontSize: "96px",
+              color: "#FFFFFF",
+              lineHeight: 1.0,
+              fontWeight: 900,
+              margin: 0,
+              textTransform: "uppercase",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {copy.titulo}
+          </h1>
 
-        {/* Description */}
-        <p
-          style={{
-            fontFamily: "'Raleway', sans-serif",
-            fontSize: "28px",
-            color: "rgba(255,255,255,0.82)",
-            fontWeight: 400,
-            lineHeight: 1.5,
-            margin: 0,
-            maxWidth: "900px",
-          }}
-        >
-          {copy.descripcion}
-        </p>
+          {/* Description */}
+          <p
+            style={{
+              fontFamily: "'Raleway', sans-serif",
+              fontSize: "28px",
+              color: "rgba(255,255,255,0.82)",
+              fontWeight: 400,
+              lineHeight: 1.5,
+              margin: 0,
+              maxWidth: "900px",
+            }}
+          >
+            {copy.descripcion}
+          </p>
 
-        {/* Divider */}
-        <div
-          style={{
-            width: "100%",
-            height: "1px",
-            backgroundColor: "rgba(212,175,55,0.32)",
-          }}
-        />
+          {/* Divider */}
+          <div
+            style={{
+              width: "100%",
+              height: "1px",
+              backgroundColor: "rgba(212,175,55,0.32)",
+            }}
+          />
 
-        {/* Lugar + Barrio */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {copy.lugar && (
-            <span
-              style={{
-                fontFamily: "'Raleway', sans-serif",
-                fontSize: "26px",
-                color: "#FFFFFF",
-                fontWeight: 600,
-                letterSpacing: "0.02em",
-              }}
-            >
-              {copy.lugar}
-            </span>
-          )}
-          {copy.barrio && (
-            <span
-              style={{
-                fontFamily: "'Raleway', sans-serif",
-                fontSize: "20px",
-                color: gold,
-                fontWeight: 500,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-              }}
-            >
-              {copy.barrio}
-            </span>
-          )}
+          {/* Lugar + Barrio */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {copy.lugar && (
+              <span
+                style={{
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "26px",
+                  color: "#FFFFFF",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {copy.lugar}
+              </span>
+            )}
+            {copy.barrio && (
+              <span
+                style={{
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "20px",
+                  color: gold,
+                  fontWeight: 500,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {copy.barrio}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* CTA */}
+        {/* CTA — pinned to bottom by space-between */}
         <div
           style={{
             backgroundColor: gold,
