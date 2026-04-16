@@ -43,6 +43,8 @@ import {
   interviews,
   organizationInterviews,
   parseDateString,
+  memberCallings,
+  sacramentalMeetings as sacramentalMeetingsTable,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -2423,6 +2425,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.errors });
       }
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Manual trigger: process released callings for today's meeting(s)
+  app.post("/api/sacramental-meetings/process-releases", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const todayMeetings = await db
+        .select()
+        .from(sacramentalMeetingsTable)
+        .where(sql`DATE(${sacramentalMeetingsTable.date}) = CURRENT_DATE`);
+
+      const results: { name: string; calling: string; released: boolean }[] = [];
+      for (const meeting of todayMeetings) {
+        const releases = (meeting.releases as { name: string; oldCalling: string; organizationId?: string }[]) ?? [];
+        for (const release of releases) {
+          if (!release.organizationId || !release.oldCalling) continue;
+          const [found] = await db
+            .select({ id: memberCallings.id })
+            .from(memberCallings)
+            .where(and(
+              eq(memberCallings.organizationId, release.organizationId),
+              sql`lower(${memberCallings.callingName}) = lower(${release.oldCalling})`,
+              eq(memberCallings.isActive, true),
+            ));
+          if (found) {
+            await db.delete(memberCallings).where(eq(memberCallings.id, found.id));
+            results.push({ name: release.name, calling: release.oldCalling, released: true });
+          } else {
+            results.push({ name: release.name, calling: release.oldCalling, released: false });
+          }
+        }
+      }
+      res.json({ processed: results.length, results });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -9937,6 +9974,43 @@ Devuelve SOLO un JSON con esta estructura exacta:
   }
 
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
+  // ── AUTO-RELEASE CALLINGS ────────────────────────────────────────────────────
+  // Runs at midnight: deletes callings listed as released in today's sacrament program
+  async function processReleasedCallings() {
+    try {
+      if (new Date().getHours() !== 0) return;
+      const todayMeetings = await db
+        .select()
+        .from(sacramentalMeetingsTable)
+        .where(sql`DATE(${sacramentalMeetingsTable.date}) = CURRENT_DATE`);
+
+      let count = 0;
+      for (const meeting of todayMeetings) {
+        const releases = (meeting.releases as { name: string; oldCalling: string; organizationId?: string }[]) ?? [];
+        for (const release of releases) {
+          if (!release.organizationId || !release.oldCalling) continue;
+          const [found] = await db
+            .select({ id: memberCallings.id })
+            .from(memberCallings)
+            .where(and(
+              eq(memberCallings.organizationId, release.organizationId),
+              sql`lower(${memberCallings.callingName}) = lower(${release.oldCalling})`,
+              eq(memberCallings.isActive, true),
+            ));
+          if (found) {
+            await db.delete(memberCallings).where(eq(memberCallings.id, found.id));
+            count++;
+            console.log(`[auto-release] ${release.name} — ${release.oldCalling}`);
+          }
+        }
+      }
+      if (count) console.log(`[auto-release] ${count} llamamiento(s) liberado(s) automáticamente`);
+    } catch (err) {
+      console.error("[auto-release] Error:", err);
+    }
+  }
+
+  startHourlyAlignedTask(processReleasedCallings);
   startHourlyAlignedTask(sendAutomaticBirthdayNotifications);
   startHourlyAlignedTask(sendAutomaticBirthdayEmails);
   startHourlyAlignedTask(sendAutomaticSacramentalAssignmentReminders);
