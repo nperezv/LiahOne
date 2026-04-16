@@ -7921,10 +7921,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const meetingAddress = template?.meetingCenterAddress?.trim() || template?.meetingCenterName?.trim() || "";
 
-      // Read photo manifest for available backgrounds
+      // Read photo manifest and select a background randomly by activity type
       const manifestPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
       let availablePhotos: Array<{ file: string; tags: string[] }> = [];
       try { availablePhotos = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch { /* no manifest yet */ }
+
+      // Keywords per activity type used to score photos
+      const typeKeywords: Record<string, string[]> = {
+        servicio_bautismal: ["templo", "bautismo", "solemne", "agua", "espiritual", "blanco"],
+        deportiva:          ["deporte", "deportes", "juegos", "energia", "atletismo", "futbol", "cancha"],
+        capacitacion:       ["reunion", "conferencia", "estudio", "escrituras", "ensenanza", "clase"],
+        fiesta:             ["fiesta", "celebracion", "festivo", "musica", "baile", "colores"],
+        hermanamiento:      ["reunion", "hermanamiento", "gente", "familia", "comunidad", "amistad"],
+        actividad_org:      ["reunion", "organizacion", "liderazgo", "mesa", "sala"],
+        otro:               [],
+      };
+
+      // Score each photo against activity keywords, then pick randomly among top scorers
+      const keywords = typeKeywords[activity.type ?? "otro"] ?? [];
+      function scorePhoto(p: { tags: string[] }): number {
+        return p.tags.filter(t =>
+          keywords.some(k => t.toLowerCase().includes(k) || k.includes(t.toLowerCase()))
+        ).length;
+      }
+      let selectedFondo = "fallback";
+      if (availablePhotos.length > 0) {
+        const scored = availablePhotos
+          .map(p => ({ p, score: scorePhoto(p) }))
+          .sort((a, b) => b.score - a.score);
+        const best = scored[0].score;
+        // Among all photos with the top score (could be 0 = no match), pick one at random
+        const pool = scored.filter(x => x.score === best);
+        const picked = pool[Math.floor(Math.random() * pool.length)];
+        selectedFondo = `photos/${picked.p.file}`;
+      }
 
       // Fetch secretary phone for registration activities
       let secretaryPhone = "";
@@ -7954,11 +7984,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         otro: "Actividad General",
       };
 
-      // Build photo list for prompt
-      const photoListForPrompt = availablePhotos.length > 0
-        ? availablePhotos.map((p) => `  photos/${p.file}: ${p.tags.join(", ")}`).join("\n")
-        : '  (sin fotos disponibles — usar "fallback")';
-
       const ctaInstructions = requiresReg
         ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
         : `CTA: debe invitar a asistir libremente, sin inscripción previa. Sugiere traer amigos y familiares.`;
@@ -7973,9 +7998,6 @@ Genera el copy para un flyer de esta actividad:
 - Descripción adicional: ${activity.description ?? "Sin descripción"}
 - Requiere inscripción: ${requiresReg ? "Sí" : "No"}
 
-Fotos de fondo disponibles (elige la más apropiada según el tipo y contexto de la actividad):
-${photoListForPrompt}
-
 ${ctaInstructions}
 
 Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adicional:
@@ -7983,8 +8005,7 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
   "titulo": "título emocional máximo 5 palabras",
   "hook": "frase de impacto máximo 10 palabras, sutil toque LDS",
   "descripcion": "descripción corta máximo 20 palabras, cálida y motivadora",
-  "cta": "llamada a la acción máximo 6 palabras${secretaryPhone && requiresReg ? ` (incluye el teléfono ${secretaryPhone})` : ""}",
-  "fondo": "photos/nombre-del-archivo.jpg (o \\"fallback\\" si ninguna encaja)"
+  "cta": "llamada a la acción máximo 6 palabras${secretaryPhone && requiresReg ? ` (incluye el teléfono ${secretaryPhone})` : ""}"
 }`;
 
       const client = new Anthropic({ apiKey });
@@ -8001,13 +8022,11 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
       if (!jsonMatch) throw new Error("No se pudo parsear la respuesta");
 
       const copy = JSON.parse(jsonMatch[0]);
-      if (!copy.titulo || !copy.hook || !copy.descripcion || !copy.cta || !copy.fondo) {
+      if (!copy.titulo || !copy.hook || !copy.descripcion || !copy.cta) {
         throw new Error("Respuesta incompleta");
       }
-      const isValidFondo = copy.fondo === "fallback" || availablePhotos.some((p: any) => `photos/${p.file}` === copy.fondo);
-      if (!isValidFondo) {
-        copy.fondo = availablePhotos.length > 0 ? `photos/${availablePhotos[0].file}` : "fallback";
-      }
+      // Photo selected by backend (random among best match), not by Claude
+      copy.fondo = selectedFondo;
 
       copy.lugar = template?.meetingCenterName?.trim() || meetingAddress || activity.location || "";
       copy.barrio = template?.wardName?.trim() || "";
@@ -8036,14 +8055,28 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
           .replace(/\.[^.]+$/, "")
           .replace(/[^a-z0-9_-]/gi, "-")
           .toLowerCase();
-        const filename = `${baseName}-${Date.now()}.${ext}`;
 
         const photosDir = path.join(process.cwd(), "client", "public", "flyer-assets", "photos");
         if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
+
+        // Name as templo.jpg, templo1.jpg, templo2.jpg... (no timestamps)
+        const existing = fs.existsSync(photosDir)
+          ? fs.readdirSync(photosDir).map(f => f.replace(/\.[^.]+$/, ""))
+          : [];
+        let filename: string;
+        if (!existing.includes(baseName)) {
+          filename = `${baseName}.${ext}`;
+        } else {
+          let n = 1;
+          while (existing.includes(`${baseName}${n}`)) n++;
+          filename = `${baseName}${n}.${ext}`;
+        }
+
         fs.writeFileSync(path.join(photosDir, filename), req.file.buffer);
 
-        // Tags extracted from filename (split on dashes / underscores)
-        const tags = baseName.split(/[-_]+/).filter(Boolean);
+        // Tags: strip trailing numbers so templo1 → ["templo"]
+        const tagBase = baseName.replace(/\d+$/, "");
+        const tags = tagBase.split(/[-_]+/).filter(Boolean);
 
         const mPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
         let manifest: Array<{ file: string; tags: string[] }> = [];
