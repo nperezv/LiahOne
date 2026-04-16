@@ -151,7 +151,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         style={{
           position: "absolute",
           inset: 0,
-          background: `linear-gradient(to bottom, transparent 0%, transparent 44%, ${dominantColor}55 56%, ${dominantColor}99 68%, ${dominantColor}cc 80%, ${dominantColor} 100%)`,
+          background: `linear-gradient(to bottom, transparent 0%, transparent 30%, ${dominantColor}20 40%, ${dominantColor}55 52%, ${dominantColor}99 63%, ${dominantColor}cc 73%, ${dominantColor} 83%)`,
         }}
       />
 
@@ -208,7 +208,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "50%",
+          top: "55%",
           bottom: "80px",
           left: 0,
           right: 0,
