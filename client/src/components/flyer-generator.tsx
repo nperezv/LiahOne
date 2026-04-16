@@ -325,7 +325,8 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
     const url = getPhotoUrl(copy?.fondo ?? "", customPhotoUrl);
     if (!url) { setDominantColor(FALLBACK_COLOR); return; }
     const img = new window.Image();
-    img.crossOrigin = "anonymous";
+    // blob: URLs are same-origin — setting crossOrigin causes them to fail
+    if (!url.startsWith("blob:")) img.crossOrigin = "anonymous";
     img.onload = () => setDominantColor(extractDominantColor(img));
     img.onerror = () => setDominantColor(FALLBACK_COLOR);
     img.src = url;
