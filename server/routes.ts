@@ -8155,8 +8155,9 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
   // ── POST /api/flyer-assets/sync ──────────────────────────────────────────────
   // Scan category folders on disk and reconcile with photo-manifest.json.
-  // Adds files found on disk but missing from manifest (with Vision tagging).
-  // Removes manifest entries whose file no longer exists on disk.
+  // ?vision=false  → skip Vision, use filename tags only (instant, free)
+  // ?vision=true   → Vision tagging in parallel batches of 8 (default)
+  // Respects max 10 per category: excess photos stay on disk but aren't added to manifest.
   app.post("/api/flyer-assets/sync", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -8164,6 +8165,9 @@ Devuelve SOLO un JSON con esta estructura exacta:
         return res.status(403).json({ error: "Sin permiso" });
       }
 
+      const useVision = req.query.vision !== "false";
+      const MAX_PER_CATEGORY = 10;
+      const BATCH_SIZE = 8;
       const validCategories = ["bautismo", "deportiva", "hermanamiento", "festivo", "capacitacion", "general"];
       const photosBase = path.join(process.cwd(), "client", "public", "flyer-assets", "photos");
       const mPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
@@ -8173,65 +8177,82 @@ Devuelve SOLO un JSON con esta estructura exacta:
       let manifest: PhotoEntry[] = [];
       try { manifest = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch {}
 
-      // 1. Remove entries whose file no longer exists on disk
+      // 1. Remove stale entries (file deleted from disk)
       const before = manifest.length;
       manifest = manifest.filter(p => fs.existsSync(path.join(photosBase, p.file)));
       const removed = before - manifest.length;
 
-      // 2. Scan all category folders for files not yet in manifest
+      // 2. Collect new files not yet in manifest, respecting per-category limit
       const manifestFiles = new Set(manifest.map(p => p.file));
       const imageExts = new Set([".jpg", ".jpeg", ".png", ".webp"]);
-      const toAdd: PhotoEntry[] = [];
+      const newFiles: { entry: string; cat: string; file: string }[] = [];
+      const skipped: string[] = [];
 
       for (const cat of validCategories) {
         const catDir = path.join(photosBase, cat);
         if (!fs.existsSync(catDir)) continue;
-        const files = fs.readdirSync(catDir).filter(f => imageExts.has(path.extname(f).toLowerCase()));
-        for (const file of files) {
+        const inManifest = manifest.filter(p => p.category === cat).length;
+        let slots = MAX_PER_CATEGORY - inManifest;
+        const diskFiles = fs.readdirSync(catDir).filter(f => imageExts.has(path.extname(f).toLowerCase()));
+        for (const file of diskFiles) {
           const entry = `${cat}/${file}`;
           if (manifestFiles.has(entry)) continue;
-
-          // Try Vision tagging; fallback to filename tags
-          let tags: string[] = [];
-          if (apiKey) {
-            try {
-              const buf = fs.readFileSync(path.join(catDir, file));
-              const ext = path.extname(file).slice(1).toLowerCase();
-              const mimeType = ext === "png" ? "image/png" as const : ext === "webp" ? "image/webp" as const : "image/jpeg" as const;
-              const vc = new Anthropic({ apiKey });
-              const vr = await vc.messages.create({
-                model: "claude-haiku-4-5-20251001",
-                max_tokens: 120,
-                messages: [{
-                  role: "user",
-                  content: [
-                    { type: "image", source: { type: "base64", media_type: mimeType, data: buf.toString("base64") } },
-                    { type: "text", text: `Dame SOLO un JSON: {"tags":["3-5 palabras clave en español, minúsculas"]} para usar esta imagen como fondo en un flyer LDS de tipo "${cat}".` }
-                  ]
-                }]
-              });
-              const t = vr.content[0];
-              if (t.type === "text") {
-                const m = t.text.match(/\{[\s\S]*\}/);
-                if (m) {
-                  const p = JSON.parse(m[0]);
-                  if (Array.isArray(p.tags)) tags = p.tags.slice(0, 5).map(String);
-                }
-              }
-            } catch {}
-          }
-          if (tags.length === 0) {
-            tags = file.replace(/\.[^.]+$/, "").replace(/\d+$/, "").split(/[-_]+/).filter(Boolean);
-          }
-
-          toAdd.push({ file: entry, category: cat, tags, usedCount: 0, lastUsed: null });
+          if (slots <= 0) { skipped.push(entry); continue; }
+          newFiles.push({ entry, cat, file });
+          slots--;
         }
+      }
+
+      // 3. Tag new files — parallel batches if Vision, instant if not
+      async function tagFile(entry: string, cat: string, file: string): Promise<PhotoEntry> {
+        let tags: string[] = [];
+        if (useVision && apiKey) {
+          try {
+            const buf = fs.readFileSync(path.join(photosBase, cat, file));
+            const ext = path.extname(file).slice(1).toLowerCase();
+            const mimeType = ext === "png" ? "image/png" as const : ext === "webp" ? "image/webp" as const : "image/jpeg" as const;
+            const vc = new Anthropic({ apiKey });
+            const vr = await vc.messages.create({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 120,
+              messages: [{ role: "user", content: [
+                { type: "image", source: { type: "base64", media_type: mimeType, data: buf.toString("base64") } },
+                { type: "text", text: `Dame SOLO un JSON: {"tags":["3-5 palabras clave en español, minúsculas"]} para usar esta imagen como fondo en un flyer LDS de tipo "${cat}".` }
+              ]}]
+            });
+            const t = vr.content[0];
+            if (t.type === "text") {
+              const m = t.text.match(/\{[\s\S]*\}/);
+              if (m) { const p = JSON.parse(m[0]); if (Array.isArray(p.tags)) tags = p.tags.slice(0, 5).map(String); }
+            }
+          } catch {}
+        }
+        if (tags.length === 0) {
+          tags = file.replace(/\.[^.]+$/, "").replace(/\d+$/, "").split(/[-_]+/).filter(Boolean);
+        }
+        return { file: entry, category: cat, tags, usedCount: 0, lastUsed: null };
+      }
+
+      // Process in batches of BATCH_SIZE to avoid rate limits
+      const toAdd: PhotoEntry[] = [];
+      for (let i = 0; i < newFiles.length; i += BATCH_SIZE) {
+        const batch = newFiles.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(batch.map(f => tagFile(f.entry, f.cat, f.file)));
+        toAdd.push(...results);
       }
 
       manifest.push(...toAdd);
       fs.writeFileSync(mPath, JSON.stringify(manifest, null, 2));
 
-      res.json({ added: toAdd.length, removed, total: manifest.length, newFiles: toAdd.map(p => p.file) });
+      res.json({
+        added: toAdd.length,
+        removed,
+        skipped: skipped.length,
+        total: manifest.length,
+        vision: useVision,
+        newFiles: toAdd.map(p => p.file),
+        skippedFiles: skipped,
+      });
     } catch (err) {
       console.error("[POST /api/flyer-assets/sync]", err);
       res.status(500).json({ error: "Error al sincronizar" });
