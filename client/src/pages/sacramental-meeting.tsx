@@ -557,7 +557,12 @@ function SacramentalMeetingPageInner() {
   };
   const getVacantCallingsForOrgWithCurrent = (orgId?: string, current?: string) => {
     const callings = getVacantCallingsForOrg(orgId);
-    return current && !callings.includes(current) ? [...callings, current] : callings;
+    // Include callings being released in this same program — they're effectively free
+    const beingReleased = releases
+      .filter((r) => r.organizationId === orgId && r.oldCalling)
+      .map((r) => r.oldCalling);
+    const merged = Array.from(new Set([...callings, ...beingReleased]));
+    return current && !merged.includes(current) ? [...merged, current] : merged;
   };
   const getMemberNameForCalling = useCallback((orgId?: string, callingName?: string) => {
     if (!orgId || !callingName) return "";
