@@ -50,14 +50,6 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -1813,7 +1805,7 @@ export default function InterviewsPage() {
         </CardHeader>
 
         <CardContent>
-          <div className="space-y-3 md:hidden">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filteredInterviews.length > 0 ? (
               filteredInterviews.map((interview: any) => {
                 const interviewer = userById.get(interview.interviewerId);
@@ -1921,131 +1913,6 @@ export default function InterviewsPage() {
             )}
           </div>
 
-          <div className="hidden md:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Persona</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Entrevistador</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Prioridad</TableHead>
-                <TableHead>Estado</TableHead>
-                {showArchived ? <TableHead>Resolución</TableHead> : null}
-                {(canManage || canCancel) && !showArchived ? <TableHead>Acciones</TableHead> : null}
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {filteredInterviews.length > 0 ? (
-                filteredInterviews.map((interview: any) => {
-                  const interviewer = userById.get(interview.interviewerId);
-                  const isCompleted = interview.resolution === "completada" || interview.status === "completada";
-                  const isPending = interview.status === "programada";
-                  const isCancelled = interview.resolution === "cancelada" || interview.status === "cancelada";
-                  const isArchived = interview.status === "archivada" || isCompleted || isCancelled;
-                  const isReadOnly = showArchived || isArchived;
-
-                  return (
-                    <TableRow
-                      key={interview.id}
-                      data-testid={`row-interview-${interview.id}`}
-                      data-interview-id={interview.id}
-                      className={`cursor-pointer transition-shadow duration-500 ${
-                        activeHighlightId === interview.id
-                          ? "shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.7),0_0_24px_hsl(var(--primary)/0.28)]"
-                          : ""
-                      }`}
-                      onClick={() => handleOpenDetails(interview)}
-                    >
-                      <TableCell className="font-medium">
-                        {normalizeMemberName(interview.personName)}
-                      </TableCell>
-                      <TableCell className="text-sm">{formatInterviewType(interview.type)}</TableCell>
-                      <TableCell className="text-sm">
-                        {interviewer?.name ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {new Date(interview.date).toLocaleDateString("es-ES", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </TableCell>
-                      <TableCell>{getPriorityBadge(!!interview.urgent)}</TableCell>
-                      <TableCell>{getStatusBadge(interview, isArchived)}</TableCell>
-                      {showArchived ? <TableCell>{getResolutionLabel(interview)}</TableCell> : null}
-
-                      {(canManage || canCancel) && !showArchived ? (
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {/* ✅ Botón para completar (solo pendientes) */}
-                            {isObispado && isPending && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleCompleteInterview(interview.id);
-                                }}
-                                disabled={updateMutation.isPending}
-                                title="Completar"
-                              >
-                                <CheckCircle2 className="h-4 w-4 lg:mr-1" />
-                                <span className="sr-only lg:not-sr-only">Completar</span>
-                              </Button>
-                            )}
-
-                            {/* ✅ Editar solo si NO está completada */}
-                            {isObispado && !isCompleted && !isArchived && !isReadOnly && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleEditClick(interview);
-                                }}
-                                disabled={updateMutation.isPending}
-                                data-testid={`button-edit-${interview.id}`}
-                              >
-                                <Edit className="h-4 w-4 lg:mr-1" />
-                                <span className="sr-only lg:not-sr-only">Editar</span>
-                              </Button>
-                            )}
-
-                            {canCancel && !isCompleted && !isCancelled && !isArchived && !isReadOnly && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleCancelInterview(interview.id);
-                                }}
-                                disabled={updateMutation.isPending}
-                              >
-                                <X className="h-4 w-4 lg:mr-1" />
-                                <span className="sr-only lg:not-sr-only">Cancelar</span>
-                              </Button>
-                            )}
-
-                          </div>
-                        </TableCell>
-                      ) : null}
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={(canManage || canCancel) && !showArchived ? 7 : 7} className="text-center py-8 text-muted-foreground">
-                    {isOrgMember ? "No hay solicitudes de entrevista" : "No hay entrevistas"}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          </div>
         </CardContent>
       </Card>
 
