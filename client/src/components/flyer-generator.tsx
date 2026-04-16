@@ -278,7 +278,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
           {/* Lugar + Barrio — one line each, overflow on wrapper div not span */}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {copy.lugar && (
-              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", paddingBottom: "4px" }}>
                 <span
                   style={{
                     fontFamily: "'Raleway', sans-serif",
@@ -286,7 +286,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
                     color: "#FFFFFF",
                     fontWeight: 600,
                     letterSpacing: "0.02em",
-                    lineHeight: 1.4,
+                    lineHeight: 1.5,
                   }}
                 >
                   {copy.lugar}
@@ -294,7 +294,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
               </div>
             )}
             {copy.barrio && (
-              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", paddingBottom: "4px" }}>
                 <span
                   style={{
                     fontFamily: "'Raleway', sans-serif",
@@ -303,7 +303,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
                     fontWeight: 500,
                     letterSpacing: "0.18em",
                     textTransform: "uppercase",
-                    lineHeight: 1.4,
+                    lineHeight: 1.5,
                   }}
                 >
                   {copy.barrio}
