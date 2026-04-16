@@ -7921,6 +7921,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const meetingAddress = template?.meetingCenterAddress?.trim() || template?.meetingCenterName?.trim() || "";
 
+      // Read photo manifest for available backgrounds
+      const manifestPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
+      let availablePhotos: Array<{ file: string; tags: string[] }> = [];
+      try { availablePhotos = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch { /* no manifest yet */ }
+
       // Fetch secretary phone for registration activities
       let secretaryPhone = "";
       if ((activity as any).requiresRegistration && activity.organizationId) {
@@ -7949,25 +7954,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         otro: "Actividad General",
       };
 
-      // Background variety guidance per type
-      const fondoGuia: Record<string, string> = {
-        servicio_bautismal: "solemne (preferible solemne-bautismo)",
-        deportiva: "energetico (preferible energetico-deportes o energetico-competicion)",
-        capacitacion: "espiritual (preferible espiritual-conferencia o espiritual-escrituras)",
-        fiesta: "festivo (preferible festivo-fiesta o festivo-naciones)",
-        hermanamiento: "calido (preferible calido-hermanamiento o calido-raices)",
-        actividad_org: "espiritual o calido según el contexto",
-        otro: "elige el más adecuado al contexto",
-      };
-
-      const validFondos = [
-        "calido-hermanamiento", "calido-limpieza", "calido-raices", "calido-servicio", "calido-talentos",
-        "cultural-arte", "cultural-historia-familiar", "cultural-musica",
-        "energetico-aventura", "energetico-competicion", "energetico-deportes", "energetico-juegos",
-        "espiritual-ayuno", "espiritual-conferencia", "espiritual-escrituras", "espiritual-oracion", "espiritual-templo",
-        "festivo-anonuevo", "festivo-fiesta", "festivo-halloween", "festivo-naciones", "festivo-navidad", "festivo-navidad-plata", "festivo-pascua",
-        "solemne-bautismo", "solemne-conferencia", "solemne-formal",
-      ];
+      // Build photo list for prompt
+      const photoListForPrompt = availablePhotos.length > 0
+        ? availablePhotos.map((p) => `  photos/${p.file}: ${p.tags.join(", ")}`).join("\n")
+        : '  (sin fotos disponibles — usar "fallback")';
 
       const ctaInstructions = requiresReg
         ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
@@ -7983,13 +7973,8 @@ Genera el copy para un flyer de esta actividad:
 - Descripción adicional: ${activity.description ?? "Sin descripción"}
 - Requiere inscripción: ${requiresReg ? "Sí" : "No"}
 
-Fondos disponibles — para este tipo (${tipoLabels[activity.type ?? "otro"]}), la recomendación es: ${fondoGuia[activity.type ?? "otro"] ?? "elige el más adecuado"}
-calido: hermanamiento, limpieza, raices, servicio, talentos
-cultural: arte, historia-familiar, musica
-energetico: aventura, competicion, deportes, juegos
-espiritual: ayuno, conferencia, escrituras, oracion, templo
-festivo: anonuevo, fiesta, halloween, naciones, navidad, navidad-plata, pascua
-solemne: bautismo, conferencia, formal
+Fotos de fondo disponibles (elige la más apropiada según el tipo y contexto de la actividad):
+${photoListForPrompt}
 
 ${ctaInstructions}
 
@@ -7999,7 +7984,7 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
   "hook": "frase de impacto máximo 10 palabras, sutil toque LDS",
   "descripcion": "descripción corta máximo 20 palabras, cálida y motivadora",
   "cta": "llamada a la acción máximo 6 palabras${secretaryPhone && requiresReg ? ` (incluye el teléfono ${secretaryPhone})` : ""}",
-  "fondo": "nombre-del-fondo-elegido"
+  "fondo": "photos/nombre-del-archivo.jpg (o \\"fallback\\" si ninguna encaja)"
 }`;
 
       const client = new Anthropic({ apiKey });
@@ -8019,17 +8004,9 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
       if (!copy.titulo || !copy.hook || !copy.descripcion || !copy.cta || !copy.fondo) {
         throw new Error("Respuesta incompleta");
       }
-      if (!validFondos.includes(copy.fondo)) {
-        // Fallback by type
-        const fallbacks: Record<string, string> = {
-          deportiva: "energetico-deportes",
-          fiesta: "festivo-fiesta",
-          hermanamiento: "calido-hermanamiento",
-          capacitacion: "espiritual-conferencia",
-          servicio_bautismal: "solemne-bautismo",
-          actividad_org: "espiritual-conferencia",
-        };
-        copy.fondo = fallbacks[activity.type ?? "otro"] ?? "espiritual-conferencia";
+      const isValidFondo = copy.fondo === "fallback" || availablePhotos.some((p: any) => `photos/${p.file}` === copy.fondo);
+      if (!isValidFondo) {
+        copy.fondo = availablePhotos.length > 0 ? `photos/${availablePhotos[0].file}` : "fallback";
       }
 
       copy.lugar = template?.meetingCenterName?.trim() || meetingAddress || activity.location || "";
@@ -8041,6 +8018,46 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
       res.status(500).json({ error: err.message ?? "Error al generar copy" });
     }
   });
+
+  // ── POST /api/flyer-assets/photo ─────────────────────────────────────────────
+  // Upload a photo to flyer-assets/photos/ and register it in photo-manifest.json
+  app.post("/api/flyer-assets/photo", requireAuth,
+    multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single("photo"),
+    async (req: Request, res: Response) => {
+      try {
+        const user = (req as any).user;
+        const isObispado = ["obispo", "consejero_obispo"].includes(user.role);
+        const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(user.role);
+        if (!isObispado && !isOrgMember) return res.status(403).json({ error: "Sin permiso" });
+        if (!req.file) return res.status(400).json({ error: "No se recibió archivo" });
+
+        const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
+        const baseName = req.file.originalname
+          .replace(/\.[^.]+$/, "")
+          .replace(/[^a-z0-9_-]/gi, "-")
+          .toLowerCase();
+        const filename = `${baseName}-${Date.now()}.${ext}`;
+
+        const photosDir = path.join(process.cwd(), "client", "public", "flyer-assets", "photos");
+        if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
+        fs.writeFileSync(path.join(photosDir, filename), req.file.buffer);
+
+        // Tags extracted from filename (split on dashes / underscores)
+        const tags = baseName.split(/[-_]+/).filter(Boolean);
+
+        const mPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
+        let manifest: Array<{ file: string; tags: string[] }> = [];
+        try { manifest = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch {}
+        manifest.push({ file: filename, tags });
+        fs.writeFileSync(mPath, JSON.stringify(manifest, null, 2));
+
+        res.json({ url: `/flyer-assets/photos/${filename}`, file: filename, tags });
+      } catch (err) {
+        console.error("[POST /api/flyer-assets/photo]", err);
+        res.status(500).json({ error: "Error al subir foto" });
+      }
+    }
+  );
 
   // ── POST /api/activities/:id/reservation-receipt ────────────────────────────
   // Upload reservation receipt image for logistics

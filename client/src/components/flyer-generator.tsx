@@ -1,21 +1,25 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import html2canvas from "html2canvas";
 import "@fontsource/raleway/400.css";
 import "@fontsource/raleway/500.css";
 import "@fontsource/raleway/600.css";
 import "@fontsource/raleway/700.css";
+import "@fontsource/raleway/900.css";
 import "@fontsource/playfair-display/700.css";
-import "@fontsource/playfair-display/600.css";
+import "@fontsource/playfair-display/700-italic.css";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getAccessToken } from "@/lib/auth-tokens";
-import { Image, RefreshCw, Sparkles } from "lucide-react";
+import { Image, RefreshCw, Sparkles, Upload } from "lucide-react";
 
-const FLYER_PX = 1080;
-const PREVIEW_PX = 420;
-const SCALE = PREVIEW_PX / FLYER_PX;
+const FLYER_W = 1080;
+const FLYER_H = 1350;
+const PREVIEW_W = 400;
+const PREVIEW_H = Math.round(PREVIEW_W * FLYER_H / FLYER_W); // 500
+const SCALE = PREVIEW_W / FLYER_W;
+const FALLBACK_COLOR = "#1d4080";
 
 const TIPO_LABELS: Record<string, string> = {
   servicio_bautismal: "Servicio Bautismal",
@@ -37,9 +41,45 @@ interface FlyCopy {
   barrio?: string;
 }
 
-function FlyerCanvas({ copy, activityType }: {
+function extractDominantColor(img: HTMLImageElement): string {
+  try {
+    const W = Math.min(img.naturalWidth, 200);
+    const H = Math.min(img.naturalHeight, 250);
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return FALLBACK_COLOR;
+    ctx.drawImage(img, 0, 0, W, H);
+    const imageData = ctx.getImageData(0, Math.floor(H / 2), W, Math.ceil(H / 2));
+    const data = imageData.data;
+    let r = 0, g = 0, b = 0, count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue;
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
+    }
+    if (count === 0) return FALLBACK_COLOR;
+    // Darken for gradient endpoint
+    r = Math.floor((r / count) * 0.55);
+    g = Math.floor((g / count) * 0.55);
+    b = Math.floor((b / count) * 0.55);
+    return `rgb(${r},${g},${b})`;
+  } catch {
+    return FALLBACK_COLOR;
+  }
+}
+
+function getPhotoUrl(fondo: string, customUrl?: string | null): string | null {
+  if (customUrl) return customUrl;
+  if (fondo?.startsWith("photos/")) return `/flyer-assets/${fondo}`;
+  return null;
+}
+
+function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
   copy: FlyCopy;
   activityType: string;
+  dominantColor: string;
+  photoUrl: string | null;
 }) {
   const gold = "#D4AF37";
   const tipoLabel = TIPO_LABELS[activityType] ?? "Actividad";
@@ -47,16 +87,42 @@ function FlyerCanvas({ copy, activityType }: {
   return (
     <div
       style={{
-        width: FLYER_PX,
-        height: FLYER_PX,
+        width: FLYER_W,
+        height: FLYER_H,
         position: "relative",
         overflow: "hidden",
-        backgroundColor: "#0A0A0A",
+        backgroundColor: dominantColor,
       }}
     >
-      {/* Background SVG */}
+      {/* Layer 1 — photo background */}
+      {photoUrl && (
+        <img
+          src={photoUrl}
+          alt=""
+          crossOrigin="anonymous"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center top",
+          }}
+        />
+      )}
+
+      {/* Layer 2 — gradient: transparent → dominant color */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `linear-gradient(to bottom, transparent 0%, ${dominantColor} 100%)`,
+        }}
+      />
+
+      {/* Layer 3 — decorative geometric overlay */}
       <img
-        src={`/backgrounds/${copy.fondo}.svg`}
+        src="/flyer-assets/asset_flyer_m8.svg"
         alt=""
         crossOrigin="anonymous"
         style={{
@@ -68,158 +134,162 @@ function FlyerCanvas({ copy, activityType }: {
         }}
       />
 
-      {/* Gradient overlay */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.52) 42%, rgba(0,0,0,0.88) 100%)",
-        }}
-      />
+      {/* Layer 4 — text */}
 
-      {/* Content */}
+      {/* Tipo label — top left */}
       <div
         style={{
           position: "absolute",
-          inset: 0,
+          top: "72px",
+          left: "72px",
+          right: "72px",
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "72px",
+          alignItems: "center",
+          gap: "18px",
         }}
       >
-        {/* Top: tipo label */}
-        <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
-          <div
-            style={{
-              width: "3px",
-              height: "46px",
-              backgroundColor: gold,
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{
-              fontFamily: "'Raleway', sans-serif",
-              color: gold,
-              fontSize: "22px",
-              letterSpacing: "0.30em",
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}
-          >
-            {tipoLabel}
-          </span>
-        </div>
+        <div
+          style={{
+            width: "3px",
+            height: "46px",
+            backgroundColor: gold,
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "'Raleway', sans-serif",
+            color: gold,
+            fontSize: "22px",
+            letterSpacing: "0.30em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}
+        >
+          {tipoLabel}
+        </span>
+      </div>
 
-        {/* Center: copy */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-          <h1
-            style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontSize: "98px",
-              color: "#FFFFFF",
-              lineHeight: 1.02,
-              fontWeight: 700,
-              margin: 0,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {copy.titulo}
-          </h1>
-          <p
-            style={{
-              fontFamily: "'Raleway', sans-serif",
-              fontSize: "36px",
-              color: gold,
-              fontWeight: 600,
-              lineHeight: 1.35,
-              margin: 0,
-              letterSpacing: "0.04em",
-            }}
-          >
-            {copy.hook}
-          </p>
-          <p
-            style={{
-              fontFamily: "'Raleway', sans-serif",
-              fontSize: "27px",
-              color: "rgba(255,255,255,0.78)",
-              fontWeight: 400,
-              lineHeight: 1.55,
-              margin: 0,
-              maxWidth: "820px",
-            }}
-          >
-            {copy.descripcion}
-          </p>
-        </div>
+      {/* Main text block — starts at 50% */}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: 0,
+          right: 0,
+          padding: "0 72px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "22px",
+        }}
+      >
+        {/* Hook — Playfair Display italic */}
+        <p
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: "italic",
+            fontSize: "44px",
+            color: gold,
+            fontWeight: 700,
+            lineHeight: 1.2,
+            margin: 0,
+          }}
+        >
+          {copy.hook}
+        </p>
 
-        {/* Bottom: date/place + CTA */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-          {/* Divider */}
-          <div
-            style={{
-              width: "100%",
-              height: "1px",
-              backgroundColor: "rgba(212,175,55,0.38)",
-            }}
-          />
+        {/* Title — Raleway 900 uppercase */}
+        <h1
+          style={{
+            fontFamily: "'Raleway', sans-serif",
+            fontSize: "96px",
+            color: "#FFFFFF",
+            lineHeight: 1.0,
+            fontWeight: 900,
+            margin: 0,
+            textTransform: "uppercase",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {copy.titulo}
+        </h1>
 
-          {/* Place · Ward */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {copy.lugar && (
-              <span
-                style={{
-                  fontFamily: "'Raleway', sans-serif",
-                  fontSize: "28px",
-                  color: "#FFFFFF",
-                  fontWeight: 600,
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {copy.lugar}
-              </span>
-            )}
-            {copy.barrio && (
-              <span
-                style={{
-                  fontFamily: "'Raleway', sans-serif",
-                  fontSize: "22px",
-                  color: gold,
-                  fontWeight: 500,
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {copy.barrio}
-              </span>
-            )}
-          </div>
+        {/* Description */}
+        <p
+          style={{
+            fontFamily: "'Raleway', sans-serif",
+            fontSize: "28px",
+            color: "rgba(255,255,255,0.82)",
+            fontWeight: 400,
+            lineHeight: 1.5,
+            margin: 0,
+            maxWidth: "900px",
+          }}
+        >
+          {copy.descripcion}
+        </p>
 
-          {/* CTA button */}
-          <div
-            style={{
-              backgroundColor: gold,
-              padding: "18px 54px",
-              display: "inline-flex",
-              alignSelf: "flex-start",
-            }}
-          >
+        {/* Divider */}
+        <div
+          style={{
+            width: "100%",
+            height: "1px",
+            backgroundColor: "rgba(212,175,55,0.32)",
+          }}
+        />
+
+        {/* Lugar + Barrio */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {copy.lugar && (
             <span
               style={{
                 fontFamily: "'Raleway', sans-serif",
-                fontSize: "24px",
-                fontWeight: 700,
-                color: "#0A0A0A",
-                letterSpacing: "0.14em",
+                fontSize: "26px",
+                color: "#FFFFFF",
+                fontWeight: 600,
+                letterSpacing: "0.02em",
+              }}
+            >
+              {copy.lugar}
+            </span>
+          )}
+          {copy.barrio && (
+            <span
+              style={{
+                fontFamily: "'Raleway', sans-serif",
+                fontSize: "20px",
+                color: gold,
+                fontWeight: 500,
+                letterSpacing: "0.18em",
                 textTransform: "uppercase",
               }}
             >
-              {copy.cta}
+              {copy.barrio}
             </span>
-          </div>
+          )}
+        </div>
+
+        {/* CTA */}
+        <div
+          style={{
+            backgroundColor: gold,
+            padding: "18px 54px",
+            display: "inline-flex",
+            alignSelf: "flex-start",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Raleway', sans-serif",
+              fontSize: "24px",
+              fontWeight: 700,
+              color: "#0A0A0A",
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+            }}
+          >
+            {copy.cta}
+          </span>
         </div>
       </div>
     </div>
@@ -236,14 +306,30 @@ interface FlyerGeneratorProps {
 export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: FlyerGeneratorProps) {
   const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [copy, setCopy] = useState<FlyCopy | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [dominantColor, setDominantColor] = useState(FALLBACK_COLOR);
+  const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Re-extract dominant color whenever photo source changes
+  useEffect(() => {
+    const url = getPhotoUrl(copy?.fondo ?? "", customPhotoUrl);
+    if (!url) { setDominantColor(FALLBACK_COLOR); return; }
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => setDominantColor(extractDominantColor(img));
+    img.onerror = () => setDominantColor(FALLBACK_COLOR);
+    img.src = url;
+  }, [copy?.fondo, customPhotoUrl]);
+
   async function generate() {
     setGenerating(true);
+    setCustomPhotoUrl(null);
     try {
       const token = getAccessToken();
       const res = await fetch(`/api/activities/${activityId}/generate-flyer-copy`, {
@@ -265,6 +351,38 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
     }
   }
 
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Immediate preview via blob URL
+    const blobUrl = URL.createObjectURL(file);
+    setCustomPhotoUrl(blobUrl);
+
+    // Upload to server (global asset)
+    setUploadingPhoto(true);
+    try {
+      const token = getAccessToken();
+      const form = new FormData();
+      form.append("photo", file, file.name);
+      const res = await fetch("/api/flyer-assets/photo", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Error al subir foto");
+      const { url } = await res.json();
+      URL.revokeObjectURL(blobUrl);
+      setCustomPhotoUrl(url);
+    } catch (e: any) {
+      toast({ title: "Error al subir foto", description: e.message, variant: "destructive" });
+      // Keep blob URL active for this session
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   async function captureAndUpload() {
     if (!captureRef.current || !copy) return;
     setUploading(true);
@@ -272,12 +390,12 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
       await document.fonts.ready;
 
       const canvas = await html2canvas(captureRef.current, {
-        width: FLYER_PX,
-        height: FLYER_PX,
+        width: FLYER_W,
+        height: FLYER_H,
         scale: 1,
         useCORS: true,
         allowTaint: false,
-        backgroundColor: "#0A0A0A",
+        backgroundColor: dominantColor,
         logging: false,
       });
 
@@ -311,6 +429,8 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
     }
   }
 
+  const photoUrl = getPhotoUrl(copy?.fondo ?? "", customPhotoUrl);
+
   return (
     <>
       <div className="flex items-center gap-3">
@@ -334,7 +454,7 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
         )}
       </div>
 
-      {/* Off-screen canvas for html2canvas capture — always mounted when copy exists */}
+      {/* Off-screen canvas for html2canvas capture */}
       {copy && (
         <div
           style={{
@@ -349,6 +469,8 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
             <FlyerCanvas
               copy={copy}
               activityType={activity.type}
+              dominantColor={dominantColor}
+              photoUrl={photoUrl}
             />
           </div>
         </div>
@@ -356,7 +478,7 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
 
       {/* Preview dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-[500px]">
+        <DialogContent className="max-w-[480px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Vista previa del flyer</DialogTitle>
           </DialogHeader>
@@ -366,8 +488,8 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
               {/* Scaled preview */}
               <div
                 style={{
-                  width: PREVIEW_PX,
-                  height: PREVIEW_PX,
+                  width: PREVIEW_W,
+                  height: PREVIEW_H,
                   overflow: "hidden",
                   position: "relative",
                   borderRadius: "6px",
@@ -376,8 +498,8 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
               >
                 <div
                   style={{
-                    width: FLYER_PX,
-                    height: FLYER_PX,
+                    width: FLYER_W,
+                    height: FLYER_H,
                     transform: `scale(${SCALE})`,
                     transformOrigin: "top left",
                     position: "absolute",
@@ -388,8 +510,33 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
                   <FlyerCanvas
                     copy={copy}
                     activityType={activity.type}
+                    dominantColor={dominantColor}
+                    photoUrl={photoUrl}
                   />
                 </div>
+              </div>
+
+              {/* Custom photo upload */}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1" />
+                  {uploadingPhoto ? "Subiendo..." : "Subir imagen propia"}
+                </Button>
+                {customPhotoUrl && (
+                  <span className="text-xs text-muted-foreground">Imagen personalizada activa</span>
+                )}
               </div>
 
               <div className="flex gap-2">
