@@ -2428,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Manual trigger: process released callings for today's meeting(s)
+  // Manual trigger: process releases and sustainments for today's meeting(s)
   app.post("/api/sacramental-meetings/process-releases", requireAuth, async (req: Request, res: Response) => {
     try {
       const todayMeetings = await db
@@ -2436,8 +2436,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(sacramentalMeetingsTable)
         .where(sql`DATE(${sacramentalMeetingsTable.date}) = CURRENT_DATE`);
 
-      const results: { name: string; calling: string; released: boolean }[] = [];
+      const released: { name: string; calling: string; found: boolean }[] = [];
+      const sustained: { name: string; calling: string; memberFound: boolean; alreadyExisted: boolean }[] = [];
+
       for (const meeting of todayMeetings) {
+        // Process releases
         const releases = (meeting.releases as { name: string; oldCalling: string; organizationId?: string }[]) ?? [];
         for (const release of releases) {
           if (!release.organizationId || !release.oldCalling) continue;
@@ -2451,13 +2454,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ));
           if (found) {
             await db.delete(memberCallings).where(eq(memberCallings.id, found.id));
-            results.push({ name: release.name, calling: release.oldCalling, released: true });
+            released.push({ name: release.name, calling: release.oldCalling, found: true });
           } else {
-            results.push({ name: release.name, calling: release.oldCalling, released: false });
+            released.push({ name: release.name, calling: release.oldCalling, found: false });
           }
         }
+
+        // Process sustainments
+        const sustainments = (meeting.sustainments as { name: string; calling: string; organizationId?: string }[]) ?? [];
+        for (const sustainment of sustainments) {
+          if (!sustainment.organizationId || !sustainment.calling || !sustainment.name) continue;
+
+          const [member] = await db
+            .select({ id: members.id })
+            .from(members)
+            .where(and(
+              eq(members.organizationId, sustainment.organizationId),
+              sql`lower(${members.nameSurename}) = lower(${sustainment.name})`,
+            ));
+          if (!member) {
+            sustained.push({ name: sustainment.name, calling: sustainment.calling, memberFound: false, alreadyExisted: false });
+            continue;
+          }
+
+          const [existing] = await db
+            .select({ id: memberCallings.id })
+            .from(memberCallings)
+            .where(and(
+              eq(memberCallings.memberId, member.id),
+              eq(memberCallings.organizationId, sustainment.organizationId),
+              sql`lower(${memberCallings.callingName}) = lower(${sustainment.calling})`,
+              eq(memberCallings.isActive, true),
+            ));
+          if (existing) {
+            sustained.push({ name: sustainment.name, calling: sustainment.calling, memberFound: true, alreadyExisted: true });
+            continue;
+          }
+
+          await db.insert(memberCallings).values({
+            id: sql`gen_random_uuid()`,
+            memberId: member.id,
+            organizationId: sustainment.organizationId,
+            callingName: sustainment.calling,
+            isActive: true,
+            startDate: new Date(),
+          });
+          sustained.push({ name: sustainment.name, calling: sustainment.calling, memberFound: true, alreadyExisted: false });
+        }
       }
-      res.json({ processed: results.length, results });
+      res.json({ released, sustained });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -9975,7 +10020,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   // ── AUTO-RELEASE CALLINGS ────────────────────────────────────────────────────
-  // Runs at midnight: deletes callings listed as released in today's sacrament program
+  // Runs at midnight: processes releases and sustainments from today's sacrament program
   async function processReleasedCallings() {
     try {
       if (new Date().getHours() !== 0) return;
@@ -9984,8 +10029,10 @@ Devuelve SOLO un JSON con esta estructura exacta:
         .from(sacramentalMeetingsTable)
         .where(sql`DATE(${sacramentalMeetingsTable.date}) = CURRENT_DATE`);
 
-      let count = 0;
+      let releasedCount = 0;
+      let sustainedCount = 0;
       for (const meeting of todayMeetings) {
+        // Process releases
         const releases = (meeting.releases as { name: string; oldCalling: string; organizationId?: string }[]) ?? [];
         for (const release of releases) {
           if (!release.organizationId || !release.oldCalling) continue;
@@ -9999,12 +10046,55 @@ Devuelve SOLO un JSON con esta estructura exacta:
             ));
           if (found) {
             await db.delete(memberCallings).where(eq(memberCallings.id, found.id));
-            count++;
+            releasedCount++;
             console.log(`[auto-release] ${release.name} — ${release.oldCalling}`);
           }
         }
+
+        // Process sustainments
+        const sustainments = (meeting.sustainments as { name: string; calling: string; organizationId?: string }[]) ?? [];
+        for (const sustainment of sustainments) {
+          if (!sustainment.organizationId || !sustainment.calling || !sustainment.name) continue;
+
+          // Find member by name within the organization
+          const [member] = await db
+            .select({ id: members.id })
+            .from(members)
+            .where(and(
+              eq(members.organizationId, sustainment.organizationId),
+              sql`lower(${members.nameSurename}) = lower(${sustainment.name})`,
+            ));
+          if (!member) {
+            console.log(`[auto-sustain] Miembro no encontrado: ${sustainment.name}`);
+            continue;
+          }
+
+          // Check if calling already exists (idempotent)
+          const [existing] = await db
+            .select({ id: memberCallings.id })
+            .from(memberCallings)
+            .where(and(
+              eq(memberCallings.memberId, member.id),
+              eq(memberCallings.organizationId, sustainment.organizationId),
+              sql`lower(${memberCallings.callingName}) = lower(${sustainment.calling})`,
+              eq(memberCallings.isActive, true),
+            ));
+          if (existing) continue;
+
+          await db.insert(memberCallings).values({
+            id: sql`gen_random_uuid()`,
+            memberId: member.id,
+            organizationId: sustainment.organizationId,
+            callingName: sustainment.calling,
+            isActive: true,
+            startDate: new Date(),
+          });
+          sustainedCount++;
+          console.log(`[auto-sustain] ${sustainment.name} — ${sustainment.calling}`);
+        }
       }
-      if (count) console.log(`[auto-release] ${count} llamamiento(s) liberado(s) automáticamente`);
+      if (releasedCount) console.log(`[auto-release] ${releasedCount} llamamiento(s) liberado(s) automáticamente`);
+      if (sustainedCount) console.log(`[auto-sustain] ${sustainedCount} llamamiento(s) asignado(s) automáticamente`);
     } catch (err) {
       console.error("[auto-release] Error:", err);
     }
