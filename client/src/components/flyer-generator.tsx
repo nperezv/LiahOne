@@ -41,32 +41,62 @@ interface FlyCopy {
   barrio?: string;
 }
 
-function extractDominantColor(img: HTMLImageElement): string {
+function pixelsToColor(data: Uint8ClampedArray): string {
+  let r = 0, g = 0, b = 0, count = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue;
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
+  }
+  if (count === 0) return FALLBACK_COLOR;
+  r = Math.floor((r / count) * 0.55);
+  g = Math.floor((g / count) * 0.55);
+  b = Math.floor((b / count) * 0.55);
+  return `rgb(${r},${g},${b})`;
+}
+
+// Extract dominant color from a File (always origin-clean — no canvas taint possible)
+async function extractColorFromFile(file: File): Promise<string> {
   try {
-    const W = Math.min(img.naturalWidth, 200);
-    const H = Math.min(img.naturalHeight, 250);
+    const bitmap = await createImageBitmap(file);
+    const W = 100, H = 100;
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return FALLBACK_COLOR;
-    ctx.drawImage(img, 0, 0, W, H);
-    const imageData = ctx.getImageData(0, Math.floor(H / 2), W, Math.ceil(H / 2));
-    const data = imageData.data;
-    let r = 0, g = 0, b = 0, count = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 128) continue;
-      r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
-    }
-    if (count === 0) return FALLBACK_COLOR;
-    // Darken for gradient endpoint
-    r = Math.floor((r / count) * 0.55);
-    g = Math.floor((g / count) * 0.55);
-    b = Math.floor((b / count) * 0.55);
-    return `rgb(${r},${g},${b})`;
+    if (!ctx) { bitmap.close(); return FALLBACK_COLOR; }
+    ctx.drawImage(bitmap, 0, 0, W, H);
+    bitmap.close();
+    const imageData = ctx.getImageData(0, 50, W, 50);
+    return pixelsToColor(imageData.data);
   } catch {
     return FALLBACK_COLOR;
   }
+}
+
+// Extract dominant color from a same-origin URL (library photos)
+function extractColorFromUrl(url: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      try {
+        const W = Math.min(img.naturalWidth, 100);
+        const H = Math.min(img.naturalHeight, 100);
+        if (!W || !H) { resolve(FALLBACK_COLOR); return; }
+        const canvas = document.createElement("canvas");
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(FALLBACK_COLOR); return; }
+        ctx.drawImage(img, 0, 0, W, H);
+        const imageData = ctx.getImageData(0, Math.floor(H / 2), W, Math.ceil(H / 2));
+        resolve(pixelsToColor(imageData.data));
+      } catch {
+        resolve(FALLBACK_COLOR);
+      }
+    };
+    img.onerror = () => resolve(FALLBACK_COLOR);
+    img.src = url;
+  });
 }
 
 function getPhotoUrl(fondo: string, customUrl?: string | null): string | null {
@@ -329,15 +359,12 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Re-extract dominant color from library photo (blob URLs handled in handlePhotoSelect)
+  // Re-extract dominant color from library photo (custom file uploads handled in handlePhotoSelect)
   useEffect(() => {
-    if (customPhotoUrl) return; // already handled when file was picked
+    if (customPhotoUrl) return;
     const url = getPhotoUrl(copy?.fondo ?? "", null);
     if (!url) { setDominantColor(FALLBACK_COLOR); return; }
-    const img = new window.Image();
-    img.onload = () => setDominantColor(extractDominantColor(img));
-    img.onerror = () => setDominantColor(FALLBACK_COLOR);
-    img.src = url;
+    extractColorFromUrl(url).then(setDominantColor);
   }, [copy?.fondo, customPhotoUrl]);
 
   async function generate() {
@@ -373,15 +400,8 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
     setPendingBlobUrl(blobUrl);
     setSaveDialogOpen(true);
     e.target.value = "";
-    // Extract dominant color directly from File via data URL — avoids any CORS/canvas-taint issue
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      const img = new window.Image();
-      img.onload = () => setDominantColor(extractDominantColor(img));
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+    // createImageBitmap(File) is always origin-clean — guaranteed no canvas taint
+    extractColorFromFile(file).then(setDominantColor);
   }
 
   async function handleSaveDecision(saveToLibrary: boolean) {
