@@ -8126,6 +8126,22 @@ Devuelve SOLO un JSON con esta estructura exacta:
         const mPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
         let manifest: Array<{ file: string; category: string; tags: string[]; usedCount: number; lastUsed: string | null }> = [];
         try { manifest = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch {}
+
+        // Enforce max 10 per category — remove least-used (then oldest) if over limit
+        const MAX_PER_CATEGORY = 10;
+        const inCategory = manifest.filter(p => p.category === category);
+        if (inCategory.length >= MAX_PER_CATEGORY) {
+          const toRemove = [...inCategory].sort((a, b) => {
+            if ((a.usedCount ?? 0) !== (b.usedCount ?? 0)) return (a.usedCount ?? 0) - (b.usedCount ?? 0);
+            if (!a.lastUsed) return -1;
+            if (!b.lastUsed) return 1;
+            return new Date(a.lastUsed).getTime() - new Date(b.lastUsed).getTime();
+          })[0];
+          const removeDisk = path.join(process.cwd(), "client", "public", "flyer-assets", "photos", toRemove.file);
+          try { fs.unlinkSync(removeDisk); } catch {}
+          manifest = manifest.filter(p => p.file !== toRemove.file);
+        }
+
         manifest.push({ file: fileEntry, category, tags, usedCount: 0, lastUsed: null });
         fs.writeFileSync(mPath, JSON.stringify(manifest, null, 2));
 

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getAccessToken } from "@/lib/auth-tokens";
-import { Image, RefreshCw, Sparkles, Upload } from "lucide-react";
+import { Image, RefreshCw, Sparkles, Upload, BookImage, FileImage } from "lucide-react";
 
 const FLYER_W = 1080;
 const FLYER_H = 1350;
@@ -306,11 +306,15 @@ interface FlyerGeneratorProps {
 export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: FlyerGeneratorProps) {
   const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [copy, setCopy] = useState<FlyCopy | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [dominantColor, setDominantColor] = useState(FALLBACK_COLOR);
   const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(null);
+  // Save-to-library dialog
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingBlobUrl, setPendingBlobUrl] = useState<string | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -351,35 +355,49 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
     }
   }
 
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Immediate preview via blob URL
+    // Apply immediately for preview, then ask about saving
     const blobUrl = URL.createObjectURL(file);
     setCustomPhotoUrl(blobUrl);
+    setPendingFile(file);
+    setPendingBlobUrl(blobUrl);
+    setSaveDialogOpen(true);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  }
 
-    // Upload to server (global asset)
-    setUploadingPhoto(true);
+  async function handleSaveDecision(saveToLibrary: boolean) {
+    setSaveDialogOpen(false);
+    if (!saveToLibrary || !pendingFile || !pendingBlobUrl) {
+      setPendingFile(null);
+      setPendingBlobUrl(null);
+      return;
+    }
+    // Upload to server library
+    setSavingToLibrary(true);
     try {
       const token = getAccessToken();
       const form = new FormData();
-      form.append("photo", file, file.name);
+      form.append("photo", pendingFile, pendingFile.name);
       const res = await fetch("/api/flyer-assets/photo", {
         method: "POST",
         body: form,
         credentials: "include",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) throw new Error("Error al subir foto");
-      const { url } = await res.json();
-      URL.revokeObjectURL(blobUrl);
+      if (!res.ok) throw new Error("Error al guardar en biblioteca");
+      const { url, category } = await res.json();
+      URL.revokeObjectURL(pendingBlobUrl);
       setCustomPhotoUrl(url);
+      toast({ title: "Guardada en biblioteca", description: `Categoría: ${category}` });
     } catch (e: any) {
-      toast({ title: "Error al subir foto", description: e.message, variant: "destructive" });
-      // Keep blob URL active for this session
+      toast({ title: "Error al guardar", description: e.message, variant: "destructive" });
     } finally {
-      setUploadingPhoto(false);
+      setSavingToLibrary(false);
+      setPendingFile(null);
+      setPendingBlobUrl(null);
     }
   }
 
@@ -516,26 +534,26 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
                 </div>
               </div>
 
-              {/* Custom photo upload */}
+              {/* Custom photo */}
               <div className="flex items-center gap-2">
                 <input
                   ref={photoInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
-                  onChange={handlePhotoUpload}
+                  onChange={handlePhotoSelect}
                 />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => photoInputRef.current?.click()}
-                  disabled={uploadingPhoto}
+                  disabled={savingToLibrary}
                 >
                   <Upload className="h-3.5 w-3.5 mr-1" />
-                  {uploadingPhoto ? "Subiendo..." : "Subir imagen propia"}
+                  {savingToLibrary ? "Guardando..." : "Cambiar imagen"}
                 </Button>
                 {customPhotoUrl && (
-                  <span className="text-xs text-muted-foreground">Imagen personalizada activa</span>
+                  <span className="text-xs text-muted-foreground italic">Imagen personalizada activa</span>
                 )}
               </div>
 
@@ -559,6 +577,45 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Save-to-library confirmation dialog */}
+      <Dialog open={saveDialogOpen} onOpenChange={() => handleSaveDecision(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Guardar en la biblioteca?</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            {pendingBlobUrl && (
+              <img
+                src={pendingBlobUrl}
+                alt="Vista previa"
+                className="w-full h-40 object-cover rounded-md"
+              />
+            )}
+            <p className="text-sm text-muted-foreground">
+              ¿Quieres guardar esta imagen en la biblioteca para que se use automáticamente
+              en futuros flyers de este tipo de actividad?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => handleSaveDecision(false)}
+              >
+                <FileImage className="h-4 w-4 mr-1" />
+                Solo este flyer
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => handleSaveDecision(true)}
+              >
+                <BookImage className="h-4 w-4 mr-1" />
+                Guardar en biblioteca
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>
