@@ -45,6 +45,7 @@ import {
   parseDateString,
   memberCallings,
   sacramentalMeetings as sacramentalMeetingsTable,
+  agendaEvents,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -6724,7 +6725,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const visibleActivities = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role)
       ? activities.filter((a) => a && (!a.organizationId || a.organizationId === user.organizationId))
       : activities;
-    const visibleInterviews = isObispado ? interviews : interviews.filter((i) => i && i.assignedToId === user.id);
+    const allVisibleInterviews = isObispado ? interviews : interviews.filter((i) => i && i.assignedToId === user.id);
+    const activeInterviews = allVisibleInterviews.filter((i) => i && i.status === "programada");
+    const inactiveInterviews = allVisibleInterviews.filter((i) => i && i.status !== "programada");
 
     for (const activity of visibleActivities) {
       const when = new Date(activity.date);
@@ -6741,7 +6744,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    for (const interview of visibleInterviews) {
+    // Only sync scheduled interviews; remove agenda events for completed/archived/cancelled ones
+    for (const interview of activeInterviews) {
       const when = new Date(interview.date);
       await storage.upsertAgendaEvent({
         userId: user.id,
@@ -6754,6 +6758,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sourceType: "interview",
         sourceId: interview.id,
       });
+    }
+
+    for (const interview of inactiveInterviews) {
+      const existing = await db
+        .select({ id: agendaEvents.id })
+        .from(agendaEvents)
+        .where(and(eq(agendaEvents.userId, user.id), eq(agendaEvents.sourceType, "interview"), eq(agendaEvents.sourceId, interview.id)))
+        .limit(1);
+      if (existing[0]) await storage.deleteAgendaEvent(existing[0].id);
     }
   };
 

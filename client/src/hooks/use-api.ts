@@ -1478,6 +1478,7 @@ export function useUpdateAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
       toast({
         title: "Asignación actualizada",
         description: "La asignación ha sido actualizada exitosamente.",
