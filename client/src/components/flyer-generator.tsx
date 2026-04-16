@@ -151,7 +151,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         style={{
           position: "absolute",
           inset: 0,
-          background: `linear-gradient(to bottom, transparent 0%, transparent 30%, ${dominantColor}20 40%, ${dominantColor}55 52%, ${dominantColor}99 63%, ${dominantColor}cc 73%, ${dominantColor} 83%)`,
+          background: `linear-gradient(to bottom, transparent 0%, transparent 30%, ${dominantColor}20 40%, ${dominantColor}55 52%, ${dominantColor}cc 60%, ${dominantColor} 63%)`,
         }}
       />
 
@@ -275,40 +275,40 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
             }}
           />
 
-          {/* Lugar + Barrio — capped to one line each */}
+          {/* Lugar + Barrio — one line each, overflow on wrapper div not span */}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {copy.lugar && (
-              <span
-                style={{
-                  fontFamily: "'Raleway', sans-serif",
-                  fontSize: "22px",
-                  color: "#FFFFFF",
-                  fontWeight: 600,
-                  letterSpacing: "0.02em",
-                  overflow: "hidden",
-                  whiteSpace: "nowrap",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {copy.lugar}
-              </span>
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                <span
+                  style={{
+                    fontFamily: "'Raleway', sans-serif",
+                    fontSize: "22px",
+                    color: "#FFFFFF",
+                    fontWeight: 600,
+                    letterSpacing: "0.02em",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {copy.lugar}
+                </span>
+              </div>
             )}
             {copy.barrio && (
-              <span
-                style={{
-                  fontFamily: "'Raleway', sans-serif",
-                  fontSize: "18px",
-                  color: gold,
-                  fontWeight: 500,
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  overflow: "hidden",
-                  whiteSpace: "nowrap",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {copy.barrio}
-              </span>
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                <span
+                  style={{
+                    fontFamily: "'Raleway', sans-serif",
+                    fontSize: "18px",
+                    color: gold,
+                    fontWeight: 500,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {copy.barrio}
+                </span>
+              </div>
             )}
           </div>
         </div>
