@@ -1140,7 +1140,7 @@ function BasicEditForm({ activity, onCancel }: { activity: any; onCancel: () => 
   const [fields, setFields] = useState({
     title: activity.title ?? "",
     description: activity.description ?? "",
-    date: activity.date ? (() => { const d = new Date(activity.date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })() : "",
+    date: activity.date ? activity.date.slice(0, 16) : "",
     location: activity.location ?? "",
     isPublic: activity.isPublic ?? false,
     requiresRegistration: activity.requiresRegistration ?? false,
@@ -1150,7 +1150,7 @@ function BasicEditForm({ activity, onCancel }: { activity: any; onCancel: () => 
   const typeChanged = fields.type !== activity.type;
 
   const mut = useMutation({
-    mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/basic`, { ...fields, date: fields.date ? new Date(fields.date).toISOString() : fields.date }),
+    mutationFn: () => apiRequest("PATCH", `/api/activities/${activity.id}/basic`, fields),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/activities"] });
       toast({ title: typeChanged ? "Tipo actualizado — el checklist se regeneró" : "Actividad actualizada" });
@@ -1454,7 +1454,7 @@ export default function ActivitiesPage() {
       {
         title: data.title,
         description: data.description || "",
-        date: data.date ? new Date(data.date).toISOString() : data.date,
+        date: data.date,
         location: data.location || "",
         organizationId: organizationId,
         type: data.type,
