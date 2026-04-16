@@ -180,19 +180,19 @@ function ActivityCard({ act, index }: { act: any; index: number }) {
     >
       {/* Flyer or gradient hero */}
       {act.flyer_url ? (
-        <div className="relative overflow-hidden" style={{ height: 200 }}>
-          {/* Blurred background fill so no letterboxing looks ugly */}
+        <div className="relative overflow-hidden" style={{ aspectRatio: "4/5" }}>
+          {/* Blurred background fill */}
           <img
             src={act.flyer_url}
             aria-hidden
             className="absolute inset-0 w-full h-full object-cover"
             style={{ filter: "blur(18px)", transform: "scale(1.15)", opacity: 0.55 }}
           />
-          {/* Actual flyer fully visible */}
+          {/* Actual flyer — fills container with correct ratio */}
           <img
             src={act.flyer_url}
             alt={act.title}
-            className="relative w-full h-full object-contain"
+            className="relative w-full h-full object-cover"
             style={{ transition: "transform .4s ease" }}
             onMouseEnter={(e) => ((e.target as HTMLImageElement).style.transform = "scale(1.04)")}
             onMouseLeave={(e) => ((e.target as HTMLImageElement).style.transform = "scale(1)")}
@@ -296,6 +296,7 @@ export function ActivitiesLobby() {
     },
     staleTime: 0,
     gcTime: 0,
+    refetchInterval: 20_000,
   });
 
   const activities = data?.activities ?? [];
@@ -520,7 +521,8 @@ export function ActivityPublicDetail() {
       return res.json();
     },
     enabled: Boolean(slug),
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchInterval: 20_000,
   });
 
   if (isLoading) {
@@ -624,23 +626,21 @@ export function ActivityPublicDetail() {
           <div className="max-w-2xl mx-auto px-4">
             <div
               className="relative rounded-3xl overflow-hidden"
-              style={{ boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
+              style={{ aspectRatio: "4/5", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
             >
+              {!imgLoaded && (
+                <div className="absolute inset-0" style={{ background: "rgba(255,255,255,0.04)" }} />
+              )}
               <img
                 src={act.flyer_url}
                 alt={act.title}
                 onLoad={() => setImgLoaded(true)}
-                className="w-full object-contain"
+                className="w-full h-full object-cover"
                 style={{
-                  maxHeight: 480,
                   opacity: imgLoaded ? 1 : 0,
                   transition: "opacity .4s ease",
-                  background: "rgba(255,255,255,0.04)",
                 }}
               />
-              {!imgLoaded && (
-                <div style={{ height: 360, background: "rgba(255,255,255,0.04)" }} />
-              )}
             </div>
           </div>
         </motion.div>
