@@ -7921,39 +7921,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const meetingAddress = template?.meetingCenterAddress?.trim() || template?.meetingCenterName?.trim() || "";
 
-      // Read photo manifest and select a background randomly by activity type
+      // Read photo manifest and select by category + round-robin anti-repetition
       const manifestPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
-      let availablePhotos: Array<{ file: string; tags: string[] }> = [];
-      try { availablePhotos = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch { /* no manifest yet */ }
+      type PhotoEntry = { file: string; category: string; tags: string[]; usedCount: number; lastUsed: string | null };
+      let availablePhotos: PhotoEntry[] = [];
+      try { availablePhotos = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch {}
 
-      // Keywords per activity type used to score photos
-      const typeKeywords: Record<string, string[]> = {
-        servicio_bautismal: ["templo", "bautismo", "solemne", "agua", "espiritual", "blanco"],
-        deportiva:          ["deporte", "deportes", "juegos", "energia", "atletismo", "futbol", "cancha"],
-        capacitacion:       ["reunion", "conferencia", "estudio", "escrituras", "ensenanza", "clase"],
-        fiesta:             ["fiesta", "celebracion", "festivo", "musica", "baile", "colores"],
-        hermanamiento:      ["reunion", "hermanamiento", "gente", "familia", "comunidad", "amistad"],
-        actividad_org:      ["reunion", "organizacion", "liderazgo", "mesa", "sala"],
-        otro:               [],
+      const typeToCategory: Record<string, string> = {
+        servicio_bautismal: "bautismo",
+        deportiva:          "deportiva",
+        capacitacion:       "capacitacion",
+        fiesta:             "festivo",
+        hermanamiento:      "hermanamiento",
+        actividad_org:      "hermanamiento",
+        otro:               "general",
       };
+      const targetCategory = typeToCategory[activity.type ?? "otro"] ?? "general";
 
-      // Score each photo against activity keywords, then pick randomly among top scorers
-      const keywords = typeKeywords[activity.type ?? "otro"] ?? [];
-      function scorePhoto(p: { tags: string[] }): number {
-        return p.tags.filter(t =>
-          keywords.some(k => t.toLowerCase().includes(k) || k.includes(t.toLowerCase()))
-        ).length;
+      // Round-robin: least-recently-used photo in category first
+      function pickRoundRobin(photos: PhotoEntry[], cat: string): PhotoEntry | null {
+        const pool = photos.filter(p => p.category === cat);
+        if (pool.length === 0) return null;
+        return pool.sort((a, b) => {
+          if (!a.lastUsed && !b.lastUsed) return (a.usedCount ?? 0) - (b.usedCount ?? 0);
+          if (!a.lastUsed) return -1;
+          if (!b.lastUsed) return 1;
+          return new Date(a.lastUsed).getTime() - new Date(b.lastUsed).getTime();
+        })[0];
       }
-      let selectedFondo = "fallback";
-      if (availablePhotos.length > 0) {
-        const scored = availablePhotos
-          .map(p => ({ p, score: scorePhoto(p) }))
-          .sort((a, b) => b.score - a.score);
-        const best = scored[0].score;
-        // Among all photos with the top score (could be 0 = no match), pick one at random
-        const pool = scored.filter(x => x.score === best);
-        const picked = pool[Math.floor(Math.random() * pool.length)];
-        selectedFondo = `photos/${picked.p.file}`;
+
+      const selectedEntry =
+        pickRoundRobin(availablePhotos, targetCategory) ??
+        pickRoundRobin(availablePhotos, "general") ??
+        (availablePhotos.length > 0 ? availablePhotos[Math.floor(Math.random() * availablePhotos.length)] : null);
+
+      let selectedFondo = selectedEntry ? `photos/${selectedEntry.file}` : "fallback";
+
+      // Update usage stats in manifest
+      if (selectedEntry) {
+        const idx = availablePhotos.findIndex(p => p.file === selectedEntry.file);
+        if (idx !== -1) {
+          availablePhotos[idx].usedCount = (availablePhotos[idx].usedCount ?? 0) + 1;
+          availablePhotos[idx].lastUsed = new Date().toISOString();
+          try { fs.writeFileSync(manifestPath, JSON.stringify(availablePhotos, null, 2)); } catch {}
+        }
       }
 
       // Fetch secretary phone for registration activities
@@ -8056,13 +8067,51 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
           .replace(/[^a-z0-9_-]/gi, "-")
           .toLowerCase();
 
-        const photosDir = path.join(process.cwd(), "client", "public", "flyer-assets", "photos");
-        if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
+        // Claude Vision: auto-categorize and tag the photo
+        const validCategories = ["bautismo", "deportiva", "hermanamiento", "festivo", "capacitacion", "general"];
+        let category = "general";
+        let tags: string[] = [];
+        const visionApiKey = process.env.ANTHROPIC_API_KEY;
+        if (visionApiKey) {
+          try {
+            const visionClient = new Anthropic({ apiKey: visionApiKey });
+            const base64 = req.file.buffer.toString("base64");
+            const mimeType = ext === "png" ? "image/png" as const : ext === "webp" ? "image/webp" as const : "image/jpeg" as const;
+            const visionRes = await visionClient.messages.create({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 150,
+              messages: [{
+                role: "user",
+                content: [
+                  { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
+                  { type: "text", text: `Analiza esta imagen para usarla como fondo en flyers de actividades de una iglesia LDS.
+Devuelve SOLO un JSON con esta estructura exacta:
+{"category":"una de: bautismo, deportiva, hermanamiento, festivo, capacitacion, general","tags":["3-6 palabras clave descriptivas en español, minúsculas"]}` }
+                ]
+              }]
+            });
+            const txt = visionRes.content[0];
+            if (txt.type === "text") {
+              const m = txt.text.match(/\{[\s\S]*\}/);
+              if (m) {
+                const parsed = JSON.parse(m[0]);
+                if (validCategories.includes(parsed.category)) category = parsed.category;
+                if (Array.isArray(parsed.tags)) tags = parsed.tags.slice(0, 6).map(String);
+              }
+            }
+          } catch (vErr) {
+            console.error("[Vision tagging]", vErr);
+          }
+        }
+        // Fallback tags from filename if Vision didn't run or returned empty
+        if (tags.length === 0) {
+          tags = baseName.replace(/\d+$/, "").split(/[-_]+/).filter(Boolean);
+        }
 
-        // Name as templo.jpg, templo1.jpg, templo2.jpg... (no timestamps)
-        const existing = fs.existsSync(photosDir)
-          ? fs.readdirSync(photosDir).map(f => f.replace(/\.[^.]+$/, ""))
-          : [];
+        // Save to subcategory folder with clean naming (templo.jpg → templo1.jpg → templo2.jpg)
+        const photosDir = path.join(process.cwd(), "client", "public", "flyer-assets", "photos", category);
+        if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
+        const existing = fs.readdirSync(photosDir).map(f => f.replace(/\.[^.]+$/, ""));
         let filename: string;
         if (!existing.includes(baseName)) {
           filename = `${baseName}.${ext}`;
@@ -8071,20 +8120,16 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
           while (existing.includes(`${baseName}${n}`)) n++;
           filename = `${baseName}${n}.${ext}`;
         }
-
         fs.writeFileSync(path.join(photosDir, filename), req.file.buffer);
 
-        // Tags: strip trailing numbers so templo1 → ["templo"]
-        const tagBase = baseName.replace(/\d+$/, "");
-        const tags = tagBase.split(/[-_]+/).filter(Boolean);
-
+        const fileEntry = `${category}/${filename}`;
         const mPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
-        let manifest: Array<{ file: string; tags: string[] }> = [];
+        let manifest: Array<{ file: string; category: string; tags: string[]; usedCount: number; lastUsed: string | null }> = [];
         try { manifest = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch {}
-        manifest.push({ file: filename, tags });
+        manifest.push({ file: fileEntry, category, tags, usedCount: 0, lastUsed: null });
         fs.writeFileSync(mPath, JSON.stringify(manifest, null, 2));
 
-        res.json({ url: `/flyer-assets/photos/${filename}`, file: filename, tags });
+        res.json({ url: `/flyer-assets/photos/${fileEntry}`, file: fileEntry, category, tags });
       } catch (err) {
         console.error("[POST /api/flyer-assets/photo]", err);
         res.status(500).json({ error: "Error al subir foto" });
