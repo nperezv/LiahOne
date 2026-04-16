@@ -8032,9 +8032,8 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
         copy.fondo = fallbacks[activity.type ?? "otro"] ?? "espiritual-conferencia";
       }
 
-      copy.fecha_display = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-      copy.hora_display = horaPrompt + " hrs";
-      copy.address = meetingAddress || activity.location || "";
+      copy.lugar = template?.meetingCenterName?.trim() || meetingAddress || activity.location || "";
+      copy.barrio = template?.wardName?.trim() || "";
 
       res.json(copy);
     } catch (err: any) {

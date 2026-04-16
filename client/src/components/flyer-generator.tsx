@@ -1,8 +1,11 @@
 import { useState, useRef } from "react";
 import html2canvas from "html2canvas";
-import "@fontsource/outfit/400.css";
-import "@fontsource/outfit/500.css";
-import "@fontsource/outfit/600.css";
+import "@fontsource/raleway/400.css";
+import "@fontsource/raleway/500.css";
+import "@fontsource/raleway/600.css";
+import "@fontsource/raleway/700.css";
+import "@fontsource/playfair-display/700.css";
+import "@fontsource/playfair-display/600.css";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,9 +33,8 @@ interface FlyCopy {
   descripcion: string;
   cta: string;
   fondo: string;
-  fecha_display: string;
-  hora_display: string;
-  address?: string;
+  lugar?: string;
+  barrio?: string;
 }
 
 function FlyerCanvas({ copy, activityType }: {
@@ -99,12 +101,12 @@ function FlyerCanvas({ copy, activityType }: {
           />
           <span
             style={{
-              fontFamily: "Outfit, sans-serif",
+              fontFamily: "'Raleway', sans-serif",
               color: gold,
               fontSize: "22px",
               letterSpacing: "0.30em",
               textTransform: "uppercase",
-              fontWeight: 500,
+              fontWeight: 700,
             }}
           >
             {tipoLabel}
@@ -115,32 +117,33 @@ function FlyerCanvas({ copy, activityType }: {
         <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
           <h1
             style={{
-              fontFamily: "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
-              fontSize: "94px",
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontSize: "98px",
               color: "#FFFFFF",
-              lineHeight: 1.05,
-              fontWeight: 600,
+              lineHeight: 1.02,
+              fontWeight: 700,
               margin: 0,
-              letterSpacing: "-0.01em",
+              letterSpacing: "-0.02em",
             }}
           >
             {copy.titulo}
           </h1>
           <p
             style={{
-              fontFamily: "Outfit, sans-serif",
+              fontFamily: "'Raleway', sans-serif",
               fontSize: "36px",
               color: gold,
-              fontWeight: 400,
+              fontWeight: 600,
               lineHeight: 1.35,
               margin: 0,
+              letterSpacing: "0.04em",
             }}
           >
             {copy.hook}
           </p>
           <p
             style={{
-              fontFamily: "Outfit, sans-serif",
+              fontFamily: "'Raleway', sans-serif",
               fontSize: "27px",
               color: "rgba(255,255,255,0.78)",
               fontWeight: 400,
@@ -164,41 +167,33 @@ function FlyerCanvas({ copy, activityType }: {
             }}
           />
 
-          {/* Date · Time · Place */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "flex", gap: "48px", alignItems: "baseline" }}>
+          {/* Place · Ward */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {copy.lugar && (
               <span
                 style={{
-                  fontFamily: "Outfit, sans-serif",
-                  fontSize: "26px",
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "28px",
                   color: "#FFFFFF",
-                  fontWeight: 400,
-                  textTransform: "capitalize",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
                 }}
               >
-                {copy.fecha_display}
+                {copy.lugar}
               </span>
+            )}
+            {copy.barrio && (
               <span
                 style={{
-                  fontFamily: "Outfit, sans-serif",
-                  fontSize: "26px",
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "22px",
                   color: gold,
                   fontWeight: 500,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
                 }}
               >
-                {copy.hora_display}
-              </span>
-            </div>
-            {copy.address && (
-              <span
-                style={{
-                  fontFamily: "Outfit, sans-serif",
-                  fontSize: "24px",
-                  color: "rgba(255,255,255,0.72)",
-                  fontWeight: 400,
-                }}
-              >
-                {copy.address}
+                {copy.barrio}
               </span>
             )}
           </div>
@@ -214,9 +209,9 @@ function FlyerCanvas({ copy, activityType }: {
           >
             <span
               style={{
-                fontFamily: "Outfit, sans-serif",
+                fontFamily: "'Raleway', sans-serif",
                 fontSize: "24px",
-                fontWeight: 600,
+                fontWeight: 700,
                 color: "#0A0A0A",
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
