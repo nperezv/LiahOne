@@ -15,13 +15,28 @@ import {
   isSameMonth,
   isTomorrow,
   isToday,
-  startOfDay,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from "wouter";
+
+// Dates stored server-side are UTC wall-clock (parseDateString appends "Z").
+// All time displays and day comparisons must use UTC to match what the user entered.
+const utcDateKey = (d: Date | string): string => {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+};
+const utcTime = (d: Date | string): string => {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+};
+const isSameDayUTC = (a: Date | string, b: Date): boolean => utcDateKey(a) === utcDateKey(b);
+const isUpcomingUTC = (d: Date | string): boolean => {
+  const todayKey = utcDateKey(new Date());
+  return utcDateKey(d) >= todayKey;
+};
 
 interface CalendarEvent {
   id: string;
@@ -51,9 +66,18 @@ export default function CalendarPage() {
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
   const presidencyOrg = new URLSearchParams(window.location.search).get("org");
 
-  const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
+  const { data: rawEvents = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/events"],
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+    staleTime: 15000,
   });
+
+  // Only show scheduled interviews; completed/archived/cancelled should not appear
+  const events = useMemo(
+    () => rawEvents.filter((e) => e.type !== "entrevista" || e.status === "programada"),
+    [rawEvents]
+  );
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -100,7 +124,7 @@ export default function CalendarPage() {
   };
 
   const eventsOnDate = (date: Date) => {
-    return events.filter((event) => isSameDay(new Date(event.date), date));
+    return events.filter((event) => isSameDayUTC(event.date, date));
   };
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -109,14 +133,7 @@ export default function CalendarPage() {
   };
 
   const isUpcomingEvent = (event: CalendarEvent) => {
-    const eventDate = new Date(event.date);
-    if (eventDate < startOfDay(new Date())) {
-      return false;
-    }
-    if (event.type === "entrevista" && event.status === "completada") {
-      return false;
-    }
-    return true;
+    return isUpcomingUTC(event.date);
   };
 
   const upcomingEvents = [...events]
@@ -133,7 +150,7 @@ export default function CalendarPage() {
 
     const groups = new Map<string, CalendarEvent[]>();
     upcoming.forEach((event) => {
-      const key = format(new Date(event.date), "yyyy-MM-dd");
+      const key = utcDateKey(event.date);
       const existing = groups.get(key) ?? [];
       existing.push(event);
       groups.set(key, existing);
@@ -312,7 +329,7 @@ export default function CalendarPage() {
                             >
                               <div className="flex gap-4">
                                 <div className="text-sm font-semibold text-foreground/80">
-                                  {format(new Date(event.date), "HH:mm")}
+                                  {utcTime(event.date)}
                                 </div>
                                 <div className="flex-1">
                                   <div className="text-sm font-semibold leading-tight">{event.title}</div>
@@ -447,7 +464,7 @@ export default function CalendarPage() {
                                 </div>
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
                                   <Clock className="h-3 w-3" />
-                                  {format(new Date(event.date), "HH:mm")}
+                                  {utcTime(event.date)}
                                 </div>
                               </div>
                             </button>
@@ -489,7 +506,7 @@ export default function CalendarPage() {
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(new Date(event.date), "d MMM, HH:mm", { locale: es })}
+                        {format(new Date(`${utcDateKey(event.date)}T00:00:00`), "d MMM", { locale: es })} {utcTime(event.date)}
                       </div>
                       {event.location && (
                         <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
@@ -515,7 +532,7 @@ export default function CalendarPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{getEventTypeLabel(selectedEvent.type)}</Badge>
                 <span className="text-muted-foreground">
-                  {format(new Date(selectedEvent.date), "d MMMM yyyy, HH:mm", { locale: es })}
+                  {format(new Date(`${utcDateKey(selectedEvent.date)}T00:00:00`), "d MMMM yyyy", { locale: es })} {utcTime(selectedEvent.date)}
                 </span>
               </div>
               {selectedEvent.location && (
