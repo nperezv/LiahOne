@@ -22,20 +22,15 @@ import { es } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from "wouter";
 
-// Dates stored server-side are UTC wall-clock (parseDateString appends "Z").
-// All time displays and day comparisons must use UTC to match what the user entered.
-const utcDateKey = (d: Date | string): string => {
+const localDateKey = (d: Date | string): string => {
   const date = typeof d === "string" ? new Date(d) : d;
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  return format(date, "yyyy-MM-dd");
 };
-const utcTime = (d: Date | string): string => {
+const isSameDayLocal = (a: Date | string, b: Date): boolean =>
+  isSameDay(typeof a === "string" ? new Date(a) : a, b);
+const isUpcomingLocal = (d: Date | string): boolean => {
   const date = typeof d === "string" ? new Date(d) : d;
-  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
-};
-const isSameDayUTC = (a: Date | string, b: Date): boolean => utcDateKey(a) === utcDateKey(b);
-const isUpcomingUTC = (d: Date | string): boolean => {
-  const todayKey = utcDateKey(new Date());
-  return utcDateKey(d) >= todayKey;
+  return date >= new Date(new Date().setHours(0, 0, 0, 0));
 };
 
 interface CalendarEvent {
@@ -124,7 +119,7 @@ export default function CalendarPage() {
   };
 
   const eventsOnDate = (date: Date) => {
-    return events.filter((event) => isSameDayUTC(event.date, date));
+    return events.filter((event) => isSameDayLocal(event.date, date));
   };
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -133,7 +128,7 @@ export default function CalendarPage() {
   };
 
   const isUpcomingEvent = (event: CalendarEvent) => {
-    return isUpcomingUTC(event.date);
+    return isUpcomingLocal(event.date);
   };
 
   const upcomingEvents = [...events]
@@ -150,7 +145,7 @@ export default function CalendarPage() {
 
     const groups = new Map<string, CalendarEvent[]>();
     upcoming.forEach((event) => {
-      const key = utcDateKey(event.date);
+      const key = localDateKey(event.date);
       const existing = groups.get(key) ?? [];
       existing.push(event);
       groups.set(key, existing);
@@ -329,7 +324,7 @@ export default function CalendarPage() {
                             >
                               <div className="flex gap-4">
                                 <div className="text-sm font-semibold text-foreground/80">
-                                  {utcTime(event.date)}
+                                  {format(new Date(event.date), "HH:mm")}
                                 </div>
                                 <div className="flex-1">
                                   <div className="text-sm font-semibold leading-tight">{event.title}</div>
@@ -464,7 +459,7 @@ export default function CalendarPage() {
                                 </div>
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
                                   <Clock className="h-3 w-3" />
-                                  {utcTime(event.date)}
+                                  {format(new Date(event.date), "HH:mm")}
                                 </div>
                               </div>
                             </button>
@@ -506,7 +501,7 @@ export default function CalendarPage() {
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(new Date(`${utcDateKey(event.date)}T00:00:00`), "d MMM", { locale: es })} {utcTime(event.date)}
+                        {format(new Date(event.date), "d MMM, HH:mm", { locale: es })}
                       </div>
                       {event.location && (
                         <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
@@ -532,7 +527,7 @@ export default function CalendarPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{getEventTypeLabel(selectedEvent.type)}</Badge>
                 <span className="text-muted-foreground">
-                  {format(new Date(`${utcDateKey(selectedEvent.date)}T00:00:00`), "d MMMM yyyy", { locale: es })} {utcTime(selectedEvent.date)}
+                  {format(new Date(selectedEvent.date), "d MMMM yyyy, HH:mm", { locale: es })}
                 </span>
               </div>
               {selectedEvent.location && (
