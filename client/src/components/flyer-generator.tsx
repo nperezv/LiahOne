@@ -174,7 +174,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "50%",
+          top: "58%",
           left: 0,
           right: 0,
           padding: "0 72px",
