@@ -5891,7 +5891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : 0;
 
       const stats = {
-        pendingAssignments: filteredAssignments.filter(a => a && a.status === "pendiente").length,
+        pendingAssignments: assignments.filter(a => a && a.status === "pendiente" && a.assignedTo === user.id).length,
         upcomingInterviews,
         budgetRequests: {
           pending: filteredBudgetRequests.filter(b => b && b.status === "solicitado").length,

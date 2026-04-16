@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CheckCircle2, Clock, Download, Edit, ArrowLeft, Archive, Trash2 } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Download, Edit, ArrowLeft, Archive, Trash2, CalendarDays, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,14 +32,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useAssignments, useCreateAssignment, useDeleteAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
@@ -64,6 +56,116 @@ const navigateWithTransition = (navigate: (path: string) => void, path: string) 
 
   navigate(path);
 };
+
+function AssignmentCard({
+  assignment,
+  showAssignedTo = true,
+  activeHighlightId,
+  getStatusBadge,
+  getAutoManagedStatusHint,
+  isAutoManagedAssignment,
+  renderAssignmentActions,
+  onOpen,
+}: {
+  assignment: any;
+  showAssignedTo?: boolean;
+  activeHighlightId: string | null;
+  getStatusBadge: (a: any, forceArchived?: boolean) => React.ReactNode;
+  getAutoManagedStatusHint: (a: any) => string;
+  isAutoManagedAssignment: (a: any) => boolean;
+  renderAssignmentActions: (a: any) => React.ReactNode;
+  onOpen: (a: any) => void;
+}) {
+  const isHighlighted = activeHighlightId === assignment.id;
+  return (
+    <div
+      data-testid={`row-assignment-${assignment.id}`}
+      className={`rounded-xl border bg-card p-4 cursor-pointer transition-all hover:shadow-md ${isHighlighted ? "notif-highlight ring-2 ring-primary" : ""}`}
+      onClick={() => onOpen(assignment)}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="font-semibold text-sm leading-snug truncate">{assignment.title}</p>
+          {assignment.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{assignment.description}</p>
+          )}
+        </div>
+        <div className="shrink-0">{getStatusBadge(assignment)}</div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {showAssignedTo && (
+          <span className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            {assignment.personName || "Sin asignar"}
+          </span>
+        )}
+        {assignment.dueDate && (
+          <span className="flex items-center gap-1">
+            <CalendarDays className="h-3 w-3" />
+            {new Date(assignment.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        )}
+        {isAutoManagedAssignment(assignment) && (
+          <span className="italic">{getAutoManagedStatusHint(assignment)}</span>
+        )}
+      </div>
+      {renderAssignmentActions(assignment) && (
+        <div className="mt-3 border-t pt-3" onClick={(e) => e.stopPropagation()}>
+          {renderAssignmentActions(assignment)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssignmentSection({
+  title,
+  assignments,
+  emptyMessage,
+  showAssignedTo = true,
+  activeHighlightId,
+  getStatusBadge,
+  getAutoManagedStatusHint,
+  isAutoManagedAssignment,
+  renderAssignmentActions,
+  openDetails,
+}: {
+  title: string;
+  assignments: any[];
+  emptyMessage: string;
+  showAssignedTo?: boolean;
+  activeHighlightId: string | null;
+  getStatusBadge: (a: any, forceArchived?: boolean) => React.ReactNode;
+  getAutoManagedStatusHint: (a: any) => string;
+  isAutoManagedAssignment: (a: any) => boolean;
+  renderAssignmentActions: (a: any) => React.ReactNode;
+  openDetails: (a: any) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title} <span className="font-normal">({assignments.length})</span></h2>
+      {assignments.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {assignments.map((a: any) => (
+            <AssignmentCard
+              key={a.id}
+              assignment={a}
+              showAssignedTo={showAssignedTo}
+              activeHighlightId={activeHighlightId}
+              getStatusBadge={getStatusBadge}
+              getAutoManagedStatusHint={getAutoManagedStatusHint}
+              isAutoManagedAssignment={isAutoManagedAssignment}
+              renderAssignmentActions={renderAssignmentActions}
+              onOpen={openDetails}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Assignments() {
   const { user } = useAuth();
@@ -211,6 +313,14 @@ export default function Assignments() {
   const inProgressAssignments = filteredAssignments.filter((a: any) => a.status === "en_proceso");
   const completedAssignments = filteredAssignments.filter((a: any) => a.resolution === "completada" || a.status === "completada");
   const archivedAssignments = assignments.filter((a: any) => isArchivedAssignment(a));
+
+  // For obispado: split active assignments into mine vs. ward
+  const myActiveAssignments = isObispado
+    ? filteredAssignments.filter((a: any) => a.assignedTo === user?.id)
+    : filteredAssignments;
+  const wardAssignments = isObispado
+    ? filteredAssignments.filter((a: any) => a.assignedTo !== user?.id)
+    : [];
   const isAutoManagedAssignment = (assignment: any) => {
     if (assignment.relatedTo?.startsWith("interview:")) return true;
     if (!assignment.relatedTo?.startsWith("budget:")) return false;
@@ -587,82 +697,60 @@ export default function Assignments() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{showArchived ? "Asignaciones archivadas" : "Asignaciones activas"}</CardTitle>
-          <CardDescription>
-            {showArchived ? archivedAssignments.length : filteredAssignments.length} asignaciones {showArchived ? "archivadas" : "activas"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Título</TableHead>
-                  <TableHead>Asignado a</TableHead>
-                  <TableHead>Asignado por</TableHead>
-                  <TableHead>Vencimiento</TableHead>
-                  <TableHead>Estado</TableHead>
-                  {showArchived ? <TableHead>Resolución</TableHead> : null}
-                  {showArchived ? <TableHead>Archivada</TableHead> : null}
-                  {!showArchived ? <TableHead>Acciones</TableHead> : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAssignments.length > 0 ? (
-                  filteredAssignments.map((assignment: any) => (
-                    <TableRow
-                      key={assignment.id}
-                      data-testid={`row-assignment-${assignment.id}`}
-                      className={`cursor-pointer${activeHighlightId === assignment.id ? " notif-highlight" : ""}`}
-                      onClick={() => openDetails(assignment)}
-                    >
-                      <TableCell className="font-medium">{assignment.title}</TableCell>
-                      <TableCell>{assignment.personName || "Sin asignar"}</TableCell>
-                      <TableCell>{assignment.assignerName || "Desconocido"}</TableCell>
-                      <TableCell>
-                        {assignment.dueDate
-                          ? new Date(assignment.dueDate).toLocaleDateString("es-ES", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "Sin fecha"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {getStatusBadge(assignment, showArchived && isArchivedAssignment(assignment))}
-                          {!showArchived && assignment.status !== "archivada" && isAutoManagedAssignment(assignment) ? (
-                            <p className="text-xs text-muted-foreground">{getAutoManagedStatusHint(assignment)}</p>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      {showArchived ? (
-                        <TableCell>{getResolutionLabel(assignment)}</TableCell>
-                      ) : null}
-                      {showArchived ? (
-                        <TableCell>{assignment.archivedAt ? new Date(assignment.archivedAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}</TableCell>
-                      ) : null}
-                      {!showArchived ? (
-                      <TableCell>
-                        {renderAssignmentActions(assignment)}
-                      </TableCell>
-                      ) : null}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={!showArchived ? 6 : 7} className="text-center text-muted-foreground">
-                      No hay asignaciones
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      {showArchived ? (
+        <AssignmentSection
+          title="Asignaciones archivadas"
+          assignments={archivedAssignments}
+          emptyMessage="No hay asignaciones archivadas"
+          showAssignedTo={true}
+          activeHighlightId={activeHighlightId}
+          getStatusBadge={getStatusBadge}
+          getAutoManagedStatusHint={getAutoManagedStatusHint}
+          isAutoManagedAssignment={isAutoManagedAssignment}
+          renderAssignmentActions={renderAssignmentActions}
+          openDetails={openDetails}
+        />
+      ) : isObispado ? (
+        <div className="space-y-8">
+          <AssignmentSection
+            title="Mis asignaciones"
+            assignments={myActiveAssignments}
+            emptyMessage="No tienes asignaciones pendientes"
+            showAssignedTo={false}
+            activeHighlightId={activeHighlightId}
+            getStatusBadge={getStatusBadge}
+            getAutoManagedStatusHint={getAutoManagedStatusHint}
+            isAutoManagedAssignment={isAutoManagedAssignment}
+            renderAssignmentActions={renderAssignmentActions}
+            openDetails={openDetails}
+          />
+          <AssignmentSection
+            title="Asignaciones del barrio"
+            assignments={wardAssignments}
+            emptyMessage="No hay otras asignaciones activas"
+            showAssignedTo={true}
+            activeHighlightId={activeHighlightId}
+            getStatusBadge={getStatusBadge}
+            getAutoManagedStatusHint={getAutoManagedStatusHint}
+            isAutoManagedAssignment={isAutoManagedAssignment}
+            renderAssignmentActions={renderAssignmentActions}
+            openDetails={openDetails}
+          />
+        </div>
+      ) : (
+        <AssignmentSection
+          title="Asignaciones activas"
+          assignments={filteredAssignments}
+          emptyMessage="No hay asignaciones activas"
+          showAssignedTo={true}
+          activeHighlightId={activeHighlightId}
+          getStatusBadge={getStatusBadge}
+          getAutoManagedStatusHint={getAutoManagedStatusHint}
+          isAutoManagedAssignment={isAutoManagedAssignment}
+          renderAssignmentActions={renderAssignmentActions}
+          openDetails={openDetails}
+        />
+      )}
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl">
