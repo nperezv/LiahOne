@@ -116,7 +116,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         style={{
           position: "absolute",
           inset: 0,
-          background: `linear-gradient(to bottom, transparent 0%, transparent 40%, ${dominantColor} 100%)`,
+          background: `linear-gradient(to bottom, transparent 0%, transparent 44%, ${dominantColor}55 56%, ${dominantColor}99 68%, ${dominantColor}cc 80%, ${dominantColor} 100%)`,
         }}
       />
 
