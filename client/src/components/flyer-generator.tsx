@@ -99,7 +99,6 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         <img
           src={photoUrl}
           alt=""
-          crossOrigin="anonymous"
           style={{
             position: "absolute",
             inset: 0,
@@ -124,7 +123,6 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <img
         src="/flyer-assets/asset_flyer_m8.svg"
         alt=""
-        crossOrigin="anonymous"
         style={{
           position: "absolute",
           inset: 0,
@@ -174,8 +172,8 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "52%",
-          bottom: "60px",
+          top: "50%",
+          bottom: "80px",
           left: 0,
           right: 0,
           padding: "0 72px",
@@ -191,7 +189,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
             style={{
               fontFamily: "'Playfair Display', Georgia, serif",
               fontStyle: "italic",
-              fontSize: "44px",
+              fontSize: "36px",
               color: gold,
               fontWeight: 700,
               lineHeight: 1.2,
@@ -205,7 +203,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
           <h1
             style={{
               fontFamily: "'Raleway', sans-serif",
-              fontSize: "96px",
+              fontSize: "80px",
               color: "#FFFFFF",
               lineHeight: 1.0,
               fontWeight: 900,
@@ -221,10 +219,10 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
           <p
             style={{
               fontFamily: "'Raleway', sans-serif",
-              fontSize: "28px",
+              fontSize: "24px",
               color: "rgba(255,255,255,0.82)",
               fontWeight: 400,
-              lineHeight: 1.5,
+              lineHeight: 1.45,
               margin: 0,
               maxWidth: "900px",
             }}
@@ -241,16 +239,19 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
             }}
           />
 
-          {/* Lugar + Barrio */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {/* Lugar + Barrio — capped to one line each */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {copy.lugar && (
               <span
                 style={{
                   fontFamily: "'Raleway', sans-serif",
-                  fontSize: "26px",
+                  fontSize: "22px",
                   color: "#FFFFFF",
                   fontWeight: 600,
                   letterSpacing: "0.02em",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
                 }}
               >
                 {copy.lugar}
@@ -260,11 +261,14 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
               <span
                 style={{
                   fontFamily: "'Raleway', sans-serif",
-                  fontSize: "20px",
+                  fontSize: "18px",
                   color: gold,
                   fontWeight: 500,
                   letterSpacing: "0.18em",
                   textTransform: "uppercase",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
                 }}
               >
                 {copy.barrio}
@@ -277,15 +281,16 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         <div
           style={{
             backgroundColor: gold,
-            padding: "18px 54px",
+            padding: "14px 48px",
             display: "inline-flex",
             alignSelf: "flex-start",
+            flexShrink: 0,
           }}
         >
           <span
             style={{
               fontFamily: "'Raleway', sans-serif",
-              fontSize: "24px",
+              fontSize: "20px",
               fontWeight: 700,
               color: "#0A0A0A",
               letterSpacing: "0.14em",
@@ -324,14 +329,12 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Re-extract dominant color whenever photo source changes
+  // Re-extract dominant color from library photo (blob URLs handled in handlePhotoSelect)
   useEffect(() => {
-    const url = getPhotoUrl(copy?.fondo ?? "", customPhotoUrl);
+    if (customPhotoUrl) return; // already handled when file was picked
+    const url = getPhotoUrl(copy?.fondo ?? "", null);
     if (!url) { setDominantColor(FALLBACK_COLOR); return; }
     const img = new window.Image();
-    // Only set crossOrigin for truly external URLs — blob: and relative /paths are same-origin
-    const isCrossOrigin = url.startsWith("http://") || url.startsWith("https://");
-    if (isCrossOrigin) img.crossOrigin = "anonymous";
     img.onload = () => setDominantColor(extractDominantColor(img));
     img.onerror = () => setDominantColor(FALLBACK_COLOR);
     img.src = url;
@@ -364,14 +367,21 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Apply immediately for preview, then ask about saving
     const blobUrl = URL.createObjectURL(file);
     setCustomPhotoUrl(blobUrl);
     setPendingFile(file);
     setPendingBlobUrl(blobUrl);
     setSaveDialogOpen(true);
-    // Reset input so same file can be re-selected
     e.target.value = "";
+    // Extract dominant color directly from File via data URL — avoids any CORS/canvas-taint issue
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      const img = new window.Image();
+      img.onload = () => setDominantColor(extractDominantColor(img));
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
   }
 
   async function handleSaveDecision(saveToLibrary: boolean) {
