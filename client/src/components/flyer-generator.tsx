@@ -41,6 +41,7 @@ interface FlyCopy {
   barrio?: string;
 }
 
+// Returns #rrggbb so hex-alpha suffixes in the gradient (${color}55 etc.) stay valid CSS
 function pixelsToColor(data: Uint8ClampedArray): string {
   let r = 0, g = 0, b = 0, count = 0;
   for (let i = 0; i < data.length; i += 4) {
@@ -48,53 +49,58 @@ function pixelsToColor(data: Uint8ClampedArray): string {
     r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
   }
   if (count === 0) return FALLBACK_COLOR;
-  r = Math.floor((r / count) * 0.55);
-  g = Math.floor((g / count) * 0.55);
-  b = Math.floor((b / count) * 0.55);
-  return `rgb(${r},${g},${b})`;
+  const hex = (v: number) => Math.floor((v / count) * 0.55).toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
-// Extract dominant color from a File (always origin-clean — no canvas taint possible)
-async function extractColorFromFile(file: File): Promise<string> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const W = 100, H = 100;
-    const canvas = document.createElement("canvas");
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) { bitmap.close(); return FALLBACK_COLOR; }
-    ctx.drawImage(bitmap, 0, 0, W, H);
-    bitmap.close();
-    const imageData = ctx.getImageData(0, 50, W, 50);
-    return pixelsToColor(imageData.data);
-  } catch {
-    return FALLBACK_COLOR;
-  }
+// Reliable cross-browser extraction: FileReader → data URL → Image → canvas
+// Data URLs are always origin-clean; no CORS, no canvas taint possible.
+function extractColorFromFile(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve(FALLBACK_COLOR);
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      const img = new window.Image();
+      img.onerror = () => resolve(FALLBACK_COLOR);
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 100; canvas.height = 100;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { resolve(FALLBACK_COLOR); return; }
+          ctx.drawImage(img, 0, 0, 100, 100);
+          resolve(pixelsToColor(ctx.getImageData(0, 50, 100, 50).data));
+        } catch {
+          resolve(FALLBACK_COLOR);
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // Extract dominant color from a same-origin URL (library photos)
 function extractColorFromUrl(url: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new window.Image();
+    img.onerror = () => resolve(FALLBACK_COLOR);
     img.onload = () => {
       try {
         const W = Math.min(img.naturalWidth, 100);
         const H = Math.min(img.naturalHeight, 100);
         if (!W || !H) { resolve(FALLBACK_COLOR); return; }
         const canvas = document.createElement("canvas");
-        canvas.width = W;
-        canvas.height = H;
+        canvas.width = W; canvas.height = H;
         const ctx = canvas.getContext("2d");
         if (!ctx) { resolve(FALLBACK_COLOR); return; }
         ctx.drawImage(img, 0, 0, W, H);
-        const imageData = ctx.getImageData(0, Math.floor(H / 2), W, Math.ceil(H / 2));
-        resolve(pixelsToColor(imageData.data));
+        resolve(pixelsToColor(ctx.getImageData(0, Math.floor(H / 2), W, Math.ceil(H / 2)).data));
       } catch {
         resolve(FALLBACK_COLOR);
       }
     };
-    img.onerror = () => resolve(FALLBACK_COLOR);
     img.src = url;
   });
 }
