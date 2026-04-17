@@ -19,6 +19,7 @@ interface UserSummary {
   organizationId?: string | null;
   avatarUrl?: string | null;
   phone?: string | null;
+  callingOrder?: number | null;
 }
 
 const roleLabels: Record<string, string> = {
@@ -39,6 +40,7 @@ const organizationLabels: Record<string, string> = {
   primaria: "Primaria",
   escuela_dominical: "Escuela Dominical",
   jas: "Liderazgo JAS",
+  as: "Liderazgo AS",
   cuorum_elderes: "Cuórum de Élderes",
 };
 
@@ -49,15 +51,17 @@ const organizationOrder = [
   "primaria",
   "escuela_dominical",
   "jas",
+  "as",
   "cuorum_elderes",
 ];
+
+const LEADER_PAIR_ORG_TYPES = new Set(["jas", "as"]);
 
 const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
 
 const getOrgRoleLabel = (role: string, orgType?: string | null) => {
-  if (orgType === "jas") {
-    return "Líder de JAS";
-  }
+  if (orgType === "jas") return "Líder de JAS";
+  if (orgType === "as") return "Líder de AS";
 
   if (FEMALE_ORG_TYPES.has(orgType ?? "")) {
     if (role === "presidente_organizacion") return "Presidenta";
@@ -209,16 +213,19 @@ function LeadershipCluster({
   counselors,
   secretaries,
   organizationType,
+  coleaders,
 }: {
   title: string;
   president?: UserSummary | null;
   counselors: UserSummary[];
   secretaries: UserSummary[];
   organizationType?: string | null;
+  coleaders?: UserSummary[];
 }) {
+  const isLeaderPair = LEADER_PAIR_ORG_TYPES.has(organizationType ?? "");
   const [firstCounselor, secondCounselor] = counselors;
   const organizationName =
-    title === "Obispado" || organizationType === "jas" ? undefined : title;
+    title === "Obispado" || isLeaderPair ? undefined : title;
   const counselorLabels = FEMALE_ORG_TYPES.has(organizationType ?? "")
     ? ["Primera consejera", "Segunda consejera"]
     : title === "Obispado"
@@ -226,6 +233,43 @@ function LeadershipCluster({
     : organizationType === "escuela_dominical"
     ? ["Primer consejero", "Segundo consejero"]
     : undefined;
+
+  if (isLeaderPair) {
+    const leaders = coleaders ?? (president ? [president] : []);
+    return (
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold text-center">{title}</h2>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end justify-center gap-8">
+            {leaders.length > 0 ? (
+              leaders.map((leader) => (
+                <div key={leader.id} className="flex flex-col items-center gap-2">
+                  <LeaderAvatar
+                    user={leader}
+                    sizeClassName="h-20 w-20"
+                    organizationName={organizationName}
+                    organizationType={organizationType}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {getOrgRoleLabel(leader.role, organizationType)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-xs font-semibold text-muted-foreground">
+                  ?
+                </div>
+                <span className="text-sm text-muted-foreground">Sin asignar</span>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -303,8 +347,13 @@ export default function LeadershipPage() {
 
   const typedUsers = users as UserSummary[];
 
+  const sortByCallingOrder = (a: UserSummary, b: UserSummary) =>
+    (a.callingOrder ?? 999) - (b.callingOrder ?? 999);
+
   const obispo = typedUsers.find((user) => user.role === "obispo");
-  const consejeros = typedUsers.filter((user) => user.role === "consejero_obispo");
+  const consejeros = typedUsers
+    .filter((user) => user.role === "consejero_obispo")
+    .sort(sortByCallingOrder);
   const secretarios = typedUsers.filter((user) =>
     ["secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role)
   );
@@ -362,14 +411,23 @@ export default function LeadershipPage() {
             </p>
           )}
           {organizationItems.map((org) => {
+            const isLeaderPair = LEADER_PAIR_ORG_TYPES.has(org.type);
+
             const president =
               getOrganizationPresident(org.presidentId) ??
               typedUsers.find(
                 (user) => user.role === "presidente_organizacion" && user.organizationId === org.id
               );
-            const counselors = typedUsers.filter(
-              (user) => user.role === "consejero_organizacion" && user.organizationId === org.id
-            );
+            const coleaders = isLeaderPair
+              ? typedUsers.filter(
+                  (user) => user.role === "presidente_organizacion" && user.organizationId === org.id
+                )
+              : undefined;
+            const counselors = typedUsers
+              .filter(
+                (user) => user.role === "consejero_organizacion" && user.organizationId === org.id
+              )
+              .sort(sortByCallingOrder);
             const secretaries = typedUsers.filter(
               (user) => user.role === "secretario_organizacion" && user.organizationId === org.id
             );
@@ -382,6 +440,7 @@ export default function LeadershipPage() {
                 counselors={counselors}
                 secretaries={secretaries}
                 organizationType={org.type}
+                coleaders={coleaders}
               />
             );
           })}

@@ -65,6 +65,7 @@ const ROUTE_PREFETCHERS: Record<string, () => Promise<any>> = {
   "/presidency/primaria": () => import("@/pages/presidency-manage-organization"),
   "/presidency/escuela-dominical": () => import("@/pages/presidency-manage-organization"),
   "/presidency/jas": () => import("@/pages/presidency-manage-organization"),
+  "/presidency/as": () => import("@/pages/presidency-manage-organization"),
   "/presidency/cuorum-elderes": () => import("@/pages/presidency-manage-organization"),
 };
 
@@ -127,6 +128,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
       { title: "Primaria", url: "/presidency/primaria" },
       { title: "Escuela Dominical", url: "/presidency/escuela-dominical" },
       { title: "Liderazgo JAS", url: "/presidency/jas" },
+      { title: "Liderazgo AS", url: "/presidency/as" },
       { title: "Cuórum de Élderes", url: "/presidency/cuorum-elderes" },
     ],
     presidentOnly: true, // Presidents only see their own presidency

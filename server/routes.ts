@@ -1672,7 +1672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/users", requireAuth, async (req: Request, res: Response) => {
     try {
-      const users = await storage.getAllUsers();
+      const users = await storage.getAllUsersWithCallingOrder();
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });

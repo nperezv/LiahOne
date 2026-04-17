@@ -118,6 +118,7 @@ const organizationSlugs: Record<string, string> = {
   primaria: "primaria",
   "escuela-dominical": "escuela_dominical",
   jas: "jas",
+  as: "as",
   "cuorum-elderes": "cuorum_elderes",
 };
 
@@ -128,6 +129,7 @@ const organizationNames: Record<string, string> = {
   primaria: "Primaria",
   "escuela-dominical": "Escuela Dominical",
   jas: "JAS",
+  as: "AS",
   "cuorum-elderes": "Cuórum de Élderes",
 };
 

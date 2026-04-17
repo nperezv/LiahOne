@@ -1,6 +1,6 @@
 // Reference: javascript_database blueprint
 import { db } from "./db";
-import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, inArray, type SQLWrapper } from "drizzle-orm";
+import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, inArray, type SQLWrapper, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   users,
@@ -561,6 +561,21 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async getAllUsersWithCallingOrder(): Promise<(User & { callingOrder: number | null })[]> {
+    return await db
+      .select({
+        ...getTableColumns(users),
+        callingOrder: sql<number | null>`(
+          SELECT min(mc.calling_order)
+          FROM member_callings mc
+          WHERE mc.member_id = users.member_id
+            AND mc.organization_id = users.organization_id
+            AND mc.is_active = true
+        )`.as("calling_order"),
+      })
+      .from(users);
   }
 
   async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
