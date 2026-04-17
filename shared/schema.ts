@@ -120,6 +120,8 @@ export const organizationTypeEnum = pgEnum("organization_type", [
   "barrio",
 ]);
 
+export const maritalStatusEnum = pgEnum("marital_status", ["soltero", "casado", "divorciado", "viudo"]);
+
 export const memberOrganizationMembershipTypeEnum = pgEnum("member_organization_membership_type", [
   "primary",
   "derived_rule",
@@ -354,6 +356,7 @@ export const members = pgTable("members", {
   phone: text("phone"),
   email: text("email"),
   organizationId: varchar("organization_id").references(() => organizations.id),
+  maritalStatus: maritalStatusEnum("marital_status"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

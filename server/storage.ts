@@ -1352,10 +1352,19 @@ export class DatabaseStorage implements IStorage {
     }
     const escuelaId = orgByType.get("escuela_dominical");
     if (escuelaId && age >= 12) desired.set(escuelaId, { membershipType: "derived_rule", sourceRule: "edad_12_plus" });
+    const isSingle = !member.maritalStatus || ["soltero", "divorciado", "viudo"].includes(member.maritalStatus);
+    const isMarried = member.maritalStatus === "casado";
+
     const jasId = orgByType.get("jas");
-    if (jasId && age >= 18 && age <= 35) desired.set(jasId, { membershipType: "derived_rule", sourceRule: "jas_18_35" });
+    // 18-35: include if single/unknown (default), exclude if married
+    if (jasId && age >= 18 && age <= 35 && !isMarried) {
+      desired.set(jasId, { membershipType: "derived_rule", sourceRule: "jas_18_35" });
+    }
     const asId = orgByType.get("as");
-    if (asId && age >= 36 && age <= 100) desired.set(asId, { membershipType: "derived_rule", sourceRule: "as_36_100" });
+    // 36+: only include if explicitly single/divorced/widowed
+    if (asId && age >= 36 && isSingle && member.maritalStatus !== null && member.maritalStatus !== undefined) {
+      desired.set(asId, { membershipType: "derived_rule", sourceRule: "as_36_plus" });
+    }
 
     const existing = await db
       .select()

@@ -47,6 +47,7 @@ const memberSchema = z.object({
   phone: z.string().optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   organizationId: z.string().optional().or(z.literal("")),
+  maritalStatus: z.enum(["soltero", "casado", "divorciado", "viudo"]).optional().or(z.literal("")),
 });
 
 const requiresCallingOrder = (callingName?: string) => /consejer[oa]/i.test(callingName ?? "");
@@ -338,6 +339,7 @@ export default function DirectoryPage() {
       phone: "",
       email: "",
       organizationId: "none",
+      maritalStatus: "",
     });
     setIsDialogOpen(true);
   };
@@ -352,6 +354,7 @@ export default function DirectoryPage() {
       phone: member.phone ?? "",
       email: member.email ?? "",
       organizationId: member.organizationId ?? "none",
+      maritalStatus: member.maritalStatus ?? "",
     });
     setIsDialogOpen(true);
   };
@@ -364,6 +367,7 @@ export default function DirectoryPage() {
       phone: data.phone?.trim() || null,
       email: data.email?.trim() || null,
       organizationId: data.organizationId === "none" ? null : data.organizationId || null,
+      maritalStatus: (data.maritalStatus as string) || null,
     };
 
     if (editingMember) {
@@ -675,6 +679,30 @@ export default function DirectoryPage() {
                       )}
                     />
                   </div>
+                  <FormField
+                    control={form.control}
+                    name="maritalStatus"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Estado civil (opcional)</FormLabel>
+                        <Select value={field.value || ""} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sin definir" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="">Sin definir</SelectItem>
+                            <SelectItem value="soltero">Soltero/a</SelectItem>
+                            <SelectItem value="casado">Casado/a</SelectItem>
+                            <SelectItem value="divorciado">Divorciado/a</SelectItem>
+                            <SelectItem value="viudo">Viudo/a</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
