@@ -236,6 +236,12 @@ function getFamilyDisplayName(family: FamilyData): string {
   return "Familia sin nombre";
 }
 
+function getFamilyPhone(family: FamilyData): string | null {
+  if (family.phone?.trim()) return family.phone;
+  const head = family.members.find((m) => m.role === "cabeza_familia");
+  return head?.member.phone ?? null;
+}
+
 function FamilyEditDialog({
   family,
   allMembers,
@@ -524,7 +530,11 @@ function FamiliesTab({ allMembers }: { allMembers: any[] }) {
                         </div>
                         <div className="min-w-0">
                           <p className="font-semibold text-sm">{getFamilyDisplayName(family)}</p>
-                          {family.address && <p className="text-xs text-muted-foreground truncate">{family.address}</p>}
+                          {(family.address || getFamilyPhone(family)) && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {[family.address, getFamilyPhone(family)].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <button
