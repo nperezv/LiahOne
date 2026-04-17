@@ -458,45 +458,73 @@ function FamilyEditDialog({
 function FamiliesTab({ allMembers }: { allMembers: any[] }) {
   const { data: families = [], isLoading } = useFamilies();
   const [editingFamily, setEditingFamily] = useState<FamilyData | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const assignedMemberIds = useMemo(
-    () => new Set(families.flatMap((f) => f.members.map((m) => m.memberId))),
-    [families]
+  const soloFamilies = useMemo(() => families.filter((f) => f.members.length === 1), [families]);
+  const multiFamilies = useMemo(() => families.filter((f) => f.members.length > 1), [families]);
+
+  const filterFamily = (f: FamilyData, q: string) => {
+    if (!q) return true;
+    if (getFamilyDisplayName(f).toLowerCase().includes(q)) return true;
+    return f.members.some((m) => m.member.nameSurename.toLowerCase().includes(q));
+  };
+
+  const q = searchQuery.trim().toLowerCase();
+  const filteredMulti = multiFamilies.filter((f) => filterFamily(f, q));
+  const filteredSolo = soloFamilies.filter((f) => filterFamily(f, q));
+
+  const FamilyCard = ({ family }: { family: FamilyData }) => (
+    <div className="rounded-[14px] border border-border/60 bg-card dark:bg-gradient-to-b dark:from-[#0f1626] dark:to-[#0d1422] p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Home className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm">{getFamilyDisplayName(family)}</p>
+            {(family.address || getFamilyPhone(family)) && (
+              <p className="text-xs text-muted-foreground truncate">
+                {[family.address, getFamilyPhone(family)].filter(Boolean).join(" · ")}
+              </p>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEditingFamily(family)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+      </div>
+      {family.members.length > 1 && (
+        <div className="space-y-1.5">
+          {family.members
+            .sort((a, b) => ({ cabeza_familia: 0, conyuge: 1, hijo: 2 }[a.role] - { cabeza_familia: 0, conyuge: 1, hijo: 2 }[b.role]))
+            .map((fm) => (
+              <div key={fm.memberId} className="flex items-center gap-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+                  {fm.member.nameSurename.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-sm flex-1 min-w-0 truncate">{fm.member.nameSurename}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${ROLE_BADGE_CLASSES[fm.role]}`}>
+                  {ROLE_LABELS[fm.role]}
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
   );
-
-  const unassignedMembers = useMemo(
-    () => allMembers.filter((m) => !assignedMemberIds.has(m.id)),
-    [allMembers, assignedMemberIds]
-  );
-
-  const filteredFamilies = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return families;
-    return families.filter((f) => {
-      if (getFamilyDisplayName(f).toLowerCase().includes(q)) return true;
-      return f.members.some((m) => m.member.nameSurename.toLowerCase().includes(q));
-    });
-  }, [families, searchQuery]);
-
-  const filteredUnassigned = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return unassignedMembers;
-    return unassignedMembers.filter((m) => m.nameSurename.toLowerCase().includes(q));
-  }, [unassignedMembers, searchQuery]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-2 text-sm text-muted-foreground">
-          <span>{families.length} familias</span>
+          <span>{multiFamilies.length} familias</span>
           <span>·</span>
-          <span>{unassignedMembers.length} sin asignar</span>
+          <span>{soloFamilies.length} individuales</span>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nueva familia
-        </Button>
       </div>
 
       <div className="relative">
@@ -515,90 +543,43 @@ function FamiliesTab({ allMembers }: { allMembers: any[] }) {
         </div>
       ) : (
         <>
-          {filteredFamilies.length > 0 && (
+          {filteredMulti.length > 0 && (
             <div className="space-y-3">
-              {filteredFamilies.map((family) => {
-                const head = family.members.find((m) => m.role === "cabeza_familia");
-                const spouse = family.members.find((m) => m.role === "conyuge");
-                const children = family.members.filter((m) => m.role === "hijo");
-                return (
-                  <div key={family.id} className="rounded-[14px] border border-border/60 bg-card dark:bg-gradient-to-b dark:from-[#0f1626] dark:to-[#0d1422] p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                          <Home className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm">{getFamilyDisplayName(family)}</p>
-                          {(family.address || getFamilyPhone(family)) && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {[family.address, getFamilyPhone(family)].filter(Boolean).join(" · ")}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setEditingFamily(family)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="space-y-1.5">
-                      {family.members
-                        .sort((a, b) => {
-                          const order = { cabeza_familia: 0, conyuge: 1, hijo: 2 };
-                          return order[a.role] - order[b.role];
-                        })
-                        .map((fm) => (
-                          <div key={fm.memberId} className="flex items-center gap-2">
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
-                              {fm.member.nameSurename.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-sm flex-1 min-w-0 truncate">{fm.member.nameSurename}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${ROLE_BADGE_CLASSES[fm.role]}`}>
-                              {ROLE_LABELS[fm.role]}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                    {family.members.length === 0 && (
-                      <p className="text-xs text-muted-foreground italic">Sin miembros asignados</p>
-                    )}
-                  </div>
-                );
-              })}
+              {filteredMulti.map((family) => <FamilyCard key={family.id} family={family} />)}
             </div>
           )}
 
-          {filteredUnassigned.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-muted-foreground pt-2">
-                Sin familia asignada ({filteredUnassigned.length})
+          {filteredSolo.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <p className="text-sm font-semibold text-muted-foreground">
+                Individuales ({filteredSolo.length})
               </p>
               <div className="rounded-[14px] border border-dashed border-border/50 bg-card/50 p-3">
                 <div className="flex flex-wrap gap-2">
-                  {filteredUnassigned.map((m) => (
-                    <span
-                      key={m.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-card px-2.5 py-1 text-xs text-foreground"
-                    >
-                      <span className="h-4 w-4 rounded-full bg-muted inline-flex items-center justify-center text-[9px] font-bold">
-                        {m.nameSurename.charAt(0).toUpperCase()}
-                      </span>
-                      {m.nameSurename}
-                    </span>
-                  ))}
+                  {filteredSolo.map((f) => {
+                    const head = f.members[0];
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setEditingFamily(f)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card px-2.5 py-1 text-xs text-foreground hover:bg-accent transition-colors"
+                      >
+                        <span className="h-4 w-4 rounded-full bg-muted inline-flex items-center justify-center text-[9px] font-bold shrink-0">
+                          {head?.member.nameSurename.charAt(0).toUpperCase() ?? "?"}
+                        </span>
+                        {head?.member.nameSurename ?? "Sin nombre"}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">Haz clic en un nombre para añadirlo a una familia.</p>
             </div>
           )}
 
-          {filteredFamilies.length === 0 && filteredUnassigned.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No se encontraron resultados.
-            </p>
+          {filteredMulti.length === 0 && filteredSolo.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">No se encontraron resultados.</p>
           )}
         </>
       )}
@@ -608,12 +589,6 @@ function FamiliesTab({ allMembers }: { allMembers: any[] }) {
         allMembers={allMembers}
         open={Boolean(editingFamily)}
         onOpenChange={(v) => { if (!v) setEditingFamily(null); }}
-      />
-      <FamilyEditDialog
-        family={null}
-        allMembers={allMembers}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
       />
     </div>
   );

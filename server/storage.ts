@@ -1452,6 +1452,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMember(id: string): Promise<void> {
+    // Clean up solo family if this was the only member
+    const [fm] = await db.select().from(familyMembers).where(eq(familyMembers.memberId, id));
+    if (fm) {
+      const siblings = await db.select().from(familyMembers).where(eq(familyMembers.familyId, fm.familyId));
+      if (siblings.length === 1) {
+        await db.delete(families).where(eq(families.id, fm.familyId));
+      }
+    }
     await db.delete(members).where(eq(members.id, id));
   }
 
@@ -1517,7 +1525,22 @@ export class DatabaseStorage implements IStorage {
     await db.delete(families).where(eq(families.id, id));
   }
 
+  async createSoloFamily(memberId: string): Promise<void> {
+    const [family] = await db.insert(families).values({}).returning();
+    await db.insert(familyMembers).values({ familyId: family.id, memberId, role: "cabeza_familia" });
+  }
+
   async addFamilyMember(data: InsertFamilyMember): Promise<FamilyMember> {
+    // If the member is currently a solo family (only member, cabeza_familia), delete that family first
+    const [existing] = await db.select().from(familyMembers).where(eq(familyMembers.memberId, data.memberId));
+    if (existing) {
+      const siblings = await db.select().from(familyMembers).where(eq(familyMembers.familyId, existing.familyId));
+      if (siblings.length === 1 && existing.role === "cabeza_familia") {
+        await db.delete(families).where(eq(families.id, existing.familyId));
+      } else {
+        throw Object.assign(new Error("Este miembro ya pertenece a una familia"), { code: "23505" });
+      }
+    }
     const [fm] = await db.insert(familyMembers).values(data).returning();
     return fm;
   }

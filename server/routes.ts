@@ -5462,6 +5462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const memberData = insertMemberSchema.parse(req.body);
       const member = await storage.createMember(memberData);
+      await storage.createSoloFamily(member.id);
       res.status(201).json(member);
     } catch (error) {
       if (error instanceof z.ZodError) {
