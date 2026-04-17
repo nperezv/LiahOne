@@ -1530,8 +1530,23 @@ export class DatabaseStorage implements IStorage {
     await db.insert(familyMembers).values({ familyId: family.id, memberId, role: "cabeza_familia" });
   }
 
+  private async markCoupleAsMarried(familyId: string, newMemberId: string): Promise<void> {
+    // Set maritalStatus = 'casado' for the new cónyuge and the cabeza_familia, then re-sync both
+    await db.update(members).set({ maritalStatus: "casado" }).where(eq(members.id, newMemberId));
+    await this.syncMemberDerivedMemberships(newMemberId);
+
+    const head = await db
+      .select()
+      .from(familyMembers)
+      .where(and(eq(familyMembers.familyId, familyId), eq(familyMembers.role, "cabeza_familia")));
+    if (head[0]) {
+      await db.update(members).set({ maritalStatus: "casado" }).where(eq(members.id, head[0].memberId));
+      await this.syncMemberDerivedMemberships(head[0].memberId);
+    }
+  }
+
   async addFamilyMember(data: InsertFamilyMember): Promise<FamilyMember> {
-    // If the member is currently a solo family (only member, cabeza_familia), delete that family first
+    // If the member is currently a solo family (only member, cabeza_familia), dissolve it first
     const [existing] = await db.select().from(familyMembers).where(eq(familyMembers.memberId, data.memberId));
     if (existing) {
       const siblings = await db.select().from(familyMembers).where(eq(familyMembers.familyId, existing.familyId));
@@ -1542,6 +1557,10 @@ export class DatabaseStorage implements IStorage {
       }
     }
     const [fm] = await db.insert(familyMembers).values(data).returning();
+
+    if (data.role === "conyuge") {
+      await this.markCoupleAsMarried(data.familyId, data.memberId);
+    }
     return fm;
   }
 
@@ -1551,6 +1570,9 @@ export class DatabaseStorage implements IStorage {
       .set({ role })
       .where(and(eq(familyMembers.familyId, familyId), eq(familyMembers.memberId, memberId)))
       .returning();
+    if (fm && role === "conyuge") {
+      await this.markCoupleAsMarried(familyId, memberId);
+    }
     return fm || undefined;
   }
 
