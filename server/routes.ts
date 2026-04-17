@@ -1518,7 +1518,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         organizationType = org?.type ?? null;
       }
 
-      res.json({ ...userWithoutPassword, organizationType });
+      // Fall back to linked member name if user.name is empty
+      let resolvedName = userWithoutPassword.name;
+      if (!resolvedName?.trim() && user.memberId) {
+        const member = await storage.getMemberById(user.memberId);
+        if (member?.nameSurename) resolvedName = member.nameSurename;
+      }
+
+      res.json({ ...userWithoutPassword, name: resolvedName, organizationType });
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
@@ -5393,17 +5400,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "full_time_missionary",
       ].includes(user.role);
 
-      // Welfare org presidents also need the full member list for the "favor de" field
-      const isWelfarePresident =
-        user.role === "presidente_organizacion" && user.organizationId
-          ? await (async () => {
-              const allOrgs = await storage.getAllOrganizations();
-              const org = allOrgs.find((o: any) => o.id === user.organizationId);
-              return org?.type === "sociedad_socorro" || org?.type === "cuorum_elderes";
-            })()
-          : false;
+      const isOrgLeader = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"].includes(user.role);
 
-      if (!isObispado && !isMissionRole && !isWelfarePresident) {
+      if (!isObispado && !isMissionRole && !isOrgLeader) {
         return res.status(403).json({ error: "Forbidden" });
       }
 

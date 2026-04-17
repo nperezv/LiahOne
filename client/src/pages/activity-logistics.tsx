@@ -22,8 +22,8 @@ import { normalizeMemberName } from "@/lib/utils";
 import { BudgetRequestDialog } from "@/components/budget-request-dialog";
 import { useMembers } from "@/hooks/use-api";
 
-const ALLOWED_ROLES = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist"];
-const CAN_EDIT_ROLES = ["lider_actividades", "obispo", "consejero_obispo"];
+const ALLOWED_ROLES = ["lider_actividades", "obispo", "consejero_obispo", "technology_specialist", "presidente_organizacion", "consejero_organizacion"];
+const CAN_EDIT_ROLES = ["lider_actividades", "obispo", "consejero_obispo", "presidente_organizacion", "consejero_organizacion"];
 
 function formatDate(dateStr: string | null | undefined) {
   if (!dateStr) return "Sin fecha";
