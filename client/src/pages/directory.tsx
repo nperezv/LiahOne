@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -37,8 +38,16 @@ import {
   useOrganizations,
   useUpdateMember,
   useUpdateMemberCalling,
+  useFamilies,
+  useCreateFamily,
+  useUpdateFamily,
+  useDeleteFamily,
+  useAddFamilyMember,
+  useUpdateFamilyMemberRole,
+  useRemoveFamilyMember,
+  type FamilyData,
 } from "@/hooks/use-api";
-import { Pencil, Phone, Search, Send, Trash2, Users } from "lucide-react";
+import { Home, Pencil, Phone, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
 
 const memberSchema = z.object({
   nameSurename: z.string().min(1, "El nombre es requerido"),
@@ -203,6 +212,402 @@ const callingsByOrgType: Record<string, string[]> = {
     "Coordinador de limpieza",
   ],
 };
+
+const ROLE_LABELS: Record<string, string> = {
+  cabeza_familia: "Cabeza de familia",
+  conyuge: "Cónyuge",
+  hijo: "Hijo/a",
+};
+
+const ROLE_BADGE_CLASSES: Record<string, string> = {
+  cabeza_familia: "bg-primary/10 text-primary border-primary/20",
+  conyuge: "bg-violet-500/10 text-violet-600 border-violet-300/30 dark:text-violet-400",
+  hijo: "bg-muted text-muted-foreground border-border/40",
+};
+
+function getFamilyDisplayName(family: FamilyData): string {
+  if (family.name?.trim()) return family.name;
+  const head = family.members.find((m) => m.role === "cabeza_familia");
+  if (head) {
+    const parts = head.member.nameSurename.trim().split(" ");
+    const surname = parts.length >= 2 ? parts[parts.length - 1] : parts[0];
+    return `Familia ${surname}`;
+  }
+  return "Familia sin nombre";
+}
+
+function FamilyEditDialog({
+  family,
+  allMembers,
+  open,
+  onOpenChange,
+}: {
+  family: FamilyData | null;
+  allMembers: any[];
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const createFamily = useCreateFamily();
+  const updateFamily = useUpdateFamily();
+  const deleteFamily = useDeleteFamily();
+  const addMember = useAddFamilyMember();
+  const updateRole = useUpdateFamilyMemberRole();
+  const removeMember = useRemoveFamilyMember();
+
+  const [name, setName] = useState(family?.name ?? "");
+  const [address, setAddress] = useState(family?.address ?? "");
+  const [phone, setPhone] = useState(family?.phone ?? "");
+  const [addMemberId, setAddMemberId] = useState("");
+  const [addRole, setAddRole] = useState("hijo");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    setName(family?.name ?? "");
+    setAddress(family?.address ?? "");
+    setPhone(family?.phone ?? "");
+    setAddMemberId("");
+    setMemberSearch("");
+    setDeleteConfirm(false);
+  }, [family, open]);
+
+  const assignedMemberIds = new Set(family?.members.map((m) => m.memberId) ?? []);
+  const availableMembers = allMembers.filter(
+    (m) => !assignedMemberIds.has(m.id) &&
+      (!memberSearch.trim() || m.nameSurename.toLowerCase().includes(memberSearch.toLowerCase()))
+  );
+
+  const handleSaveInfo = async () => {
+    try {
+      if (family) {
+        await updateFamily.mutateAsync({ id: family.id, data: { name: name || undefined, address: address || undefined, phone: phone || undefined } });
+      } else {
+        await createFamily.mutateAsync({ name: name || undefined, address: address || undefined, phone: phone || undefined });
+      }
+      toast({ title: family ? "Familia actualizada" : "Familia creada" });
+      if (!family) onOpenChange(false);
+    } catch {
+      toast({ title: "Error al guardar", variant: "destructive" });
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!family || !addMemberId) return;
+    try {
+      await addMember.mutateAsync({ familyId: family.id, memberId: addMemberId, role: addRole });
+      setAddMemberId("");
+      setMemberSearch("");
+      toast({ title: "Miembro añadido" });
+    } catch (e: any) {
+      toast({ title: e?.message ?? "Error", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!family) return;
+    try {
+      await deleteFamily.mutateAsync(family.id);
+      toast({ title: "Familia eliminada" });
+      onOpenChange(false);
+    } catch {
+      toast({ title: "Error al eliminar", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{family ? "Editar familia" : "Crear familia"}</DialogTitle>
+          <DialogDescription>
+            {family ? getFamilyDisplayName(family) : "Nueva unidad familiar"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">Nombre (opcional)</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Familia García" className="mt-1" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-sm font-medium">Teléfono (opcional)</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+34 600 000 000" className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Dirección (opcional)</label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Calle..." className="mt-1" />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={handleSaveInfo} disabled={createFamily.isPending || updateFamily.isPending}>
+              {family ? "Guardar datos" : "Crear familia"}
+            </Button>
+          </div>
+        </div>
+
+        {family && (
+          <>
+            <div className="border-t border-border/40 pt-4 space-y-2">
+              <p className="text-sm font-semibold">Miembros ({family.members.length})</p>
+              {family.members.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sin miembros. Añade al menos uno.</p>
+              )}
+              {family.members.map((fm) => (
+                <div key={fm.memberId} className="flex items-center gap-2 rounded-[10px] border border-border/50 bg-card/60 px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{fm.member.nameSurename}</p>
+                  </div>
+                  <Select
+                    value={fm.role}
+                    onValueChange={(role) => updateRole.mutate({ familyId: family.id, memberId: fm.memberId, role })}
+                  >
+                    <SelectTrigger className="h-7 w-36 text-xs border-border/40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cabeza_familia">Cabeza de familia</SelectItem>
+                      <SelectItem value="conyuge">Cónyuge</SelectItem>
+                      <SelectItem value="hijo">Hijo/a</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => removeMember.mutate({ familyId: family.id, memberId: fm.memberId })}
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-border/40 pt-4 space-y-2">
+              <p className="text-sm font-semibold">Añadir miembro</p>
+              <Input
+                value={memberSearch}
+                onChange={(e) => { setMemberSearch(e.target.value); setAddMemberId(""); }}
+                placeholder="Buscar por nombre..."
+                className="text-sm"
+              />
+              {memberSearch.trim() && availableMembers.length > 0 && (
+                <div className="max-h-36 overflow-y-auto rounded-md border border-border/40 bg-card">
+                  {availableMembers.slice(0, 20).map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setAddMemberId(m.id); setMemberSearch(m.nameSurename); }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-muted/50 ${addMemberId === m.id ? "bg-primary/10 font-medium" : ""}`}
+                    >
+                      {m.nameSurename}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {memberSearch.trim() && availableMembers.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sin resultados o ya está en una familia.</p>
+              )}
+              <div className="flex gap-2">
+                <Select value={addRole} onValueChange={setAddRole}>
+                  <SelectTrigger className="h-9 flex-1 text-sm border-border/40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cabeza_familia">Cabeza de familia</SelectItem>
+                    <SelectItem value="conyuge">Cónyuge</SelectItem>
+                    <SelectItem value="hijo">Hijo/a</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={handleAddMember} disabled={!addMemberId || addMember.isPending}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Añadir
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-border/40 pt-4">
+              {deleteConfirm ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">¿Eliminar esta familia? Los miembros no se borran.</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleteFamily.isPending}>
+                      Eliminar
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setDeleteConfirm(false)}>Cancelar</Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirm(true)}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar familia
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FamiliesTab({ allMembers }: { allMembers: any[] }) {
+  const { data: families = [], isLoading } = useFamilies();
+  const [editingFamily, setEditingFamily] = useState<FamilyData | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const assignedMemberIds = useMemo(
+    () => new Set(families.flatMap((f) => f.members.map((m) => m.memberId))),
+    [families]
+  );
+
+  const unassignedMembers = useMemo(
+    () => allMembers.filter((m) => !assignedMemberIds.has(m.id)),
+    [allMembers, assignedMemberIds]
+  );
+
+  const filteredFamilies = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return families;
+    return families.filter((f) => {
+      if (getFamilyDisplayName(f).toLowerCase().includes(q)) return true;
+      return f.members.some((m) => m.member.nameSurename.toLowerCase().includes(q));
+    });
+  }, [families, searchQuery]);
+
+  const filteredUnassigned = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return unassignedMembers;
+    return unassignedMembers.filter((m) => m.nameSurename.toLowerCase().includes(q));
+  }, [unassignedMembers, searchQuery]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2 text-sm text-muted-foreground">
+          <span>{families.length} familias</span>
+          <span>·</span>
+          <span>{unassignedMembers.length} sin asignar</span>
+        </div>
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" /> Nueva familia
+        </Button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Buscar familia o miembro..."
+          className="pl-9 border-border/60 bg-card"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-[14px]" />)}
+        </div>
+      ) : (
+        <>
+          {filteredFamilies.length > 0 && (
+            <div className="space-y-3">
+              {filteredFamilies.map((family) => {
+                const head = family.members.find((m) => m.role === "cabeza_familia");
+                const spouse = family.members.find((m) => m.role === "conyuge");
+                const children = family.members.filter((m) => m.role === "hijo");
+                return (
+                  <div key={family.id} className="rounded-[14px] border border-border/60 bg-card dark:bg-gradient-to-b dark:from-[#0f1626] dark:to-[#0d1422] p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <Home className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm">{getFamilyDisplayName(family)}</p>
+                          {family.address && <p className="text-xs text-muted-foreground truncate">{family.address}</p>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingFamily(family)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {family.members
+                        .sort((a, b) => {
+                          const order = { cabeza_familia: 0, conyuge: 1, hijo: 2 };
+                          return order[a.role] - order[b.role];
+                        })
+                        .map((fm) => (
+                          <div key={fm.memberId} className="flex items-center gap-2">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+                              {fm.member.nameSurename.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm flex-1 min-w-0 truncate">{fm.member.nameSurename}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${ROLE_BADGE_CLASSES[fm.role]}`}>
+                              {ROLE_LABELS[fm.role]}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                    {family.members.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">Sin miembros asignados</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {filteredUnassigned.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-muted-foreground pt-2">
+                Sin familia asignada ({filteredUnassigned.length})
+              </p>
+              <div className="rounded-[14px] border border-dashed border-border/50 bg-card/50 p-3">
+                <div className="flex flex-wrap gap-2">
+                  {filteredUnassigned.map((m) => (
+                    <span
+                      key={m.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-card px-2.5 py-1 text-xs text-foreground"
+                    >
+                      <span className="h-4 w-4 rounded-full bg-muted inline-flex items-center justify-center text-[9px] font-bold">
+                        {m.nameSurename.charAt(0).toUpperCase()}
+                      </span>
+                      {m.nameSurename}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {filteredFamilies.length === 0 && filteredUnassigned.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No se encontraron resultados.
+            </p>
+          )}
+        </>
+      )}
+
+      <FamilyEditDialog
+        family={editingFamily}
+        allMembers={allMembers}
+        open={Boolean(editingFamily)}
+        onOpenChange={(v) => { if (!v) setEditingFamily(null); }}
+      />
+      <FamilyEditDialog
+        family={null}
+        allMembers={allMembers}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
+    </div>
+  );
+}
 
 export default function DirectoryPage() {
   const [, setLocation] = useLocation();
@@ -837,26 +1242,37 @@ export default function DirectoryPage() {
         </div>
       </div>
 
-      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-border/40">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Users className="h-4 w-4 text-primary" />
-            Miembros del barrio
-          </h2>
-          <Badge variant="outline" className="self-start border-border/60 text-muted-foreground sm:self-auto">
-            {filteredMembers.length} miembros
-          </Badge>
+      <Tabs defaultValue="members">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="members" className="flex items-center gap-1.5">
+            <Users className="h-4 w-4" /> Miembros
+          </TabsTrigger>
+          <TabsTrigger value="families" className="flex items-center gap-1.5">
+            <Home className="h-4 w-4" /> Familias
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="members">
+        <div className="sticky top-0 z-30 -mx-4 bg-background px-4 pb-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-border/40">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <Users className="h-4 w-4 text-primary" />
+              Miembros del barrio
+            </h2>
+            <Badge variant="outline" className="self-start border-border/60 text-muted-foreground sm:self-auto">
+              {filteredMembers.length} miembros
+            </Badge>
+          </div>
+          <div className="relative mt-2 w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar por nombre, teléfono o correo"
+              className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
         </div>
-        <div className="relative mt-2 w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nombre, teléfono o correo"
-            className="border-border/60 bg-card pl-9 text-foreground placeholder:text-muted-foreground"
-          />
-        </div>
-      </div>
 
       <Card className="border-border/70">
         <CardContent
@@ -1058,7 +1474,13 @@ export default function DirectoryPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+        </TabsContent>
+
+        <TabsContent value="families">
+          <FamiliesTab allMembers={members} />
+        </TabsContent>
+      </Tabs>
 
       {sheetMember && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">

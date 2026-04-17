@@ -1208,6 +1208,97 @@ export function useUsers() {
 }
 
 // ========================================
+// FAMILIES
+// ========================================
+
+export interface FamilyMemberEntry {
+  id: string;
+  familyId: string;
+  memberId: string;
+  role: "cabeza_familia" | "conyuge" | "hijo";
+  createdAt: string;
+  member: {
+    id: string;
+    nameSurename: string;
+    sex: string;
+    birthday: string;
+    phone?: string | null;
+    email?: string | null;
+    organizationId?: string | null;
+    maritalStatus?: string | null;
+  };
+}
+
+export interface FamilyData {
+  id: string;
+  name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  createdAt: string;
+  members: FamilyMemberEntry[];
+}
+
+export function useFamilies() {
+  return useQuery<FamilyData[]>({
+    queryKey: ["/api/families"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
+export function useCreateFamily() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name?: string; address?: string; phone?: string }) =>
+      apiRequest("POST", "/api/families", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/families"] }),
+  });
+}
+
+export function useUpdateFamily() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; address?: string; phone?: string } }) =>
+      apiRequest("PUT", `/api/families/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/families"] }),
+  });
+}
+
+export function useDeleteFamily() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/families/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/families"] }),
+  });
+}
+
+export function useAddFamilyMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ familyId, memberId, role }: { familyId: string; memberId: string; role: string }) =>
+      apiRequest("POST", `/api/families/${familyId}/members`, { memberId, role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/families"] }),
+  });
+}
+
+export function useUpdateFamilyMemberRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ familyId, memberId, role }: { familyId: string; memberId: string; role: string }) =>
+      apiRequest("PATCH", `/api/families/${familyId}/members/${memberId}`, { role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/families"] }),
+  });
+}
+
+export function useRemoveFamilyMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ familyId, memberId }: { familyId: string; memberId: string }) =>
+      apiRequest("DELETE", `/api/families/${familyId}/members/${memberId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/families"] }),
+  });
+}
+
+// ========================================
 // ACTIVITIES
 // ========================================
 
