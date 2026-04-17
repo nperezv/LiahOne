@@ -5533,6 +5533,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // FAMILIES
+  // ========================================
+
+  const familyAuth = (req: Request, res: Response): boolean => {
+    const user = (req as any).user;
+    const allowed = [
+      "obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero",
+    ];
+    if (!allowed.includes(user.role)) {
+      res.status(403).json({ error: "Forbidden" });
+      return false;
+    }
+    return true;
+  };
+
+  app.get("/api/families", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = ["obispo","consejero_obispo","secretario","secretario_ejecutivo","secretario_financiero"].includes(user.role);
+      const isOrgLeader = ["presidente_organizacion","consejero_organizacion","secretario_organizacion"].includes(user.role);
+      if (!isObispado && !isOrgLeader) return res.status(403).json({ error: "Forbidden" });
+      const all = await storage.getAllFamilies();
+      res.json(all);
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  app.get("/api/families/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      const family = await storage.getFamilyById(req.params.id);
+      if (!family) return res.status(404).json({ error: "Not found" });
+      res.json(family);
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  app.get("/api/members/:id/family", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isObispado = ["obispo","consejero_obispo","secretario","secretario_ejecutivo","secretario_financiero"].includes(user.role);
+      const isOrgLeader = ["presidente_organizacion","consejero_organizacion","secretario_organizacion"].includes(user.role);
+      if (!isObispado && !isOrgLeader) return res.status(403).json({ error: "Forbidden" });
+      const family = await storage.getFamilyByMemberId(req.params.id);
+      res.json(family ?? null);
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  app.post("/api/families", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      const family = await storage.createFamily(req.body);
+      res.status(201).json(family);
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  app.put("/api/families/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      const family = await storage.updateFamily(req.params.id, req.body);
+      if (!family) return res.status(404).json({ error: "Not found" });
+      res.json(family);
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  app.delete("/api/families/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      await storage.deleteFamily(req.params.id);
+      res.status(204).send();
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  // Add member to family
+  app.post("/api/families/:id/members", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      const { memberId, role } = req.body;
+      if (!memberId || !role) return res.status(400).json({ error: "memberId and role required" });
+      const fm = await storage.addFamilyMember({ familyId: req.params.id, memberId, role });
+      res.status(201).json(fm);
+    } catch (e: any) {
+      if (e?.code === "23505") return res.status(409).json({ error: "Este miembro ya pertenece a una familia" });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update member role within family
+  app.patch("/api/families/:id/members/:memberId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      const { role } = req.body;
+      if (!role) return res.status(400).json({ error: "role required" });
+      const fm = await storage.updateFamilyMemberRole(req.params.id, req.params.memberId, role);
+      if (!fm) return res.status(404).json({ error: "Not found" });
+      res.json(fm);
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  // Remove member from family
+  app.delete("/api/families/:id/members/:memberId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!familyAuth(req, res)) return;
+      await storage.removeFamilyMember(req.params.id, req.params.memberId);
+      res.status(204).send();
+    } catch (e) { res.status(500).json({ error: "Internal server error" }); }
+  });
+
+  // ========================================
   // MEMBER CALLINGS
   // ========================================
   app.get("/api/members/:id/callings", requireAuth, async (req: Request, res: Response) => {

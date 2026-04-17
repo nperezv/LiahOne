@@ -21,6 +21,8 @@ import {
   members,
   memberCallings,
   memberOrganizations,
+  families,
+  familyMembers,
   activities,
   activityChecklistItems,
   agendaEvents,
@@ -122,6 +124,10 @@ import {
   type InsertAccessRequest,
   type UserDeletionRequest,
   type InsertUserDeletionRequest,
+  type Family,
+  type InsertFamily,
+  type FamilyMember,
+  type InsertFamilyMember,
 } from "@shared/schema";
 import { isBirthdayToday } from "@shared/birthday-utils";
 
@@ -1447,6 +1453,88 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMember(id: string): Promise<void> {
     await db.delete(members).where(eq(members.id, id));
+  }
+
+  // ========================================
+  // FAMILIES
+  // ========================================
+
+  async getAllFamilies(): Promise<(Family & { members: (FamilyMember & { member: Member })[] })[]> {
+    const rows = await db
+      .select({
+        family: families,
+        fm: familyMembers,
+        member: members,
+      })
+      .from(families)
+      .leftJoin(familyMembers, eq(familyMembers.familyId, families.id))
+      .leftJoin(members, eq(members.id, familyMembers.memberId))
+      .orderBy(asc(families.createdAt));
+
+    const map = new Map<string, Family & { members: (FamilyMember & { member: Member })[] }>();
+    for (const row of rows) {
+      if (!map.has(row.family.id)) map.set(row.family.id, { ...row.family, members: [] });
+      if (row.fm && row.member) {
+        map.get(row.family.id)!.members.push({ ...row.fm, member: row.member });
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  async getFamilyById(id: string): Promise<(Family & { members: (FamilyMember & { member: Member })[] }) | undefined> {
+    const rows = await db
+      .select({ family: families, fm: familyMembers, member: members })
+      .from(families)
+      .leftJoin(familyMembers, eq(familyMembers.familyId, families.id))
+      .leftJoin(members, eq(members.id, familyMembers.memberId))
+      .where(eq(families.id, id));
+
+    if (!rows.length) return undefined;
+    const result = { ...rows[0].family, members: [] as (FamilyMember & { member: Member })[] };
+    for (const row of rows) {
+      if (row.fm && row.member) result.members.push({ ...row.fm, member: row.member });
+    }
+    return result;
+  }
+
+  async getFamilyByMemberId(memberId: string): Promise<(Family & { members: (FamilyMember & { member: Member })[] }) | undefined> {
+    const [fm] = await db.select().from(familyMembers).where(eq(familyMembers.memberId, memberId));
+    if (!fm) return undefined;
+    return this.getFamilyById(fm.familyId);
+  }
+
+  async createFamily(data: InsertFamily): Promise<Family> {
+    const [family] = await db.insert(families).values(data).returning();
+    return family;
+  }
+
+  async updateFamily(id: string, data: Partial<InsertFamily>): Promise<Family | undefined> {
+    const [family] = await db.update(families).set(data).where(eq(families.id, id)).returning();
+    return family || undefined;
+  }
+
+  async deleteFamily(id: string): Promise<void> {
+    await db.delete(families).where(eq(families.id, id));
+  }
+
+  async addFamilyMember(data: InsertFamilyMember): Promise<FamilyMember> {
+    const [fm] = await db.insert(familyMembers).values(data).returning();
+    return fm;
+  }
+
+  async updateFamilyMemberRole(familyId: string, memberId: string, role: "cabeza_familia" | "conyuge" | "hijo"): Promise<FamilyMember | undefined> {
+    const [fm] = await db
+      .update(familyMembers)
+      .set({ role })
+      .where(and(eq(familyMembers.familyId, familyId), eq(familyMembers.memberId, memberId)))
+      .returning();
+    return fm || undefined;
+  }
+
+  async removeFamilyMember(familyId: string, memberId: string): Promise<void> {
+    await db.delete(familyMembers).where(
+      and(eq(familyMembers.familyId, familyId), eq(familyMembers.memberId, memberId))
+    );
   }
 
   // ========================================

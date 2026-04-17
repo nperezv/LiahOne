@@ -121,6 +121,7 @@ export const organizationTypeEnum = pgEnum("organization_type", [
 ]);
 
 export const maritalStatusEnum = pgEnum("marital_status", ["soltero", "casado", "divorciado", "viudo"]);
+export const familyRoleEnum = pgEnum("family_role", ["cabeza_familia", "conyuge", "hijo"]);
 
 export const memberOrganizationMembershipTypeEnum = pgEnum("member_organization_membership_type", [
   "primary",
@@ -383,7 +384,33 @@ export const memberOrganizations = pgTable("member_organizations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ========================================
+// FAMILIES
+// ========================================
 
+export const families = pgTable("families", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name"),
+  address: text("address"),
+  phone: text("phone"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const familyMembers = pgTable("family_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  familyId: varchar("family_id").notNull().references(() => families.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  role: familyRoleEnum("role").notNull().default("hijo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+},
+(t) => [uniqueIndex("family_members_member_id_unique").on(t.memberId)]);
+
+export const insertFamilySchema = createInsertSchema(families);
+export const insertFamilyMemberSchema = createInsertSchema(familyMembers);
+export type Family = typeof families.$inferSelect;
+export type FamilyMember = typeof familyMembers.$inferSelect;
+export type InsertFamily = z.infer<typeof insertFamilySchema>;
+export type InsertFamilyMember = z.infer<typeof insertFamilyMemberSchema>;
 
 // ========================================
 // MISSION: Progreso de la senda de los convenios
