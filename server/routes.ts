@@ -1930,7 +1930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { username, name, email, role, organizationId, phone, memberId, isActive } = req.body;
+      const { username, nombre, apellidos, name, email, role, organizationId, phone, memberId, isActive } = req.body;
 
       if (role) {
         const rolesRequireOrg = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"];
@@ -1971,9 +1971,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Derive formal name and displayName when nombre/apellidos provided
+      const hasNameParts = nombre !== undefined || apellidos !== undefined;
+      const resolvedName = hasNameParts ? (deriveNameSurename(nombre, apellidos) || name || undefined) : (name || undefined);
+      const resolvedDisplayName = hasNameParts ? (deriveDisplayName(nombre, apellidos) || null) : undefined;
+
       const updatedUser = await storage.updateUser(id, {
         username: username || undefined,
-        name: name || undefined,
+        name: resolvedName,
+        displayName: resolvedDisplayName !== undefined ? resolvedDisplayName : undefined,
         email: email || undefined,
         role: role || undefined,
         organizationId: organizationId ?? undefined,
@@ -1984,6 +1990,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
+      }
+
+      // Sync nombre/apellidos back to linked member (bidireccional)
+      if (hasNameParts && updatedUser.memberId) {
+        await storage.updateMember(updatedUser.memberId, {
+          nombre: nombre ?? null,
+          apellidos: apellidos ?? null,
+          nameSurename: resolvedName ?? "",
+        } as any);
       }
 
       const { password: _, ...userWithoutPassword } = updatedUser;

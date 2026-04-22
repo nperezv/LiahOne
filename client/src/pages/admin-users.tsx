@@ -61,7 +61,8 @@ const resetPasswordSchema = z.object({
 });
 
 const editUserSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
+  apellidos: z.string().min(1, "Los apellidos son requeridos"),
+  nombre: z.string().min(1, "El nombre es requerido"),
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
@@ -509,7 +510,8 @@ export default function AdminUsersPage() {
   const editUserForm = useForm<EditUserFormValues>({
     resolver: zodResolver(editUserSchema),
     defaultValues: {
-      name: "",
+      apellidos: "",
+      nombre: "",
       username: "",
       email: "",
       phone: "",
@@ -522,6 +524,7 @@ export default function AdminUsersPage() {
 
   const selectedRole = createForm.watch("role");
   const selectedEditRole = editUserForm.watch("role");
+  const selectedEditMemberId = editUserForm.watch("memberId");
   const selectedMemberId = createForm.watch("memberId");
   const selectedOrganizationId = createForm.watch("organizationId");
   const selectedCallingName = createForm.watch("callingName");
@@ -840,6 +843,17 @@ export default function AdminUsersPage() {
     }
   }, [createForm, selectedMember]);
 
+  // When member changes in the edit form, auto-fill apellidos/nombre from member data
+  useEffect(() => {
+    if (!selectedEditMemberId) return;
+    const member = membersById.get(selectedEditMemberId);
+    if (!member) return;
+    if (member.apellidos) editUserForm.setValue("apellidos", member.apellidos);
+    if (member.nombre) editUserForm.setValue("nombre", member.nombre);
+    if (member.email) editUserForm.setValue("email", member.email);
+    if (member.phone) editUserForm.setValue("phone", member.phone);
+  }, [selectedEditMemberId, membersById, editUserForm]);
+
   const onCreateUser = async (data: CreateUserFormValues) => {
     if (!canCreateUser) {
       toast({
@@ -921,10 +935,13 @@ export default function AdminUsersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
-          ...data,
-          organizationId: data.organizationId || undefined,
+          nombre: data.nombre,
+          apellidos: data.apellidos,
+          username: data.username,
           email: data.email || undefined,
           phone: data.phone || undefined,
+          role: data.role,
+          organizationId: data.organizationId || undefined,
           memberId: data.memberId || null,
           isActive: typeof data.isActive === "boolean" ? data.isActive : undefined,
         }),
@@ -1719,11 +1736,18 @@ export default function AdminUsersPage() {
                                 size="icon"
                                 onClick={() => {
                                   setEditUser(u);
+                                  const linkedMember = u.memberId ? membersById.get(u.memberId) : undefined;
+                                  // Parse formal name "Apellidos, Nombre" → separate fields
+                                  const raw = u.name || "";
+                                  const commaIdx = raw.indexOf(", ");
+                                  const parsedApellidos = linkedMember?.apellidos ?? (commaIdx !== -1 ? raw.slice(0, commaIdx) : "");
+                                  const parsedNombre = linkedMember?.nombre ?? (commaIdx !== -1 ? raw.slice(commaIdx + 2) : raw);
                                   editUserForm.reset({
-                                    name: u.name,
+                                    apellidos: parsedApellidos,
+                                    nombre: parsedNombre,
                                     username: u.username,
-                                    email: u.email || "",
-                                    phone: u.phone || "",
+                                    email: linkedMember?.email || u.email || "",
+                                    phone: linkedMember?.phone || u.phone || "",
                                     role: u.role as EditUserFormValues["role"],
                                     organizationId: u.organizationId || "",
                                     memberId: u.memberId || "",
@@ -1745,19 +1769,34 @@ export default function AdminUsersPage() {
                                 </DialogHeader>
                                 <Form {...editUserForm}>
                                   <form onSubmit={editUserForm.handleSubmit(onEditUser)} className="space-y-4">
-                                    <FormField
-                                      control={editUserForm.control}
-                                      name="name"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Nombre</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} data-testid="input-edit-name" />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <FormField
+                                        control={editUserForm.control}
+                                        name="apellidos"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Apellidos</FormLabel>
+                                            <FormControl>
+                                              <Input {...field} data-testid="input-edit-apellidos" />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <FormField
+                                        control={editUserForm.control}
+                                        name="nombre"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Nombre</FormLabel>
+                                            <FormControl>
+                                              <Input {...field} data-testid="input-edit-nombre" />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    </div>
 
                                     <FormField
                                       control={editUserForm.control}
