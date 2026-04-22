@@ -1075,14 +1075,14 @@ export default function DirectoryPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Estado civil (opcional)</FormLabel>
-                        <Select value={field.value || ""} onValueChange={field.onChange}>
+                        <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Sin definir" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Sin definir</SelectItem>
+                            <SelectItem value="none">Sin definir</SelectItem>
                             <SelectItem value="soltero">Soltero/a</SelectItem>
                             <SelectItem value="casado">Casado/a</SelectItem>
                             <SelectItem value="divorciado">Divorciado/a</SelectItem>
