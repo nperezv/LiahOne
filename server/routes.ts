@@ -1720,6 +1720,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // One-time: copy email and phone from users to their linked members (user is source of truth)
+  app.post("/api/users/sync-contacts", requireRole("obispo", "secretario"), async (_req: Request, res: Response) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      let synced = 0;
+      for (const u of allUsers) {
+        if (!u.memberId) continue;
+        const payload: Record<string, unknown> = {};
+        if (u.email) payload.email = u.email;
+        if (u.phone) payload.phone = u.phone;
+        if (Object.keys(payload).length > 0) {
+          await storage.updateMember(u.memberId, payload as any);
+          synced++;
+        }
+      }
+      res.json({ ok: true, synced });
+    } catch (error) {
+      console.error("Error syncing contacts:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Reconcile displayName for all users linked to a member
   app.post("/api/users/sync-display-names", requireRole("obispo", "secretario"), async (_req: Request, res: Response) => {
     try {
@@ -1973,11 +1995,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/profile", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { name, email, username, requireEmailOtp, avatarUrl } = req.body;
+      const { nombre, apellidos, phone, email, username, requireEmailOtp, avatarUrl } = req.body;
       const hasAvatarUpdate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "avatarUrl");
+
+      const derivedName = deriveNameSurename(nombre, apellidos);
+      const derivedDisplayName = deriveDisplayName(nombre, apellidos);
+
       const user = await storage.updateUser(req.session.userId!, {
-        name: name || undefined,
+        name: derivedName || undefined,
+        displayName: derivedDisplayName || null,
         email: email || undefined,
+        phone: phone || undefined,
         username: username || undefined,
         requireEmailOtp: typeof requireEmailOtp === "boolean" ? requireEmailOtp : undefined,
         avatarUrl: hasAvatarUpdate ? avatarUrl : undefined,
@@ -1985,6 +2013,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!user) {
         return res.status(404).json({ error: "User not found" });
+      }
+
+      // Sync to linked member: user is source of truth for email
+      if (user.memberId) {
+        const memberPayload: Record<string, unknown> = {};
+        if (nombre !== undefined || apellidos !== undefined) {
+          memberPayload.nombre = nombre ?? null;
+          memberPayload.apellidos = apellidos ?? null;
+          memberPayload.nameSurename = derivedName;
+        }
+        if (email !== undefined) memberPayload.email = email || null;
+        if (phone !== undefined) memberPayload.phone = phone || null;
+        if (Object.keys(memberPayload).length > 0) {
+          await storage.updateMember(user.memberId, memberPayload as any);
+        }
       }
 
       const { password: _, ...userWithoutPassword } = user;
@@ -5552,7 +5595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Member not found" });
       }
 
-      // Sync linked user if nombre/apellidos or contact details changed
+      // Sync linked user: names and phone bidireccional; email NOT synced (user is source of truth for login email)
       const linkedUser = (await storage.getAllUsers()).find((u) => u.memberId === id);
       if (linkedUser) {
         const syncPayload: Record<string, string | null> = {};
@@ -5562,7 +5605,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           syncPayload.name = deriveNameSurename(nombre, apellidos, member.nameSurename);
           syncPayload.displayName = deriveDisplayName(nombre, apellidos) || null;
         }
-        if (memberData.email !== undefined) syncPayload.email = memberData.email ?? null;
         if (memberData.phone !== undefined) syncPayload.phone = memberData.phone ?? null;
         if (Object.keys(syncPayload).length > 0) {
           await storage.updateUser(linkedUser.id, syncPayload);

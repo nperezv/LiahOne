@@ -18,7 +18,9 @@ import { PushNotificationSettings } from "@/components/push-notification-setting
 import { getStoredTheme, setStoredTheme, type ThemePreference } from "@/lib/theme";
 
 const profileSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
+  apellidos: z.string().min(1, "Los apellidos son requeridos"),
+  nombre: z.string().min(1, "El nombre es requerido"),
+  phone: z.string().optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
   requireEmailOtp: z.boolean().optional(),
@@ -55,10 +57,21 @@ export default function ProfilePage() {
     }
   }, [user?.requirePasswordChange]);
 
+  const parsedName = useMemo(() => {
+    const raw = user?.name || "";
+    const commaIdx = raw.indexOf(", ");
+    if (commaIdx !== -1) {
+      return { apellidos: raw.slice(0, commaIdx), nombre: raw.slice(commaIdx + 2) };
+    }
+    return { apellidos: "", nombre: raw };
+  }, [user?.name]);
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: user?.name || "",
+      apellidos: parsedName.apellidos,
+      nombre: parsedName.nombre,
+      phone: user?.phone || "",
       email: user?.email || "",
       username: user?.username || "",
       requireEmailOtp: user?.requireEmailOtp ?? false,
@@ -100,7 +113,7 @@ export default function ProfilePage() {
       const response = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ ...data, avatarUrl }),
+        body: JSON.stringify({ nombre: data.nombre, apellidos: data.apellidos, phone: data.phone, email: data.email, username: data.username, requireEmailOtp: data.requireEmailOtp, avatarUrl }),
       });
 
       if (!response.ok) throw new Error("Error al actualizar perfil");
@@ -313,6 +326,12 @@ export default function ProfilePage() {
                 <label className="text-sm font-medium">Email</label>
                 <p className="text-sm text-muted-foreground mt-1">{user?.email || "No disponible"}</p>
               </div>
+              {user?.phone && (
+                <div>
+                  <label className="text-sm font-medium">Teléfono</label>
+                  <p className="text-sm text-muted-foreground mt-1">{user.phone}</p>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium">Usuario</label>
                 <p className="text-sm text-muted-foreground mt-1">{user?.username || "No disponible"}</p>
@@ -441,19 +460,34 @@ export default function ProfilePage() {
           ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="apellidos"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Apellidos</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-apellidos" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="nombre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-nombre" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <input
                   ref={avatarInputRef}
@@ -475,6 +509,20 @@ export default function ProfilePage() {
                       <FormLabel>Email</FormLabel>
                       <FormControl>
                         <Input type="email" {...field} data-testid="input-email" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teléfono</FormLabel>
+                      <FormControl>
+                        <Input type="tel" {...field} data-testid="input-phone" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -8,6 +8,7 @@ interface User {
   displayName?: string | null;
   username: string;
   email?: string;
+  phone?: string | null;
   avatarUrl?: string | null;
   role: string;
   organizationId?: string;
