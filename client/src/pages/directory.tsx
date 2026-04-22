@@ -45,9 +45,11 @@ import {
   useAddFamilyMember,
   useUpdateFamilyMemberRole,
   useRemoveFamilyMember,
+  usePendingMembers,
+  useApproveMember,
   type FamilyData,
 } from "@/hooks/use-api";
-import { Home, Pencil, Phone, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
+import { CheckCircle, Home, Pencil, Phone, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
 
 const memberSchema = z.object({
   apellidos: z.string().min(1, "Los apellidos son requeridos"),
@@ -636,6 +638,9 @@ export default function DirectoryPage() {
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(
     user?.role || ""
   );
+  const canSeePending = ["obispo", "consejero_obispo", "secretario"].includes(user?.role || "");
+  const { data: pendingMembers = [] } = usePendingMembers({ enabled: canSeePending });
+  const approveMemberMutation = useApproveMember();
 
   // Remove contain: layout paint from app-page-content so position: sticky works
   // relative to the <main> scroll container (not the contained element)
@@ -1259,6 +1264,17 @@ export default function DirectoryPage() {
           <TabsTrigger value="families" className="flex items-center gap-1.5">
             <Home className="h-4 w-4" /> Familias
           </TabsTrigger>
+          {canSeePending && (
+            <TabsTrigger value="pending" className="flex items-center gap-1.5">
+              <CheckCircle className="h-4 w-4" />
+              Pendientes
+              {pendingMembers.length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
+                  {pendingMembers.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="members">
@@ -1489,6 +1505,57 @@ export default function DirectoryPage() {
         <TabsContent value="families">
           <FamiliesTab allMembers={members} />
         </TabsContent>
+
+        {canSeePending && (
+          <TabsContent value="pending">
+            <div className="mt-4 space-y-3">
+              {pendingMembers.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                    <CheckCircle className="mb-3 h-10 w-10 opacity-30" />
+                    <p className="text-sm">No hay solicitudes pendientes de aprobación.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                pendingMembers.map((m) => {
+                  const displayName = [m.apellidos?.trim(), m.nombre?.trim()].filter(Boolean).join(", ") || m.nameSurename;
+                  const age = m.birthday
+                    ? Math.floor((Date.now() - new Date(m.birthday).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                    : null;
+                  return (
+                    <Card key={m.id} className="overflow-hidden">
+                      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-semibold leading-tight">{displayName}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            {age !== null && <span>{age} años · {m.sex === "M" ? "Hombre" : "Mujer"}</span>}
+                            {m.phone && <span>{m.phone}</span>}
+                            {m.email && <span>{m.email}</span>}
+                            {m.organizationName && <span>{m.organizationName}</span>}
+                          </div>
+                          <div className="flex gap-2 pt-0.5">
+                            {m.emailConsentGranted && (
+                              <Badge variant="outline" className="text-xs">Consiente emails</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={approveMemberMutation.isPending}
+                          onClick={() => approveMemberMutation.mutate(m.id)}
+                          className="shrink-0 gap-1.5"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Aprobar
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {sheetMember && (

@@ -63,6 +63,8 @@ export function useDashboardStats() {
 export interface DirectoryMember {
   id: string;
   nameSurename: string;
+  nombre?: string | null;
+  apellidos?: string | null;
   sex: string;
   birthday: string;
   phone?: string | null;
@@ -70,6 +72,8 @@ export interface DirectoryMember {
   organizationId?: string | null;
   organizationName?: string | null;
   organizationType?: string | null;
+  memberStatus?: string | null;
+  emailConsentGranted?: boolean | null;
   createdAt: string;
 }
 
@@ -96,6 +100,30 @@ export function useMembers(options?: { enabled?: boolean }) {
     queryKey: ["/api/members"],
     staleTime: 1000 * 60,
     enabled: options?.enabled ?? true,
+  });
+}
+
+export function usePendingMembers(options?: { enabled?: boolean }) {
+  return useQuery<DirectoryMember[]>({
+    queryKey: ["/api/members/pending"],
+    staleTime: 1000 * 30,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useApproveMember() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (id: string) => apiRequest("POST", `/api/members/${id}/approve`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+      toast({ title: "Miembro aprobado", description: "El miembro ha sido activado en el directorio." });
+    },
+    onError: () => {
+      toast({ title: "Error al aprobar", variant: "destructive" });
+    },
   });
 }
 
