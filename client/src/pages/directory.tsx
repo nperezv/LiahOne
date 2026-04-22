@@ -50,7 +50,8 @@ import {
 import { Home, Pencil, Phone, Plus, Search, Send, Trash2, Users, X } from "lucide-react";
 
 const memberSchema = z.object({
-  nameSurename: z.string().min(1, "El nombre es requerido"),
+  apellidos: z.string().min(1, "Los apellidos son requeridos"),
+  nombre: z.string().min(1, "El nombre es requerido"),
   sex: z.enum(["M", "F"], { required_error: "El sexo es requerido" }),
   birthday: z.string().min(1, "La fecha de nacimiento es requerida"),
   phone: z.string().optional().or(z.literal("")),
@@ -649,8 +650,9 @@ export default function DirectoryPage() {
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
-      nameSurename: "",
-      sex: "",
+      apellidos: "",
+      nombre: "",
+      sex: undefined,
       birthday: "",
       phone: "",
       email: "",
@@ -723,8 +725,9 @@ export default function DirectoryPage() {
     setEditingMember(null);
     setCallingDialogOpen(false);
     form.reset({
-      nameSurename: "",
-      sex: "",
+      apellidos: "",
+      nombre: "",
+      sex: undefined,
       birthday: "",
       phone: "",
       email: "",
@@ -738,8 +741,9 @@ export default function DirectoryPage() {
     setEditingMember(member);
     setCallingDialogOpen(false);
     form.reset({
-      nameSurename: member.nameSurename,
-      sex: normalizeSexValue(member.sex),
+      apellidos: member.apellidos ?? "",
+      nombre: member.nombre ?? "",
+      sex: normalizeSexValue(member.sex) as "M" | "F",
       birthday: formatDateForInput(member.birthday),
       phone: member.phone ?? "",
       email: member.email ?? "",
@@ -750,8 +754,13 @@ export default function DirectoryPage() {
   };
 
   const handleSubmitMember = (data: MemberFormValues) => {
+    const apellidos = data.apellidos.trim();
+    const nombre = data.nombre.trim();
     const payload = {
       ...data,
+      apellidos,
+      nombre,
+      nameSurename: `${apellidos}, ${nombre}`,
       sex: normalizeSexValue(data.sex),
       birthday: new Date(data.birthday).toISOString(),
       phone: data.phone?.trim() || null,
@@ -1020,19 +1029,34 @@ export default function DirectoryPage() {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleSubmitMember)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="nameSurename"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nombre y Apellido</FormLabel>
-                        <FormControl>
-                          <Input placeholder="María López" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="apellidos"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Apellidos</FormLabel>
+                          <FormControl>
+                            <Input placeholder="García López" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="nombre"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre</FormLabel>
+                          <FormControl>
+                            <Input placeholder="María Jesús" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}

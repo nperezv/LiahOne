@@ -46,6 +46,8 @@ const DirectoryPage = lazy(() => import("@/pages/directory"));
 const SecretaryDashboardPage = lazy(() => import("@/pages/secretary-dashboard"));
 const ResourcesLibraryPage = lazy(() => import("@/pages/resources-library"));
 const DonationsPage = lazy(() => import("@/pages/donations"));
+const PublicRegistroPage = lazy(() => import("@/pages/public-registro"));
+const PublicBajaPage = lazy(() => import("@/pages/public-baja"));
 const InventoryPage = lazy(() => import("@/pages/inventory"));
 const InventoryNewPage = lazy(() => import("@/pages/inventory-new"));
 const InventoryDetailPage = lazy(() => import("@/pages/inventory-detail"));
@@ -232,6 +234,8 @@ function Router() {
       <Route path="/welcome" component={WelcomePage} />
       <Route path="/login" component={LoginRoute} />
       <Route path="/request-access" component={RequestAccessPage} />
+      <Route path="/registro" component={PublicRegistroPage} />
+      <Route path="/baja" component={PublicBajaPage} />
       <Route path="/donar" component={DonationsPage} />
       <Route path="/bautismo" component={BaptismLobbyPage} />
       <Route path="/bautismo/:slug" component={BaptismPublicPage} />

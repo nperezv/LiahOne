@@ -58,6 +58,7 @@ import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
 import { registerActivityPublicRoutes } from "./activity-public-routes";
+import { registerMemberRegistrationPublicRoutes } from "./member-registration-public-routes";
 import {
   registerRecurringSeriesRoutes,
   getOccurrencesInRange, getMonthlyOccurrencesInRange, getQuarterlyOccurrencesInRange,
@@ -823,6 +824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerBaptismPublicRoutes(app);
   registerQuarterlyPlanRoutes(app, requireAuth);
   registerActivityPublicRoutes(app);
+  registerMemberRegistrationPublicRoutes(app);
   registerRecurringSeriesRoutes(app, requireAuth);
 
   // One-time fix: update baptism_services with 'Por confirmar' location
@@ -898,6 +900,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       "Database schema is missing auth columns. Apply migrations/0003_auth_security.sql or run npm run db:push.",
     );
   }
+
+  // Auto-migration: consent + nombre/apellidos/status fields on members
+  await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_granted boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_date timestamp`);
+  await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS nombre text`);
+  await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS apellidos text`);
+  await db.execute(sql`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'member_status') THEN CREATE TYPE member_status AS ENUM ('active','pending'); END IF; END $$`);
+  await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS member_status member_status NOT NULL DEFAULT 'active'`);
+  // Best-effort split existing comma-formatted names
+  await db.execute(sql`
+    UPDATE members SET
+      apellidos = trim(split_part(name_surename, ',', 1)),
+      nombre    = trim(split_part(name_surename, ',', 2))
+    WHERE name_surename LIKE '%,%' AND nombre IS NULL
+  `);
 
   // Auto-migration: add is_public to activities if missing
   await db.execute(sql`
@@ -5519,6 +5536,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting member:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/members/pending", requireRole("obispo", "consejero_obispo", "secretario"), async (_req: Request, res: Response) => {
+    try {
+      const pending = await storage.getPendingMembers();
+      res.json(pending);
+    } catch (error) {
+      console.error("Error fetching pending members:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/members/:id/approve", requireRole("obispo", "consejero_obispo", "secretario"), async (req: Request, res: Response) => {
+    try {
+      const member = await storage.approveMember(req.params.id);
+      if (!member) return res.status(404).json({ error: "Member not found" });
+      await storage.createSoloFamily(member.id);
+      res.json(member);
+    } catch (error) {
+      console.error("Error approving member:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

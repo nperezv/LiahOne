@@ -349,15 +349,22 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const memberStatusEnum = pgEnum("member_status", ["active", "pending"]);
+
 export const members = pgTable("members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   nameSurename: text("name_surename").notNull(),
+  nombre: text("nombre"),
+  apellidos: text("apellidos"),
   sex: text("sex").notNull(),
   birthday: timestamp("birthday").notNull(),
   phone: text("phone"),
   email: text("email"),
   organizationId: varchar("organization_id").references(() => organizations.id),
   maritalStatus: maritalStatusEnum("marital_status"),
+  memberStatus: memberStatusEnum("member_status").notNull().default("active"),
+  emailConsentGranted: boolean("email_consent_granted").notNull().default(false),
+  emailConsentDate: timestamp("email_consent_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

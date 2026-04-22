@@ -280,6 +280,8 @@ export interface IStorage {
 
   // Directory Members
   getAllMembers(): Promise<DirectoryMember[]>;
+  getPendingMembers(): Promise<DirectoryMember[]>;
+  approveMember(id: string): Promise<Member | undefined>;
   getMembersByOrganization(organizationId: string): Promise<DirectoryMember[]>;
   syncMemberDerivedMemberships(memberId: string): Promise<void>;
   getMemberById(id: string): Promise<Member | undefined>;
@@ -1278,18 +1280,56 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: members.id,
         nameSurename: members.nameSurename,
+        nombre: members.nombre,
+        apellidos: members.apellidos,
         sex: members.sex,
         birthday: members.birthday,
         phone: members.phone,
         email: members.email,
         organizationId: members.organizationId,
+        memberStatus: members.memberStatus,
+        emailConsentGranted: members.emailConsentGranted,
         createdAt: members.createdAt,
         organizationName: organizations.name,
         organizationType: organizations.type,
       })
       .from(members)
       .leftJoin(organizations, eq(members.organizationId, organizations.id))
+      .where(eq(members.memberStatus, "active"))
       .orderBy(asc(members.nameSurename));
+  }
+
+  async getPendingMembers(): Promise<DirectoryMember[]> {
+    return await db
+      .select({
+        id: members.id,
+        nameSurename: members.nameSurename,
+        nombre: members.nombre,
+        apellidos: members.apellidos,
+        sex: members.sex,
+        birthday: members.birthday,
+        phone: members.phone,
+        email: members.email,
+        organizationId: members.organizationId,
+        memberStatus: members.memberStatus,
+        emailConsentGranted: members.emailConsentGranted,
+        createdAt: members.createdAt,
+        organizationName: organizations.name,
+        organizationType: organizations.type,
+      })
+      .from(members)
+      .leftJoin(organizations, eq(members.organizationId, organizations.id))
+      .where(eq(members.memberStatus, "pending"))
+      .orderBy(asc(members.createdAt));
+  }
+
+  async approveMember(id: string): Promise<Member | undefined> {
+    const [member] = await db
+      .update(members)
+      .set({ memberStatus: "active" })
+      .where(eq(members.id, id))
+      .returning();
+    return member || undefined;
   }
 
   async getMembersByOrganization(organizationId: string): Promise<DirectoryMember[]> {
