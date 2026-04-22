@@ -2166,22 +2166,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(409).json({ error: "User has related records", summary });
         }
 
-        await storage.updateUserDeletionRequest(id, {
-          status: "aprobada",
-          reviewedBy: req.session.userId!,
-          reviewedAt: new Date(),
-        });
-
         const user = await storage.getUser(request.userId);
         if (user) {
           await removeAutoCallingForUser(user);
         }
 
-        if (cleanAll) {
-          await storage.deleteUserWithCleanup(request.userId);
-        } else {
-          await storage.deleteUser(request.userId);
-        }
+        await storage.deleteUserWithCleanup(request.userId);
 
         res.status(200).json({ message: "User deleted" });
       } catch (error) {

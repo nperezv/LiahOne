@@ -46,6 +46,9 @@ import {
   emailOtps,
   accessRequests,
   userDeletionRequests,
+  inventoryMovements,
+  inventoryLoans,
+  inventoryAuditItems,
   type User,
   type InsertUser,
   type Organization,
@@ -705,6 +708,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUserWithCleanup(id: string): Promise<void> {
     await db.transaction(async (tx) => {
+      // Auth/session
       await tx.delete(notifications).where(eq(notifications.userId, id));
       await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, id));
       await tx.delete(userDevices).where(eq(userDevices.userId, id));
@@ -714,12 +718,23 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(userDeletionRequests).where(eq(userDeletionRequests.requestedBy, id));
       await tx.update(userDeletionRequests).set({ reviewedBy: null }).where(eq(userDeletionRequests.reviewedBy, id));
 
+      // Agenda
+      await tx.delete(agendaEvents).where(eq(agendaEvents.userId, id));
+      await tx.delete(agendaTasks).where(eq(agendaTasks.userId, id));
+      await tx.delete(agendaReminders).where(eq(agendaReminders.userId, id));
+      await tx.delete(agendaTaskPlans).where(eq(agendaTaskPlans.userId, id));
+      await tx.delete(agendaIdempotencyKeys).where(eq(agendaIdempotencyKeys.userId, id));
+      await tx.delete(agendaCommandLogs).where(eq(agendaCommandLogs.userId, id));
+      await tx.delete(userAvailability).where(eq(userAvailability.userId, id));
+
+      // Assignments & interviews
       await tx.delete(assignments).where(eq(assignments.assignedTo, id));
       await tx.delete(assignments).where(eq(assignments.assignedBy, id));
       await tx.delete(interviews).where(eq(interviews.assignedBy, id));
       await tx.delete(interviews).where(eq(interviews.interviewerId, id));
       await tx.update(interviews).set({ assignedToId: null }).where(eq(interviews.assignedToId, id));
 
+      // Meetings & activities
       await tx.delete(activities).where(eq(activities.createdBy, id));
       await tx.delete(goals).where(eq(goals.createdBy, id));
       await tx.delete(wardCouncils).where(eq(wardCouncils.createdBy, id));
@@ -727,9 +742,22 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(sacramentalMeetings).where(eq(sacramentalMeetings.createdBy, id));
       await tx.delete(organizationInterviews).where(eq(organizationInterviews.createdBy, id));
       await tx.delete(organizationInterviews).where(eq(organizationInterviews.interviewerId, id));
+      await tx.delete(organizationWeeklyAttendance).where(eq(organizationWeeklyAttendance.createdBy, id));
+      await tx.delete(organizationAttendanceMonthlySnapshots).where(eq(organizationAttendanceMonthlySnapshots.closedBy, id));
 
+      // Budget & welfare
       await tx.delete(budgetRequests).where(eq(budgetRequests.requestedBy, id));
       await tx.update(budgetRequests).set({ approvedBy: null }).where(eq(budgetRequests.approvedBy, id));
+      await tx.update(budgetRequests).set({ financialApprovedBy: null }).where(eq(budgetRequests.financialApprovedBy, id));
+      await tx.update(budgetRequests).set({ bishopApprovedBy: null }).where(eq(budgetRequests.bishopApprovedBy, id));
+      await tx.delete(welfareRequests).where(eq(welfareRequests.requestedBy, id));
+      await tx.update(welfareRequests).set({ bishopApprovedBy: null }).where(eq(welfareRequests.bishopApprovedBy, id));
+      await tx.delete(budgetUnlockExceptions).where(or(eq(budgetUnlockExceptions.userId, id), eq(budgetUnlockExceptions.grantedBy, id)));
+
+      // Inventory
+      await tx.delete(inventoryMovements).where(eq(inventoryMovements.userId, id));
+      await tx.update(inventoryLoans).set({ returnedBy: null }).where(eq(inventoryLoans.returnedBy, id));
+      await tx.update(inventoryAuditItems).set({ verifiedBy: null }).where(eq(inventoryAuditItems.verifiedBy, id));
 
       await tx.update(loginEvents).set({ userId: null }).where(eq(loginEvents.userId, id));
 
