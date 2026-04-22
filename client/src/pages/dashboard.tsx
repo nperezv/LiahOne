@@ -185,7 +185,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen space-y-6 bg-background px-4 py-6 text-foreground sm:px-8">
       <div className="space-y-1">
-        <h1 className="text-[34px] leading-[1.06] font-extrabold tracking-[-0.03em] sm:text-[38px]">Hola, {user?.name ? user.name.split(" ")[0] : ""}</h1>
+        <h1 className="text-[34px] leading-[1.06] font-extrabold tracking-[-0.03em] sm:text-[38px]">Hola, {(user?.displayName || user?.name || "").split(" ")[0]}</h1>
         <p className="text-sm text-slate-500 dark:text-white/45">
           {getGreeting(new Date())} 👋
         </p>

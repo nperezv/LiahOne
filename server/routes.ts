@@ -59,6 +59,7 @@ import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
 import { registerActivityPublicRoutes } from "./activity-public-routes";
 import { registerMemberRegistrationPublicRoutes } from "./member-registration-public-routes";
+import { deriveDisplayName, deriveNameSurename } from "@shared/name-utils";
 import {
   registerRecurringSeriesRoutes,
   getOccurrencesInRange, getMonthlyOccurrencesInRange, getQuarterlyOccurrencesInRange,
@@ -901,6 +902,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
   }
 
+  // Auto-migration: displayName on users
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name text`);
+  // Backfill displayName for users already linked to a member with nombre/apellidos
+  await db.execute(sql`
+    UPDATE users u
+    SET display_name = concat_ws(' ',
+      split_part(trim(m.nombre), ' ', 1),
+      split_part(trim(m.apellidos), ' ', 1)
+    )
+    FROM members m
+    WHERE u.member_id = m.id
+      AND m.nombre IS NOT NULL
+      AND m.apellidos IS NOT NULL
+      AND (u.display_name IS NULL OR u.display_name = '')
+  `);
+
   // Auto-migration: consent + nombre/apellidos/status fields on members
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_granted boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_date timestamp`);
@@ -1703,6 +1720,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reconcile displayName for all users linked to a member
+  app.post("/api/users/sync-display-names", requireRole("obispo", "secretario"), async (_req: Request, res: Response) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      let synced = 0;
+      for (const u of allUsers) {
+        if (!u.memberId) continue;
+        const member = await storage.getMemberById(u.memberId);
+        if (!member?.nombre || !member?.apellidos) continue;
+        const newDisplayName = deriveDisplayName(member.nombre, member.apellidos);
+        const newName = deriveNameSurename(member.nombre, member.apellidos, member.nameSurename);
+        if (newDisplayName !== u.displayName || newName !== u.name) {
+          await storage.updateUser(u.id, { displayName: newDisplayName || null, name: newName });
+          synced++;
+        }
+      }
+      res.json({ ok: true, synced });
+    } catch (error) {
+      console.error("Error syncing display names:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post(
     "/api/users",
     requireAuth,
@@ -1775,10 +1815,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const temporaryPassword = generateTemporaryPassword();
       const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+      // Derive display name and formal name from the linked member
+      const formalName = member
+        ? deriveNameSurename(member.nombre, member.apellidos, member.nameSurename)
+        : normalizedName;
+      const shortDisplayName = member
+        ? deriveDisplayName(member.nombre, member.apellidos)
+        : normalizedName;
+
       const user = await storage.createUser({
         username: derivedUsername,
         password: hashedPassword,
-        name: normalizedName,
+        name: formalName,
+        displayName: shortDisplayName || null,
         email,
         phone: phone || null,
         requirePasswordChange: true,
@@ -5501,6 +5551,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!member) {
         return res.status(404).json({ error: "Member not found" });
       }
+
+      // Sync linked user if nombre/apellidos or contact details changed
+      const linkedUser = (await storage.getAllUsers()).find((u) => u.memberId === id);
+      if (linkedUser) {
+        const syncPayload: Record<string, string | null> = {};
+        if (memberData.nombre !== undefined || memberData.apellidos !== undefined) {
+          const nombre = memberData.nombre ?? member.nombre;
+          const apellidos = memberData.apellidos ?? member.apellidos;
+          syncPayload.name = deriveNameSurename(nombre, apellidos, member.nameSurename);
+          syncPayload.displayName = deriveDisplayName(nombre, apellidos) || null;
+        }
+        if (memberData.email !== undefined) syncPayload.email = memberData.email ?? null;
+        if (memberData.phone !== undefined) syncPayload.phone = memberData.phone ?? null;
+        if (Object.keys(syncPayload).length > 0) {
+          await storage.updateUser(linkedUser.id, syncPayload);
+        }
+      }
+
       res.json(member);
     } catch (error) {
       if (error instanceof z.ZodError) {

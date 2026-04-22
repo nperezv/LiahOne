@@ -5,6 +5,7 @@ import { getDeviceId, refreshAccessToken, setAccessToken } from "./auth-tokens";
 interface User {
   id: string;
   name: string;
+  displayName?: string | null;
   username: string;
   email?: string;
   avatarUrl?: string | null;

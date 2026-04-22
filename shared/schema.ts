@@ -258,6 +258,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
+  displayName: text("display_name"),
   email: text("email"),
   phone: text("phone"),
   avatarUrl: text("avatar_url"),

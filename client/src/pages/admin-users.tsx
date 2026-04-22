@@ -96,6 +96,8 @@ interface Organization {
 interface DirectoryMember {
   id: string;
   nameSurename: string;
+  nombre?: string | null;
+  apellidos?: string | null;
   organizationName?: string | null;
   organizationType?: string | null;
   email?: string | null;
@@ -806,14 +808,26 @@ export default function AdminUsersPage() {
     }
   }, [selectedCallingName, selectedOrganizationType, selectedRole, createForm]);
 
+  // Derive short display name from member's nombre/apellidos
+  const memberDisplayNamePreview = selectedMember
+    ? (() => {
+        const firstNombre = (selectedMember.nombre ?? "").trim().split(/\s+/)[0] ?? "";
+        const firstApellido = (selectedMember.apellidos ?? "").trim().split(/\s+/)[0] ?? "";
+        return [firstNombre, firstApellido].filter(Boolean).join(" ");
+      })()
+    : "";
+
   useEffect(() => {
     if (!selectedMember) {
       return;
     }
     const currentValues = createForm.getValues();
-    const normalizedName = normalizeMemberName(selectedMember.nameSurename);
-    if (normalizedName && currentValues.name !== normalizedName) {
-      createForm.setValue("name", normalizedName);
+    // Use formal name from member (apellidos, nombre format)
+    const formalName = selectedMember.apellidos && selectedMember.nombre
+      ? `${selectedMember.apellidos.trim()}, ${selectedMember.nombre.trim()}`
+      : normalizeMemberName(selectedMember.nameSurename);
+    if (formalName && currentValues.name !== formalName) {
+      createForm.setValue("name", formalName);
     }
     if (selectedMember.email && currentValues.email !== selectedMember.email) {
       createForm.setValue("email", selectedMember.email);
@@ -1142,6 +1156,13 @@ export default function AdminUsersPage() {
                       ) : (
                         <p className="text-muted-foreground">Sin llamamientos registrados.</p>
                       )}
+                    </div>
+                  )}
+
+                  {memberDisplayNamePreview && (
+                    <div className="rounded-md bg-muted px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Nombre en la app: </span>
+                      <strong>{memberDisplayNamePreview}</strong>
                     </div>
                   )}
 
