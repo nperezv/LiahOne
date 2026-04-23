@@ -862,7 +862,7 @@ export const birthdays = pgTable("birthdays", {
 
 export const birthdayEmailSends = pgTable("birthday_email_sends", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  birthdayId: varchar("birthday_id").notNull().references(() => birthdays.id, { onDelete: "cascade" }),
+  birthdayId: varchar("birthday_id").notNull(),
   dayKey: text("day_key").notNull(),
   recipientEmail: text("recipient_email").notNull(),
   sentAt: timestamp("sent_at").defaultNow().notNull(),

@@ -5951,48 +5951,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/birthdays", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const birthdayData = insertBirthdaySchema.parse(req.body);
-      const birthday = await storage.createBirthday(birthdayData);
-      res.status(201).json(birthday);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.put("/api/birthdays/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const birthdayData = insertBirthdaySchema.partial().parse(req.body);
-
-      const birthday = await storage.updateBirthday(id, birthdayData);
-      if (!birthday) {
-        return res.status(404).json({ error: "Birthday not found" });
-      }
-
-      res.json(birthday);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.delete("/api/birthdays/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      await storage.deleteBirthday(id);
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
   // Get today's birthdays
   app.get("/api/birthdays/today", requireAuth, async (req: Request, res: Response) => {
     try {

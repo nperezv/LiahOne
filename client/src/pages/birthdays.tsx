@@ -1,8 +1,5 @@
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Plus, Cake, Send, Mail, Pencil, Trash2, Phone, ArrowLeft, CalendarDays } from "lucide-react";
+import { Cake, Send, Mail, Phone, ArrowLeft, CalendarDays } from "lucide-react";
 
 // Random birthday greetings and images
 const BIRTHDAY_PHRASES = [
@@ -40,6 +37,7 @@ const BIRTHDAY_IMAGE_LIBRARY = [
     url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=800&q=80",
   },
 ];
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -48,10 +46,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -62,44 +57,28 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
-import { useBirthdays, useCreateBirthday } from "@/hooks/use-api";
-import { useQuery } from "@tanstack/react-query";
-import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
+import { useBirthdays } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeMemberName } from "@/lib/utils";
+import { shortMemberName } from "@/lib/utils";
 import { useLocation, useSearch } from "wouter";
-
-const birthdaySchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
-  birthDate: z.string().min(1, "La fecha es requerida"),
-  email: z.string().email("Email inválido").optional().or(z.literal("")),
-  phone: z.string().optional().or(z.literal("")),
-  organizationId: z.string().optional().or(z.literal("")),
-});
-
-type BirthdayFormValues = z.infer<typeof birthdaySchema>;
-
 
 const navigateWithTransition = (navigate: (path: string) => void, path: string) => {
   if (typeof document !== "undefined" && "startViewTransition" in document) {
     (document as any).startViewTransition(() => navigate(path));
     return;
   }
-
   navigate(path);
 };
 
 export default function BirthdaysPage() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showOnly30Days, setShowOnly30Days] = useState(false);
-  const [editingBirthdayId, setEditingBirthdayId] = useState<string | null>(null);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [selectedBirthday, setSelectedBirthday] = useState<any | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState("random");
   const [selectedImage, setSelectedImage] = useState("random");
-  
+
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
@@ -111,82 +90,7 @@ export default function BirthdaysPage() {
   const shouldFilterByOriginOrganization = isPresidencyOrigin && Boolean(originOrgId);
 
   const { data: birthdays = [], isLoading } = useBirthdays();
-  const createMutation = useCreateBirthday();
   const { toast } = useToast();
-  const { data: organizations = [] } = useQuery<any[]>({
-    queryKey: ["/api/organizations"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
-  });
-
-  const form = useForm<BirthdayFormValues>({
-    resolver: zodResolver(birthdaySchema),
-    defaultValues: {
-      name: "",
-      birthDate: "",
-      email: "",
-      phone: "",
-      organizationId: user?.organizationId || "",
-    },
-  });
-
-  const handleEditBirthday = (birthday: any) => {
-    setEditingBirthdayId(birthday.id);
-    form.reset({
-      name: normalizeMemberName(birthday.name),
-      birthDate: new Date(birthday.birthDate).toISOString().split('T')[0],
-      email: birthday.email || "",
-      phone: birthday.phone || "",
-      organizationId: birthday.organizationId || "",
-    });
-    setIsDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingBirthdayId(null);
-    form.reset({
-      name: "",
-      birthDate: "",
-      email: "",
-      phone: "",
-      organizationId: user?.organizationId || "",
-    });
-  };
-
-  const onSubmit = (data: BirthdayFormValues) => {
-    const payload = {
-      name: normalizeMemberName(data.name),
-      birthDate: data.birthDate,
-      email: data.email || "",
-      phone: data.phone || "",
-      organizationId: data.organizationId || null,
-    };
-
-    if (editingBirthdayId) {
-      // Update existing birthday
-      apiRequest("PUT", `/api/birthdays/${editingBirthdayId}`, payload).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/birthdays"] });
-        handleCloseDialog();
-        toast({
-          title: "Cumpleaño actualizado",
-          description: "El cumpleaño ha sido actualizado exitosamente.",
-        });
-      }).catch(() => {
-        toast({
-          title: "Error",
-          description: "No se pudo actualizar el cumpleaño. Intenta nuevamente.",
-          variant: "destructive",
-        });
-      });
-    } else {
-      // Create new birthday
-      createMutation.mutate(payload, {
-        onSuccess: () => {
-          handleCloseDialog();
-        },
-      });
-    }
-  };
 
   const calculateDaysUntil = (birthDate: string) => getDaysUntilBirthday(birthDate);
 
@@ -196,7 +100,7 @@ export default function BirthdaysPage() {
 
   const birthdaysWithDays = visibleBirthdays.map((b: any) => ({
     ...b,
-    name: normalizeMemberName(b.name),
+    displayName: shortMemberName(b),
     daysUntil: calculateDaysUntil(b.birthDate),
     nextAge: getAgeTurningOnNextBirthday(b.birthDate),
   }));
@@ -204,21 +108,18 @@ export default function BirthdaysPage() {
   const allBirthdaysSorted = birthdaysWithDays.sort(
     (a: any, b: any) => a.daysUntil - b.daysUntil
   );
-  
+
   const upcomingBirthdays = (showOnly30Days
     ? allBirthdaysSorted.filter((b: any) => b.daysUntil <= 30)
     : allBirthdaysSorted).filter((b: any) => b.daysUntil > 0);
 
   const todaysBirthdays = birthdaysWithDays.filter((b: any) => b.daysUntil === 0);
 
-  // Get random phrase and image for a birthday (deterministic by name)
   const getRandomGreeting = (name: string) => {
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const phraseIndex = hash % BIRTHDAY_PHRASES.length;
-    const imageIndex = hash % BIRTHDAY_IMAGES.length;
     return {
-      phrase: BIRTHDAY_PHRASES[phraseIndex],
-      image: BIRTHDAY_IMAGES[imageIndex],
+      phrase: BIRTHDAY_PHRASES[hash % BIRTHDAY_PHRASES.length],
+      image: BIRTHDAY_IMAGES[hash % BIRTHDAY_IMAGES.length],
     };
   };
 
@@ -231,12 +132,11 @@ export default function BirthdaysPage() {
     if (!birthday?.phone && !birthday?.email) {
       toast({
         title: "Sin contacto",
-        description: "Este cumpleaños no tiene teléfono ni email registrado.",
+        description: "Este miembro no tiene teléfono ni email registrado.",
         variant: "destructive",
       });
       return;
     }
-
     setSelectedBirthday(birthday);
     setSelectedTemplate("random");
     setSelectedImage("random");
@@ -244,53 +144,39 @@ export default function BirthdaysPage() {
   };
 
   const buildBirthdayMessage = (birthday: any) => {
-    const randomGreeting = getRandomGreeting(birthday.name);
-    const phrase =
-      selectedTemplate === "random"
-        ? randomGreeting.phrase
-        : BIRTHDAY_PHRASES[Number(selectedTemplate)];
-    const imageEmoji =
-      selectedTemplate === "random"
-        ? randomGreeting.image
-        : BIRTHDAY_IMAGES[Number(selectedTemplate) % BIRTHDAY_IMAGES.length];
-    const imageSelection =
-      selectedImage === "random"
-        ? getRandomImageUrl(birthday.name)
-        : BIRTHDAY_IMAGE_LIBRARY[Number(selectedImage)];
-    const messageLines = [
-      `¡Hola ${birthday.name}!`,
+    const name = birthday.displayName || birthday.name;
+    const randomGreeting = getRandomGreeting(name);
+    const phrase = selectedTemplate === "random"
+      ? randomGreeting.phrase
+      : BIRTHDAY_PHRASES[Number(selectedTemplate)];
+    const imageEmoji = selectedTemplate === "random"
+      ? randomGreeting.image
+      : BIRTHDAY_IMAGES[Number(selectedTemplate) % BIRTHDAY_IMAGES.length];
+    const imageSelection = selectedImage === "random"
+      ? getRandomImageUrl(name)
+      : BIRTHDAY_IMAGE_LIBRARY[Number(selectedImage)];
+    return [
+      `¡Hola ${name}!`,
       `${imageEmoji} ${phrase}`,
       "",
       "Mira esta imagen de cumpleaños:",
       imageSelection.url,
-    ];
-    return messageLines.join("\n");
+    ].join("\n");
   };
 
   const handleSendGreeting = () => {
     if (!selectedBirthday) return;
-
     const message = buildBirthdayMessage(selectedBirthday);
-
     if (selectedBirthday.phone) {
       const digits = selectedBirthday.phone.replace(/[^\d]/g, "");
       if (!digits) {
-        toast({
-          title: "Teléfono inválido",
-          description: "No se encontró un número válido para WhatsApp.",
-          variant: "destructive",
-        });
+        toast({ title: "Teléfono inválido", description: "No se encontró un número válido.", variant: "destructive" });
         return;
       }
-      const url = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
     } else if (selectedBirthday.email) {
-      const url = `mailto:${selectedBirthday.email}?subject=${encodeURIComponent(
-        "¡Feliz cumpleaños!"
-      )}&body=${encodeURIComponent(message)}`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(`mailto:${selectedBirthday.email}?subject=${encodeURIComponent("¡Feliz cumpleaños!")}&body=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
     }
-
     setIsSendDialogOpen(false);
     setSelectedBirthday(null);
   };
@@ -314,168 +200,19 @@ export default function BirthdaysPage() {
         <div className="w-full">
           <h1 className="text-2xl font-bold mb-2">Cumpleaños</h1>
           <p className="text-sm text-muted-foreground">
-            Gestiona y envía felicitaciones automáticas de cumpleaños
+            Cumpleaños del directorio — envía felicitaciones
           </p>
         </div>
-        <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
-          {isPresidencyOrigin ? (
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => navigateWithTransition(setLocation, origin === "presidency-manage" ? `/presidency/${originOrgSlug}/manage` : `/presidency/${originOrgSlug}`)}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-            </Button>
-          ) : null}
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-birthday">
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar Cumpleaños
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingBirthdayId ? "Editar Cumpleaños" : "Agregar Cumpleaños"}</DialogTitle>
-                <DialogDescription>
-                  {editingBirthdayId 
-                    ? "Actualiza los detalles del cumpleaños"
-                    : "Registra un cumpleaños para enviar felicitaciones"
-                  }
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nombre</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Juan Pérez"
-                            {...field}
-                            data-testid="input-name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="birthDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fecha de Nacimiento</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} data-testid="input-birth-date" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email (Opcional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            placeholder="juan@example.com"
-                            {...field}
-                            data-testid="input-email"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Teléfono (Opcional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="tel"
-                            placeholder="+1 (555) 000-0000"
-                            {...field}
-                            data-testid="input-phone"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="organizationId"
-                    render={({ field }) => {
-                      const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
-                      const userOrgName = organizations.find((org: any) => org.id === user?.organizationId)?.name;
-
-                      return (
-                        <FormItem>
-                          <FormLabel>Organización {isOrgMember ? "" : "(Opcional)"}</FormLabel>
-                          {isOrgMember ? (
-                            <FormControl>
-                              <Input
-                                value={userOrgName || ""}
-                                disabled
-                                data-testid="input-organization-display"
-                              />
-                            </FormControl>
-                          ) : (
-                            <Select value={field.value || "none"} onValueChange={(value) => field.onChange(value === "none" ? "" : value)}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-organization">
-                                  <SelectValue placeholder="Seleccionar organización" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="none">Sin organización</SelectItem>
-                                {organizations.map((org: any) => (
-                                  <SelectItem key={org.id} value={org.id}>
-                                    {org.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                    data-testid="button-cancel"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" data-testid="button-submit" disabled={createMutation.isPending}>
-                    {createMutation.isPending ? "Agregando..." : "Agregar"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        {isPresidencyOrigin ? (
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => navigateWithTransition(setLocation, origin === "presidency-manage" ? `/presidency/${originOrgSlug}/manage` : `/presidency/${originOrgSlug}`)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
+        ) : null}
       </div>
-    </div>
 
       {todaysBirthdays.length > 0 && (
         <div className="mb-6">
@@ -489,7 +226,7 @@ export default function BirthdaysPage() {
             <CardContent>
               <div className="space-y-3">
                 {todaysBirthdays.map((birthday: any) => {
-                  const greeting = getRandomGreeting(birthday.name);
+                  const greeting = getRandomGreeting(birthday.displayName);
                   return (
                     <div
                       key={birthday.id}
@@ -499,16 +236,11 @@ export default function BirthdaysPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-2xl">{greeting.image}</span>
-                          <span className="font-bold text-lg">{birthday.name}</span>
+                          <span className="font-bold text-lg">{birthday.displayName}</span>
                         </div>
                         <p className="text-sm text-pink-700 dark:text-pink-300 italic">{greeting.phrase}</p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => openSendDialog(birthday)}
-                        data-testid={`button-greet-${birthday.id}`}
-                      >
+                      <Button size="sm" variant="default" onClick={() => openSendDialog(birthday)} data-testid={`button-greet-${birthday.id}`}>
                         <Send className="h-4 w-4 mr-1" />
                         Enviar
                       </Button>
@@ -549,7 +281,7 @@ export default function BirthdaysPage() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <p className="text-base font-semibold leading-tight">{birthday.name}</p>
+                      <p className="text-base font-semibold leading-tight">{birthday.displayName}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <CalendarDays className="h-4 w-4" />
                         <span>{formatBirthdayMonthDay(birthday.birthDate, "es-ES")}</span>
@@ -560,65 +292,18 @@ export default function BirthdaysPage() {
                       {birthday.daysUntil === 0 ? "Hoy" : birthday.daysUntil === 1 ? "Mañana" : `${birthday.daysUntil} días`}
                     </Badge>
                   </div>
-
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditBirthday(birthday)}
-                      data-testid={`button-edit-${birthday.id}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        apiRequest("DELETE", `/api/birthdays/${birthday.id}`).then(() => {
-                          queryClient.invalidateQueries({ queryKey: ["/api/birthdays"] });
-                          toast({
-                            title: "Cumpleaño eliminado",
-                            description: "El cumpleaño ha sido eliminado exitosamente.",
-                          });
-                        }).catch(() => {
-                          toast({
-                            title: "Error",
-                            description: "No se pudo eliminar el cumpleaño. Intenta nuevamente.",
-                            variant: "destructive",
-                          });
-                        });
-                      }}
-                      data-testid={`button-delete-${birthday.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                     {(birthday.email || birthday.phone) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openSendDialog(birthday)}
-                        data-testid={`button-send-${birthday.id}`}
-                      >
+                      <Button size="sm" variant="outline" onClick={() => openSendDialog(birthday)} data-testid={`button-send-${birthday.id}`}>
                         {birthday.phone ? (
-                          <>
-                            <Send className="mr-1 h-4 w-4" />
-                            WhatsApp
-                          </>
+                          <><Send className="mr-1 h-4 w-4" />WhatsApp</>
                         ) : (
-                          <>
-                            <Mail className="mr-1 h-4 w-4" />
-                            Email
-                          </>
+                          <><Mail className="mr-1 h-4 w-4" />Email</>
                         )}
                       </Button>
                     )}
                     {birthday.phone && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        asChild
-                        data-testid={`button-call-${birthday.id}`}
-                      >
+                      <Button size="sm" variant="outline" asChild data-testid={`button-call-${birthday.id}`}>
                         <a href={`tel:${birthday.phone}`}>
                           <Phone className="mr-1 h-4 w-4" />
                           Llamar
@@ -643,8 +328,7 @@ export default function BirthdaysPage() {
               Selecciona una plantilla y una imagen (o déjalo en aleatorio).
             </DialogDescription>
           </DialogHeader>
-
-            <div className="space-y-4">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>Plantilla de mensaje</Label>
               <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
@@ -654,14 +338,11 @@ export default function BirthdaysPage() {
                 <SelectContent>
                   <SelectItem value="random">Aleatorio</SelectItem>
                   {BIRTHDAY_PHRASES.map((phrase, index) => (
-                    <SelectItem key={phrase} value={String(index)}>
-                      {phrase}
-                    </SelectItem>
+                    <SelectItem key={phrase} value={String(index)}>{phrase}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Imagen de cumpleaños</Label>
               <Select value={selectedImage} onValueChange={setSelectedImage}>
@@ -671,14 +352,11 @@ export default function BirthdaysPage() {
                 <SelectContent>
                   <SelectItem value="random">Aleatorio</SelectItem>
                   {BIRTHDAY_IMAGE_LIBRARY.map((image, index) => (
-                    <SelectItem key={image.url} value={String(index)}>
-                      {image.label}
-                    </SelectItem>
+                    <SelectItem key={image.url} value={String(index)}>{image.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             {selectedBirthday && (
               <div className="rounded-md border p-3 text-sm text-muted-foreground">
                 <p className="mb-2 font-medium text-foreground">Vista previa</p>
@@ -687,21 +365,11 @@ export default function BirthdaysPage() {
                 </pre>
               </div>
             )}
-
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsSendDialogOpen(false)}
-                data-testid="button-cancel-send"
-              >
+              <Button type="button" variant="outline" onClick={() => setIsSendDialogOpen(false)} data-testid="button-cancel-send">
                 Cancelar
               </Button>
-              <Button
-                type="button"
-                onClick={handleSendGreeting}
-                data-testid="button-confirm-send"
-              >
+              <Button type="button" onClick={handleSendGreeting} data-testid="button-confirm-send">
                 Enviar felicitación
               </Button>
             </div>

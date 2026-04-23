@@ -1739,13 +1739,26 @@ export class DatabaseStorage implements IStorage {
   // BIRTHDAYS
   // ========================================
 
-  async getAllBirthdays(): Promise<Birthday[]> {
-    return await db.select().from(birthdays);
+  async getAllBirthdays(): Promise<any[]> {
+    const allMembers = await db.select().from(members);
+    return allMembers
+      .filter((m) => m.birthday != null)
+      .map((m) => ({
+        id: m.id,
+        name: m.nameSurename,
+        nombre: m.nombre,
+        apellidos: m.apellidos,
+        birthDate: m.birthday!,
+        email: m.email,
+        phone: m.phone,
+        organizationId: m.organizationId,
+        sex: m.sex,
+      }));
   }
 
-  async getTodayBirthdays(): Promise<Birthday[]> {
-    const allBirthdays = await db.select().from(birthdays);
-    return allBirthdays.filter((birthday) => isBirthdayToday(birthday.birthDate));
+  async getTodayBirthdays(): Promise<any[]> {
+    const all = await this.getAllBirthdays();
+    return all.filter((b) => isBirthdayToday(b.birthDate));
   }
 
   async getBirthday(id: string): Promise<Birthday | undefined> {
