@@ -619,10 +619,10 @@ export default function InterviewsPage() {
   const editMemberId = editForm.watch("memberId");
   const whatsappDigits = messageContact?.phone ? messageContact.phone.replace(/\D/g, "") : "";
   const personDisplayName = form.watch("personName");
-  const selectedMemberName = normalizeMemberName(selectedMember?.nameSurename);
-  const interviewDisplayName = normalizeMemberName(personDisplayName);
+  const selectedMemberName = shortMemberName({ nameSurename: selectedMember?.nameSurename });
+  const interviewDisplayName = shortMemberName({ nameSurename: personDisplayName });
   const resolvedDisplayName = selectedMember
-    ? normalizeMemberName(selectedMember.nameSurename)
+    ? shortMemberName(selectedMember)
     : interviewDisplayName;
   const resetTimeoutRef = useRef<number | null>(null);
 
@@ -1832,7 +1832,7 @@ export default function InterviewsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-base font-semibold leading-tight">
-                            {normalizeMemberName(interview.personName)}
+                            {shortMemberName({ nameSurename: interview.personName })}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {formatInterviewType(interview.type)}
@@ -1933,7 +1933,7 @@ export default function InterviewsPage() {
           <div className="grid gap-3 text-sm">
             <div>
               <span className="font-medium">Persona:</span>{" "}
-              {detailsInterview?.personName || "Sin nombre"}
+              {shortMemberName({ nameSurename: detailsInterview?.personName }) || "Sin nombre"}
             </div>
             <div>
               <span className="font-medium">Tipo:</span>{" "}

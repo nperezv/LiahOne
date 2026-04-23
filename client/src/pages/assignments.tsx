@@ -35,7 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAssignments, useCreateAssignment, useDeleteAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
-import { shortUserName } from "@/lib/utils";
+import { shortUserName, shortMemberName } from "@/lib/utils";
 import { useLocation, useSearch } from "wouter";
 
 const assignmentSchema = z.object({
@@ -97,7 +97,7 @@ function AssignmentCard({
         {showAssignedTo && (
           <span className="flex items-center gap-1">
             <User className="h-3 w-3" />
-            {assignment.personName || "Sin asignar"}
+            {shortMemberName({ nameSurename: assignment.personName }) || "Sin asignar"}
           </span>
         )}
         {assignment.dueDate && (
@@ -891,11 +891,11 @@ export default function Assignments() {
             </div>
             <div>
               <span className="font-medium">Asignado a:</span>{" "}
-              {detailsAssignment?.personName || "Sin asignar"}
+              {shortMemberName({ nameSurename: detailsAssignment?.personName }) || "Sin asignar"}
             </div>
             <div>
               <span className="font-medium">Asignado por:</span>{" "}
-              {detailsAssignment?.assignerName || "Desconocido"}
+              {shortMemberName({ nameSurename: detailsAssignment?.assignerName }) || "Desconocido"}
             </div>
             <div>
               <span className="font-medium">Vencimiento:</span>{" "}

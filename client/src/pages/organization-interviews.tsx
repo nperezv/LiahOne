@@ -366,7 +366,7 @@ export default function OrganizationInterviewsPage() {
   const editForm = useForm<InterviewFormValues>({
     resolver: zodResolver(interviewSchema),
   });
-  const personDisplayName = normalizeMemberName(form.watch("personName"));
+  const personDisplayName = shortMemberName({ nameSurename: form.watch("personName") });
   const resolvedDisplayName = personDisplayName || "—";
   const resetTimeoutRef = useRef<number | null>(null);
 
@@ -1059,7 +1059,7 @@ export default function OrganizationInterviewsPage() {
                   data-interview-id={interview.id}
                   className={activeHighlightId === interview.id ? "notif-highlight" : ""}
                 >
-                  <TableCell>{normalizeMemberName(interview.personName)}</TableCell>
+                  <TableCell>{shortMemberName({ nameSurename: interview.personName })}</TableCell>
                   <TableCell>
                     {formatInterviewType(interview.type)}
                   </TableCell>
