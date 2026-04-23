@@ -72,7 +72,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { normalizeMemberName } from "@/lib/utils";
+import { normalizeMemberName, shortMemberName } from "@/lib/utils";
 
 // ============================================================
 // Types
@@ -578,10 +578,10 @@ const AddFromDirectoryDialog = React.memo(function AddFromDirectoryDialog({
                   }`}
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
-                    {getInitials(m.nameSurename)}
+                    {getInitials(shortMemberName(m))}
                   </div>
                   <div>
-                    <p className="font-medium leading-tight">{m.nameSurename}</p>
+                    <p className="font-medium leading-tight">{shortMemberName(m)}</p>
                     {m.organizationName && (
                       <p className="text-xs text-muted-foreground">{m.organizationName}</p>
                     )}
@@ -1496,10 +1496,10 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
                         }`}
                         onClick={() => {
                           setSelectedFriend(m);
-                          setFriendSearch(m.nameSurename);
+                          setFriendSearch(shortMemberName(m));
                         }}
                       >
-                        <span className="font-medium">{m.nameSurename}</span>
+                        <span className="font-medium">{shortMemberName(m)}</span>
                         {selectedFriend?.id === m.id && (
                           <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-primary" />
                         )}

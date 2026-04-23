@@ -65,6 +65,7 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 import { downloadResourceFile, openResourceFileInBrowser } from "@/lib/resource-download";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
+import { shortMemberName } from "@/lib/utils";
 
 const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
 
@@ -1645,7 +1646,7 @@ export default function PresidencyMeetingsPage() {
                   <div key={member.id} className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-medium">{member.nameSurename}</p>
+                        <p className="text-sm font-medium">{shortMemberName(member)}</p>
                         <p className="text-xs text-muted-foreground">{member.phone || member.email || "Sin contacto"}</p>
                       </div>
                       <div className="flex items-center gap-2">

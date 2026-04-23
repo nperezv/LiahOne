@@ -26,7 +26,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { formatCallingLabel } from "@/lib/callings";
-import { normalizeMemberName } from "@/lib/utils";
+import { normalizeMemberName, shortMemberName } from "@/lib/utils";
 import {
   type MemberCalling,
   useCreateMember,
@@ -366,7 +366,7 @@ function FamilyEditDialog({
               {family.members.map((fm) => (
                 <div key={fm.memberId} className="flex items-center gap-2 rounded-[10px] border border-border/50 bg-card/60 px-3 py-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{fm.member.nameSurename}</p>
+                    <p className="text-sm font-medium truncate">{shortMemberName(fm.member)}</p>
                   </div>
                   <Select
                     value={fm.role}
@@ -507,9 +507,9 @@ function FamiliesTab({ allMembers }: { allMembers: any[] }) {
             .map((fm) => (
               <div key={fm.memberId} className="flex items-center gap-2">
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
-                  {fm.member.nameSurename.charAt(0).toUpperCase()}
+                  {shortMemberName(fm.member).charAt(0).toUpperCase()}
                 </div>
-                <span className="text-sm flex-1 min-w-0 truncate">{fm.member.nameSurename}</span>
+                <span className="text-sm flex-1 min-w-0 truncate">{shortMemberName(fm.member)}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${ROLE_BADGE_CLASSES[fm.role]}`}>
                   {ROLE_LABELS[fm.role]}
                 </span>
@@ -569,9 +569,9 @@ function FamiliesTab({ allMembers }: { allMembers: any[] }) {
                         className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card px-2.5 py-1 text-xs text-foreground hover:bg-accent transition-colors"
                       >
                         <span className="h-4 w-4 rounded-full bg-muted inline-flex items-center justify-center text-[9px] font-bold shrink-0">
-                          {head?.member.nameSurename.charAt(0).toUpperCase() ?? "?"}
+                          {head ? shortMemberName(head.member).charAt(0).toUpperCase() : "?"}
                         </span>
-                        {head?.member.nameSurename ?? "Sin nombre"}
+                        {head ? shortMemberName(head.member) : "Sin nombre"}
                       </button>
                     );
                   })}
@@ -1328,7 +1328,7 @@ export default function DirectoryPage() {
                 const translateX = isActive ? swipeOffset : 0;
                 const isRightSwipe = isActive && swipeOffset > 6;
                 const isLeftSwipe = isActive && swipeOffset < -6;
-                const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
+                const initials = shortMemberName(member).charAt(0)?.toUpperCase() || "?";
                 const hasPhone = Boolean(member.phone);
                 const contactDisabled = !hasPhone;
                 const actionWidth = ACTIONS_WIDTH;
@@ -1451,7 +1451,7 @@ export default function DirectoryPage() {
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col justify-center px-1 text-left">
                         <p className="text-left text-sm font-semibold text-foreground">
-                          {member.nameSurename}
+                          {shortMemberName(member)}
                         </p>
                         <p className="text-left text-xs text-muted-foreground">
                           {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
@@ -1587,7 +1587,7 @@ export default function DirectoryPage() {
             <div className="space-y-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Miembro</p>
-                <p className="mt-1 text-lg font-semibold text-foreground">{sheetMember.nameSurename}</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">{shortMemberName(sheetMember)}</p>
               </div>
               <Button
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"

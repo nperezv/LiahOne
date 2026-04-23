@@ -101,7 +101,7 @@ export function Layout({ children }: LayoutProps) {
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
           <AppHeader
-            user={user ? { name: user.name, role: user.role, avatarUrl: user.avatarUrl } : undefined}
+            user={user ? { name: user.displayName || user.name, role: user.role, avatarUrl: user.avatarUrl } : undefined}
             onLogout={logout}
           />
           <main ref={mainRef} className="app-scroll-container flex-1 overflow-y-auto pb-20 md:pb-0">

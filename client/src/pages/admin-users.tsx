@@ -42,7 +42,7 @@ import { useMemberCallings, useMembers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { formatCallingLabel } from "@/lib/callings";
-import { cn, normalizeMemberName } from "@/lib/utils";
+import { cn, normalizeMemberName, shortUserName } from "@/lib/utils";
 
 const createUserSchema = z.object({
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
@@ -80,6 +80,7 @@ interface User {
   id: string;
   username: string;
   name: string;
+  displayName?: string | null;
   email: string;
   phone?: string | null;
   role: string;
@@ -1661,7 +1662,7 @@ export default function AdminUsersPage() {
                 <TableBody>
                   {users.map((u) => (
                     <TableRow key={u.id} data-testid={`row-user-${u.id}`}>
-                      <TableCell className="font-medium">{u.name}</TableCell>
+                      <TableCell className="font-medium">{shortUserName(u)}</TableCell>
                       <TableCell>{u.username}</TableCell>
                       <TableCell className="text-muted-foreground">{u.email}</TableCell>
                       <TableCell>

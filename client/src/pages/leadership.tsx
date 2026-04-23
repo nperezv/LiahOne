@@ -15,6 +15,7 @@ import { useLocation, useSearch } from "wouter";
 interface UserSummary {
   id: string;
   name: string;
+  displayName?: string | null;
   role: string;
   organizationId?: string | null;
   avatarUrl?: string | null;
@@ -133,7 +134,7 @@ function LeaderAvatar({
             {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
-          <p className="text-sm font-light">{user.name}</p>
+          <p className="text-sm font-light">{user.displayName || user.name}</p>
           <p className="text-xs text-muted-foreground">
             {formatCallingLabel(roleLabel, organizationName)}
           </p>

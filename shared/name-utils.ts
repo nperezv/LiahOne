@@ -1,20 +1,36 @@
+// Names that are typically used as compound first names in Spanish
+const COMPOUND_STARTERS = new Set([
+  "juan", "josé", "jose", "maría", "maria", "ana", "luis", "rosa",
+  "carlos", "miguel", "pedro", "antonio", "manuel", "rafael",
+  "jorge", "ángel", "angel", "francisco", "fernando", "javier",
+  "beatriz", "isabel", "pilar", "teresa", "andrés", "andres",
+]);
+
+function firstGivenName(nombre: string): string {
+  const words = nombre.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return words[0] ?? "";
+  return COMPOUND_STARTERS.has(words[0].toLowerCase())
+    ? `${words[0]} ${words[1]}`
+    : words[0];
+}
+
 /**
- * Derives a short display name from nombre and apellidos.
- * Takes only the first given name and first surname.
+ * Derives a short display name: first given name(s) + first surname.
+ * Handles compound names (Juan Carlos, María José, José Luis…).
  * Examples:
  *   ("Nelson Miller", "Pérez Ventura") → "Nelson Pérez"
- *   ("María Jesús", "García")          → "María García"
- *   ("Juan", "López García")           → "Juan López"
- *   ("Ana", null)                      → "Ana"
- *   (null, "García")                   → "García"
+ *   ("Juan Carlos",   "García López")  → "Juan Carlos García"
+ *   ("María Jesús",   "García")        → "María Jesús García"
+ *   ("Ana",           null)            → "Ana"
+ *   (null,            "García")        → "García"
  */
 export function deriveDisplayName(
   nombre: string | null | undefined,
   apellidos: string | null | undefined,
 ): string {
-  const firstNombre = nombre?.trim().split(/\s+/)[0] ?? "";
-  const firstApellido = apellidos?.trim().split(/\s+/)[0] ?? "";
-  return [firstNombre, firstApellido].filter(Boolean).join(" ");
+  const firstN = nombre?.trim() ? firstGivenName(nombre.trim()) : "";
+  const firstA = apellidos?.trim().split(/\s+/)[0] ?? "";
+  return [firstN, firstA].filter(Boolean).join(" ");
 }
 
 /**

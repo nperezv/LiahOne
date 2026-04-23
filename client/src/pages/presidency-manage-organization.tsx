@@ -27,7 +27,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { cn } from "@/lib/utils";
+import { cn, shortMemberName } from "@/lib/utils";
 import { exportOrganizationAttendanceWeekPDF } from "@/lib/pdf-utils";
 
 const meetingSchema = z.object({
@@ -1106,7 +1106,7 @@ export default function PresidencyManageOrganizationPage() {
                   className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border/70 bg-muted/20 hover:bg-muted/40"}`}
                   data-testid={`attendance-management-member-${member.id}`}
                 >
-                  <span className="text-sm font-medium">{member.nameSurename}</span>
+                  <span className="text-sm font-medium">{shortMemberName(member)}</span>
                   {selected ? <Check className="h-4 w-4 text-primary" /> : <span className="text-xs text-muted-foreground">Tap para marcar</span>}
                 </button>
               );

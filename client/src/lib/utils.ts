@@ -50,6 +50,62 @@ const scoreSplit = (surnames: string[], names: string[]) => {
   return score;
 };
 
+const COMPOUND_STARTERS = new Set([
+  "juan", "josé", "jose", "maría", "maria", "ana", "luis", "rosa",
+  "carlos", "miguel", "pedro", "antonio", "manuel", "rafael",
+  "jorge", "ángel", "angel", "francisco", "fernando", "javier",
+  "beatriz", "isabel", "pilar", "teresa", "andrés", "andres",
+]);
+
+function firstGivenName(nombre: string): string {
+  const words = nombre.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return words[0] ?? "";
+  return COMPOUND_STARTERS.has(words[0].toLowerCase())
+    ? `${words[0]} ${words[1]}`
+    : words[0];
+}
+
+/**
+ * Returns "Primer Nombre Primer Apellido" from a member object.
+ * Uses nombre/apellidos when available; falls back to parsing nameSurename.
+ */
+export function shortMemberName(member: {
+  nombre?: string | null;
+  apellidos?: string | null;
+  nameSurename?: string | null;
+}): string {
+  const n = member.nombre?.trim();
+  const a = member.apellidos?.trim();
+  if (n || a) {
+    const fn = n ? firstGivenName(n) : "";
+    const fa = a ? a.split(/\s+/)[0] ?? "" : "";
+    return [fn, fa].filter(Boolean).join(" ");
+  }
+  const raw = member.nameSurename?.trim() ?? "";
+  if (!raw) return "";
+  if (raw.includes(",")) {
+    const ci = raw.indexOf(",");
+    const ap = raw.slice(0, ci).trim();
+    const nom = raw.slice(ci + 1).trim();
+    const fn = nom ? firstGivenName(nom) : "";
+    const fa = ap.split(/\s+/)[0] ?? "";
+    return [fn, fa].filter(Boolean).join(" ");
+  }
+  return normalizeMemberName(raw);
+}
+
+/**
+ * Returns the best short display name for a user account.
+ * Prefers displayName; falls back to parsing formal name.
+ */
+export function shortUserName(user: {
+  displayName?: string | null;
+  name?: string | null;
+}): string {
+  if (user.displayName?.trim()) return user.displayName.trim();
+  return shortMemberName({ nameSurename: user.name ?? "" });
+}
+
 export const normalizeMemberName = (value?: string | null) => {
   if (!value) return "";
   const cleaned = value.trim().replace(/\s+/g, " ");

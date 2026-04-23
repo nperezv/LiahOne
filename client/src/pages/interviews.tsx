@@ -67,7 +67,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
-import { normalizeMemberName } from "@/lib/utils";
+import { normalizeMemberName, shortMemberName, shortUserName } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 
 /**
@@ -1118,7 +1118,7 @@ export default function InterviewsPage() {
                       <SelectItem value="all">Todos</SelectItem>
                       {interviewers.map((interviewer: any) => (
                         <SelectItem key={interviewer.id} value={interviewer.id}>
-                          {interviewer.name} ({formatRole(interviewer.role)})
+                          {shortUserName(interviewer)} ({formatRole(interviewer.role)})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1261,7 +1261,7 @@ export default function InterviewsPage() {
                                       </div>
                                       {selectedMember && (
                                         <div className="rounded-2xl bg-muted/40 px-3 py-2 text-sm">
-                                          Seleccionado: <strong>{selectedMember.nameSurename}</strong>
+                                          Seleccionado: <strong>{shortMemberName(selectedMember)}</strong>
                                         </div>
                                       )}
                                       <div className="max-h-64 space-y-2 overflow-y-auto">
@@ -1285,10 +1285,10 @@ export default function InterviewsPage() {
                                             >
                                               <div className="flex items-center gap-3">
                                                 <Avatar className="h-9 w-9">
-                                                  <AvatarFallback>{getInitials(member.nameSurename)}</AvatarFallback>
+                                                  <AvatarFallback>{getInitials(shortMemberName(member))}</AvatarFallback>
                                                 </Avatar>
                                                 <div>
-                                                  <div className="font-medium">{member.nameSurename}</div>
+                                                  <div className="font-medium">{shortMemberName(member)}</div>
                                                   <div className="text-xs text-muted-foreground">
                                                     {member.organizationName ?? "Sin organización"}
                                                   </div>
@@ -1340,10 +1340,10 @@ export default function InterviewsPage() {
                                             >
                                               <div className="flex items-center gap-3">
                                                 <Avatar className="h-9 w-9">
-                                                  <AvatarFallback>{getInitials(u.name)}</AvatarFallback>
+                                                  <AvatarFallback>{getInitials(shortUserName(u))}</AvatarFallback>
                                                 </Avatar>
                                                 <div>
-                                                  <div className="font-medium">{u.name}</div>
+                                                  <div className="font-medium">{shortUserName(u)}</div>
                                                   <div className="text-xs text-muted-foreground capitalize">
                                                     {formatRole(u.role)}
                                                   </div>
@@ -1542,12 +1542,12 @@ export default function InterviewsPage() {
                                     >
                                       <div className="flex items-center gap-3">
                                         <Avatar className="h-9 w-9">
-                                          <AvatarFallback>{selectedInterviewer ? getInitials(selectedInterviewer.name) : "?"}</AvatarFallback>
+                                          <AvatarFallback>{selectedInterviewer ? getInitials(shortUserName(selectedInterviewer)) : "?"}</AvatarFallback>
                                         </Avatar>
                                         <div>
                                           <div className="text-sm text-muted-foreground">Entrevistador</div>
                                           <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
-                                            {selectedInterviewer?.name ?? "Seleccionar entrevistador"}
+                                            {selectedInterviewer ? shortUserName(selectedInterviewer) : "Seleccionar entrevistador"}
                                           </div>
                                         </div>
                                       </div>
@@ -1571,7 +1571,7 @@ export default function InterviewsPage() {
                                           }}
                                           className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
                                         >
-                                          <span>{i.name}</span>
+                                          <span>{shortUserName(i)}</span>
                                           {field.value === i.id && <Check className="h-4 w-4" />}
                                         </button>
                                       ))}
@@ -1854,7 +1854,7 @@ export default function InterviewsPage() {
                         </p>
                         <p>
                           <span className="font-medium text-foreground/85">Entrevistador:</span>{" "}
-                          {interviewer?.name ?? "—"}
+                          {interviewer ? shortUserName(interviewer) : "—"}
                         </p>
                       </div>
 
@@ -1942,7 +1942,7 @@ export default function InterviewsPage() {
             <div>
               <span className="font-medium">Entrevistador:</span>{" "}
               {detailsInterview?.interviewerId
-                ? userById.get(detailsInterview.interviewerId)?.name ?? "Sin entrevistador"
+                ? (() => { const u = userById.get(detailsInterview.interviewerId); return u ? shortUserName(u) : "Sin entrevistador"; })()
                 : "Sin entrevistador"}
             </div>
             <div>
@@ -2192,7 +2192,7 @@ export default function InterviewsPage() {
                       >
                         <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
                           {field.value
-                            ? interviewers.find((item: any) => item.id === field.value)?.name ?? "Seleccionar"
+                            ? (() => { const u = interviewers.find((item: any) => item.id === field.value); return u ? shortUserName(u) : "Seleccionar"; })()
                             : "Seleccionar entrevistador"}
                         </span>
                         <span className="text-xs text-muted-foreground">›</span>
@@ -2214,7 +2214,7 @@ export default function InterviewsPage() {
                               }}
                               className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
                             >
-                              <span>{i.name}</span>
+                              <span>{shortUserName(i)}</span>
                               {field.value === i.id && <Check className="h-4 w-4" />}
                             </button>
                           ))}

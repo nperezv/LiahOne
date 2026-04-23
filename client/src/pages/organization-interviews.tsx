@@ -70,7 +70,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { exportInterviews } from "@/lib/export";
-import { normalizeMemberName } from "@/lib/utils";
+import { normalizeMemberName, shortMemberName, shortUserName } from "@/lib/utils";
 
 /* =========================
    Schema
@@ -712,7 +712,7 @@ export default function OrganizationInterviewsPage() {
                                             selected ? "border-primary bg-primary/10" : "border-border/60 bg-background/70 hover:bg-muted/40"
                                           }`}
                                         >
-                                          <span>{normalizedName}</span>
+                                          <span>{shortMemberName(member)}</span>
                                           {selected ? <Check className="h-4 w-4 text-primary" /> : null}
                                         </button>
                                       );
@@ -1064,7 +1064,7 @@ export default function OrganizationInterviewsPage() {
                     {formatInterviewType(interview.type)}
                   </TableCell>
                   <TableCell>
-                    {userById.get(interview.interviewerId)?.name}
+                    {(() => { const u = userById.get(interview.interviewerId); return u ? shortUserName(u) : "—"; })()}
                   </TableCell>
                   <TableCell>
                     {new Date(interview.date).toLocaleDateString("es-ES", {
@@ -1199,7 +1199,7 @@ export default function OrganizationInterviewsPage() {
                                   selected ? "border-primary bg-primary/10" : "border-border/60 bg-background/70 hover:bg-muted/40"
                                 }`}
                               >
-                                <span>{normalizedName}</span>
+                                <span>{shortMemberName(member)}</span>
                                 {selected ? <Check className="h-4 w-4 text-primary" /> : null}
                               </button>
                             );

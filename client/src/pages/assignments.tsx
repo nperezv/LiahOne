@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAssignments, useCreateAssignment, useDeleteAssignment, useUpdateAssignment, useUsers } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
+import { shortUserName } from "@/lib/utils";
 import { useLocation, useSearch } from "wouter";
 
 const assignmentSchema = z.object({
@@ -580,7 +581,7 @@ export default function Assignments() {
                             <SelectContent>
                               {users.map((u: any) => (
                                 <SelectItem key={u.id} value={u.id}>
-                                  {u.name}
+                                  {shortUserName(u)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -802,7 +803,7 @@ export default function Assignments() {
                       <SelectContent>
                         {users.map((user: any) => (
                           <SelectItem key={user.id} value={user.id}>
-                            {user.fullName || user.name || user.email}
+                            {shortUserName(user) || user.fullName || user.email}
                           </SelectItem>
                         ))}
                       </SelectContent>
