@@ -59,7 +59,7 @@ import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
 import { registerActivityPublicRoutes } from "./activity-public-routes";
 import { registerMemberRegistrationPublicRoutes } from "./member-registration-public-routes";
-import { deriveDisplayName, deriveNameSurename } from "@shared/name-utils";
+import { deriveDisplayName, deriveNameSurename, shortNameFromString } from "@shared/name-utils";
 import {
   registerRecurringSeriesRoutes,
   getOccurrencesInRange, getMonthlyOccurrencesInRange, getQuarterlyOccurrencesInRange,
@@ -394,6 +394,19 @@ const normalizeMemberName = (value?: string | null) => {
   if (bestSplit.names.length === 0) return cleaned;
 
   return [...bestSplit.names, ...bestSplit.surnames].join(" ");
+};
+
+const shortName = (entity: {
+  displayName?: string | null;
+  nombre?: string | null;
+  apellidos?: string | null;
+  name?: string | null;
+  nameSurename?: string | null;
+} | null | undefined): string => {
+  if (!entity) return "";
+  if (entity.displayName?.trim()) return entity.displayName.trim();
+  if (entity.nombre || entity.apellidos) return deriveDisplayName(entity.nombre, entity.apellidos);
+  return shortNameFromString(entity.nameSurename || entity.name);
 };
 
 const formatInterviewerTitle = (role?: string | null) => {
@@ -1403,7 +1416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await sendAccountRecoveryEmail({
         toEmail: user.email,
-        name: user.name,
+        name: shortName(user),
         username: user.username,
         temporaryPassword,
         wardName,
@@ -1897,7 +1910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await sendNewUserCredentialsEmail({
         toEmail: email,
-        name: normalizedName,
+        name: shortDisplayName || normalizedName,
         username: derivedUsername,
         temporaryPassword,
         recipientSex: memberForCalling?.sex,
@@ -2415,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const member = memberByName || memberByUserEmail;
 
       const toEmail = member?.email || matchedUser?.email;
-      const recipientName = normalizeMemberName(member?.nameSurename || matchedUser?.name || normalizedName);
+      const recipientName = shortName(member) || shortName(matchedUser) || shortNameFromString(normalizedName);
 
       if (!toEmail) {
         skippedWithoutEmail += entries.length;
@@ -3424,9 +3437,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const madridHour = new Date().toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", hour12: false });
           await sendBudgetDisbursementRequestEmail({
             toEmail: financialSecretary.email,
-            recipientName: financialSecretary.name ?? "",
+            recipientName: shortName(financialSecretary),
             recipientSex: financialSecretary.sex ?? null,
-            bishopName: bishop?.name ?? "el obispo",
+            bishopName: shortName(bishop) || "el obispo",
             budgetDescription: budgetRequest.description,
             budgetAmount: budgetRequest.amount,
             wardName: template?.wardName,
@@ -3990,7 +4003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Member not found" });
         }
         resolvedPersonName = member.nameSurename;
-        memberName = normalizeMemberName(member.nameSurename);
+        memberName = shortName(member);
         memberEmail = member.email;
         memberSex = member.sex;
         if (member.organizationId) {
@@ -4071,18 +4084,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hour12: false,
       });
       const interviewerRoleTitle = formatInterviewerTitle(interviewer?.role);
-      const interviewerTitle = interviewer?.name
+      const interviewerShortName = shortName(interviewer);
+      const interviewerTitle = interviewerShortName
         ? interviewerRoleTitle
-          ? `${interviewerRoleTitle} ${interviewer.name}`
-          : interviewer.name
+          ? `${interviewerRoleTitle} ${interviewerShortName}`
+          : interviewerShortName
         : interviewerRoleTitle || "obispado";
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName;
       const allUsers = await storage.getAllUsers();
       const secretaryExecutive = allUsers.find((u) => u.role === "secretario_ejecutivo");
-      const secretaryExecutiveName = secretaryExecutive?.name
-        ? normalizeMemberName(secretaryExecutive.name)
-        : null;
+      const secretaryExecutiveName = secretaryExecutive ? shortName(secretaryExecutive) : null;
 
       const recipients: Array<{
         email: string;
@@ -4101,7 +4113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (assignedUser?.email) {
         recipients.push({
           email: assignedUser.email,
-          name: normalizeMemberName(assignedUser.name),
+          name: shortName(assignedUser),
         });
       }
 
@@ -4179,8 +4191,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         const assignmentTitle = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
         const descriptionParts = [
-          `Entrevista con ${normalizeMemberName(interview.personName)} programada para el ${interviewDate}.`,
-          `Entrevistador: ${interviewer?.name || "Obispado"}.`,
+          `Entrevista con ${shortNameFromString(interview.personName)} programada para el ${interviewDate}.`,
+          `Entrevistador: ${interviewerShortName || "Obispado"}.`,
         ];
         if (rest.notes) {
           descriptionParts.push(`Notas: ${rest.notes}`);
@@ -4426,7 +4438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (member?.email) {
         intervieweeRecipient = {
           email: member.email,
-          name: normalizeMemberName(member.nameSurename),
+          name: shortName(member),
           sex: member.sex,
           organizationType: memberOrganization?.type,
         };
@@ -4434,7 +4446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (personUser?.email) {
         intervieweeRecipient = {
           email: personUser.email,
-          name: normalizeMemberName(personUser.name),
+          name: shortName(personUser),
         };
         interviewRecipients.push(intervieweeRecipient);
       }
@@ -4442,7 +4454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (currentInterviewer?.email) {
         interviewRecipients.push({
           email: currentInterviewer.email,
-          name: normalizeMemberName(currentInterviewer.name),
+          name: shortName(currentInterviewer),
         });
       }
 
@@ -4459,7 +4471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (currentInterview.interviewerId !== interview.interviewerId) {
         changeLines.push(
-          `Entrevistador: ${normalizeMemberName(previousInterviewer?.name || "Sin asignar")} → ${normalizeMemberName(currentInterviewer?.name || "Sin asignar")}`
+          `Entrevistador: ${shortName(previousInterviewer) || "Sin asignar"} → ${shortName(currentInterviewer) || "Sin asignar"}`
         );
       }
 
@@ -4486,7 +4498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             recipientName: recipient.name,
             interviewDate: currentDateLabel,
             interviewTime: currentTimeLabel,
-            interviewerName: normalizeMemberName(currentInterviewer?.name || ""),
+            interviewerName: shortName(currentInterviewer),
             wardName,
             changeLines,
             recipientSex: recipient.sex,
@@ -4806,13 +4818,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const wardName = template?.wardName;
         await sendOrganizationInterviewScheduledEmail({
           toEmail: interviewer.email,
-          recipientName: normalizeMemberName(interviewer.name),
+          recipientName: shortName(interviewer),
           interviewDate,
           interviewTime,
           interviewType: interview.type,
           notes: interview.notes,
           organizationName: organization?.name,
-          requesterName: normalizeMemberName(user.name),
+          requesterName: shortName(user),
           wardName,
         });
       }
@@ -4820,9 +4832,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (interview.interviewerId) {
         const assignmentTitle = `Entrevista de organización - ${interviewDateTitle}, ${interviewTime} hrs.`;
         const descriptionParts = [
-          `Entrevista con ${normalizeMemberName(interview.personName)} programada para el ${interviewDate}.`,
+          `Entrevista con ${shortNameFromString(interview.personName)} programada para el ${interviewDate}.`,
           `Tipo: ${interview.type}.`,
-          `Solicitada por: ${normalizeMemberName(user.name)}.`,
+          `Solicitada por: ${shortName(user)}.`,
         ];
         if (interview.notes) {
           descriptionParts.push(`Notas: ${interview.notes}`);
@@ -5094,7 +5106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             await sendOrganizationInterviewCancelledEmail({
               toEmail: interviewerUser.email,
-              recipientName: normalizeMemberName(interviewerUser.name),
+              recipientName: shortName(interviewerUser),
               interviewDate: canceledDate,
               interviewTime: canceledTime,
               organizationName: organization?.name,
@@ -6768,7 +6780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (diffHours < 23 || diffHours > 25) continue;
 
         const interviewer = usersById.get(interview.interviewerId);
-        const interviewerName = interviewer?.name ? normalizeMemberName(interviewer.name) : undefined;
+        const interviewerName = interviewer ? shortName(interviewer) || undefined : undefined;
         const interviewDateLabel = interviewDate.toLocaleDateString("es-ES", {
           year: "numeric",
           month: "long",
@@ -6791,7 +6803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!alreadySent) {
               await sendInterviewReminder24hEmail({
                 toEmail: intervieweeUser.email,
-                recipientName: normalizeMemberName(intervieweeUser.name),
+                recipientName: shortName(intervieweeUser),
                 interviewDate: interviewDateLabel,
                 interviewTime: interviewTimeLabel,
                 interviewerName,
@@ -6831,7 +6843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userId: interview.interviewerId,
               type: "reminder",
               title: "Recordatorio para entrevistador (24h)",
-              description: `Mañana tienes entrevista con ${normalizeMemberName(interview.personName)}.`,
+              description: `Mañana tienes entrevista con ${shortNameFromString(interview.personName)}.`,
               relatedId: interview.id,
               eventDate: interview.date,
               isRead: false,
@@ -6839,7 +6851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (isPushConfigured()) {
               await sendPushNotification(interview.interviewerId, {
                 title: "Recordatorio de entrevista",
-                body: `Mañana: entrevista con ${normalizeMemberName(interview.personName)}.`,
+                body: `Mañana: entrevista con ${shortNameFromString(interview.personName)}.`,
                 url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
                 notificationId: reminder.id,
               });
@@ -6933,7 +6945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (assignee.email) {
               await sendAssignmentDueReminderEmail({
                 toEmail: assignee.email,
-                recipientName: normalizeMemberName(assignee.name),
+                recipientName: shortName(assignee),
                 assignmentTitle: assignment.title,
                 dueDate: dueLabel,
                 wardName,
@@ -8769,7 +8781,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
               : null;
             await sendWardCouncilAssignmentEmail({
               toEmail: assignee.email,
-              recipientName: normalizeMemberName(assignee.name) ?? assignee.name ?? "",
+              recipientName: shortName(assignee),
               assignmentTitle: assignment.title,
               dueDate: dueLabel,
               wardName: template?.wardName,
@@ -8984,9 +8996,9 @@ Devuelve SOLO un JSON con esta estructura exacta:
               const madridHour = new Date().toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", hour12: false });
               await sendBudgetDisbursementCompletedEmail({
                 toEmail: bishop.email,
-                recipientName: bishop.name ?? "",
+                recipientName: shortName(bishop),
                 recipientSex: bishop.sex ?? null,
-                secretaryName: secretary?.name ?? "el secretario financiero",
+                secretaryName: shortName(secretary) || "el secretario financiero",
                 budgetDescription: budgetRequest.description,
                 budgetAmount: budgetRequest.amount,
                 wardName: template?.wardName,
@@ -9489,7 +9501,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
         const age = new Date().getFullYear() - new Date(birthday.birthDate).getFullYear();
         await sendBirthdayGreetingEmail({
           toEmail: birthday.email,
-          name: normalizeMemberName(birthday.name),
+          name: shortName(matchedMember) || shortNameFromString(birthday.name),
           age,
           recipientSex: matchedMember?.sex,
           recipientOrganizationType: organization?.type,
@@ -9730,7 +9742,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
           if (recipient.email) {
             await sendBaptismReminderEmail({
               toEmail: recipient.email,
-              recipientName: recipient.name,
+              recipientName: shortName(recipient),
               candidateName: persona.nombre,
               baptismDate: persona.fecha_bautismo,
               wardName,
