@@ -2694,7 +2694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const currentUser = (req as any).user;
-      const updaterName = currentUser?.name || "Un usuario";
+      const updaterName = shortName(currentUser) || "Un usuario";
       const allUsers = await storage.getAllUsers();
       const councilRoles = [
         "obispo",
@@ -3026,7 +3026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: member.id,
             type: "reminder",
             title: "Nueva Solicitud de Presupuesto",
-            description: `${user.name || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
+            description: `${shortName(user) || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
             relatedId: budgetRequest.id,
             isRead: false,
           });
@@ -3034,7 +3034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (isPushConfigured()) {
             await sendPushNotification(member.id, {
               title: "Nueva Solicitud de Presupuesto",
-              body: `${user.name || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
+              body: `${shortName(user) || "Un usuario"} solicita €${budgetRequest.amount} para "${budgetRequest.description}"`,
               url: `/budget?highlight=${encodeURIComponent(budgetRequest.id)}`,
               notificationId: notification.id,
             });
@@ -3089,7 +3089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           const currentUser = (req as any).user;
-          const completerName = currentUser?.name || "La persona asignada";
+          const completerName = shortName(currentUser) || "La persona asignada";
           const allUsers = await storage.getAllUsers();
           const obispadoMembers = allUsers.filter((member: any) =>
             ["obispo", "consejero_obispo", "secretario_financiero"].includes(member.role)
@@ -3123,7 +3123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const currentUser = (req as any).user;
-      const updaterName = currentUser?.name || "Un usuario";
+      const updaterName = shortName(currentUser) || "Un usuario";
       const allUsers = await storage.getAllUsers();
       const obispadoMembers = allUsers.filter((member: any) =>
         ["obispo", "consejero_obispo", "secretario_financiero"].includes(member.role)
@@ -3676,7 +3676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: bishop.id,
           type: "reminder",
           title: "Nueva Solicitud de Bienestar",
-          description: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+          description: `${shortName(user) || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
           relatedId: welfareRequest.id,
           isRead: false,
         });
@@ -3684,7 +3684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isPushConfigured()) {
           await sendPushNotification(bishop.id, {
             title: "Nueva Solicitud de Bienestar",
-            body: `${user.name || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+            body: `${shortName(user) || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
             url: `/welfare?highlight=${encodeURIComponent(welfareRequest.id)}`,
             notificationId: notification.id,
           });
@@ -4230,7 +4230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "upcoming_interview",
             title: "Nueva Solicitud de Entrevista",
             description: `${
-              requestingUser?.name || personName
+              shortName(requestingUser) || shortNameFromString(personName)
             } solicita una entrevista`,
             relatedId: interview.id,
             eventDate: interview.date,
@@ -4624,7 +4624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const currentUser = (req as any).user;
-      const updaterName = currentUser?.name || "Un usuario";
+      const updaterName = shortName(currentUser) || "Un usuario";
       const recipients = new Set<string>(
         [interview.interviewerId, interview.assignedToId, interview.assignedBy].filter(Boolean) as string[]
       );
@@ -4637,7 +4637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           type: "upcoming_interview",
           title: "Entrevista actualizada",
-          description: `${updaterName} actualizó la entrevista con ${interview.personName} para el ${interviewDate}.`,
+          description: `${updaterName} actualizó la entrevista con ${shortNameFromString(interview.personName)} para el ${interviewDate}.`,
           relatedId: interview.id,
           eventDate: interview.date,
           isRead: false,
@@ -4646,7 +4646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isPushConfigured()) {
           await sendPushNotification(userId, {
             title: "Entrevista actualizada",
-            body: `${updaterName} actualizó la entrevista con ${interview.personName}.`,
+            body: `${updaterName} actualizó la entrevista con ${shortNameFromString(interview.personName)}.`,
             url: `/interviews?highlight=${encodeURIComponent(interview.id)}`,
             notificationId: notification.id,
           });
@@ -4797,7 +4797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: member.id,
           type: "upcoming_interview",
           title: "Nueva entrevista de organización",
-          description: `Entrevista con ${interview.personName}`,
+          description: `Entrevista con ${shortNameFromString(interview.personName)}`,
           relatedId: interview.id,
           eventDate: interview.date,
           isRead: false,
@@ -4806,7 +4806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isPushConfigured()) {
           await sendPushNotification(member.id, {
             title: "Nueva entrevista de organización",
-            body: `Entrevista con ${interview.personName}`,
+            body: `Entrevista con ${shortNameFromString(interview.personName)}`,
             url: `/organization-interviews?highlight=${encodeURIComponent(interview.id)}`,
             notificationId: notification.id,
           });
@@ -5128,10 +5128,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               type: "upcoming_interview",
               title: "Entrevista actualizada",
               description: updateData.status
-                ? `La entrevista con ${updated.personName} ahora está ${updated.status}`
+                ? `La entrevista con ${shortNameFromString(updated.personName)} ahora está ${updated.status}`
                 : updateData.date
-                  ? `La fecha de la entrevista con ${updated.personName} fue modificada`
-                  : `Se actualizaron los detalles de la entrevista con ${updated.personName}`,
+                  ? `La fecha de la entrevista con ${shortNameFromString(updated.personName)} fue modificada`
+                  : `Se actualizaron los detalles de la entrevista con ${shortNameFromString(updated.personName)}`,
               relatedId: updated.id,
               eventDate: updated.date,
               isRead: false,
@@ -5140,7 +5140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (isPushConfigured()) {
               await sendPushNotification(member.id, {
                 title: "Entrevista actualizada",
-                body: `Entrevista con ${updated.personName}`,
+                body: `Entrevista con ${shortNameFromString(updated.personName)}`,
                 url: `/organization-interviews?highlight=${encodeURIComponent(updated.id)}`,
                 notificationId: notification.id,
               });
@@ -5217,7 +5217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: member.id,
             type: "reminder",
             title: "Nueva Meta Registrada",
-            description: `${user.name || "Una organización"} ha creado la meta: "${goal.title}"`,
+            description: `${shortName(user) || "Una organización"} ha creado la meta: "${goal.title}"`,
             relatedId: goal.id,
             isRead: false,
           });
@@ -6048,7 +6048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: recipient.id,
             type: "birthday_today",
             title: "Cumpleaños Hoy",
-            description: `Hoy es el cumpleaños de ${birthday.name} (${age} años)`,
+            description: `Hoy es el cumpleaños de ${shortNameFromString(birthday.name)} (${age} años)`,
             relatedId: birthday.id,
             isRead: false,
           });
@@ -6056,7 +6056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (isPushConfigured()) {
             await sendPushNotification(recipient.id, {
               title: "Cumpleaños Hoy",
-              body: `Hoy es el cumpleaños de ${birthday.name} (${age} años)`,
+              body: `Hoy es el cumpleaños de ${shortNameFromString(birthday.name)} (${age} años)`,
               url: "/birthdays",
               notificationId: notification.id,
             });
@@ -6358,7 +6358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const budget = await storage.updateWardBudget(payload);
 
     const currentUser = (req as any).user;
-    const updaterName = currentUser?.name || "Un usuario";
+    const updaterName = shortName(currentUser) || "Un usuario";
     const allUsers = await storage.getAllUsers();
     const budgetRoles = [
       "obispo",
@@ -7022,7 +7022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const when = new Date(interview.date);
       await storage.upsertAgendaEvent({
         userId: user.id,
-        title: `Entrevista con ${interview.personName}`,
+        title: `Entrevista con ${shortNameFromString(interview.personName)}`,
         description: interview.notes ?? null,
         date: when.toISOString().slice(0, 10),
         startTime: `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
@@ -7577,7 +7577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
         ...filteredInterviews.map(i => ({
           id: i.id,
-          title: `Entrevista con ${i.personName}`,
+          title: `Entrevista con ${shortNameFromString(i.personName)}`,
           date: i.date,
           type: "entrevista" as const,
           location: "Oficina",
@@ -7587,7 +7587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
         ...organizationInterviews.map(i => ({
           id: i.id,
-          title: `Entrevista con ${i.personName}`,
+          title: `Entrevista con ${shortNameFromString(i.personName)}`,
           date: i.date,
           type: "entrevista" as const,
           location: "Oficina",
@@ -7678,8 +7678,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEvents = [
         ...sacramentalMeetings.map(m => ({ id: m.id, date: applyMeetingTime(m.date), title: "Reunión Sacramental", type: "reunion", duration: 90 })),
         ...wardCouncils.map(c => ({ id: c.id, date: new Date(c.date), title: "Consejo de Barrio", type: "consejo", duration: 120 })),
-        ...visibleInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
-        ...organizationInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${i.personName}`, type: "entrevista", duration: 30 })),
+        ...visibleInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${shortNameFromString(i.personName)}`, type: "entrevista", duration: 30 })),
+        ...organizationInterviews.map(i => ({ id: i.id, date: new Date(i.date), title: `Entrevista con ${shortNameFromString(i.personName)}`, type: "entrevista", duration: 30 })),
         ...visibleActivities.map(a => ({ id: a.id, date: new Date(a.date), title: a.title, type: "actividad", duration: 120 })),
       ];
 
@@ -9427,7 +9427,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
             userId: recipient.id,
             type: "birthday_today",
             title: "Cumpleaños Hoy",
-            description: `Hoy es el cumpleaños de ${birthday.name} (${age} años)`,
+            description: `Hoy es el cumpleaños de ${shortNameFromString(birthday.name)} (${age} años)`,
             relatedId: birthday.id,
             isRead: false,
           });
@@ -9435,7 +9435,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
           if (isPushConfigured()) {
             await sendPushNotification(recipient.id, {
               title: "Cumpleaños Hoy",
-              body: `Hoy es el cumpleaños de ${birthday.name} (${age} años)`,
+              body: `Hoy es el cumpleaños de ${shortNameFromString(birthday.name)} (${age} años)`,
               url: "/birthdays",
               notificationId: notification.id,
             });
