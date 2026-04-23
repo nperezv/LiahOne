@@ -1328,7 +1328,7 @@ export default function DirectoryPage() {
                 const translateX = isActive ? swipeOffset : 0;
                 const isRightSwipe = isActive && swipeOffset > 6;
                 const isLeftSwipe = isActive && swipeOffset < -6;
-                const initials = shortMemberName(member).charAt(0)?.toUpperCase() || "?";
+                const initials = member.nameSurename?.charAt(0)?.toUpperCase() || "?";
                 const hasPhone = Boolean(member.phone);
                 const contactDisabled = !hasPhone;
                 const actionWidth = ACTIONS_WIDTH;
@@ -1451,7 +1451,7 @@ export default function DirectoryPage() {
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col justify-center px-1 text-left">
                         <p className="text-left text-sm font-semibold text-foreground">
-                          {shortMemberName(member)}
+                          {normalizeMemberName(member.nameSurename)}
                         </p>
                         <p className="text-left text-xs text-muted-foreground">
                           {member.organizationName ?? "Sin organización"} · {formatAge(member.birthday)} años
@@ -1587,7 +1587,7 @@ export default function DirectoryPage() {
             <div className="space-y-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Miembro</p>
-                <p className="mt-1 text-lg font-semibold text-foreground">{shortMemberName(sheetMember)}</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">{normalizeMemberName(sheetMember.nameSurename)}</p>
               </div>
               <Button
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
