@@ -65,7 +65,7 @@ import { getAuthHeaders } from "@/lib/auth-tokens";
 import { downloadResourceFile, openResourceFileInBrowser } from "@/lib/resource-download";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
-import { shortMemberName } from "@/lib/utils";
+import { shortMemberName, shortUserName } from "@/lib/utils";
 
 const isPdfFile = (filename?: string) => filename?.toLowerCase().endsWith(".pdf") ?? false;
 
@@ -1509,7 +1509,7 @@ export default function PresidencyMeetingsPage() {
                           </FormControl>
                           <SelectContent>
                             {assignableUsers.map((member: any) => (
-                              <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
+                              <SelectItem key={member.id} value={member.id}>{shortUserName(member)}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1564,7 +1564,7 @@ export default function PresidencyMeetingsPage() {
           </div>
           <div className="mt-3 space-y-2">
             {leadership.visibleLeaders.length > 0 ? leadership.visibleLeaders.map((leader: any) => {
-              const displayName = String(leader.name ?? "Sin nombre").trim() || "Sin nombre";
+              const displayName = shortUserName(leader) || "Sin nombre";
               return (
                 <button
                   key={`leader-mobile-${leader.id}`}
@@ -1599,7 +1599,7 @@ export default function PresidencyMeetingsPage() {
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {dashboardStats.upcomingBirthday
-                ? `${dashboardStats.upcomingBirthday.name} · ${formatBirthdayMonthDay(dashboardStats.upcomingBirthday.birthDate)}`
+                ? `${shortMemberName({ nameSurename: dashboardStats.upcomingBirthday.name })} · ${formatBirthdayMonthDay(dashboardStats.upcomingBirthday.birthDate)}`
                 : "No hay cumpleaños cargados"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">{dashboardStats.birthdaysThisMonth} este mes</p>
@@ -1724,7 +1724,7 @@ export default function PresidencyMeetingsPage() {
             </div>
             <div className="mt-3 space-y-2">
               {leadership.visibleLeaders.length > 0 ? leadership.visibleLeaders.map((leader: any) => {
-                const displayName = String(leader.name ?? "Sin nombre").trim() || "Sin nombre";
+                const displayName = shortUserName(leader) || "Sin nombre";
                 return (
                   <button
                     key={leader.id}
@@ -1754,7 +1754,7 @@ export default function PresidencyMeetingsPage() {
             </DialogHeader>
             <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
               {leadership.leaders.length > 0 ? leadership.leaders.map((leader: any) => {
-                const displayName = String(leader.name ?? "Sin nombre").trim() || "Sin nombre";
+                const displayName = shortUserName(leader) || "Sin nombre";
                 const initials = displayName
                   .split(" ")
                   .filter(Boolean)
@@ -1794,7 +1794,7 @@ export default function PresidencyMeetingsPage() {
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {dashboardStats.upcomingBirthday
-                ? `${dashboardStats.upcomingBirthday.name} · ${formatBirthdayMonthDay(dashboardStats.upcomingBirthday.birthDate)}`
+                ? `${shortMemberName({ nameSurename: dashboardStats.upcomingBirthday.name })} · ${formatBirthdayMonthDay(dashboardStats.upcomingBirthday.birthDate)}`
                 : "No hay cumpleaños cargados"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">{dashboardStats.birthdaysThisMonth} este mes</p>
@@ -1888,7 +1888,7 @@ export default function PresidencyMeetingsPage() {
             <DialogDescription>Información de contacto y llamamiento</DialogDescription>
           </DialogHeader>
           {selectedLeaderProfile ? (() => {
-            const displayName = String(selectedLeaderProfile.name ?? "Sin nombre").trim() || "Sin nombre";
+            const displayName = shortUserName(selectedLeaderProfile) || "Sin nombre";
             const initials = displayName
               .split(" ")
               .filter(Boolean)
