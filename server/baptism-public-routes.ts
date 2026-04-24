@@ -4,11 +4,13 @@
  */
 import type { Express, Request } from "express";
 import { createHash } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { sql, or, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { users } from "@shared/schema";
 import { isRateLimited, normalizeDisplayName, containsBlockedUrl } from "./mission-baptism-public-rules";
 import { toPublicServiceDTO } from "./mission-baptism-public-dto";
+import { sendPushToMultipleUsers } from "./push-service";
 
 // ── Theme computation (internal — never exposed raw dates/sex) ─────────────────
 
@@ -59,12 +61,23 @@ function ipHash(req: Request) {
   return createHash("sha256").update(value || "unknown-ip").digest("hex");
 }
 
+const LEADER_ROLES_PUSH = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"] as const;
+
+async function getLeaderUserIds(): Promise<string[]> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(or(...LEADER_ROLES_PUSH.map((r) => eq(users.role, r as any))));
+  return rows.map((r) => r.id);
+}
+
 const publicPostSchema = z.object({
   code: z.string().min(1).optional().or(z.literal("")),
   displayName: z.string().max(40).optional().or(z.literal("")),
   message: z.string().min(1).max(240).refine((v) => !containsBlockedUrl(v), "message must not contain urls"),
   clientRequestId: z.string().min(3),
   company: z.string().optional(),
+  recipientPersonaId: z.string().optional().nullable(),
 });
 
 // ── Route registration ────────────────────────────────────────────────────────
@@ -99,7 +112,7 @@ export function registerBaptismPublicRoutes(app: Express) {
 
       const [candResult, tplResult] = await Promise.all([
         db.execute(sql`
-          SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
+          SELECT mp.id AS persona_id, mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
           FROM baptism_service_candidates bsc
           JOIN mission_personas mp ON mp.id = bsc.persona_id
           WHERE bsc.service_id = ${svc.id} ORDER BY mp.nombre
@@ -160,9 +173,9 @@ export function registerBaptismPublicRoutes(app: Express) {
           WHERE bpi.service_id = ${link.service_id}
         `),
         db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${link.id} AND status = 'approved' ORDER BY created_at DESC`),
-        // Public: only names
+        // Public: names + personaId for recipient selector
         db.execute(sql`
-          SELECT mp.nombre
+          SELECT mp.id AS persona_id, mp.nombre
           FROM baptism_service_candidates bsc
           JOIN mission_personas mp ON mp.id = bsc.persona_id
           WHERE bsc.service_id = ${link.service_id} ORDER BY mp.nombre
@@ -177,7 +190,7 @@ export function registerBaptismPublicRoutes(app: Express) {
         db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
       ]);
 
-      const candidates = (candPublicResult.rows as any[]).map((r) => ({ nombre: r.nombre as string }));
+      const candidates = (candPublicResult.rows as any[]).map((r) => ({ nombre: r.nombre as string, personaId: r.persona_id as string }));
       const theme = computeTheme((candThemeResult.rows as any[]).map((r) => ({
         sexo: r.sexo as string | null,
         fechaNacimiento: r.fechaNacimiento as string | null,
@@ -231,11 +244,31 @@ export function registerBaptismPublicRoutes(app: Express) {
     const existing = await db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${link.id} AND client_request_id = ${parsed.data.clientRequestId} LIMIT 1`);
     if (existing.rows[0]) return res.status(200).json(existing.rows[0]);
 
+    const recipientId = parsed.data.recipientPersonaId || null;
     const row = await db.execute(sql`
-      INSERT INTO baptism_public_posts (public_link_id, display_name, message, client_request_id, ip_hash, status)
-      VALUES (${link.id}, ${normalizeDisplayName(parsed.data.displayName)}, ${parsed.data.message}, ${parsed.data.clientRequestId}, ${hash}, 'pending')
+      INSERT INTO baptism_public_posts (public_link_id, display_name, message, client_request_id, ip_hash, status, recipient_persona_id)
+      VALUES (${link.id}, ${normalizeDisplayName(parsed.data.displayName)}, ${parsed.data.message}, ${parsed.data.clientRequestId}, ${hash}, 'pending', ${recipientId})
       RETURNING *
     `);
+
+    // Push notification to leaders
+    getLeaderUserIds().then((leaderIds) => {
+      if (!leaderIds.length) return;
+      const candResult = db.execute(sql`
+        SELECT mp.nombre FROM baptism_service_candidates bsc
+        JOIN mission_personas mp ON mp.id = bsc.persona_id
+        WHERE bsc.service_id = ${link.service_id} ORDER BY mp.nombre
+      `);
+      candResult.then((cr) => {
+        const names = (cr.rows as any[]).map((r) => r.nombre).join(", ");
+        sendPushToMultipleUsers(leaderIds, {
+          title: "Felicitación pendiente de aprobación",
+          body: `Nueva felicitación para el bautismo de ${names || "un candidato"}`,
+          url: "/mission-work",
+        }).catch(() => {});
+      }).catch(() => {});
+    }).catch(() => {});
+
     res.status(201).json(row.rows[0]);
   });
 }

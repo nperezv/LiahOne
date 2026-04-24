@@ -22,7 +22,7 @@ const C = {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type BaptismTheme = "nino" | "nina" | "joven_varon" | "joven_mujer" | "adulto" | "adulta" | "multi_kids" | "multi_family" | "multi_adults" | "fallback";
-type Candidate = { nombre: string };
+type Candidate = { nombre: string; personaId?: string };
 type ProgramItem = {
   type: string; title: string | null; order: number;
   hymn: { number: number | null; title: string | null; externalUrl: string | null } | null;
@@ -567,6 +567,25 @@ function GreetingsPage({
 }: { data: ServiceData; slug: string; code: string; isCatalog: boolean }) {
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
+  const [recipientPersonaId, setRecipientPersonaId] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const candidates = data.candidates ?? [];
+  const multipleRecipients = candidates.length > 1;
+
+  const recipientLabel = candidates.length === 0
+    ? ""
+    : candidates.length === 1
+      ? candidates[0].nombre
+      : recipientPersonaId
+        ? (candidates.find((c) => c.personaId === recipientPersonaId)?.nombre ?? "todos")
+        : "todos";
+
+  const namesText = candidates.length === 0
+    ? ""
+    : candidates.length === 1
+      ? candidates[0].nombre
+      : candidates.slice(0, -1).map((c) => c.nombre).join(", ") + " y " + candidates[candidates.length - 1].nombre;
 
   function rid() { return `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 
@@ -576,7 +595,7 @@ function GreetingsPage({
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, displayName, message, clientRequestId: rid(), company: "" }),
+        body: JSON.stringify({ code, displayName, message, clientRequestId: rid(), company: "", recipientPersonaId }),
       });
       if (!res.ok) throw new Error("No se pudo enviar");
       return res.json();
@@ -584,7 +603,9 @@ function GreetingsPage({
     onSuccess: () => {
       setMessage("");
       setDisplayName("");
-      alert("Tu felicitación quedó pendiente de moderación. ¡Gracias!");
+      setRecipientPersonaId(null);
+      setSent(true);
+      setTimeout(() => setSent(false), 5000);
     },
   });
 
@@ -609,6 +630,40 @@ function GreetingsPage({
       <div className="px-6 pt-6 max-w-sm mx-auto space-y-6">
         {/* Send form */}
         <div className="space-y-3">
+          {multipleRecipients && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold" style={{ color: C.ink }}>¿A quién felicitas?</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRecipientPersonaId(null)}
+                  className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                  style={{
+                    background: recipientPersonaId === null ? C.teal : "transparent",
+                    color: recipientPersonaId === null ? "#fff" : C.ink,
+                    borderColor: C.teal,
+                  }}
+                >
+                  A todos
+                </button>
+                {candidates.map((c) => (
+                  <button
+                    key={c.personaId}
+                    type="button"
+                    onClick={() => setRecipientPersonaId(c.personaId ?? null)}
+                    className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                    style={{
+                      background: recipientPersonaId === c.personaId ? C.teal : "transparent",
+                      color: recipientPersonaId === c.personaId ? "#fff" : C.ink,
+                      borderColor: C.teal,
+                    }}
+                  >
+                    {c.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <Input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -623,9 +678,22 @@ function GreetingsPage({
             maxLength={240}
             className="border-gray-300 bg-white/70 resize-none min-h-[80px]"
           />
+          {namesText && (
+            <p className="text-xs leading-relaxed" style={{ color: C.inkLight }}>
+              Tu mensaje formará parte del recuerdo que recibirá{" "}
+              <span style={{ color: C.teal, fontWeight: 600 }}>
+                {multipleRecipients && !recipientPersonaId ? namesText : recipientLabel}
+              </span>.
+            </p>
+          )}
+          {sent && (
+            <p className="text-xs text-center font-medium" style={{ color: C.teal }}>
+              ¡Gracias! Tu felicitación quedó pendiente de moderación.
+            </p>
+          )}
           <Button
             onClick={() => post.mutate()}
-            disabled={!message.trim() || post.isPending}
+            disabled={!message.trim() || post.isPending || sent}
             className="w-full text-white font-medium"
             style={{ background: C.teal }}
           >

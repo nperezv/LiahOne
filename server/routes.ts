@@ -8,6 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { generateBudgetRequestPdf } from "./pdf/budget-pdf";
+import { generateBaptismBannerPng } from "./baptism-banner";
+import { sendPushToMultipleUsers } from "./push-service";
 import { generateWelfareRequestPdf } from "./pdf/welfare-pdf";
 import { storage, getDefaultChecklistItems } from "./storage";
 import { db, pool } from "./db";
@@ -102,6 +104,8 @@ import {
   sendBaptismReminderEmail,
   sendBudgetDisbursementRequestEmail,
   sendBudgetDisbursementCompletedEmail,
+  sendBaptismModerationReminderEmail,
+  sendBaptismBannerEmail,
   verifyAccessToken,
 } from "./auth";
 
@@ -937,6 +941,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_granted boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_date timestamp`);
   await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS contact_consent_at timestamp`);
+  await db.execute(sql`ALTER TABLE baptism_public_posts ADD COLUMN IF NOT EXISTS recipient_persona_id varchar`);
+  await db.execute(sql`ALTER TABLE baptism_services ADD COLUMN IF NOT EXISTS banner_sent_at timestamp`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS baja_requests (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -10337,6 +10343,138 @@ Devuelve SOLO un JSON con esta estructura exacta:
     }
   }
 
+  // ── BAPTISM BANNER AUTOMATION ────────────────────────────────────────────────
+  // Sundays 8h (Madrid): reminder to leader to moderate posts
+  // Sundays 9h (Madrid): generate and send banners for services from past 7 days
+  async function runBaptismBannerAutomation() {
+    try {
+      const madridHour = parseInt(
+        new Date().toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", hour12: false }),
+        10
+      );
+      const madridDay = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" })
+      ).getDay(); // 0 = Sunday
+      if (madridDay !== 0) return;
+
+      const baseUrl = process.env.APP_BASE_URL || "https://zendapp.org";
+      const tplRow = await db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`);
+      const wardName = (tplRow.rows[0] as any)?.ward_name ?? null;
+
+      // Find approved services from past 7 days without banner sent yet
+      const services = await db.execute(sql`
+        SELECT bs.id, bs.service_at, bs.unit_id
+        FROM baptism_services bs
+        WHERE bs.approval_status = 'approved'
+          AND bs.banner_sent_at IS NULL
+          AND bs.service_at >= NOW() - INTERVAL '7 days'
+          AND bs.service_at < NOW()
+      `);
+
+      if ((services.rows as any[]).length === 0) return;
+
+      if (madridHour === 8) {
+        // Reminder: notify leaders about pending posts
+        for (const svc of services.rows as any[]) {
+          const [pendingResult, candResult] = await Promise.all([
+            db.execute(sql`
+              SELECT COUNT(*) as cnt FROM baptism_public_posts bpp
+              JOIN baptism_public_links bpl ON bpl.id = bpp.public_link_id
+              WHERE bpl.service_id = ${svc.id} AND bpp.status = 'pending'
+            `),
+            db.execute(sql`
+              SELECT mp.nombre FROM baptism_service_candidates bsc
+              JOIN mission_personas mp ON mp.id = bsc.persona_id
+              WHERE bsc.service_id = ${svc.id} ORDER BY mp.nombre
+            `),
+          ]);
+          const pendingCount = parseInt((pendingResult.rows[0] as any)?.cnt ?? "0", 10);
+          if (pendingCount === 0) continue;
+          const candidateNames = (candResult.rows as any[]).map((r: any) => r.nombre as string);
+
+          // Push to leaders
+          const leaderRows = await db.execute(sql`
+            SELECT id, email FROM users WHERE role IN ('obispo','consejero_obispo','secretario','secretario_ejecutivo')
+          `);
+          const leaderIds = (leaderRows.rows as any[]).map((r: any) => r.id as string);
+          const leaderEmails = (leaderRows.rows as any[]).map((r: any) => r.email as string).filter(Boolean);
+
+          if (leaderIds.length) {
+            sendPushToMultipleUsers(leaderIds, {
+              title: "Aprueba las felicitaciones de bautismo",
+              body: `Hay ${pendingCount} felicitación(es) pendiente(s) para ${candidateNames.join(", ")}`,
+              url: "/mission-work",
+            }).catch(() => {});
+          }
+          leaderEmails.forEach((email) => {
+            sendBaptismModerationReminderEmail({
+              toEmail: email,
+              candidateNames,
+              pendingCount,
+              wardName,
+              missionUrl: `${baseUrl}/mission-work`,
+            }).catch(() => {});
+          });
+        }
+      }
+
+      if (madridHour === 9) {
+        // Send banners
+        for (const svc of services.rows as any[]) {
+          const candResult = await db.execute(sql`
+            SELECT mp.id AS persona_id, mp.nombre, mp.email
+            FROM baptism_service_candidates bsc
+            JOIN mission_personas mp ON mp.id = bsc.persona_id
+            WHERE bsc.service_id = ${svc.id} ORDER BY mp.nombre
+          `);
+          const candidates = candResult.rows as any[];
+
+          const linkResult = await db.execute(sql`
+            SELECT id FROM baptism_public_links WHERE service_id = ${svc.id} AND revoked_at IS NULL LIMIT 1
+          `);
+          const linkId = (linkResult.rows[0] as any)?.id;
+          if (!linkId) continue;
+
+          const postsResult = await db.execute(sql`
+            SELECT display_name, message, recipient_persona_id
+            FROM baptism_public_posts
+            WHERE public_link_id = ${linkId} AND status = 'approved'
+          `);
+          const allPosts = postsResult.rows as any[];
+
+          for (const candidate of candidates) {
+            if (!candidate.email) continue;
+            // Posts for this candidate = posts for "all" (null) + posts specifically for them
+            const candidatePosts = allPosts.filter(
+              (p: any) => !p.recipient_persona_id || p.recipient_persona_id === candidate.persona_id
+            );
+            try {
+              const bannerPng = await generateBaptismBannerPng({
+                candidateName: candidate.nombre,
+                serviceDate: new Date(svc.service_at),
+                wardName,
+                posts: candidatePosts.map((p: any) => ({ displayName: p.display_name || "", message: p.message })),
+              });
+              await sendBaptismBannerEmail({
+                toEmail: candidate.email,
+                candidateName: candidate.nombre,
+                serviceDate: new Date(svc.service_at),
+                wardName,
+                bannerPng,
+              });
+            } catch (err) {
+              console.error(`[BaptismBanner] Failed for ${candidate.nombre}:`, err);
+            }
+          }
+          // Mark service as banner sent
+          await db.execute(sql`UPDATE baptism_services SET banner_sent_at = NOW() WHERE id = ${svc.id}`);
+        }
+      }
+    } catch (err) {
+      console.error("[BaptismBannerAutomation] error:", err);
+    }
+  }
+
   // Check both automations aligned to each server hour (:00); each sender enforces 08:00.
   // ── AUTO-RELEASE CALLINGS ────────────────────────────────────────────────────
   // Runs at midnight: processes releases and sustainments from today's sacrament program
@@ -10431,6 +10569,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
   startHourlyAlignedTask(sendAutomaticActivityDeadlineReminders);
   startHourlyAlignedTask(maintainRecurringSeries);
   startHourlyAlignedTask(sendRecurringActivityRotationReminders);
+  startHourlyAlignedTask(runBaptismBannerAutomation);
   setInterval(() => {
     void runAgendaReminderWorker();
   }, 60 * 1000);

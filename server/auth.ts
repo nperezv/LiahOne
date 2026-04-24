@@ -1401,3 +1401,86 @@ export async function sendBajaLeaderNotificationEmail(payload: {
     ].filter((l): l is string => l !== null).join("\n"),
   });
 }
+
+export async function sendBaptismModerationReminderEmail(payload: {
+  toEmail: string;
+  candidateNames: string[];
+  pendingCount: number;
+  wardName?: string | null;
+  missionUrl: string;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Baptism moderation reminder:", payload);
+    return;
+  }
+
+  const names = payload.candidateNames.join(", ");
+  const ward = payload.wardName?.trim() || "el barrio";
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: `Recordatorio: aprueba las felicitaciones antes del envío del recuerdo de bautismo`,
+    text: [
+      "Hola,",
+      "",
+      `Hay ${payload.pendingCount} felicitación(es) pendiente(s) de aprobación para el bautismo de ${names}.`,
+      "",
+      "En aproximadamente 1 hora se generarán y enviarán automáticamente los recuerdos de bautismo con los mensajes aprobados hasta ese momento.",
+      "",
+      `Aprueba los mensajes aquí: ${payload.missionUrl}`,
+      "",
+      "Con aprecio fraternal,",
+      ward,
+    ].join("\n"),
+  });
+}
+
+export async function sendBaptismBannerEmail(payload: {
+  toEmail: string;
+  candidateName: string;
+  serviceDate: Date;
+  wardName?: string | null;
+  bannerPng: Buffer;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Baptism banner email:", payload.candidateName);
+    return;
+  }
+
+  const ward = payload.wardName?.trim() || "el barrio";
+  const dateStr = payload.serviceDate.toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Madrid",
+  });
+  const filename = `recuerdo-bautismo-${payload.candidateName.toLowerCase().replace(/\s+/g, "-")}.png`;
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: `Tu recuerdo de bautismo — ${payload.candidateName}`,
+    text: [
+      `Hola ${payload.candidateName},`,
+      "",
+      `En nombre de los miembros de ${ward}, te enviamos este recuerdo de tu bautismo del ${dateStr}.`,
+      "",
+      "En él encontrarás las felicitaciones de quienes estuvieron presentes ese día.",
+      "",
+      "¡Bienvenido/a a la familia del evangelio!",
+      "",
+      "Con aprecio fraternal,",
+      ward,
+    ].join("\n"),
+    attachments: [
+      {
+        filename,
+        content: payload.bannerPng,
+        contentType: "image/png",
+      },
+    ],
+  });
+}
