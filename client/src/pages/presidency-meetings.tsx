@@ -915,7 +915,7 @@ export default function PresidencyMeetingsPage() {
       ? meeting.agreements.map((a: any, i: number) => `${i + 1}. ${a.description}`).join("\n")
       : "No hay acuerdos registrados";
 
-    const content = `${meetingTitle} - ${orgName.toUpperCase()}\n\nFecha: ${meetingDate}\n\nAGENDA:\n${meeting.agenda || "No hay agenda registrada"}\n\nACUERDOS:\n${agreementsText}\n\nNOTAS:\n${meeting.notes || "No hay notas registradas"}\n\n---\nDocumento generado desde Liahonaap - Sistema Administrativo de Barrio`;
+    const content = `${meetingTitle} - ${orgName.toUpperCase()}\n\nFecha: ${meetingDate}\n\nAGENDA:\n${meeting.agenda || "No hay agenda registrada"}\n\nACUERDOS:\n${agreementsText}\n\nNOTAS:\n${meeting.notes || "No hay notas registradas"}\n\n---\nDocumento generado desde Zendapp - Sistema Administrativo de Barrio`;
 
     const element = document.createElement("a");
     const file = new Blob([content], { type: "text/plain;charset=utf-8" });

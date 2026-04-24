@@ -9,8 +9,8 @@ export type ThemePreference =
 
 export type ResolvedTheme = "light" | "dark";
 
-const THEME_STORAGE_KEY = "liahonapp-theme";
-const THEME_CHANGE_EVENT = "liahonapp-theme-change";
+const THEME_STORAGE_KEY = "zendapp-theme";
+const THEME_CHANGE_EVENT = "zendapp-theme-change";
 
 const THEMES: ThemePreference[] = [
   "light",

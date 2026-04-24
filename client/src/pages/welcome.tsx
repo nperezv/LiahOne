@@ -121,7 +121,7 @@ export default function WelcomePage() {
       <header className="relative z-10 flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
         <div className="landing-fade-up flex items-center gap-2.5" style={{ animationDelay: "0ms" }}>
           <img src="/icons/compass.svg" alt="" className="h-7 w-7" />
-          <span className="font-semibold text-[15px] tracking-tight text-white/90">Liahonapp</span>
+          <span className="font-semibold text-[15px] tracking-tight text-white/90">Zendapp</span>
         </div>
         <div className="landing-fade-up flex items-center gap-3" style={{ animationDelay: "80ms" }}>
           <Link href="/login">
@@ -196,7 +196,7 @@ export default function WelcomePage() {
       {/* Features grid */}
       <section className="relative z-10 py-4 px-6 max-w-6xl mx-auto">
         <RevealSection className="text-center mb-10">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#C9A227] mb-2">Por qué Liahonapp</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#C9A227] mb-2">Por qué Zendapp</p>
           <h2 className="text-3xl font-bold text-white">Todo lo que necesitas</h2>
         </RevealSection>
 
@@ -363,7 +363,7 @@ export default function WelcomePage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/8 py-6 px-6 text-center">
-        <p className="text-white/25 text-xs">© {new Date().getFullYear()} Liahonapp · Gestión de barrio</p>
+        <p className="text-white/25 text-xs">© {new Date().getFullYear()} Zendapp · Gestión de barrio</p>
       </footer>
     </div>
   );

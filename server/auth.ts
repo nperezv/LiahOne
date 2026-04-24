@@ -8,7 +8,7 @@ const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OTP_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_WARD_NAME = "Barrio";
-const SMTP_FROM_DEFAULT_ADDRESS = "no-reply@liahone.app";
+const SMTP_FROM_DEFAULT_ADDRESS = "no-reply@zendapp.org";
 
 const resolveWardName = (wardName?: string | null) => {
   const trimmedWardName = wardName?.trim();

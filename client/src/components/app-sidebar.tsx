@@ -19,7 +19,6 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
 import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
-import logoImage from "@assets/liahonapplogo2.svg";
 
 interface MenuItem {
   title: string;
@@ -421,10 +420,10 @@ function AppSidebarInner() {
         <div className="mx-2 mt-3 rounded-[22px] border border-sidebar-border/70 bg-sidebar-accent/20 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80">
-              <img src="/icons/icon.svg" alt="LiahonApp" className="h-6 w-6 object-contain" />
+              <img src="/icons/icon.svg" alt="Zendapp" className="h-6 w-6 object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-none">Liahonapp</p>
+              <p className="truncate text-sm font-semibold leading-none">Zendapp</p>
               <p className="truncate pt-1 text-[11px] text-sidebar-foreground/65">Panel principal</p>
             </div>
           </div>

@@ -41,7 +41,7 @@ export function registerActivityPublicRoutes(app: Express) {
     const { title, description, url, imageUrl } = opts;
     const tags = [
       `<meta property="og:type" content="website" />`,
-      `<meta property="og:site_name" content="Liahonaap" />`,
+      `<meta property="og:site_name" content="Zendapp" />`,
       `<meta property="og:title" content="${escapeHtml(title)}" />`,
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,

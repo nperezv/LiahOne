@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { LogIn } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import logoImage from "@assets/liahonapplogo2.svg";
 
 const loginSchema = z.object({
   username: z.string().min(1, "El nombre de usuario es requerido"),
@@ -137,13 +136,10 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center pt-4 pb-2">
-          <div className="flex justify-center">
-            <img
-              src={logoImage}
-              alt="Liahonapp Logo"
-              className="h-32 w-auto object-contain"
-              data-testid="img-logo"
-            />
+          <div className="flex justify-center py-2">
+            <div className="text-4xl font-bold tracking-tight" data-testid="img-logo">
+              <span className="text-foreground">Zend</span><span className="text-[#d5b366]">app</span>
+            </div>
           </div>
 
           <CardDescription className="text-sm text-muted-foreground">

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'liahonaap-v8';
+const CACHE_NAME = 'zendapp-v1';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json?v=8',
@@ -107,7 +107,7 @@ self.addEventListener('push', (event) => {
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-192x192.png',
     vibrate: [200, 100, 200],
-    tag: data.tag || 'liahonaap-notification',
+    tag: data.tag || 'zendapp-notification',
     renotify: true,
     requireInteraction: data.requireInteraction || false,
     data: {
@@ -121,7 +121,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Liahonaap', options)
+    self.registration.showNotification(data.title || 'Zendapp', options)
   );
 });
 

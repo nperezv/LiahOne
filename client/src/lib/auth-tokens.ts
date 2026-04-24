@@ -79,7 +79,7 @@ export function getAuthHeaders(): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
-const DEVICE_ID_KEY = "liahone_device_id";
+const DEVICE_ID_KEY = "zendapp_device_id";
 
 function generateFallbackId() {
   if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {

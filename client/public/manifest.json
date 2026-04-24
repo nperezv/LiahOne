@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Liahonapp",
-  "short_name": "Liahonapp",
+  "name": "Zendapp",
+  "short_name": "Zendapp",
   "description": "Sistema integral de gestión administrativa para barrios. Gestiona reuniones, presupuestos, entrevistas, metas y más.",
   "start_url": "/?source=pwa",
   "scope": "/",

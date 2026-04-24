@@ -127,7 +127,7 @@ export default function PublicRegistroPage() {
           </div>
           <div>
             <p className="font-medium mb-0.5">¿Puedo eliminarlos?</p>
-            <p className="text-muted-foreground">Sí, en cualquier momento puedes solicitar la eliminación completa de tus datos en <strong>liahonapp.org/baja</strong>.</p>
+            <p className="text-muted-foreground">Sí, en cualquier momento puedes solicitar la eliminación completa de tus datos en <strong>zendapp.org/baja</strong>.</p>
           </div>
           <div className="border-t pt-3 text-muted-foreground">
             <strong>Base legal (RGPD Art. 6.1.a):</strong> Tus datos se tratan únicamente con tu consentimiento expreso, que otorgas al marcar las casillas al final de este formulario.
