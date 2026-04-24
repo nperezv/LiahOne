@@ -723,11 +723,11 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(userDeletionRequests).where(eq(userDeletionRequests.requestedBy, id));
       await tx.update(userDeletionRequests).set({ reviewedBy: null }).where(eq(userDeletionRequests.reviewedBy, id));
 
-      // Agenda
-      await tx.delete(agendaEvents).where(eq(agendaEvents.userId, id));
-      await tx.delete(agendaTasks).where(eq(agendaTasks.userId, id));
+      // Agenda — order matters: reminders/plans reference tasks; tasks reference events
       await tx.delete(agendaReminders).where(eq(agendaReminders.userId, id));
       await tx.delete(agendaTaskPlans).where(eq(agendaTaskPlans.userId, id));
+      await tx.delete(agendaTasks).where(eq(agendaTasks.userId, id));
+      await tx.delete(agendaEvents).where(eq(agendaEvents.userId, id));
       await tx.delete(agendaIdempotencyKeys).where(eq(agendaIdempotencyKeys.userId, id));
       await tx.delete(agendaCommandLogs).where(eq(agendaCommandLogs.userId, id));
       await tx.delete(userAvailability).where(eq(userAvailability.userId, id));

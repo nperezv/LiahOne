@@ -2313,6 +2313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.status(200).json({ message: "User deleted" });
       } catch (error) {
+        console.error("Error approving deletion request:", error);
         res.status(500).json({ error: "Failed to approve deletion request" });
       }
     }
