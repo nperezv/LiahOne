@@ -740,6 +740,8 @@ export class DatabaseStorage implements IStorage {
       await tx.update(interviews).set({ assignedToId: null }).where(eq(interviews.assignedToId, id));
 
       // Meetings & activities
+      // baptism_services has no Drizzle table object but has a FK to users.id in the DB
+      await tx.execute(sql`DELETE FROM baptism_services WHERE created_by = ${id}`);
       await tx.update(activities).set({ approvedBy: null }).where(eq(activities.approvedBy, id));
       const userActivityIds = await tx.select({ id: activities.id }).from(activities).where(eq(activities.createdBy, id));
       if (userActivityIds.length > 0) {
