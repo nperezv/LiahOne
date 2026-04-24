@@ -59,7 +59,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { useBirthdays } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday } from "@shared/birthday-utils";
+import { formatBirthdayMonthDay, getAgeTurningOnNextBirthday, getDaysUntilBirthday, getNextBirthdayDate } from "@shared/birthday-utils";
 import { useToast } from "@/hooks/use-toast";
 import { shortMemberName } from "@/lib/utils";
 import { useLocation, useSearch } from "wouter";
@@ -98,12 +98,18 @@ export default function BirthdaysPage() {
     ? birthdays.filter((b: any) => b.organizationId === originOrgId)
     : birthdays;
 
-  const birthdaysWithDays = visibleBirthdays.map((b: any) => ({
-    ...b,
-    displayName: shortMemberName(b),
-    daysUntil: calculateDaysUntil(b.birthDate),
-    nextAge: getAgeTurningOnNextBirthday(b.birthDate),
-  }));
+  const thisYear = new Date().getFullYear();
+  const birthdaysWithDays = visibleBirthdays.map((b: any) => {
+    const daysUntil = calculateDaysUntil(b.birthDate);
+    const nextBirthdayYear = getNextBirthdayDate(b.birthDate).getFullYear();
+    return {
+      ...b,
+      displayName: shortMemberName(b),
+      daysUntil,
+      nextAge: getAgeTurningOnNextBirthday(b.birthDate),
+      isNextYear: nextBirthdayYear > thisYear,
+    };
+  });
 
   const allBirthdaysSorted = birthdaysWithDays.sort(
     (a: any, b: any) => a.daysUntil - b.daysUntil
@@ -288,9 +294,14 @@ export default function BirthdaysPage() {
                         {typeof birthday.nextAge === "number" ? <span>· Cumple {birthday.nextAge}</span> : null}
                       </div>
                     </div>
-                    <Badge variant={birthday.daysUntil === 0 ? "default" : "outline"}>
-                      {birthday.daysUntil === 0 ? "Hoy" : birthday.daysUntil === 1 ? "Mañana" : `${birthday.daysUntil} días`}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {birthday.isNextYear && (
+                        <Badge variant="secondary" className="text-xs">{new Date().getFullYear() + 1}</Badge>
+                      )}
+                      <Badge variant={birthday.daysUntil === 0 ? "default" : "outline"}>
+                        {birthday.daysUntil === 0 ? "Hoy" : birthday.daysUntil === 1 ? "Mañana" : `${birthday.daysUntil} días`}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(birthday.email || birthday.phone) && (

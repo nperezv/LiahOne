@@ -741,6 +741,7 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(goals).where(eq(goals.createdBy, id));
       await tx.delete(wardCouncils).where(eq(wardCouncils.createdBy, id));
       await tx.delete(presidencyMeetings).where(eq(presidencyMeetings.createdBy, id));
+      await tx.delete(presidencyResources).where(eq(presidencyResources.createdBy, id));
       await tx.delete(sacramentalMeetings).where(eq(sacramentalMeetings.createdBy, id));
       await tx.delete(organizationInterviews).where(eq(organizationInterviews.createdBy, id));
       await tx.delete(organizationInterviews).where(eq(organizationInterviews.interviewerId, id));
@@ -1528,6 +1529,11 @@ export class DatabaseStorage implements IStorage {
         await db.delete(families).where(eq(families.id, fm.familyId));
       }
     }
+    // Clean up FK-constrained child rows (no cascade)
+    await db.delete(memberCallings).where(eq(memberCallings.memberId, id));
+    await db.delete(memberOrganizations).where(eq(memberOrganizations.memberId, id));
+    await db.update(users).set({ memberId: null }).where(eq(users.memberId, id));
+    await db.update(interviews).set({ memberId: null }).where(eq(interviews.memberId, id));
     await db.delete(members).where(eq(members.id, id));
   }
 
