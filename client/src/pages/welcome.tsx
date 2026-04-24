@@ -139,9 +139,16 @@ export default function WelcomePage() {
 
       {/* Hero */}
       <section className="relative z-10 pt-20 pb-16 px-6 text-center max-w-4xl mx-auto">
+        <div className="landing-fade-up flex flex-col items-center gap-3 mb-8" style={{ animationDelay: "150ms" }}>
+          <img src="/icons/compass.svg" alt="Zendapp" className="h-20 w-20 landing-compass-float" />
+          <span className="text-2xl font-bold tracking-tight">
+            <span className="text-white">Zend</span><span className="text-[#C9A227]">app</span>
+          </span>
+        </div>
+
         <div
           className="landing-fade-up inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-white/60 mb-8"
-          style={{ animationDelay: "150ms" }}
+          style={{ animationDelay: "220ms" }}
         >
           <Sparkles className="h-3 w-3 text-[#C9A227]" />
           Gestión integral del barrio
