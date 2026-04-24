@@ -153,7 +153,7 @@ export default function RequestAccessPage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Teléfono (opcional)</FormLabel>
+                      <FormLabel>Teléfono</FormLabel>
                       <FormControl>
                         <Input type="tel" placeholder="+34 600 000 000" {...field} />
                       </FormControl>

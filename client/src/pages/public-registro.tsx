@@ -225,7 +225,7 @@ export default function PublicRegistroPage() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Teléfono <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                    <FormLabel>Teléfono</FormLabel>
                     <FormControl><Input placeholder="+34 600 000 000" {...field} /></FormControl>
                     <p className="text-xs text-muted-foreground">Para llamadas o mensajes de WhatsApp sobre actividades del barrio</p>
                   </FormItem>
@@ -236,7 +236,7 @@ export default function PublicRegistroPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl><Input type="email" placeholder="correo@ejemplo.com" {...field} /></FormControl>
                     <p className="text-xs text-muted-foreground">Para notificaciones, invitaciones y circulares del barrio</p>
                     <FormMessage />
