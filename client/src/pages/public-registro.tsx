@@ -108,8 +108,30 @@ export default function PublicRegistroPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">Registro en el directorio</h1>
           <p className="text-sm text-muted-foreground">
-            Tus datos serán revisados por un líder antes de añadirte al directorio. Solo los líderes con acceso autorizado podrán verlos.
+            Tus datos serán revisados por un líder antes de añadirte al directorio.
           </p>
+        </div>
+
+        <div className="rounded-lg border bg-muted/40 p-4 space-y-3 text-sm">
+          <div>
+            <p className="font-medium mb-0.5">¿Qué es esto?</p>
+            <p className="text-muted-foreground">Este es un registro voluntario interno gestionado por los líderes locales del barrio. No está vinculado a los sistemas oficiales de La Iglesia de Jesucristo de los Santos de los Últimos Días ni comparte datos con ninguna entidad externa.</p>
+          </div>
+          <div>
+            <p className="font-medium mb-0.5">¿Para qué usaremos tus datos?</p>
+            <p className="text-muted-foreground">Exclusivamente para comunicaciones del barrio: notificaciones de actividades, invitaciones a eventos, recordatorios de reuniones, felicitaciones de cumpleaños y coordinación del barrio.</p>
+          </div>
+          <div>
+            <p className="font-medium mb-0.5">¿Quién puede verlos?</p>
+            <p className="text-muted-foreground">Solo los líderes autorizados del barrio (obispo, consejeros, secretario y presidencias de organizaciones). Nadie más tiene acceso.</p>
+          </div>
+          <div>
+            <p className="font-medium mb-0.5">¿Puedo eliminarlos?</p>
+            <p className="text-muted-foreground">Sí, en cualquier momento puedes solicitar la eliminación completa de tus datos en <strong>liahonapp.org/baja</strong>.</p>
+          </div>
+          <div className="border-t pt-3 text-muted-foreground">
+            <strong>Base legal (RGPD Art. 6.1.a):</strong> Tus datos se tratan únicamente con tu consentimiento expreso, que otorgas al marcar las casillas al final de este formulario.
+          </div>
         </div>
 
         <Form {...form}>
@@ -205,6 +227,7 @@ export default function PublicRegistroPage() {
                   <FormItem>
                     <FormLabel>Teléfono <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                     <FormControl><Input placeholder="+34 600 000 000" {...field} /></FormControl>
+                    <p className="text-xs text-muted-foreground">Para llamadas o mensajes de WhatsApp sobre actividades del barrio</p>
                   </FormItem>
                 )}
               />
@@ -215,6 +238,7 @@ export default function PublicRegistroPage() {
                   <FormItem>
                     <FormLabel>Email <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                     <FormControl><Input type="email" placeholder="correo@ejemplo.com" {...field} /></FormControl>
+                    <p className="text-xs text-muted-foreground">Para notificaciones, invitaciones y circulares del barrio</p>
                     <FormMessage />
                   </FormItem>
                 )}
