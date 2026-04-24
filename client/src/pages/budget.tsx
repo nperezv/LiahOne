@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Euro, Edit2, Upload, Trash2, Settings, Paperclip, PenLine, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
+import { SecretarioFinancieroContact } from "@/components/secretario-financiero-contact";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconBadge } from "@/components/ui/icon-badge";
@@ -172,14 +173,7 @@ const budgetSchema = z.object({
       });
     }
   });
-  if (data.bankInSystem === false) {
-    if (!data.iban?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["iban"], message: "El IBAN es requerido." });
-    }
-    if (!data.bankJustificanteFile) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bankJustificanteFile"], message: "Adjunta el justificante de titularidad." });
-    }
-  }
+  // Bank data handled offline via financial secretary when not in system
 });
 
 const expenseReceiptsSchema = z.object({
@@ -1535,76 +1529,7 @@ export default function BudgetPage() {
                       </div>
                     )}
 
-                    {watchedBankInSystem === false && (
-                      <div className="mt-3 flex flex-col gap-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <FormField
-                            control={budgetForm.control}
-                            name="swift"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>SWIFT / BIC</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ej: CAIXESBB" {...field} data-testid="input-swift" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={budgetForm.control}
-                            name="iban"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>IBAN <span className="text-destructive">*</span></FormLabel>
-                                <FormControl>
-                                  <Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} data-testid="input-iban" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <FormField
-                          control={budgetForm.control}
-                          name="bankJustificanteFile"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Justificante de titularidad <span className="text-destructive">*</span></FormLabel>
-                              <FormControl>
-                                <div className="flex flex-col gap-2">
-                                  <Input
-                                    id="bank-justificante-file"
-                                    type="file"
-                                    accept=".jpg,.jpeg,.pdf,.png"
-                                    onChange={(e) => field.onChange(e.target.files?.[0] ?? undefined)}
-                                    onBlur={field.onBlur}
-                                    ref={field.ref}
-                                    className="sr-only"
-                                    data-testid="input-bank-justificante"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant={budgetUploadState.bankJustificante === "done" ? "default" : "outline"}
-                                    className="w-fit"
-                                    disabled={budgetUploadState.bankJustificante === "uploading"}
-                                    onClick={() => (document.getElementById("bank-justificante-file") as HTMLInputElement)?.click()}
-                                  >
-                                    {budgetUploadState.bankJustificante === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                                    {budgetUploadState.bankJustificante === "uploading" ? "Subiendo..." : "Seleccionar justificante"}
-                                  </Button>
-                                  <span className="text-xs text-muted-foreground">
-                                    {field.value ? `✓ ${field.value.name}` : "Ningún archivo seleccionado — JPG, PNG o PDF"}
-                                  </span>
-                                </div>
-                              </FormControl>
-                              <p className="text-xs text-muted-foreground">Captura o PDF del banco que acredite la titularidad de la cuenta.</p>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    )}
+                    {watchedBankInSystem === false && <SecretarioFinancieroContact />}
                   </div>
 
 
