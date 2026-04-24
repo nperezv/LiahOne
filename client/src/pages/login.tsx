@@ -136,7 +136,8 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center pt-4 pb-2">
-          <div className="flex justify-center py-2">
+          <div className="flex flex-col items-center gap-2 py-2">
+            <img src="/icons/compass.svg" alt="Zendapp" className="h-16 w-16" />
             <div className="text-4xl font-bold tracking-tight" data-testid="img-logo">
               <span className="text-foreground">Zend</span><span className="text-[#d5b366]">app</span>
             </div>
