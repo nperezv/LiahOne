@@ -684,7 +684,7 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, on
                     <div className="grid grid-cols-2 gap-3 mt-1">
                       {([
                         [true, "✓", "Sí, están registrados"],
-                        [false, "✗", "No, los introduzco ahora"],
+                        [false, "✗", "Aún no"],
                       ] as [boolean, string, string][]).map(([val, icon, txt]) => (
                         <button
                           key={String(val)}

@@ -938,7 +938,7 @@ export default function WelfarePage() {
                               </FormControl>
                               <SelectContent>
                                 <SelectItem value="true">Sí, están registrados</SelectItem>
-                                <SelectItem value="false">No, los introduzco manualmente</SelectItem>
+                                <SelectItem value="false">Aún no</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
