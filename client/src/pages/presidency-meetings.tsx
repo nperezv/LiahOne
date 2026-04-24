@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRoute, useLocation } from "wouter";
+import { SecretarioFinancieroContact } from "@/components/secretario-financiero-contact";
 import {
   Plus,
   Download,
@@ -211,14 +212,7 @@ const budgetRequestSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["budgetCategories", i, "detail"], message: "Especifica el detalle para la categoría Otros." });
     }
   });
-  if (data.bankInSystem === false) {
-    if (!data.iban?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["iban"], message: "El IBAN es requerido." });
-    }
-    if (!data.bankJustificanteFile) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bankJustificanteFile"], message: "Adjunta el justificante de titularidad." });
-    }
-  }
+  // Bank data handled offline via financial secretary when not in system
 });
 
 type MeetingFormValues = z.infer<typeof meetingSchema>;
@@ -2279,47 +2273,7 @@ export default function PresidencyMeetingsPage() {
                   </div>
                 )}
 
-                {watchedBankInSystem === false && (
-                  <div className="mt-3 flex flex-col gap-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField control={budgetRequestForm.control} name="swift" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>SWIFT / BIC</FormLabel>
-                          <FormControl><Input placeholder="Ej: CAIXESBB" {...field} data-testid="input-swift" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={budgetRequestForm.control} name="iban" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>IBAN <span className="text-destructive">*</span></FormLabel>
-                          <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} data-testid="input-iban" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-                    <FormField control={budgetRequestForm.control} name="bankJustificanteFile" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Justificante de titularidad <span className="text-destructive">*</span></FormLabel>
-                        <FormControl>
-                          <div className="flex flex-col gap-2">
-                            <Input id="presidency-bank-justificante-file" type="file" accept=".jpg,.jpeg,.pdf,.png"
-                              onChange={(e) => field.onChange(e.target.files?.[0] ?? undefined)}
-                              onBlur={field.onBlur} ref={field.ref} className="hidden" data-testid="input-bank-justificante" />
-                            <Button type="button" variant="outline" className="w-fit" asChild>
-                              <label htmlFor="presidency-bank-justificante-file" className="cursor-pointer">
-                                <Upload className="h-4 w-4 mr-2" /> Seleccionar justificante
-                              </label>
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                              {field.value ? `✓ ${field.value.name}` : "Ningún archivo seleccionado — JPG, PNG o PDF"}
-                            </span>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
-                )}
+                {watchedBankInSystem === false && <SecretarioFinancieroContact />}
               </div>
 
               {budgetRequestType === "reembolso" && (

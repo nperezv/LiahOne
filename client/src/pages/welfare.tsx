@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Euro, Paperclip, PenLine, RotateCcw, Trash2, Upload, Heart, Loader2, CheckCircle2 } from "lucide-react";
+import { SecretarioFinancieroContact } from "@/components/secretario-financiero-contact";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -170,14 +171,7 @@ const welfareSchema = z.object({
       });
     }
   });
-  if (data.bankInSystem === false) {
-    if (!data.iban?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["iban"], message: "El IBAN es requerido." });
-    }
-    if (!data.bankJustificanteFile) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["bankJustificanteFile"], message: "Adjunta el justificante de titularidad." });
-    }
-  }
+  // Bank data handled offline via financial secretary when not in system
 });
 
 type WelfareFormValues = z.infer<typeof welfareSchema>;
@@ -952,68 +946,7 @@ export default function WelfarePage() {
                         )}
                       />
                       {watchedBankInSystem === false && (
-                        <>
-                          <FormField
-                            control={welfareForm.control}
-                            name="swift"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">SWIFT / BIC (opcional)</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="XXXXESXX" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={welfareForm.control}
-                            name="iban"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">IBAN</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="ES00 0000 0000 00 0000000000" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={welfareForm.control}
-                            name="bankJustificanteFile"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs">Justificante de titularidad bancaria</FormLabel>
-                                <FormControl>
-                                  <div className="flex flex-col gap-2">
-                                    <Input
-                                      id="welfare-bank-justificante-file"
-                                      type="file"
-                                      accept=".jpg,.jpeg,.pdf"
-                                      onChange={(e) => field.onChange(e.target.files?.[0])}
-                                      className="sr-only"
-                                    />
-                                    <Button
-                                      type="button"
-                                      variant={welfareUploadState.bankJustificante === "done" ? "default" : "outline"}
-                                      className="w-fit"
-                                      disabled={welfareUploadState.bankJustificante === "uploading"}
-                                      onClick={() => (document.getElementById("welfare-bank-justificante-file") as HTMLInputElement)?.click()}
-                                    >
-                                      {welfareUploadState.bankJustificante === "uploading" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                                      {welfareUploadState.bankJustificante === "uploading" ? "Subiendo..." : "Seleccionar justificante"}
-                                    </Button>
-                                    <span className="text-xs text-muted-foreground">
-                                      {field.value ? `Archivo seleccionado: ${(field.value as File).name}` : "Ningún archivo seleccionado"}
-                                    </span>
-                                  </div>
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </>
+                        <SecretarioFinancieroContact />
                       )}
                     </div>
 
