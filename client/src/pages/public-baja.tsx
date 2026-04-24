@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 const schema = z.object({
   apellidos: z.string().min(1, "Los apellidos son requeridos"),
   nombre: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Email inválido").or(z.literal("")).optional(),
+  email: z.string().email("Email inválido"),
   motivo: z.string().max(500).optional(),
 });
 
@@ -22,7 +22,7 @@ export default function PublicBajaPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { apellidos: "", nombre: "", email: "", motivo: "" },
+    defaultValues: { apellidos: "", nombre: "", email: "", motivo: ""  },
   });
 
   const onSubmit = async (data: FormValues) => {
@@ -31,7 +31,7 @@ export default function PublicBajaPage() {
       const res = await fetch("/api/public/baja", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, email: data.email || null, motivo: data.motivo || null }),
+        body: JSON.stringify({ ...data, motivo: data.motivo || null }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -100,7 +100,7 @@ export default function PublicBajaPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email <span className="text-muted-foreground font-normal">(para confirmación, opcional)</span></FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl><Input type="email" placeholder="correo@ejemplo.com" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>

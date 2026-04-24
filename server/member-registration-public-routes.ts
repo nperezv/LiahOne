@@ -28,7 +28,7 @@ const registroSchema = z.object({
 const bajaSchema = z.object({
   nombre: z.string().min(1).max(60),
   apellidos: z.string().min(1).max(80),
-  email: z.string().email().optional().nullable(),
+  email: z.string().email("Email inválido"),
   motivo: z.string().max(500).optional().nullable(),
 });
 
