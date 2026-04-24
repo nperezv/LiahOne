@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { db } from "./db";
-import { members, organizations, pdfTemplates, users } from "@shared/schema";
+import { members, organizations, pdfTemplates, users, bajaRequests } from "@shared/schema";
 import { eq, or } from "drizzle-orm";
 import {
   sendRegistroConfirmationEmail,
@@ -154,7 +154,7 @@ export function registerMemberRegistrationPublicRoutes(app: Express) {
 
     const { nombre, apellidos, email, motivo } = parsed.data;
 
-    console.info("[BAJA REQUEST]", { nombre, apellidos, email, motivo, ts: new Date().toISOString() });
+    await db.insert(bajaRequests).values({ nombre, apellidos, email, motivo: motivo || null });
 
     const { wardName, leaderEmails } = await getWardContext();
     const emailJobs: Promise<void>[] = [];

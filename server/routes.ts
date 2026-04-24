@@ -46,6 +46,7 @@ import {
   memberCallings,
   sacramentalMeetings as sacramentalMeetingsTable,
   agendaEvents,
+  bajaRequests,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -936,6 +937,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_granted boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_date timestamp`);
   await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS contact_consent_at timestamp`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS baja_requests (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      nombre text NOT NULL,
+      apellidos text NOT NULL,
+      email text NOT NULL,
+      motivo text,
+      status text NOT NULL DEFAULT 'pendiente',
+      processed_at timestamp,
+      processed_by varchar REFERENCES users(id),
+      created_at timestamp NOT NULL DEFAULT NOW()
+    )
+  `);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS nombre text`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS apellidos text`);
   await db.execute(sql`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'member_status') THEN CREATE TYPE member_status AS ENUM ('active','pending'); END IF; END $$`);
@@ -1736,6 +1750,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(accessRequest);
       } catch (error) {
         res.status(500).json({ error: "Failed to load access request" });
+      }
+    }
+  );
+
+  // ========================================
+  // BAJA REQUESTS (public directory)
+  // ========================================
+
+  app.get(
+    "/api/baja-requests",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"),
+    async (_req: Request, res: Response) => {
+      try {
+        const rows = await db
+          .select()
+          .from(bajaRequests)
+          .orderBy(bajaRequests.createdAt);
+        res.json(rows);
+      } catch {
+        res.status(500).json({ error: "Failed to load baja requests" });
+      }
+    }
+  );
+
+  app.patch(
+    "/api/baja-requests/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
+      try {
+        const [updated] = await db
+          .update(bajaRequests)
+          .set({ status: "procesada", processedAt: new Date(), processedBy: (req as any).user.id })
+          .where(eq(bajaRequests.id, req.params.id))
+          .returning();
+        if (!updated) return res.status(404).json({ error: "Not found" });
+        res.json(updated);
+      } catch {
+        res.status(500).json({ error: "Failed to update baja request" });
       }
     }
   );

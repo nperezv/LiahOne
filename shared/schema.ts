@@ -330,6 +330,18 @@ export const userDeletionRequests = pgTable("user_deletion_requests", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const bajaRequests = pgTable("baja_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: text("nombre").notNull(),
+  apellidos: text("apellidos").notNull(),
+  email: text("email").notNull(),
+  motivo: text("motivo"),
+  status: text("status").notNull().default("pendiente"), // "pendiente" | "procesada"
+  processedAt: timestamp("processed_at"),
+  processedBy: varchar("processed_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const accessRequests = pgTable("access_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -1678,7 +1690,6 @@ export const insertAccessRequestSchema = createInsertSchema(accessRequests).omit
   id: true,
   createdAt: true,
   status: true,
-  contactConsentAt: true,
 });
 
 export const selectAccessRequestSchema = createSelectSchema(accessRequests);
@@ -2316,6 +2327,7 @@ export type PdfTemplate = typeof pdfTemplates.$inferSelect;
 export type InsertPdfTemplate = z.infer<typeof insertPdfTemplateSchema>;
 export type InsertAccessRequest = z.infer<typeof insertAccessRequestSchema>;
 export type InsertUserDeletionRequest = typeof userDeletionRequests.$inferInsert;
+export type BajaRequest = typeof bajaRequests.$inferSelect;
 
 // Notification Schemas
 export const insertNotificationSchema = createInsertSchema(notifications).omit({

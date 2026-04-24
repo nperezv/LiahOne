@@ -231,6 +231,17 @@ interface AccessRequest {
   createdAt: string;
 }
 
+interface PublicBajaRequest {
+  id: string;
+  nombre: string;
+  apellidos: string;
+  email: string;
+  motivo?: string | null;
+  status: string;
+  processedAt?: string | null;
+  createdAt: string;
+}
+
 interface UserDeletionSummary {
   activitiesCreated: number;
   assignmentsAssignedTo: number;
@@ -357,6 +368,11 @@ export default function AdminUsersPage() {
   const { data: deletionRequests = [], refetch: refetchDeletionRequests } = useQuery<UserDeletionRequest[]>({
     queryKey: ["/api/user-deletion-requests"],
     enabled: isAdmin && canApproveDeletion,
+  });
+
+  const { data: publicBajaRequests = [], refetch: refetchPublicBajas } = useQuery<PublicBajaRequest[]>({
+    queryKey: ["/api/baja-requests"],
+    enabled: isAdmin,
   });
 
   const { data: accessLog = [] } = useQuery<AccessLogEntry[]>({
@@ -1564,6 +1580,73 @@ export default function AdminUsersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {isAdmin && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Solicitudes de baja del directorio</CardTitle>
+            <CardDescription>
+              Solicitudes de eliminación de datos recibidas desde la página pública /baja.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Motivo</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {publicBajaRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No hay solicitudes de baja.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    publicBajaRequests.map((r) => (
+                      <TableRow key={r.id} className={r.status === "procesada" ? "opacity-50" : ""}>
+                        <TableCell className="font-medium">{r.apellidos}, {r.nombre}</TableCell>
+                        <TableCell className="text-muted-foreground">{r.email}</TableCell>
+                        <TableCell className="text-muted-foreground">{r.motivo || "-"}</TableCell>
+                        <TableCell>{new Date(r.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Badge variant={r.status === "procesada" ? "secondary" : "destructive"}>
+                            {r.status === "procesada" ? "Procesada" : "Pendiente"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {r.status === "pendiente" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                await fetch(`/api/baja-requests/${r.id}`, {
+                                  method: "PATCH",
+                                  headers: getAuthHeaders(),
+                                });
+                                refetchPublicBajas();
+                              }}
+                            >
+                              Marcar como procesada
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {canApproveDeletion && (
         <Card className="mb-6">
