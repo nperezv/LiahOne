@@ -742,7 +742,13 @@ export class DatabaseStorage implements IStorage {
       // Meetings & activities
       // Baptism tables have no Drizzle objects but have FKs to users.id in the DB
       await tx.execute(sql`DELETE FROM baptism_services WHERE created_by = ${id}`);
+      await tx.execute(sql`UPDATE baptism_services SET approved_by = NULL WHERE approved_by = ${id}`);
+      await tx.execute(sql`UPDATE baptism_assignments SET assignee_user_id = NULL WHERE assignee_user_id = ${id}`);
       await tx.execute(sql`UPDATE baptism_program_items SET updated_by = NULL WHERE updated_by = ${id}`);
+      await tx.execute(sql`UPDATE baptism_program_items SET participant_user_id = NULL WHERE participant_user_id = ${id}`);
+      await tx.execute(sql`DELETE FROM baptism_public_links WHERE created_by = ${id}`);
+      await tx.execute(sql`UPDATE baptism_public_links SET revoked_by = NULL WHERE revoked_by = ${id}`);
+      await tx.execute(sql`UPDATE baptism_public_posts SET moderated_by = NULL WHERE moderated_by = ${id}`);
       await tx.update(activities).set({ approvedBy: null }).where(eq(activities.approvedBy, id));
       const userActivityIds = await tx.select({ id: activities.id }).from(activities).where(eq(activities.createdBy, id));
       if (userActivityIds.length > 0) {
