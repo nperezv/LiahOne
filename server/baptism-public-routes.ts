@@ -4,10 +4,9 @@
  */
 import type { Express, Request } from "express";
 import { createHash } from "node:crypto";
-import { sql, or, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { users } from "@shared/schema";
 import { isRateLimited, normalizeDisplayName, containsBlockedUrl } from "./mission-baptism-public-rules";
 import { toPublicServiceDTO } from "./mission-baptism-public-dto";
 import { sendPushToMultipleUsers } from "./push-service";
@@ -61,14 +60,14 @@ function ipHash(req: Request) {
   return createHash("sha256").update(value || "unknown-ip").digest("hex");
 }
 
-const LEADER_ROLES_PUSH = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"] as const;
-
 async function getLeaderUserIds(): Promise<string[]> {
-  const rows = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(or(...LEADER_ROLES_PUSH.map((r) => eq(users.role, r as any))));
-  return rows.map((r) => r.id);
+  const rows = await db.execute(sql`
+    SELECT u.id FROM users u
+    LEFT JOIN organizations o ON o.id = u.organization_id
+    WHERE u.role IN ('obispo','consejero_obispo','secretario','secretario_ejecutivo','mission_leader')
+       OR (u.role = 'presidente_organizacion' AND o.type IN ('cuorum_elderes','sociedad_socorro'))
+  `);
+  return (rows.rows as any[]).map((r) => r.id as string);
 }
 
 const publicPostSchema = z.object({

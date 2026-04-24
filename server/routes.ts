@@ -10394,7 +10394,10 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
           // Push to leaders
           const leaderRows = await db.execute(sql`
-            SELECT id, email FROM users WHERE role IN ('obispo','consejero_obispo','secretario','secretario_ejecutivo')
+            SELECT u.id, u.email FROM users u
+            LEFT JOIN organizations o ON o.id = u.organization_id
+            WHERE u.role IN ('obispo','consejero_obispo','secretario','secretario_ejecutivo','mission_leader')
+               OR (u.role = 'presidente_organizacion' AND o.type IN ('cuorum_elderes','sociedad_socorro'))
           `);
           const leaderIds = (leaderRows.rows as any[]).map((r: any) => r.id as string);
           const leaderEmails = (leaderRows.rows as any[]).map((r: any) => r.email as string).filter(Boolean);
