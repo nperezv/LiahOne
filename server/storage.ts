@@ -25,6 +25,8 @@ import {
   familyMembers,
   activities,
   activityChecklistItems,
+  serviceTasks,
+  quarterlyPlans,
   agendaEvents,
   agendaTasks,
   agendaReminders,
@@ -737,7 +739,12 @@ export class DatabaseStorage implements IStorage {
       await tx.update(interviews).set({ assignedToId: null }).where(eq(interviews.assignedToId, id));
 
       // Meetings & activities
+      await tx.update(activities).set({ approvedBy: null }).where(eq(activities.approvedBy, id));
       await tx.delete(activities).where(eq(activities.createdBy, id));
+      await tx.update(serviceTasks).set({ assignedTo: null }).where(eq(serviceTasks.assignedTo, id));
+      await tx.update(serviceTasks).set({ createdBy: null }).where(eq(serviceTasks.createdBy, id));
+      await tx.update(quarterlyPlans).set({ submittedBy: null }).where(eq(quarterlyPlans.submittedBy, id));
+      await tx.update(quarterlyPlans).set({ reviewedBy: null }).where(eq(quarterlyPlans.reviewedBy, id));
       await tx.delete(goals).where(eq(goals.createdBy, id));
       await tx.delete(wardCouncils).where(eq(wardCouncils.createdBy, id));
       await tx.delete(presidencyMeetings).where(eq(presidencyMeetings.createdBy, id));
