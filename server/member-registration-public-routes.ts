@@ -1,8 +1,13 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { db } from "./db";
-import { members, organizations } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { members, organizations, pdfTemplates, users } from "@shared/schema";
+import { eq, or } from "drizzle-orm";
+import {
+  sendRegistroConfirmationEmail,
+  sendBajaConfirmationEmail,
+  sendBajaLeaderNotificationEmail,
+} from "./auth";
 
 const registroSchema = z.object({
   nombre: z.string().min(1, "El nombre es requerido").max(60),
@@ -40,6 +45,19 @@ function checkRateLimit(ip: string, max = 10): boolean {
 
 function getIp(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+}
+
+const LEADER_ROLES = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
+
+async function getWardContext(): Promise<{ wardName: string | null; leaderEmails: string[] }> {
+  const [templateRow] = await db.select({ wardName: pdfTemplates.wardName }).from(pdfTemplates).limit(1);
+  const wardName = templateRow?.wardName ?? null;
+  const leaders = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(or(...LEADER_ROLES.map((r) => eq(users.role, r as any))));
+  const leaderEmails = Array.from(new Set(leaders.map((u) => u.email).filter((e): e is string => Boolean(e))));
+  return { wardName, leaderEmails };
 }
 
 export function registerMemberRegistrationPublicRoutes(app: Express) {
@@ -85,6 +103,9 @@ export function registerMemberRegistrationPublicRoutes(app: Express) {
     const nombre = data.nombre.trim();
     const nameSurename = `${apellidos}, ${nombre}`;
 
+    const consentAt = new Date();
+    const memberEmail = data.email?.trim() || null;
+
     const [member] = await db
       .insert(members)
       .values({
@@ -95,13 +116,28 @@ export function registerMemberRegistrationPublicRoutes(app: Express) {
         birthday: birthDate,
         maritalStatus: data.maritalStatus ?? null,
         phone: data.phone?.trim() || null,
-        email: data.email?.trim() || null,
+        email: memberEmail,
         organizationId: data.organizationId || null,
         memberStatus: "pending",
         emailConsentGranted: data.consentEmail || data.consentPhone,
-        emailConsentDate: data.consentEmail || data.consentPhone ? new Date() : null,
+        emailConsentDate: consentAt,
       })
       .returning({ id: members.id });
+
+    if (memberEmail && data.consentEmail) {
+      const { wardName } = await getWardContext();
+      const baseUrl = process.env.APP_BASE_URL ?? "https://zendapp.org";
+      sendRegistroConfirmationEmail({
+        toEmail: memberEmail,
+        nombre,
+        apellidos,
+        consentEmail: data.consentEmail,
+        consentPhone: data.consentPhone,
+        consentAt,
+        wardName,
+        bajaUrl: `${baseUrl}/baja`,
+      }).catch((err) => console.warn("Registro confirmation email failed:", err));
+    }
 
     res.status(201).json({ ok: true, id: member.id });
   });
@@ -116,14 +152,34 @@ export function registerMemberRegistrationPublicRoutes(app: Express) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" });
     }
 
-    // Log for manual review by leaders — a proper table can be added later
-    console.info("[BAJA REQUEST]", {
-      nombre: parsed.data.nombre,
-      apellidos: parsed.data.apellidos,
-      email: parsed.data.email,
-      motivo: parsed.data.motivo,
-      ts: new Date().toISOString(),
+    const { nombre, apellidos, email, motivo } = parsed.data;
+
+    console.info("[BAJA REQUEST]", { nombre, apellidos, email, motivo, ts: new Date().toISOString() });
+
+    const { wardName, leaderEmails } = await getWardContext();
+    const emailJobs: Promise<void>[] = [];
+
+    if (email) {
+      emailJobs.push(
+        sendBajaConfirmationEmail({ toEmail: email, nombre, apellidos, wardName }).catch(
+          (err) => console.warn("Baja confirmation email failed:", err)
+        )
+      );
+    }
+
+    const bajaRecipients = leaderEmails.length > 0
+      ? leaderEmails
+      : process.env.BISHOP_EMAIL ? [process.env.BISHOP_EMAIL] : [];
+
+    bajaRecipients.forEach((leaderEmail) => {
+      emailJobs.push(
+        sendBajaLeaderNotificationEmail({ toEmail: leaderEmail, nombre, apellidos, email, motivo, wardName }).catch(
+          (err) => console.warn("Baja leader notification failed:", err)
+        )
+      );
     });
+
+    await Promise.all(emailJobs);
 
     res.status(200).json({ ok: true });
   });

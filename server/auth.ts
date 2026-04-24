@@ -1230,3 +1230,174 @@ export async function sendBudgetDisbursementCompletedEmail(payload: {
     ].join("\n"),
   });
 }
+
+export async function sendAccessRequestConfirmationEmail(payload: {
+  toEmail: string;
+  name: string;
+  consentAt: Date;
+  wardName?: string | null;
+  bajaUrl: string;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Access request confirmation:", payload);
+    return;
+  }
+
+  const consentDateStr = payload.consentAt.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+  const ward = payload.wardName?.trim() || "el barrio";
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Confirmación de solicitud de acceso — Zendapp",
+    text: [
+      `Hola ${payload.name},`,
+      "",
+      "Hemos recibido tu solicitud de acceso a la plataforma de gestión del barrio. Este correo confirma los datos que has proporcionado y el consentimiento otorgado.",
+      "",
+      "── DATOS REGISTRADOS ──────────────────",
+      `Nombre: ${payload.name}`,
+      `Email: ${payload.toEmail}`,
+      "",
+      "── CONSENTIMIENTO ─────────────────────",
+      `Fecha y hora: ${consentDateStr}`,
+      "Consentiste ser contactado por email y/o WhatsApp para asuntos relacionados con tu llamamiento en el barrio.",
+      "",
+      "── FINALIDAD DEL TRATAMIENTO ──────────",
+      `Tus datos son utilizados exclusivamente por los líderes de ${ward} para la gestión interna de callamientos y comunicaciones del barrio. No se comparten con terceros ni con sistemas externos.`,
+      "",
+      "── TUS DERECHOS (RGPD) ────────────────",
+      `Puedes solicitar la eliminación de tus datos en cualquier momento en: ${payload.bajaUrl}`,
+      "También puedes ejercer tus derechos de acceso, rectificación y portabilidad respondiendo a este correo.",
+      "",
+      "Un líder revisará tu solicitud y se pondrá en contacto contigo en breve.",
+      "",
+      "Con aprecio fraternal,",
+      ward,
+    ].join("\n"),
+  });
+}
+
+export async function sendRegistroConfirmationEmail(payload: {
+  toEmail: string;
+  nombre: string;
+  apellidos: string;
+  consentEmail: boolean;
+  consentPhone: boolean;
+  consentAt: Date;
+  wardName?: string | null;
+  bajaUrl: string;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Registro confirmation:", payload);
+    return;
+  }
+
+  const consentDateStr = payload.consentAt.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+  const ward = payload.wardName?.trim() || "el barrio";
+  const consentChannels = [
+    payload.consentEmail ? "correo electrónico" : null,
+    payload.consentPhone ? "teléfono/WhatsApp" : null,
+  ].filter(Boolean).join(" y ");
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Confirmación de registro en el directorio — Zendapp",
+    text: [
+      `Hola ${payload.nombre} ${payload.apellidos},`,
+      "",
+      "Hemos recibido tu solicitud de registro en el directorio del barrio. Este correo confirma los datos proporcionados y el consentimiento otorgado.",
+      "",
+      "── DATOS REGISTRADOS ──────────────────",
+      `Nombre: ${payload.nombre} ${payload.apellidos}`,
+      `Email: ${payload.toEmail}`,
+      "",
+      "── CONSENTIMIENTO ─────────────────────",
+      `Fecha y hora: ${consentDateStr}`,
+      `Consentiste ser contactado por ${consentChannels} para comunicaciones del barrio.`,
+      "",
+      "── FINALIDAD DEL TRATAMIENTO ──────────",
+      `Tus datos se utilizan exclusivamente por los líderes autorizados de ${ward} (obispo, consejeros, secretario y presidencias) para la coordinación interna del barrio: actividades, invitaciones, recordatorios y felicitaciones de cumpleaños. No se comparten con terceros ni con sistemas externos.`,
+      "",
+      "── BASE LEGAL ─────────────────────────",
+      "Tus datos se tratan con base en tu consentimiento expreso (RGPD Art. 6.1.a).",
+      "",
+      "── TUS DERECHOS (RGPD) ────────────────",
+      `Puedes solicitar la eliminación completa de tus datos en cualquier momento en: ${payload.bajaUrl}`,
+      "También puedes ejercer tus derechos de acceso, rectificación y portabilidad respondiendo a este correo.",
+      "",
+      "Tu solicitud está pendiente de revisión por un líder del barrio, que la confirmará en breve.",
+      "",
+      "Con aprecio fraternal,",
+      ward,
+    ].join("\n"),
+  });
+}
+
+export async function sendBajaConfirmationEmail(payload: {
+  toEmail: string;
+  nombre: string;
+  apellidos: string;
+  wardName?: string | null;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Baja confirmation:", payload);
+    return;
+  }
+
+  const ward = payload.wardName?.trim() || "el barrio";
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Confirmación de solicitud de baja — Zendapp",
+    text: [
+      `Hola ${payload.nombre} ${payload.apellidos},`,
+      "",
+      "Hemos recibido tu solicitud de eliminación de datos del directorio del barrio.",
+      "",
+      "Conforme al artículo 17 del RGPD (derecho de supresión), procesaremos tu solicitud en un plazo máximo de 30 días naturales.",
+      "",
+      "Una vez completada la eliminación, todos tus datos personales serán borrados permanentemente de los sistemas de la plataforma.",
+      "",
+      "Si tienes alguna duda o deseas confirmar el estado de tu solicitud, responde a este correo.",
+      "",
+      "Con aprecio fraternal,",
+      ward,
+    ].join("\n"),
+  });
+}
+
+export async function sendBajaLeaderNotificationEmail(payload: {
+  toEmail: string;
+  nombre: string;
+  apellidos: string;
+  email?: string | null;
+  motivo?: string | null;
+  wardName?: string | null;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
+    console.warn("SMTP not configured. Baja leader notification:", payload);
+    return;
+  }
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.toEmail,
+    subject: "Nueva solicitud de baja del directorio",
+    text: [
+      "Se ha recibido una solicitud de eliminación de datos:",
+      "",
+      `Nombre: ${payload.apellidos}, ${payload.nombre}`,
+      payload.email ? `Email: ${payload.email}` : "Email: (no proporcionado)",
+      payload.motivo ? `Motivo: ${payload.motivo}` : null,
+      "",
+      "Debes procesar esta baja en un plazo máximo de 30 días (RGPD Art. 17).",
+    ].filter((l): l is string => l !== null).join("\n"),
+  });
+}

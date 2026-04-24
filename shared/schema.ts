@@ -337,6 +337,7 @@ export const accessRequests = pgTable("access_requests", {
   calling: text("calling"),
   phone: text("phone"),
   contactConsent: boolean("contact_consent").notNull().default(false),
+  contactConsentAt: timestamp("contact_consent_at"),
   status: accessRequestStatusEnum("status").notNull().default("pendiente"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1677,6 +1678,7 @@ export const insertAccessRequestSchema = createInsertSchema(accessRequests).omit
   id: true,
   createdAt: true,
   status: true,
+  contactConsentAt: true,
 });
 
 export const selectAccessRequestSchema = createSelectSchema(accessRequests);

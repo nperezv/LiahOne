@@ -83,6 +83,7 @@ import {
   getRefreshExpiry,
   hashToken,
   sendAccessRequestEmail,
+  sendAccessRequestConfirmationEmail,
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
   sendAccountRecoveryEmail,
@@ -934,6 +935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-migration: consent + nombre/apellidos/status fields on members
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_granted boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_date timestamp`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS contact_consent_at timestamp`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS nombre text`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS apellidos text`);
   await db.execute(sql`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'member_status') THEN CREATE TYPE member_status AS ENUM ('active','pending'); END IF; END $$`);
@@ -1660,9 +1662,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accessRequest = await storage.createAccessRequest({
         ...parsed.data,
         email: normalizedEmail,
+        contactConsentAt: parsed.data.contactConsent ? new Date() : undefined,
       });
 
-      const users = await storage.getAllUsers();
+      const [users, template] = await Promise.all([
+        storage.getAllUsers(),
+        storage.getPdfTemplate(),
+      ]);
+      const wardName = template?.wardName;
       const notificationRoles = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];
       const roleRecipients = users
         .filter((user) => notificationRoles.includes(user.role) && user.email)
@@ -1675,13 +1682,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? [fallbackRecipient]
           : [];
 
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const reviewUrl = `${baseUrl}/admin/users?requestId=${accessRequest.id}`;
+
+      const emailJobs: Promise<void>[] = [];
+
       if (recipients.length > 0) {
-        const template = await storage.getPdfTemplate();
-        const wardName = template?.wardName;
-        const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
-        const reviewUrl = `${baseUrl}/admin/users?requestId=${accessRequest.id}`;
-        await Promise.all(
-          recipients.map((recipient) =>
+        emailJobs.push(
+          ...recipients.map((recipient) =>
             sendAccessRequestEmail({
               toEmail: recipient,
               requesterName: accessRequest.name,
@@ -1696,6 +1704,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.warn("No access request email recipients configured.", accessRequest);
       }
+
+      emailJobs.push(
+        sendAccessRequestConfirmationEmail({
+          toEmail: accessRequest.email,
+          name: accessRequest.name,
+          consentAt: accessRequest.contactConsentAt ?? new Date(),
+          wardName,
+          bajaUrl: `${baseUrl}/baja`,
+        })
+      );
+
+      await Promise.all(emailJobs);
 
       res.status(201).json(accessRequest);
     } catch (error) {
