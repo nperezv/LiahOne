@@ -27,6 +27,7 @@ import {
   activityChecklistItems,
   serviceTasks,
   quarterlyPlans,
+  quarterlyPlanItems,
   agendaEvents,
   agendaTasks,
   agendaReminders,
@@ -740,6 +741,10 @@ export class DatabaseStorage implements IStorage {
 
       // Meetings & activities
       await tx.update(activities).set({ approvedBy: null }).where(eq(activities.approvedBy, id));
+      const userActivityIds = await tx.select({ id: activities.id }).from(activities).where(eq(activities.createdBy, id));
+      if (userActivityIds.length > 0) {
+        await tx.update(quarterlyPlanItems).set({ activityId: null }).where(inArray(quarterlyPlanItems.activityId, userActivityIds.map((a) => a.id)));
+      }
       await tx.delete(activities).where(eq(activities.createdBy, id));
       await tx.update(serviceTasks).set({ assignedTo: null }).where(eq(serviceTasks.assignedTo, id));
       await tx.update(serviceTasks).set({ createdBy: null }).where(eq(serviceTasks.createdBy, id));
