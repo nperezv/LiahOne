@@ -84,12 +84,12 @@ const navigateWithTransition = (navigate: (path: string) => void, path: string) 
 
 const getInitials = (name?: string) => {
   if (!name) return "U";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "U";
+  if (words.length === 1) return words[0][0].toUpperCase();
+  const first = words[0][0].toUpperCase();
+  const second = words[Math.ceil(words.length / 2)][0].toUpperCase();
+  return first + second;
 };
 
 function LeaderAvatar({
