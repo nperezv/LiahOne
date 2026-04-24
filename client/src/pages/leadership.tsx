@@ -87,9 +87,7 @@ const getInitials = (name?: string) => {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "U";
   if (words.length === 1) return words[0][0].toUpperCase();
-  const first = words[0][0].toUpperCase();
-  const second = words[Math.ceil(words.length / 2)][0].toUpperCase();
-  return first + second;
+  return (words[0][0] + words[1][0]).toUpperCase();
 };
 
 function LeaderAvatar({
@@ -124,7 +122,7 @@ function LeaderAvatar({
             )}
           >
             {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+            <AvatarFallback>{getInitials(user.displayName || user.name)}</AvatarFallback>
           </Avatar>
         </button>
       </DialogTrigger>
@@ -132,7 +130,7 @@ function LeaderAvatar({
         <div className="flex flex-col items-center gap-2 py-2">
           <Avatar className="h-24 w-24">
             {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+            <AvatarFallback>{getInitials(user.displayName || user.name)}</AvatarFallback>
           </Avatar>
           <p className="text-sm font-light">{user.displayName || user.name}</p>
           <p className="text-xs text-muted-foreground">
