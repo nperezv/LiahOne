@@ -669,14 +669,14 @@ function GreetingsPage({
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Tu nombre (opcional)"
             maxLength={40}
-            className="border-gray-300 bg-white/70"
+            className="border-gray-300 bg-white/70 text-gray-900 placeholder:text-gray-400"
           />
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Escribe un mensaje de felicitación..."
             maxLength={240}
-            className="border-gray-300 bg-white/70 resize-none min-h-[80px]"
+            className="border-gray-300 bg-white/70 resize-none min-h-[80px] text-gray-900 placeholder:text-gray-400"
           />
           {namesText && (
             <p className="text-xs leading-relaxed" style={{ color: C.inkLight }}>
