@@ -2659,10 +2659,12 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           a.date        AS activity_date,
           a.location    AS activity_location,
           a.type        AS activity_type,
-          a.organization_id AS activity_organization_id
+          a.organization_id AS activity_organization_id,
+          o.name        AS activity_organization_name
         FROM service_tasks st
         LEFT JOIN baptism_services bs ON bs.id = st.baptism_service_id
         LEFT JOIN activities a ON a.id = st.activity_id
+        LEFT JOIN organizations o ON o.id = a.organization_id
       `;
 
       let rows;

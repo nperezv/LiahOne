@@ -1070,6 +1070,11 @@ function TaskCard({ task, canEdit, canDelete }: { task: any; canEdit: boolean; c
               <span>{formatDate(task.service_at ?? task.activity_date)}</span>
             </div>
           )}
+          {task.activity_organization_name && (
+            <div className="flex items-center gap-1">
+              <span className="font-medium text-foreground/70">{task.activity_organization_name}</span>
+            </div>
+          )}
           {(task.location_name && task.location_name !== "Por confirmar") && <div>Lugar: {task.location_name}</div>}
           {task.activity_location && <div>Lugar: {task.activity_location}</div>}
         </div>
@@ -1151,6 +1156,8 @@ export default function ActivityLogisticsPage() {
     return () => clearTimeout(t);
   }, [highlightId]);
 
+  const [showPast, setShowPast] = useState(false);
+
   const { data: tasks = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/service-tasks"],
     queryFn: () => apiRequest("GET", "/api/service-tasks"),
@@ -1159,6 +1166,21 @@ export default function ActivityLogisticsPage() {
     refetchOnWindowFocus: true,
     staleTime: 3000,
   });
+
+  const now = new Date();
+  const upcomingTasks = tasks.filter((t: any) => {
+    const date = t.service_at ?? t.activity_date;
+    const isPast = date ? new Date(date) < now : false;
+    const isCompleted = t.status === "completed";
+    return !isPast && !isCompleted;
+  });
+  const pastTasks = tasks.filter((t: any) => {
+    const date = t.service_at ?? t.activity_date;
+    const isPast = date ? new Date(date) < now : false;
+    const isCompleted = t.status === "completed";
+    return isPast || isCompleted;
+  });
+  const visibleTasks = showPast ? pastTasks : upcomingTasks;
 
   if (!user || !ALLOWED_ROLES.includes(user.role)) {
     return (
@@ -1171,12 +1193,23 @@ export default function ActivityLogisticsPage() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <ClipboardList className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Logística de actividades</h1>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-bold">Logística de actividades</h1>
+          </div>
+          {!isLoading && (
+            <Button
+              variant={showPast ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setShowPast((v) => !v)}
+            >
+              {showPast ? "Ver próximas" : `Pasadas${pastTasks.length > 0 ? ` (${pastTasks.length})` : ""}`}
+            </Button>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
-          Tareas de logística asignadas para los servicios bautismales.
+          {showPast ? "Actividades y servicios ya realizados." : "Tareas de logística pendientes y próximas."}
         </p>
       </div>
 
@@ -1194,17 +1227,19 @@ export default function ActivityLogisticsPage() {
             </Card>
           ))}
         </div>
-      ) : tasks.length === 0 ? (
+      ) : visibleTasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <ClipboardList className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-1">No hay tareas de logística</h3>
+          <h3 className="text-lg font-medium text-muted-foreground mb-1">
+            {showPast ? "No hay actividades pasadas" : "No hay tareas pendientes"}
+          </h3>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Cuando se creen tareas de logística para servicios bautismales, aparecerán aquí.
+            {showPast ? "No se encontraron tareas completadas o anteriores." : "Cuando se creen tareas de logística, aparecerán aquí."}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {tasks.map((task: any) => (
+          {visibleTasks.map((task: any) => (
             <div key={task.id} data-task-id={task.baptism_service_id} className={activeHighlightId === task.baptism_service_id ? "notif-highlight" : ""}>
               <TaskCard task={task} canEdit={canEdit} canDelete={canDelete} />
             </div>
