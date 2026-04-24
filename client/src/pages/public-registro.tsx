@@ -269,7 +269,7 @@ export default function PublicRegistroPage() {
             <div className="rounded-lg border p-4 space-y-3">
               <p className="text-sm font-medium">Consentimiento de contacto</p>
               <p className="text-xs text-muted-foreground">
-                Tus datos se usarán únicamente para coordinación pastoral interna del barrio. Solo los líderes autorizados tienen acceso. Puedes solicitar la eliminación de tus datos en cualquier momento en <strong>/baja</strong>.
+                Tus datos se usarán únicamente para la ministración y coordinación interna del barrio. Solo los líderes autorizados tienen acceso. Puedes solicitar la eliminación de tus datos en cualquier momento en <strong>/baja</strong>.
               </p>
               <FormField
                 control={form.control}
