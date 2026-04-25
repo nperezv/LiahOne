@@ -943,6 +943,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_granted boolean NOT NULL DEFAULT false`);
   await db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS email_consent_date timestamp`);
   await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS contact_consent_at timestamp`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS nombre text`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS apellidos text`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS sex text`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS birthday timestamp with time zone`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS consent_email boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS consent_phone boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS member_id varchar REFERENCES members(id)`);
   await db.execute(sql`ALTER TABLE baptism_public_posts ADD COLUMN IF NOT EXISTS recipient_persona_id varchar`);
   await db.execute(sql`ALTER TABLE baptism_services ADD COLUMN IF NOT EXISTS banner_sent_at timestamp`);
   await db.execute(sql`
