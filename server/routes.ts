@@ -1666,7 +1666,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/access-requests", async (req: Request, res: Response) => {
     try {
-      const parsed = insertAccessRequestSchema.safeParse(req.body);
+      const rawBody = { ...req.body };
+      if (typeof rawBody.birthday === "string" && rawBody.birthday) {
+        const d = new Date(`${rawBody.birthday}T12:00:00`);
+        rawBody.birthday = isNaN(d.getTime()) ? undefined : d;
+      }
+      const parsed = insertAccessRequestSchema.safeParse(rawBody);
       if (!parsed.success) {
         return res.status(400).json({ error: "Invalid access request data" });
       }
