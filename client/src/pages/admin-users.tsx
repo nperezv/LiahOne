@@ -691,6 +691,7 @@ export default function AdminUsersPage() {
       "Maestra de preparación misional",
       "Especialista de tecnología",
       "Líder de autosuficiencia",
+      "Líder de la Noche de hermanamiento",
       "Representante de Comunicaciones",
       "Coordinador de actividades",
       "Coordinadora de actividades",
