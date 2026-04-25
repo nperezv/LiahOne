@@ -106,6 +106,16 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     : "";
   const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0 || aaronicOrderings.length > 0;
 
+  // Don't append "(OrgName)" if a significant word from it already appears in the calling
+  const fmtCallingOrg = (calling: string, oName: string) => {
+    if (!oName) return calling;
+    const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+    const nCalling = norm(calling);
+    const orgWords = norm(oName).split(/\s+/).filter(w => w.length > 3);
+    if (orgWords.some(w => nCalling.includes(w))) return calling;
+    return `${calling} (${oName})`;
+  };
+
   const bul = (items: string[]) => items.filter(Boolean).map((item, i) => (
     <div key={i} style={{ fontSize: 10.5, color: "#3c4043", marginBottom: 2, display: "flex", gap: 5 }}>
       <span style={{ color: accent, flexShrink: 0 }}>·</span><span>{item}</span>
@@ -193,8 +203,8 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <div>
               <Lbl accent={accent} small>Asuntos de barrio</Lbl>
               {!hasWardBusiness && empty}
-              {releases.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Relevos:</div>{bul(releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return `${r.name}${o ? ` (${o})` : ""}`; }))}</div>}
-              {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${s.calling}${o ? ` (${o})` : ""}`; }))}</div>}
+              {releases.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Relevos:</div>{bul(releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; }))}</div>}
+              {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${fmtCallingOrg(s.calling, o)}`; }))}</div>}
               {confirmations.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
               {newMembers.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
               {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones Aarónicas:</div>{bul(aaronicOrderings)}</div>}

@@ -544,7 +544,9 @@ function formatCallingWithOrganization(calling: string, organization?: any) {
   if (!orgName) return trimmedCalling;
   const normalizedCalling = normalizeCompareText(trimmedCalling);
   const normalizedOrg = normalizeCompareText(orgName);
-  if (normalizedCalling.includes(normalizedOrg)) return trimmedCalling;
+  // Check full org name, then individual significant words (catches "Misionero de Barrio" + org "Barrio Madrid 8")
+  const orgWords = normalizedOrg.split(/\s+/).filter(w => w.length > 3);
+  if (normalizedCalling.includes(normalizedOrg) || orgWords.some(w => normalizedCalling.includes(w))) return trimmedCalling;
   const connector = formatOrganizationConnector(orgName);
   return `${trimmedCalling} ${connector} ${orgName}`.trim();
 }
