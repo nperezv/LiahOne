@@ -248,11 +248,13 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
                 {discourses[0].topic && <Sub>{discourses[0].topic}</Sub>}
               </div>
             )}
-            {/* Intermediate hymn — between discourse 0 and the rest */}
+            {/* Intermediate hymn — visually distinct from discourses */}
             {intermediateHymnLabel && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f3f4" }}>
-                <Lbl accent={accent} small>Himno intermedio</Lbl>
-                <Name italic>{intermediateHymnLabel}</Name>
+              <div style={{ marginTop: 8, padding: "8px 10px", background: "#f0f7ff", borderRadius: 8, borderLeft: `2px solid ${accent}` }}>
+                <span style={{ display: "block", color: accent, fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
+                  ♪ Himno intermedio
+                </span>
+                <p style={{ margin: 0, fontSize: 11.5, fontWeight: 500, color: accent, fontStyle: "italic" }}>{intermediateHymnLabel}</p>
               </div>
             )}
             {/* Remaining discourses */}

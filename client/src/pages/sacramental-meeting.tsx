@@ -556,6 +556,18 @@ function SacramentalMeetingPageInner() {
     const callings = getCallingsForOrg(orgId);
     return current && !callings.includes(current) ? [...callings, current] : callings;
   };
+  // Para relevos: activos en el sistema + fallback al listado estándar por tipo de org
+  const getCallingsForOrgRelease = (orgId?: string, current?: string): string[] => {
+    if (!orgId) return [];
+    const active = activeMemberCallings
+      .filter((c) => c.organizationId === orgId)
+      .map((c) => c.callingName)
+      .filter(Boolean);
+    const orgType = getOrganizationType(orgId);
+    const standard = callingsByOrgType[orgType] || [];
+    const merged = Array.from(new Set([...active, ...standard]));
+    return current && !merged.includes(current) ? [...merged, current] : merged;
+  };
   const getVacantCallingsForOrgWithCurrent = (orgId?: string, current?: string) => {
     const callings = getVacantCallingsForOrg(orgId);
     // Include callings being released in this same program — they're effectively free
@@ -1534,7 +1546,7 @@ function SacramentalMeetingPageInner() {
                             <div className="flex gap-2">
                               <Select value={release.oldCalling || ""} onValueChange={(c) => updateReleaseCalling(i, c)}>
                                 <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Llamamiento" /></SelectTrigger>
-                                <SelectContent>{getCallingsForOrgWithCurrent(release.organizationId, release.oldCalling).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                                <SelectContent>{getCallingsForOrgRelease(release.organizationId, release.oldCalling).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                               </Select>
                               <MemberAutocomplete value={release.name} options={uniqueMemberOptions} placeholder="Nombre" onChange={(v) => updateReleaseName(i, v)} testId={`input-release-name-${i}`} className="text-xs" />
                               {releases.length > 1 && <button type="button" onClick={() => removeRelease(i)} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>}
