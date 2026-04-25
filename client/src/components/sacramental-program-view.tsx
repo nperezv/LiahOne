@@ -209,21 +209,23 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
       ),
     });
 
-    // Santa Cena
+    // Santa Cena — card invertida para resaltar
     s.push({
       key: "santa-cena",
       node: (
-        <FullCard>
-          <Lbl accent={accent}>Santa Cena</Lbl>
+        <div style={{ background: accent, borderRadius: 12, padding: "12px 14px" }}>
+          <span style={{ display: "block", color: "rgba(255,255,255,0.7)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+            Santa Cena
+          </span>
           {meeting.sacramentHymn && (
-            <p style={{ margin: "0 0 8px", fontSize: 13.5, color: "#202124" }}>
+            <p style={{ margin: "0 0 6px", fontSize: 12, color: "#fff" }}>
               <strong>Himno sacramental:</strong> <span style={{ fontStyle: "italic" }}>{meeting.sacramentHymn}</span>
             </p>
           )}
-          <p style={{ margin: 0, fontSize: 12, color: "#70757a" }}>
+          <p style={{ margin: 0, fontSize: 10.5, color: "rgba(255,255,255,0.75)" }}>
             La bendición y el reparto de la Santa Cena estarán a cargo de los poseedores del Sacerdocio.
           </p>
-        </FullCard>
+        </div>
       ),
     });
 
