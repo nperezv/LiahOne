@@ -894,8 +894,11 @@ export async function sendSacramentalAssignmentEmail(payload: {
     return;
   }
 
-  const nowHour = new Date().toLocaleString("es-ES", { hour: "numeric", hour12: false, timeZone: "Europe/Madrid" });
-  const greeting = getTimeGreeting(nowHour);
+  const madridHour = parseInt(
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "Europe/Madrid" }).format(new Date()),
+    10
+  );
+  const greeting = madridHour < 12 ? "Buenos días" : madridHour < 19 ? "Buenas tardes" : "Buenas noches";
   const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
   const normalizedName = normalizeRecipientName(payload.recipientName);
   const headerLine = normalizedName
@@ -1063,6 +1066,7 @@ export async function sendSacramentalAssignmentEmail(payload: {
   }
 
   const htmlBodyInner = htmlLines
+    .filter((line) => !line.startsWith("🧭"))
     .map((line) => (line === "" ? `<div style="height:8px;"></div>` : `<p style="margin:0 0 8px;font-size:14px;color:#374151;line-height:1.6;">${line}</p>`))
     .join("");
 
