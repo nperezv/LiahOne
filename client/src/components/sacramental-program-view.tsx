@@ -22,8 +22,45 @@ const parsePerson = (v?: string | null) => {
 const orgName = (orgs: any[], id?: string) => orgs.find((o: any) => o.id === id)?.name ?? "";
 
 const FONT = "'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif";
-const PX = { top: 28, bottom: 24, sides: 28, gap: 12, footer: 36 };
-const lightTint = (hex: string) => `${hex}18`;
+const PX = { top: 32, bottom: 28, sides: 32, gap: 16, footer: 36 };
+const SPLIT = "48%";
+
+// ── Primitive components ─────────────────────────────────────────
+
+function SectionCard({ left, right, accent }: { left: React.ReactNode; right: React.ReactNode; accent: string }) {
+  return (
+    <div style={{ border: "1px solid #ececec", borderRadius: 15, display: "flex", position: "relative", alignItems: "stretch" }}>
+      {/* Floating center bar — doesn't reach the card border */}
+      <div style={{ position: "absolute", left: SPLIT, top: "12%", bottom: "12%", width: 1, background: "#ececec", pointerEvents: "none" }} />
+      <div style={{ width: SPLIT, padding: "22px 26px", boxSizing: "border-box" }}>{left}</div>
+      <div style={{ flex: 1, padding: "22px 26px 22px 32px", boxSizing: "border-box" }}>{right}</div>
+    </div>
+  );
+}
+
+function FullCard({ children }: { children: React.ReactNode }) {
+  return <div style={{ border: "1px solid #ececec", borderRadius: 15, padding: "22px 26px" }}>{children}</div>;
+}
+
+function Lbl({ accent, small, children }: { accent: string; small?: boolean; children: React.ReactNode }) {
+  return (
+    <span style={{ display: "block", color: accent, fontSize: small ? 9 : 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: small ? 10 : 8 }}>
+      {children}
+    </span>
+  );
+}
+
+function Name({ children, italic }: { children: React.ReactNode; italic?: boolean }) {
+  return <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#202124", lineHeight: 1.3, fontStyle: italic ? "italic" : undefined }}>{children}</p>;
+}
+
+function Sub({ children }: { children: React.ReactNode }) {
+  return <p style={{ margin: "3px 0 0", fontSize: 12, color: "#70757a", fontStyle: "italic" }}>{children}</p>;
+}
+
+function BlueBar({ accent, children }: { accent: string; children: React.ReactNode }) {
+  return <div style={{ borderLeft: `2.5px solid ${accent}`, paddingLeft: 16, marginTop: 6 }}>{children}</div>;
+}
 
 export function SacramentalProgramView({ meeting, organizations, recognitionMembers, onPDF, onClose }: Props) {
   const { data: template } = useQuery({
@@ -49,9 +86,9 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const stakeName = template?.stakeName ?? "";
 
   const meetingDate = new Date(meeting.date);
-  const dayName = meetingDate.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Madrid" });
+  const dayName = meetingDate.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Madrid" }).toUpperCase();
   const dayNum = meetingDate.getDate();
-  const monthYear = meetingDate.toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "Europe/Madrid" });
+  const monthYear = meetingDate.toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "Europe/Madrid" }).toUpperCase();
   const longDate = meetingDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Madrid" });
 
   const presider = parsePerson(meeting.presider);
@@ -64,142 +101,164 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const discourses = (Array.isArray(meeting.discourses) ? meeting.discourses : []).filter((d: any) => d?.speaker);
   const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0;
 
-  // ── Style atoms ────────────────────────────────────────────────
-  const card: React.CSSProperties = { border: "1px solid #e0e0e0", borderRadius: 10, padding: "16px 20px", background: "#fff" };
-  const lbl: React.CSSProperties = { display: "block", color: accent, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 6 };
-  const pName: React.CSSProperties = { margin: 0, fontSize: 15, fontWeight: 600, color: "#1a1a1a", lineHeight: 1.3 };
-  const pRole: React.CSSProperties = { margin: 0, fontSize: 12, color: "#888", fontStyle: "italic", lineHeight: 1.3, marginTop: 2 };
-  const subHead: React.CSSProperties = { color: accent, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", borderBottom: "1px solid #eee", paddingBottom: 4, marginBottom: 6 };
-  const empty = <span style={{ color: "#ccc", fontSize: 12 }}>—</span>;
-
   const bul = (items: string[]) => items.filter(Boolean).map((item, i) => (
-    <div key={i} style={{ display: "flex", gap: 6, marginBottom: 2, fontSize: 12 }}>
-      <span style={{ color: accent, flexShrink: 0 }}>·</span>
-      <span style={{ color: "#444" }}>{item}</span>
+    <div key={i} style={{ fontSize: 11.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 6 }}>
+      <span style={{ color: accent, flexShrink: 0 }}>·</span><span>{item}</span>
     </div>
   ));
+  const empty = <span style={{ color: "#ccc", fontSize: 11 }}>—</span>;
 
-  // ── Flow sections (measured + paginated) ───────────────────────
+  // ── Flow sections ──────────────────────────────────────────────
   const sections = useMemo(() => {
     const s: { key: string; node: React.ReactNode }[] = [];
 
+    // Preside / Dirige
     if (presider.name || director.name) s.push({
       key: "preside-dirige",
       node: (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {presider.name && <div style={card}><span style={lbl}>Preside</span><p style={pName}>{presider.name}</p>{presider.calling && <p style={pRole}>{presider.calling}</p>}</div>}
-          {director.name && <div style={card}><span style={lbl}>Dirige</span><p style={pName}>{director.name}</p>{director.calling && <p style={pRole}>{director.calling}</p>}</div>}
-        </div>
+        <SectionCard accent={accent}
+          left={presider.name ? <><Lbl accent={accent}>Preside</Lbl><Name>{presider.name}</Name>{presider.calling && <Sub>{presider.calling}</Sub>}</> : null}
+          right={director.name ? <><Lbl accent={accent}>Dirige</Lbl><Name>{director.name}</Name>{director.calling && <Sub>{director.calling}</Sub>}</> : null}
+        />
       ),
     });
 
+    // Reconocimiento + Música
     if (recognitionMembers.length > 0 || meeting.musicDirector || meeting.pianist) s.push({
       key: "recog-musica",
       node: (
-        <div style={{ ...card, display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 0, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px" }}>
-            <span style={lbl}>Reconocimiento</span>
-            {recognitionMembers.length > 0 ? (
-              <div style={{ borderLeft: `3px solid ${accent}`, paddingLeft: 12 }}>
-                {recognitionMembers.map((m, i) => (
-                  <div key={i} style={{ marginBottom: i < recognitionMembers.length - 1 ? 10 : 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: "#1a1a1a" }}>{m.name}</div>
-                    {m.calling && <div style={pRole}>{m.calling}</div>}
-                  </div>
-                ))}
-              </div>
-            ) : empty}
-          </div>
-          <div style={{ padding: "16px 20px", borderLeft: "1px solid #e0e0e0" }}>
-            {meeting.musicDirector && <div style={{ marginBottom: meeting.pianist ? 12 : 0 }}><span style={lbl}>Dirección de la música</span><p style={pName}>{meeting.musicDirector}</p></div>}
-            {meeting.pianist && <div><span style={lbl}>Acompañamiento en el piano</span><p style={pName}>{meeting.pianist}</p></div>}
-          </div>
-        </div>
+        <SectionCard accent={accent}
+          left={
+            <>
+              <Lbl accent={accent}>Reconocimiento</Lbl>
+              {recognitionMembers.length > 0 ? (
+                <BlueBar accent={accent}>
+                  {recognitionMembers.map((m, i) => (
+                    <div key={i} style={{ marginBottom: i < recognitionMembers.length - 1 ? 12 : 0 }}>
+                      <Name>{m.name}</Name>
+                      {m.calling && <Sub>{m.calling}</Sub>}
+                    </div>
+                  ))}
+                </BlueBar>
+              ) : empty}
+            </>
+          }
+          right={
+            <>
+              {meeting.musicDirector && (
+                <div style={{ marginBottom: meeting.pianist ? 20 : 0 }}>
+                  <Lbl accent={accent}>Dirección de la música</Lbl>
+                  <Name>{meeting.musicDirector}</Name>
+                </div>
+              )}
+              {meeting.pianist && (
+                <div>
+                  <Lbl accent={accent}>Acompañamiento en el piano</Lbl>
+                  <Name>{meeting.pianist}</Name>
+                </div>
+              )}
+            </>
+          }
+        />
       ),
     });
 
+    // Himno apertura + Oración
     if (meeting.openingHymn || meeting.openingPrayer) s.push({
       key: "apertura",
       node: (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {meeting.openingHymn && <div style={card}><span style={lbl}>Himno de apertura</span><p style={{ ...pName, fontStyle: "italic", fontWeight: 500 }}>{meeting.openingHymn}</p></div>}
-          {meeting.openingPrayer && <div style={card}><span style={lbl}>Oración</span><p style={pName}>{meeting.openingPrayer}</p></div>}
-        </div>
+        <SectionCard accent={accent}
+          left={meeting.openingHymn ? <><Lbl accent={accent}>Himno de apertura</Lbl><Name italic>{meeting.openingHymn}</Name></> : null}
+          right={meeting.openingPrayer ? <><Lbl accent={accent}>Oración</Lbl><Name>{meeting.openingPrayer}</Name></> : null}
+        />
       ),
     });
 
+    // Anuncios y Asuntos
     s.push({
       key: "anuncios",
       node: (
-        <div style={card}>
-          <span style={lbl}>Anuncios y Asuntos</span>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, fontSize: 12 }}>
+        <FullCard>
+          <Lbl accent={accent}>Anuncios y Asuntos</Lbl>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, marginTop: 16, borderTop: "1px solid #f1f3f4", paddingTop: 16 }}>
             <div>
-              <div style={subHead}>Anuncios</div>
+              <Lbl accent={accent} small>Anuncios</Lbl>
               {meeting.announcements?.trim() ? bul(meeting.announcements.split("\n").map((l: string) => l.trim()).filter(Boolean)) : empty}
             </div>
             <div>
-              <div style={subHead}>Asuntos de barrio</div>
+              <Lbl accent={accent} small>Asuntos de barrio</Lbl>
               {!hasWardBusiness && empty}
-              {releases.length > 0 && <div style={{ marginBottom: 5 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 2 }}>Relevos:</div>{bul(releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return `${r.name}${o ? ` (${o})` : ""}`; }))}</div>}
-              {sustainments.length > 0 && <div style={{ marginBottom: 5 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 2 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${s.calling}${o ? ` (${o})` : ""}`; }))}</div>}
-              {confirmations.length > 0 && <div style={{ marginBottom: 5 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 2 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
-              {newMembers.length > 0 && <div style={{ marginBottom: 5 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 2 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
-              {childBlessings.length > 0 && <div><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 2 }}>Bendición de niños:</div>{bul(childBlessings)}</div>}
+              {releases.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Relevos:</div>{bul(releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return `${r.name}${o ? ` (${o})` : ""}`; }))}</div>}
+              {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${s.calling}${o ? ` (${o})` : ""}`; }))}</div>}
+              {confirmations.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
+              {newMembers.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
+              {childBlessings.length > 0 && <div><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Bendición de niños:</div>{bul(childBlessings)}</div>}
             </div>
             <div>
-              <div style={subHead}>Asuntos de estaca</div>
+              <Lbl accent={accent} small>Asuntos de estaca</Lbl>
               {meeting.stakeBusiness?.trim() ? bul(meeting.stakeBusiness.split("\n").map((l: string) => l.trim()).filter(Boolean)) : empty}
             </div>
           </div>
-        </div>
+        </FullCard>
       ),
     });
 
+    // Santa Cena
     s.push({
       key: "santa-cena",
       node: (
-        <div style={card}>
-          <span style={lbl}>Santa Cena</span>
-          {meeting.sacramentHymn && <p style={{ margin: "0 0 6px", fontSize: 13, color: "#1a1a1a" }}><strong>Himno sacramental:</strong> <span style={{ fontStyle: "italic" }}>{meeting.sacramentHymn}</span></p>}
-          <p style={{ margin: 0, fontSize: 12, color: "#777" }}>La bendición y el reparto de la Santa Cena estarán a cargo de los poseedores del Sacerdocio.</p>
-        </div>
+        <FullCard>
+          <Lbl accent={accent}>Santa Cena</Lbl>
+          {meeting.sacramentHymn && (
+            <p style={{ margin: "0 0 8px", fontSize: 13.5, color: "#202124" }}>
+              <strong>Himno sacramental:</strong> <span style={{ fontStyle: "italic" }}>{meeting.sacramentHymn}</span>
+            </p>
+          )}
+          <p style={{ margin: 0, fontSize: 12, color: "#70757a" }}>
+            La bendición y el reparto de la Santa Cena estarán a cargo de los poseedores del Sacerdocio.
+          </p>
+        </FullCard>
       ),
     });
 
+    // Mensajes / Testimonios
     if (meeting.isTestimonyMeeting) {
-      s.push({ key: "testimonios", node: <div style={card}><span style={lbl}>Testimonios</span><p style={{ margin: 0, fontSize: 13, fontStyle: "italic", color: "#555" }}>Reunión de Ayuno y Testimonio.</p></div> });
+      s.push({
+        key: "testimonios",
+        node: <FullCard><Lbl accent={accent}>Testimonios</Lbl><p style={{ margin: 0, fontSize: 13, fontStyle: "italic", color: "#70757a" }}>Reunión de Ayuno y Testimonio.</p></FullCard>,
+      });
     } else if (discourses.length > 0) {
       s.push({
         key: "mensajes",
         node: (
-          <div style={card}>
-            <span style={lbl}>Mensajes</span>
+          <FullCard>
+            <Lbl accent={accent}>Mensajes</Lbl>
             {discourses.map((d: any, i: number) => (
-              <div key={i} style={{ marginBottom: i < discourses.length - 1 ? 8 : 0 }}>
-                {i > 0 && <div style={{ borderTop: "1px solid #f0f0f0", margin: "8px 0" }} />}
-                <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#1a1a1a" }}>{d.speaker}</p>
-                {d.topic && <p style={pRole}>{d.topic}</p>}
+              <div key={i} style={{ marginBottom: i < discourses.length - 1 ? 10 : 0 }}>
+                {i > 0 && <div style={{ borderTop: "1px solid #f1f3f4", margin: "10px 0" }} />}
+                <Name>{d.speaker}</Name>
+                {d.topic && <Sub>{d.topic}</Sub>}
               </div>
             ))}
             {meeting.intermediateHymn && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f0f0f0" }}>
-                <span style={{ ...lbl, marginBottom: 3 }}>Himno intermedio</span>
-                <p style={{ margin: 0, fontStyle: "italic", fontSize: 13 }}>{meeting.intermediateHymn}</p>
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f3f4" }}>
+                <Lbl accent={accent} small>Himno intermedio</Lbl>
+                <Name italic>{meeting.intermediateHymn}</Name>
               </div>
             )}
-          </div>
+          </FullCard>
         ),
       });
     }
 
+    // Cierre
     if (meeting.closingHymn || meeting.closingPrayer) s.push({
       key: "cierre",
       node: (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {meeting.closingHymn && <div style={card}><span style={lbl}>Himno de cierre</span><p style={{ ...pName, fontStyle: "italic", fontWeight: 500 }}>{meeting.closingHymn}</p></div>}
-          {meeting.closingPrayer && <div style={card}><span style={lbl}>Oración de cierre</span><p style={pName}>{meeting.closingPrayer}</p></div>}
-        </div>
+        <SectionCard accent={accent}
+          left={meeting.closingHymn ? <><Lbl accent={accent}>Himno de cierre</Lbl><Name italic>{meeting.closingHymn}</Name></> : null}
+          right={meeting.closingPrayer ? <><Lbl accent={accent}>Oración de cierre</Lbl><Name>{meeting.closingPrayer}</Name></> : null}
+        />
       ),
     });
 
@@ -207,11 +266,10 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accent, meeting, recognitionMembers, organizations]);
 
-  // ── Pagination logic ───────────────────────────────────────────
+  // ── Pagination ─────────────────────────────────────────────────
   useEffect(() => {
     const run = () => {
       if (!measureRef.current || !scrollAreaRef.current || !headerMeasureRef.current) return;
-
       const areaH = scrollAreaRef.current.clientHeight;
       const headerH = headerMeasureRef.current.offsetHeight;
       const children = Array.from(measureRef.current.children) as HTMLElement[];
@@ -228,28 +286,27 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
         const gap = cur.length > 0 ? PX.gap : 0;
         const max = pages.length === 0 ? page1Max : pageNMax;
         if (cur.length > 0 && used + gap + h > max) {
-          pages.push([...cur]);
-          cur = [i];
-          used = h;
+          pages.push([...cur]); cur = [i]; used = h;
         } else {
-          cur.push(i);
-          used += gap + h;
+          cur.push(i); used += gap + h;
         }
       });
       if (cur.length) pages.push(cur);
-
       setLayout(pages);
     };
 
-    if (document.fonts?.ready) {
-      document.fonts.ready.then(run);
-    } else {
-      setTimeout(run, 300);
-    }
+    if (document.fonts?.ready) document.fonts.ready.then(run);
+    else setTimeout(run, 300);
   }, [sections]);
 
-  // keyboard + print CSS
+  // keyboard + print
   useEffect(() => {
+    const goTo = (p: number) => {
+      if (!scrollRef.current) return;
+      const total = layout.length || 1;
+      const clamped = Math.max(0, Math.min(p, total - 1));
+      scrollRef.current.scrollTo({ left: clamped * (scrollRef.current.clientWidth + 16), behavior: "smooth" });
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowRight") goTo(curPageRef.current + 1);
@@ -261,14 +318,13 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     style.textContent = `@media print{body>*:not(#prog-portal){display:none!important}#prog-portal{position:static!important;background:white!important}.prog-toolbar,.prog-dots{display:none!important}.prog-scroll{display:block!important;overflow:visible!important}.prog-page{width:100%!important;max-width:100%!important;height:auto!important;box-shadow:none!important;margin:0!important;border-radius:0!important;page-break-after:always;break-after:page}}`;
     document.head.appendChild(style);
     return () => { window.removeEventListener("keydown", onKey); document.head.removeChild(style); };
-  }, [onClose]);
+  }, [onClose, layout]);
 
   const totalPages = Math.max(layout.length, 1);
 
   const goTo = (p: number) => {
     if (!scrollRef.current) return;
-    const clamped = Math.max(0, Math.min(p, totalPages - 1));
-    scrollRef.current.scrollTo({ left: clamped * (scrollRef.current.clientWidth + 16), behavior: "smooth" });
+    scrollRef.current.scrollTo({ left: Math.max(0, Math.min(p, totalPages - 1)) * (scrollRef.current.clientWidth + 16), behavior: "smooth" });
   };
 
   const onScroll = () => {
@@ -276,33 +332,33 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     setCurPage(Math.round(scrollRef.current.scrollLeft / (scrollRef.current.clientWidth + 16)));
   };
 
-  // ── Shared header (page 1 only) ────────────────────────────────
+  // ── Header ─────────────────────────────────────────────────────
   const headerNode = (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
-          <div style={{ fontWeight: 400, color: "#777", fontSize: 13 }}>Barrio</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: "#1a1a1a", lineHeight: 1, letterSpacing: "-0.02em" }}>{wardName}</div>
-          {stakeName && <div style={{ color: accent, fontWeight: 700, fontSize: 10, letterSpacing: "0.1em", marginTop: 4 }}>{stakeName.toUpperCase()}</div>}
+          <div style={{ margin: 0, fontWeight: 400, color: "#70757a", fontSize: 14 }}>Barrio</div>
+          <div style={{ margin: "2px 0 0", fontSize: 38, fontWeight: 700, color: "#1a1a1a", lineHeight: 1, letterSpacing: "-1.5px" }}>{wardName}</div>
+          {stakeName && <div style={{ color: accent, fontWeight: 700, fontSize: 10, letterSpacing: "1px", marginTop: 10, textTransform: "uppercase" }}>{stakeName}</div>}
         </div>
-        <div style={{ background: lightTint(accent), padding: "12px 20px", borderRadius: 10, textAlign: "center", minWidth: 80, flexShrink: 0 }}>
-          <div style={{ color: "#777", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em" }}>{dayName}</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: accent, lineHeight: 1, margin: "4px 0" }}>{dayNum}</div>
-          <div style={{ fontSize: 9, color: "#777", textTransform: "uppercase", letterSpacing: "0.06em" }}>{monthYear}</div>
+        <div style={{ background: "#f1f3f4", padding: "14px 22px", borderRadius: 15, textAlign: "center", flexShrink: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#70757a", letterSpacing: "0.06em" }}>{dayName}</div>
+          <div style={{ fontSize: 30, fontWeight: 700, color: accent, lineHeight: 1, margin: "4px 0" }}>{dayNum}</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#70757a", letterSpacing: "0.06em" }}>{monthYear}</div>
         </div>
       </div>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ textTransform: "uppercase", fontSize: 10, color: "#888", letterSpacing: "0.15em", marginBottom: 4 }}>Programa de</div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#1a1a1a", lineHeight: 1.1, letterSpacing: "-0.01em" }}>REUNIÓN SACRAMENTAL</div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ margin: 0, fontSize: 10, textTransform: "uppercase", color: "#70757a", letterSpacing: "1.5px", fontWeight: 600 }}>Programa de</div>
+        <div style={{ fontSize: 24, fontWeight: 700, textTransform: "uppercase", color: "#1a1a1a", margin: "4px 0 0", letterSpacing: "-0.5px" }}>Reunión Sacramental</div>
       </div>
     </>
   );
 
   const footerNode = (pageIdx: number) => (
-    <div style={{ marginTop: "auto", paddingTop: 12, display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", borderTop: "1px solid #f0f0f0", flexShrink: 0 }}>
-      <span>{wardName}{stakeName ? ` · ${stakeName}` : ""}</span>
+    <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid #f1f3f4", display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9aa0a6", flexShrink: 0 }}>
+      <span>{stakeName || wardName}</span>
       <span>Página {pageIdx + 1} de {totalPages}</span>
-      <span>{longDate}</span>
+      <span>{wardName} · {longDate}</span>
     </div>
   );
 
@@ -357,7 +413,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
       {/* Scroll area */}
       <div ref={scrollAreaRef} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
 
-        {/* Hidden measurement container (off-screen, same page width) */}
+        {/* Measurement container (off-screen, invisible) */}
         <div style={{ position: "absolute", left: -9999, top: 0, width: "calc(100vw - 32px)", maxWidth: "210mm", visibility: "hidden", pointerEvents: "none", fontFamily: FONT, fontSize: 13, lineHeight: 1.5, padding: `0 ${PX.sides}px`, boxSizing: "border-box" }}>
           <div ref={headerMeasureRef}>{headerNode}</div>
           <div ref={measureRef} style={{ display: "flex", flexDirection: "column", gap: PX.gap }}>
@@ -373,7 +429,6 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
           style={{ height: "100%", display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, gap: 16, padding: "12px 16px", alignItems: "stretch", scrollbarWidth: "none" as any }}
         >
           {layout.length === 0 ? (
-            // Before measurement: show all in one page (will reflow after)
             <div className="prog-page" style={pageBase}>
               {headerNode}
               <div style={{ display: "flex", flexDirection: "column", gap: PX.gap, flex: 1 }}>
@@ -396,7 +451,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
       </div>
 
       {/* Dots */}
-      <div className="prog-dots" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 6, padding: "10px 0", flexShrink: 0 }}>
+      <div className="prog-dots" style={{ display: "flex", justifyContent: "center", gap: 6, padding: "10px 0", flexShrink: 0 }}>
         {Array.from({ length: totalPages }).map((_, i) => (
           <button key={i} onClick={() => goTo(i)} style={{ width: curPage === i ? 22 : 6, height: 6, borderRadius: 3, border: "none", cursor: "pointer", background: curPage === i ? "white" : "rgba(255,255,255,0.3)", transition: "all 0.25s ease", padding: 0 }} />
         ))}
