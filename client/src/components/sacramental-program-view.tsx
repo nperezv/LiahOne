@@ -80,7 +80,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const curPageRef = useRef(0);
   curPageRef.current = curPage;
 
-  const accent = `#${template?.accentColor ?? "004481"}`;
+  const accent = "#004481";
   const wardName = template?.wardName ?? "Barrio";
   const stakeName = template?.stakeName ?? "";
   // Strip leading "Barrio " so the small label above doesn't duplicate
