@@ -40,6 +40,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
 import { exportSacramentalMeetings } from "@/lib/export";
+import { SacramentalProgramView } from "@/components/sacramental-program-view";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type HymnOption = { value: string; number: number; title: string };
@@ -273,7 +274,7 @@ const getMeetingStatus = (meetingDate: Date): "live" | "upcoming" | "past" => {
 };
 
 const MeetingCard = ({
-  meeting, onDetails, onEdit, onDelete, onPDF, canEdit, parsePersonValue, isTestimonyValue,
+  meeting, onDetails, onEdit, onDelete, onPDF, onPrograma, canEdit, parsePersonValue, isTestimonyValue,
 }: any) => {
   const isTestimony = isTestimonyValue(meeting.isTestimonyMeeting);
   const presider = parsePersonValue(meeting.presider).name;
@@ -380,7 +381,13 @@ const MeetingCard = ({
       <div className="flex flex-col items-center justify-center gap-0.5 px-2 shrink-0" onClick={(e) => e.stopPropagation()}>
         <button
           className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
-          onClick={() => onPDF(meeting)} title="PDF"
+          onClick={() => onPrograma(meeting)} title="Ver programa"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+        <button
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
+          onClick={() => onPDF(meeting)} title="Descargar PDF"
         >
           <FileText className="w-3.5 h-3.5" />
         </button>
@@ -762,8 +769,14 @@ function SacramentalMeetingPageInner() {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta reunión sacramental?")) deleteMutation.mutate(id);
   };
 
+  const [programMeeting, setProgramMeeting] = useState<any>(null);
+  const getRecognitionMembers = (meeting: any) =>
+    bishopricMembers.map((m: any) => { const name = getMemberLabel(m); return { name, role: m.role, calling: name ? getBishopricCalling(name) : "" }; }).filter((m: any) => m.name);
+
+  const handleViewPrograma = (meeting: any) => setProgramMeeting(meeting);
+
   const handleGeneratePDF = async (meeting: any) => {
-    const recognitionMembers = bishopricMembers.map((m: any) => { const name = getMemberLabel(m); return { name, role: m.role, calling: name ? getBishopricCalling(name) : "" }; }).filter((m: any) => m.name);
+    const recognitionMembers = getRecognitionMembers(meeting);
     const doc = await generateSacramentalMeetingPDF(meeting, organizations as any[], recognitionMembers);
     doc.save(`programa-sacramental-${new Date(meeting.date).toISOString().split("T")[0]}.pdf`);
   };
@@ -1003,7 +1016,7 @@ function SacramentalMeetingPageInner() {
             /* ── VISTA ANTERIORES ── */
             <div className="space-y-2">
               {past.map((m: any) => (
-                <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} onPrograma={handleViewPrograma} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
               ))}
             </div>
           ) : (
@@ -1022,7 +1035,7 @@ function SacramentalMeetingPageInner() {
                   </div>
                   <div className="space-y-2">
                     {liveMeetings.map((m: any) => (
-                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} onPrograma={handleViewPrograma} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
                     ))}
                   </div>
                 </div>
@@ -1036,7 +1049,7 @@ function SacramentalMeetingPageInner() {
                   </div>
                   <div className="space-y-2">
                     {upcoming.map((m: any) => (
-                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} onPrograma={handleViewPrograma} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
                     ))}
                   </div>
                 </div>
@@ -1050,7 +1063,7 @@ function SacramentalMeetingPageInner() {
                   </div>
                   <div className="space-y-2">
                     {fallbackMeeting.map((m: any) => (
-                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
+                      <MeetingCard key={m.id} meeting={m} onDetails={handleOpenDetails} onEdit={handleEdit} onDelete={handleDelete} onPDF={handleGeneratePDF} onPrograma={handleViewPrograma} canEdit={canEdit} parsePersonValue={parsePersonValue} isTestimonyValue={isTestimonyValue} />
                     ))}
                   </div>
                 </div>
@@ -1793,6 +1806,15 @@ function SacramentalMeetingPageInner() {
         </div>
       </div>,
       document.body
+    )}
+
+    {programMeeting && (
+      <SacramentalProgramView
+        meeting={programMeeting}
+        organizations={organizations as any[]}
+        recognitionMembers={getRecognitionMembers(programMeeting)}
+        onClose={() => setProgramMeeting(null)}
+      />
     )}
     </>
   );
