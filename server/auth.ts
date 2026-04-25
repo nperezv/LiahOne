@@ -856,6 +856,7 @@ const buildHtmlSignatureFooter = (wardName?: string | null) => {
 const buildHtmlEmail = (lines: (string | null | undefined)[], wardName?: string | null) => {
   const bodyHtml = lines
     .filter((l): l is string => l !== null && l !== undefined)
+    .filter(line => !line.startsWith("🧭"))
     .map(line => {
       if (line === "") return `<div style="height:8px;"></div>`;
       if (line.startsWith("──")) return `<p style="margin:12px 0 4px;font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.06em;border-bottom:1px solid #f1f5f9;padding-bottom:4px;">${escapeHtml(line)}</p>`;
@@ -893,7 +894,8 @@ export async function sendSacramentalAssignmentEmail(payload: {
     return;
   }
 
-  const greeting = getTimeGreeting(payload.meetingTime);
+  const nowHour = new Date().toLocaleString("es-ES", { hour: "numeric", hour12: false, timeZone: "Europe/Madrid" });
+  const greeting = getTimeGreeting(nowHour);
   const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
   const normalizedName = normalizeRecipientName(payload.recipientName);
   const headerLine = normalizedName
