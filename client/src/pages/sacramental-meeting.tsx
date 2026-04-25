@@ -303,7 +303,7 @@ const MeetingCard = ({
         status === "upcoming" && "opacity-50 hover:opacity-75",
         status === "past" && "opacity-60 hover:opacity-100",
       )}
-      onClick={() => onDetails(meeting)}
+      onClick={() => onPrograma(meeting)}
     >
       {/* Date block — no border, subtle bg shift */}
       <div className={cn(
@@ -379,12 +379,6 @@ const MeetingCard = ({
 
       {/* Actions — no left border */}
       <div className="flex flex-col items-center justify-center gap-0.5 px-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-        <button
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
-          onClick={() => onPrograma(meeting)} title="Ver programa"
-        >
-          <Eye className="w-3.5 h-3.5" />
-        </button>
         <button
           className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
           onClick={() => onPDF(meeting)} title="Descargar PDF"
