@@ -764,13 +764,53 @@ function SacramentalMeetingPageInner() {
   };
 
   const [programMeeting, setProgramMeeting] = useState<any>(null);
-  const getRecognitionMembers = (meeting: any) =>
+
+  // For the PDF: raw bishopric members (PDF does its own filtering logic)
+  const getBishopricForPDF = () =>
     bishopricMembers.map((m: any) => { const name = getMemberLabel(m); return { name, role: m.role, calling: name ? getBishopricCalling(name) : "" }; }).filter((m: any) => m.name);
+
+  // For the HTML viewer: full combined list matching PDF output logic
+  const getRecognitionMembers = (meeting: any) => {
+    const parseName = (v: string) => { const t = (v ?? "").trim(); return t.includes("|") ? t.slice(0, t.indexOf("|")).trim() : t; };
+    const dirName = parseName(String(meeting.director || ""));
+    const presName = parseName(String(meeting.presider || ""));
+
+    // Manual visiting authority entries (from the visitingAuthority field)
+    const manual = typeof meeting.visitingAuthority === "string"
+      ? meeting.visitingAuthority.split(",").map((e: string) => e.trim()).filter((e: string) => {
+          if (!e) return false;
+          const n = parseName(e);
+          return n !== dirName && n !== presName;
+        }).map((e: string) => {
+          const idx = e.indexOf("|");
+          return idx >= 0
+            ? { name: e.slice(0, idx).trim(), role: "", calling: e.slice(idx + 1).trim() }
+            : { name: e, role: "", calling: "" };
+        })
+      : [];
+
+    // Auto bishopric entries — only when director is a bishopric member
+    const dirIsBishopric = dirName ? bishopricMembers.some((m: any) => getMemberLabel(m) === dirName) : false;
+    const auto = dirIsBishopric
+      ? bishopricMembers
+          .map((m: any) => {
+            const name = getMemberLabel(m);
+            if (!name || name === dirName || name === presName) return null;
+            return { name, role: m.role ?? "", calling: getBishopricCalling(name) };
+          })
+          .filter(Boolean)
+      : [];
+
+    // Combine and deduplicate by name
+    const all = [...manual, ...auto] as { name: string; role: string; calling: string }[];
+    const seen = new Set<string>();
+    return all.filter((m) => { const k = m.name.toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+  };
 
   const handleViewPrograma = (meeting: any) => setProgramMeeting(meeting);
 
   const handleGeneratePDF = async (meeting: any) => {
-    const recognitionMembers = getRecognitionMembers(meeting);
+    const recognitionMembers = getBishopricForPDF();
     const doc = await generateSacramentalMeetingPDF(meeting, organizations as any[], recognitionMembers);
     doc.save(`programa-sacramental-${new Date(meeting.date).toISOString().split("T")[0]}.pdf`);
   };

@@ -98,8 +98,12 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const confirmations = (Array.isArray(meeting.confirmations) ? meeting.confirmations : []).filter(Boolean);
   const newMembers = (Array.isArray(meeting.newMembers) ? meeting.newMembers : []).filter(Boolean);
   const childBlessings = (Array.isArray(meeting.childBlessings) ? meeting.childBlessings : []).filter(Boolean);
+  const aaronicOrderings = (Array.isArray(meeting.aaronicOrderings) ? meeting.aaronicOrderings : []).filter(Boolean);
   const discourses = (Array.isArray(meeting.discourses) ? meeting.discourses : []).filter((d: any) => d?.speaker);
-  const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0;
+  const intermediateHymnLabel = meeting.intermediateHymn
+    ? `${meeting.intermediateHymn}${meeting.intermediateHymnType === "choir" ? " (Coro)" : meeting.intermediateHymnType === "congregation" ? " (Congregación)" : ""}`
+    : "";
+  const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0 || aaronicOrderings.length > 0;
 
   const bul = (items: string[]) => items.filter(Boolean).map((item, i) => (
     <div key={i} style={{ fontSize: 11.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 6 }}>
@@ -192,6 +196,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
               {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${s.calling}${o ? ` (${o})` : ""}`; }))}</div>}
               {confirmations.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
               {newMembers.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
+              {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones Aarónicas:</div>{bul(aaronicOrderings)}</div>}
               {childBlessings.length > 0 && <div><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Bendición de niños:</div>{bul(childBlessings)}</div>}
             </div>
             <div>
@@ -227,25 +232,33 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
         key: "testimonios",
         node: <FullCard><Lbl accent={accent}>Testimonios</Lbl><p style={{ margin: 0, fontSize: 13, fontStyle: "italic", color: "#70757a" }}>Reunión de Ayuno y Testimonio.</p></FullCard>,
       });
-    } else if (discourses.length > 0) {
+    } else if (discourses.length > 0 || intermediateHymnLabel) {
       s.push({
         key: "mensajes",
         node: (
           <FullCard>
             <Lbl accent={accent}>Mensajes</Lbl>
-            {discourses.map((d: any, i: number) => (
-              <div key={i} style={{ marginBottom: i < discourses.length - 1 ? 10 : 0 }}>
-                {i > 0 && <div style={{ borderTop: "1px solid #f1f3f4", margin: "10px 0" }} />}
+            {/* Discourse 0 */}
+            {discourses[0] && (
+              <div>
+                <Name>{discourses[0].speaker}</Name>
+                {discourses[0].topic && <Sub>{discourses[0].topic}</Sub>}
+              </div>
+            )}
+            {/* Intermediate hymn — between discourse 0 and the rest */}
+            {intermediateHymnLabel && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f3f4" }}>
+                <Lbl accent={accent} small>Himno intermedio</Lbl>
+                <Name italic>{intermediateHymnLabel}</Name>
+              </div>
+            )}
+            {/* Remaining discourses */}
+            {discourses.slice(1).map((d: any, i: number) => (
+              <div key={i + 1} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f3f4" }}>
                 <Name>{d.speaker}</Name>
                 {d.topic && <Sub>{d.topic}</Sub>}
               </div>
             ))}
-            {meeting.intermediateHymn && (
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f3f4" }}>
-                <Lbl accent={accent} small>Himno intermedio</Lbl>
-                <Name italic>{meeting.intermediateHymn}</Name>
-              </div>
-            )}
           </FullCard>
         ),
       });
