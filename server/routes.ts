@@ -2065,12 +2065,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
       const loginUrl = `${baseUrl}/login`;
 
+      let callingOrgName: string | undefined;
+      if (finalOrganizationId) {
+        const allOrgs = await storage.getAllOrganizations();
+        callingOrgName = allOrgs.find((o: any) => o.id === finalOrganizationId)?.name;
+      }
+
       await sendNewUserCredentialsEmail({
         toEmail: email,
         name: shortDisplayName || normalizedName,
         username: derivedUsername,
         temporaryPassword,
         callingName: callingName || undefined,
+        organizationName: callingOrgName,
         recipientSex: memberForCalling?.sex,
         wardName,
         loginUrl,

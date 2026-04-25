@@ -15,6 +15,8 @@ const resolveWardName = (wardName?: string | null) => {
   return trimmedWardName || DEFAULT_WARD_NAME;
 };
 
+const wardSig = (wardName?: string | null) => `🧭 ${resolveWardName(wardName)}`;
+
 const getSmtpFromHeader = (wardName?: string | null) => {
   const fromDisplayName = resolveWardName(wardName);
   const configuredFrom = process.env.SMTP_FROM?.trim();
@@ -189,7 +191,7 @@ export async function sendAccountRecoveryEmail(payload: {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = getSmtpFromHeader(payload.wardName);
-  const wardSignature = resolveWardName(payload.wardName);
+  const wardSignature = wardSig(payload.wardName);
 
   if (!host || !port || !user || !pass) {
     console.warn("SMTP not configured. Recovery payload:", payload);
@@ -274,6 +276,7 @@ export async function sendNewUserCredentialsEmail(payload: {
   username: string;
   temporaryPassword: string;
   callingName?: string | null;
+  organizationName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
   wardName?: string | null;
@@ -291,8 +294,13 @@ export async function sendNewUserCredentialsEmail(payload: {
     recipientSex: payload.recipientSex,
     recipientOrganizationType: payload.recipientOrganizationType,
   });
-  const callingLine = payload.callingName ? ` como <strong>${payload.callingName}</strong>` : "";
-  const callingLinePlain = payload.callingName ? ` como ${payload.callingName}` : "";
+  const callingFull = payload.callingName
+    ? payload.organizationName
+      ? `${payload.callingName} de ${payload.organizationName}`
+      : payload.callingName
+    : null;
+  const callingLine = callingFull ? ` como <strong>${callingFull}</strong>` : "";
+  const callingLinePlain = callingFull ? ` como ${callingFull}` : "";
   const loginUrl = payload.loginUrl ?? "";
 
   const subject = `Tu acceso a ${ward} está listo`;
@@ -312,7 +320,6 @@ export async function sendNewUserCredentialsEmail(payload: {
             <td style="font-size:30px;line-height:1;padding-right:14px;vertical-align:middle;">🧭</td>
             <td style="vertical-align:middle;">
               <div style="font-size:19px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">${ward}</div>
-              <div style="font-size:11px;color:#93c5fd;margin-top:3px;">La Iglesia de Jesucristo de los Santos de los Últimos Días</div>
             </td>
           </tr></table>
         </td>
@@ -376,8 +383,7 @@ export async function sendNewUserCredentialsEmail(payload: {
             <td style="font-size:22px;line-height:1;padding-right:12px;vertical-align:middle;">🧭</td>
             <td style="vertical-align:middle;">
               <div style="font-size:14px;font-weight:700;color:#1a3554;">${ward}</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:2px;">La Iglesia de Jesucristo de los Santos de los Últimos Días &middot; Madrid, España</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:1px;font-style:italic;">Sirviendo juntos con fe y propósito</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px;font-style:italic;">Sirviendo juntos con fe y propósito</div>
             </td>
           </tr></table>
         </td>
@@ -401,8 +407,7 @@ export async function sendNewUserCredentialsEmail(payload: {
     "Por seguridad, deberás establecer una nueva contraseña en tu primer inicio de sesión.",
     "",
     "Con aprecio,",
-    ward,
-    "La Iglesia de Jesucristo de los Santos de los Últimos Días",
+    `🧭 ${ward}`,
   ].filter((line): line is string => line !== null).join("\n");
 
   await smtp.transporter.sendMail({
@@ -516,11 +521,7 @@ const buildInterviewerReference = (interviewerName?: string | null, interviewerR
 };
 
 const buildInterviewSignature = (options: { role?: string | null; wardName?: string | null }) => {
-  const wardName = options.wardName?.trim();
-  if (options.role === "obispo" || options.role === "consejero_obispo" || options.role === "secretario_ejecutivo") {
-    return `Obispado ${wardName || "Barrio"}`;
-  }
-  return wardName || "";
+  return wardSig(options.wardName);
 };
 
 export async function sendInterviewScheduledEmail(payload: {
@@ -599,7 +600,7 @@ export async function sendInterviewScheduledEmail(payload: {
 
 const buildOrganizationInterviewSignature = (organizationName?: string | null) => {
   const clean = organizationName?.trim();
-  return clean ? `Presidencia de ${clean}` : "Presidencia de organización";
+  return `🧭 ${clean ? `Presidencia de ${clean}` : "Presidencia de organización"}`;
 };
 
 export async function sendOrganizationInterviewScheduledEmail(payload: {
@@ -741,7 +742,7 @@ export async function sendInterviewUpdatedEmail(payload: {
       secretaryLine,
       "",
       "Con cariño fraternal,",
-      payload.wardName?.trim() || "Obispado",
+      wardSig(payload.wardName),
     ].filter((line): line is string => Boolean(line)).join("\n"),
   });
 }
@@ -780,7 +781,7 @@ export async function sendInterviewCancelledEmail(payload: {
       "Agradecemos mucho tu disposición. Si deseas, con gusto coordinamos una nueva fecha.",
       "",
       "Con aprecio fraternal,",
-      payload.wardName?.trim() || "Obispado",
+      wardSig(payload.wardName),
     ].join("\n"),
   });
 }
@@ -821,7 +822,7 @@ export async function sendInterviewReminder24hEmail(payload: {
       "Si necesitas apoyo para reprogramar, contacta al secretario ejecutivo.",
       "",
       "Con aprecio fraternal,",
-      payload.wardName?.trim() || "Obispado",
+      wardSig(payload.wardName),
     ].filter((line): line is string => Boolean(line)).join("\n"),
   });
 }
@@ -859,7 +860,7 @@ export async function sendAssignmentDueReminderEmail(payload: {
       "Gracias por tu servicio y disposición.",
       "",
       "Con aprecio fraternal,",
-      payload.wardName?.trim() || "Obispado",
+      wardSig(payload.wardName),
     ].join("\n"),
   });
 }
@@ -897,7 +898,7 @@ export async function sendWardCouncilAssignmentEmail(payload: {
       "Gracias por tu disposición y servicio en el barrio.",
       "",
       "Con aprecio fraternal,",
-      payload.wardName?.trim() || "Obispado",
+      wardSig(payload.wardName),
     ].filter((line): line is string => Boolean(line)).join("\n"),
   });
 }
@@ -939,8 +940,7 @@ export async function sendSacramentalAssignmentEmail(payload: {
     ? `${greeting}, ${salutation} ${normalizedName}:`
     : `${greeting}, ${salutation}:`;
 
-  const wardLabel = payload.wardName?.trim();
-  const signature = wardLabel ? `Obispado ${wardLabel}` : "Obispado";
+  const signature = wardSig(payload.wardName);
 
   const reminderIntro =
     payload.reminderType === "day_before"
@@ -1161,7 +1161,7 @@ export async function sendBirthdayGreetingEmail(payload: {
       messageLine,
       "",
       "Con cariño,",
-      payload.wardName?.trim() || "Tu barrio",
+      wardSig(payload.wardName),
     ].join("\n"),
   });
 }
@@ -1218,7 +1218,7 @@ export async function sendBaptismReminderEmail(payload: {
         "Puedes gestionar el checklist desde 'Obra Misional > Servicios Bautismales' y desde la sección 'Actividades' en la aplicación.",
         "",
         "Atentamente,",
-        payload.wardName?.trim() || "Tu barrio",
+        wardSig(payload.wardName),
       ].join("\n")
     : [
         `Estimado/a ${payload.recipientName},`,
@@ -1230,7 +1230,7 @@ export async function sendBaptismReminderEmail(payload: {
         "Puedes revisar y editar el programa desde la sección 'Obra Misional > Servicios Bautismales' en la aplicación.",
         "",
         "Atentamente,",
-        payload.wardName?.trim() || "Tu barrio",
+        wardSig(payload.wardName),
       ].join("\n");
 
   await transporter.sendMail({
@@ -1280,7 +1280,7 @@ export async function sendBudgetDisbursementRequestEmail(payload: {
       "Gracias por tu diligencia y servicio.",
       "",
       "Con aprecio fraternal,",
-      payload.wardName?.trim() || "Obispado",
+      wardSig(payload.wardName),
     ].join("\n"),
   });
 }
@@ -1322,7 +1322,7 @@ export async function sendBudgetDisbursementCompletedEmail(payload: {
       "Gracias.",
       "",
       "Con aprecio fraternal,",
-      payload.wardName?.trim() || "Secretario Financiero",
+      wardSig(payload.wardName),
     ].join("\n"),
   });
 }
@@ -1370,7 +1370,7 @@ export async function sendAccessRequestConfirmationEmail(payload: {
       "Un líder revisará tu solicitud y se pondrá en contacto contigo en breve.",
       "",
       "Con aprecio fraternal,",
-      ward,
+      `🧭 ${ward}`,
     ].join("\n"),
   });
 }
@@ -1428,7 +1428,7 @@ export async function sendRegistroConfirmationEmail(payload: {
       "Tu solicitud está pendiente de revisión por un líder del barrio, que la confirmará en breve.",
       "",
       "Con aprecio fraternal,",
-      ward,
+      `🧭 ${ward}`,
     ].join("\n"),
   });
 }
@@ -1463,7 +1463,7 @@ export async function sendBajaConfirmationEmail(payload: {
       "Si tienes alguna duda o deseas confirmar el estado de tu solicitud, responde a este correo.",
       "",
       "Con aprecio fraternal,",
-      ward,
+      `🧭 ${ward}`,
     ].join("\n"),
   });
 }
@@ -1528,7 +1528,7 @@ export async function sendBaptismModerationReminderEmail(payload: {
       `Aprueba los mensajes aquí: ${payload.missionUrl}`,
       "",
       "Con aprecio fraternal,",
-      ward,
+      `🧭 ${ward}`,
     ].join("\n"),
   });
 }
@@ -1569,7 +1569,7 @@ export async function sendBaptismBannerEmail(payload: {
       "¡Bienvenido/a a la familia del evangelio!",
       "",
       "Con aprecio fraternal,",
-      ward,
+      `🧭 ${ward}`,
     ].join("\n"),
     attachments: [
       {
