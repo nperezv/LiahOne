@@ -703,12 +703,17 @@ export default function AdminUsersPage() {
     ],
   };
 
-  const orgCallings = useMemo(() => {
+  const orgCallings = useMemo(
+    () => callingsByOrgType[selectedOrganizationType] ?? [],
+    [selectedOrganizationType]
+  );
+
+  const displayCallings = useMemo(() => {
     if (selectedOrganizationType === "escuela_dominical" && selectedMember?.sex === "F") {
       return ["Presidenta", "Primera consejera", "Segunda consejera", "Secretaria", "Maestra"];
     }
-    return callingsByOrgType[selectedOrganizationType] ?? [];
-  }, [selectedOrganizationType, selectedMember?.sex]);
+    return orgCallings;
+  }, [selectedOrganizationType, selectedMember?.sex, orgCallings]);
 
   const roleOptions = useMemo(() => {
     if (selectedOrganizationType === "obispado") {
@@ -828,10 +833,10 @@ export default function AdminUsersPage() {
     if (selectedRole && !roleOptions.some((option) => option.value === selectedRole)) {
       createForm.setValue("role", roleOptions[0]?.value ?? "secretario");
     }
-    if (selectedCallingName && !orgCallings.includes(selectedCallingName)) {
+    if (selectedCallingName && !displayCallings.includes(selectedCallingName)) {
       createForm.setValue("callingName", "");
     }
-  }, [selectedCallingName, selectedOrganizationId, selectedRole, orgCallings, roleOptions, createForm]);
+  }, [selectedCallingName, selectedOrganizationId, selectedRole, displayCallings, roleOptions, createForm]);
 
   useEffect(() => {
     if (!selectedCallingName) return;
@@ -1415,7 +1420,7 @@ export default function AdminUsersPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {orgCallings.map((calling) => (
+                            {displayCallings.map((calling) => (
                               <SelectItem key={calling} value={calling}>
                                 {calling}
                               </SelectItem>
