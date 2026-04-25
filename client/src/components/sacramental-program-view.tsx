@@ -243,27 +243,30 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <Lbl accent={accent}>Mensajes</Lbl>
             {/* Discourse 0 */}
             {discourses[0] && (
-              <div>
-                <Name>{discourses[0].speaker}</Name>
-                {discourses[0].topic && <Sub>{discourses[0].topic}</Sub>}
+              <div style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+                <span style={{ color: accent, fontSize: 13, lineHeight: 1.2, flexShrink: 0, marginTop: 1 }}>①</span>
+                <div><Name>{discourses[0].speaker}</Name>{discourses[0].topic && <Sub>{discourses[0].topic}</Sub>}</div>
               </div>
             )}
             {/* Intermediate hymn — visually distinct from discourses */}
             {intermediateHymnLabel && (
               <div style={{ marginTop: 8, padding: "8px 10px", background: "#f0f7ff", borderRadius: 8, borderLeft: `2px solid ${accent}` }}>
                 <span style={{ display: "block", color: accent, fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
-                  ♪ Himno intermedio
+                  Himno intermedio
                 </span>
                 <p style={{ margin: 0, fontSize: 11.5, fontWeight: 500, color: accent, fontStyle: "italic" }}>{intermediateHymnLabel}</p>
               </div>
             )}
             {/* Remaining discourses */}
-            {discourses.slice(1).map((d: any, i: number) => (
-              <div key={i + 1} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f3f4" }}>
-                <Name>{d.speaker}</Name>
-                {d.topic && <Sub>{d.topic}</Sub>}
-              </div>
-            ))}
+            {discourses.slice(1).map((d: any, i: number) => {
+              const circled = ["②","③","④","⑤","⑥","⑦","⑧","⑨"][i] ?? `${i + 2}.`;
+              return (
+                <div key={i + 1} style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f1f3f4", display: "flex", gap: 7, alignItems: "flex-start" }}>
+                  <span style={{ color: accent, fontSize: 13, lineHeight: 1.2, flexShrink: 0, marginTop: 1 }}>{circled}</span>
+                  <div><Name>{d.speaker}</Name>{d.topic && <Sub>{d.topic}</Sub>}</div>
+                </div>
+              );
+            })}
           </FullCard>
         ),
       });
