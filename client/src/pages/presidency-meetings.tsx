@@ -630,8 +630,12 @@ export default function PresidencyMeetingsPage() {
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Presidencia";
   const currentOrganization = organizations.find((org: any) => org.id === organizationId);
   const organizationType = currentOrganization?.type;
-  const isLeadershipOnly = params?.org === "jas";
-  const pageTitle = isLeadershipOnly ? `Liderazgo de ${orgName}` : `Presidencia de ${orgName}`;
+  const isLeadershipOnly = params?.org === "jas" || params?.org === "as";
+  const pageTitle = params?.org === "as"
+    ? "Liderazgo de AS"
+    : params?.org === "jas"
+    ? "Panel de Organización"
+    : `Presidencia de ${orgName}`;
   const meetingTitle = isLeadershipOnly ? "REUNIÓN DE LIDERAZGO" : "REUNIÓN DE PRESIDENCIA";
 
   const currentDate = new Date();

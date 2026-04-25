@@ -246,7 +246,11 @@ export default function PresidencyManageOrganizationPage() {
   }, [params?.org, organizations]);
 
   const orgName = params?.org ? organizationNames[params.org] || params.org : "Organización";
-  const panelTitle = params?.org ? `Presidencia de ${orgName}` : "Panel de Presidencia";
+  const panelTitle = params?.org === "as"
+    ? "Liderazgo de AS"
+    : params?.org === "jas"
+    ? "Panel de Organización"
+    : params?.org ? `Presidencia de ${orgName}` : "Panel de Presidencia";
   const currentOrganization = organizations.find((org: any) => org.id === organizationId);
   const organizationType = currentOrganization?.type;
   const canUseOrganizationInterviews = organizationType === "cuorum_elderes" || organizationType === "sociedad_socorro";
