@@ -773,9 +773,6 @@ export async function generateSacramentalMeetingPDF(
 
   drawKeyValueTwoColumns(ctx, leftItems, rightItems);
 
-  // Salto de línea adicional tras el bloque de Reconocimiento/autoridades
-  ctx.y += 3;
-
   // Dirección de la música y Acompañamiento en el Piano en la misma línea
   const musicDirectorRaw = normalizedMeeting.musicDirector
     ? normalizeSingleLine(String(normalizedMeeting.musicDirector))
@@ -803,6 +800,7 @@ export async function generateSacramentalMeetingPDF(
   }
 
   // Apertura
+  ctx.y += 3;
   if (normalizedMeeting.openingHymn) {
     drawLabelLine(ctx, "Himno de apertura", String(normalizedMeeting.openingHymn), { italicValue: true });
   }
