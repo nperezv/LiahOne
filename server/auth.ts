@@ -478,28 +478,27 @@ const getRecipientSalutation = (sex?: string | null, organizationType?: string |
   return "apreciado hermano";
 };
 
+const getMadridGreeting = () => {
+  const h = parseInt(
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "Europe/Madrid" }).format(new Date()),
+    10
+  );
+  if (h < 12) return "Buenos días";
+  if (h < 19) return "Buenas tardes";
+  return "Buenas noches";
+};
+
 const buildPastoralGreeting = (options: {
   recipientName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
-  timeLabel?: string;
 }) => {
-  const greeting = getTimeGreeting(options.timeLabel);
+  const greeting = getMadridGreeting();
   const salutation = getRecipientSalutation(options.recipientSex, options.recipientOrganizationType);
   const normalizedName = normalizeRecipientName(options.recipientName);
   const prefix = [greeting, salutation].filter(Boolean).join(" ");
   const raw = normalizedName ? `${prefix} ${normalizedName},` : `${prefix},`;
   return raw.charAt(0).toUpperCase() + raw.slice(1);
-};
-
-const getTimeGreeting = (timeLabel?: string) => {
-  if (!timeLabel) return "";
-  const hourMatch = timeLabel.match(/(\d{1,2})/);
-  const hour = hourMatch ? Number(hourMatch[1]) : null;
-  if (hour === null) return "";
-  if (hour < 12) return "Buenos días";
-  if (hour < 19) return "Buenas tardes";
-  return "Buenas noches";
 };
 
 const getInterviewerArticle = (interviewerRole?: string | null, interviewerName?: string | null) => {
@@ -568,7 +567,7 @@ export async function sendInterviewScheduledEmail(payload: {
   });
 
   const ivLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
     "", `Se ha programado una entrevista con ${interviewerLine}.`,
     `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
     "Lugar: oficina del obispado.", notesLine,
@@ -610,7 +609,7 @@ export async function sendOrganizationInterviewScheduledEmail(payload: {
   const notesLine = payload.notes?.trim() ? `Notas adicionales: ${payload.notes.trim()}` : null;
 
   const lines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
     "", "Se ha programado una entrevista de organización.",
     `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
     "Lugar: coordinación interna de la organización.",
@@ -644,7 +643,7 @@ export async function sendOrganizationInterviewCancelledEmail(payload: {
   }
 
   const cancelLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
     "", "Te informamos que la entrevista de organización ha sido cancelada por ahora.",
     `Fecha original: ${payload.interviewDate}`, `Hora original: ${payload.interviewTime} hrs.`,
     "", "Si es necesario, coordinaremos una nueva fecha contigo.", "",
@@ -687,7 +686,7 @@ export async function sendInterviewUpdatedEmail(payload: {
     : "Si necesitas apoyo para coordinar, comunícate con el secretario ejecutivo.";
 
   const updatedLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
     "", "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
     ...changeLines, "",
     `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
@@ -719,7 +718,7 @@ export async function sendInterviewCancelledEmail(payload: {
   }
 
   const cancelledLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
     "", "Con cariño te informamos que la entrevista programada ha sido cancelada por ahora.",
     `Fecha original: ${payload.interviewDate}`, `Hora original: ${payload.interviewTime} hrs.`,
     "", "Agradecemos mucho tu disposición. Si deseas, con gusto coordinamos una nueva fecha.", "",
@@ -750,7 +749,7 @@ export async function sendInterviewReminder24hEmail(payload: {
   }
 
   const reminder24Lines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
     "", "Te recordamos con cariño que tienes una entrevista programada para mañana.",
     `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
     payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
@@ -894,13 +893,9 @@ export async function sendSacramentalAssignmentEmail(payload: {
     return;
   }
 
-  const madridHour = parseInt(
-    new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "Europe/Madrid" }).format(new Date()),
-    10
-  );
-  const greeting = madridHour < 12 ? "Buenos días" : madridHour < 19 ? "Buenas tardes" : "Buenas noches";
   const salutation = getRecipientSalutation(payload.recipientSex, payload.recipientOrganizationType);
   const normalizedName = normalizeRecipientName(payload.recipientName);
+  const greeting = getMadridGreeting();
   const headerLine = normalizedName
     ? `${greeting}, ${salutation} ${normalizedName}:`
     : `${greeting}, ${salutation}:`;
@@ -1227,7 +1222,7 @@ export async function sendBudgetDisbursementRequestEmail(payload: {
   }
 
   const budgetReqLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, timeLabel: payload.timeLabel }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, }),
     "", `El obispo ${payload.bishopName} ha firmado y aprobado la siguiente solicitud de gasto:`,
     "", `Concepto: ${payload.budgetDescription}`, `Importe: €${payload.budgetAmount}`,
     "", "El siguiente paso es generar el desembolso correspondiente en el sistema (LCR/MLS Finance).",
@@ -1259,7 +1254,7 @@ export async function sendBudgetDisbursementCompletedEmail(payload: {
   }
 
   const budgetDoneLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, timeLabel: payload.timeLabel }),
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, }),
     "", `El secretario financiero ${payload.secretaryName} ha generado el desembolso para la siguiente solicitud:`,
     "", `Concepto: ${payload.budgetDescription}`, `Importe: €${payload.budgetAmount}`,
     "", "Por favor, entra al sistema (LCR/MLS Finance) y finaliza la aprobación del desembolso para que el pago pueda procesarse.",
