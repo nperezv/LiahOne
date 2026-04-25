@@ -205,22 +205,18 @@ export async function sendAccountRecoveryEmail(payload: {
     auth: { user, pass },
   });
 
+  const recoveryLines = [
+    `Hola ${payload.name},`, "",
+    "Hemos procesado tu solicitud de recuperación de acceso.",
+    `Usuario: ${payload.username}`, `Contraseña temporal: ${payload.temporaryPassword}`,
+    payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
+    "", "Por seguridad, cambia esta contraseña después de iniciar sesión.", "", wardSignature,
+  ];
   await transporter.sendMail({
-    from,
-    to: payload.toEmail,
+    from, to: payload.toEmail,
     subject: "Recuperación de acceso",
-    text: [
-      `Hola ${payload.name},`,
-      "",
-      "Hemos procesado tu solicitud de recuperación de acceso.",
-      `Usuario: ${payload.username}`,
-      `Contraseña temporal: ${payload.temporaryPassword}`,
-      payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
-      "",
-      "Por seguridad, cambia esta contraseña después de iniciar sesión.",
-      "",
-      wardSignature,
-    ].filter((line): line is string => Boolean(line)).join("\n"),
+    text: recoveryLines.filter((l): l is string => Boolean(l)).join("\n"),
+    html: buildHtmlEmail(recoveryLines, payload.wardName),
   });
 }
 
@@ -571,32 +567,19 @@ export async function sendInterviewScheduledEmail(payload: {
     wardName: payload.wardName,
   });
 
+  const ivLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    "", `Se ha programado una entrevista con ${interviewerLine}.`,
+    `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
+    "Lugar: oficina del obispado.", notesLine,
+    "", "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
+    rescheduleLine, "", "Con aprecio y gratitud.", signatureLine,
+  ];
   await transporter.sendMail({
-    from,
-    to: payload.toEmail,
+    from, to: payload.toEmail,
     subject: "Entrevista programada",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.interviewTime,
-      }),
-      "",
-      `Se ha programado una entrevista con ${interviewerLine}.`,
-      `Fecha: ${payload.interviewDate}`,
-      `Hora: ${payload.interviewTime} hrs.`,
-      "Lugar: oficina del obispado.",
-      notesLine,
-      "",
-      "Agradecemos tu disposición y te invitamos a prepararte espiritualmente.",
-      rescheduleLine,
-      "",
-      "Con aprecio y gratitud.",
-      signatureLine,
-    ]
-      .filter((line) => line !== null && line !== undefined)
-      .join("\n"),
+    text: ivLines.filter((l) => l !== null && l !== undefined).join("\n"),
+    html: buildHtmlEmail(ivLines, payload.wardName),
   });
 }
 
@@ -626,30 +609,21 @@ export async function sendOrganizationInterviewScheduledEmail(payload: {
 
   const notesLine = payload.notes?.trim() ? `Notas adicionales: ${payload.notes.trim()}` : null;
 
+  const lines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    "", "Se ha programado una entrevista de organización.",
+    `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
+    "Lugar: coordinación interna de la organización.",
+    payload.requesterName ? `Solicitada por: ${payload.requesterName}` : null,
+    notesLine, "",
+    "Gracias por tu disposición para ministrar y servir.", "",
+    "Con aprecio fraternal,", buildOrganizationInterviewSignature(payload.organizationName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Entrevista de organización programada",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.interviewTime,
-      }),
-      "",
-      "Se ha programado una entrevista de organización.",
-      `Fecha: ${payload.interviewDate}`,
-      `Hora: ${payload.interviewTime} hrs.`,
-      "Lugar: coordinación interna de la organización.",
-      payload.requesterName ? `Solicitada por: ${payload.requesterName}` : null,
-      notesLine,
-      "",
-      "Gracias por tu disposición para ministrar y servir.",
-      "",
-      "Con aprecio fraternal,",
-      buildOrganizationInterviewSignature(payload.organizationName),
-    ].filter((line): line is string => Boolean(line)).join("\n"),
+    text: lines.filter((l): l is string => Boolean(l)).join("\n"),
+    html: buildHtmlEmail(lines, payload.wardName),
   });
 }
 
@@ -669,27 +643,18 @@ export async function sendOrganizationInterviewCancelledEmail(payload: {
     return;
   }
 
+  const cancelLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    "", "Te informamos que la entrevista de organización ha sido cancelada por ahora.",
+    `Fecha original: ${payload.interviewDate}`, `Hora original: ${payload.interviewTime} hrs.`,
+    "", "Si es necesario, coordinaremos una nueva fecha contigo.", "",
+    "Con cariño,", buildOrganizationInterviewSignature(payload.organizationName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Cancelación de entrevista de organización",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.interviewTime,
-      }),
-      "",
-      "Te informamos que la entrevista de organización ha sido cancelada por ahora.",
-      `Fecha original: ${payload.interviewDate}`,
-      `Hora original: ${payload.interviewTime} hrs.`,
-      "",
-      "Si es necesario, coordinaremos una nueva fecha contigo.",
-      "",
-      "Con cariño,",
-      buildOrganizationInterviewSignature(payload.organizationName),
-    ].join("\n"),
+    text: cancelLines.join("\n"),
+    html: buildHtmlEmail(cancelLines, payload.wardName),
   });
 }
 
@@ -721,31 +686,20 @@ export async function sendInterviewUpdatedEmail(payload: {
     ? `Si necesitas apoyo para coordinar, comunícate con el secretario ${payload.secretaryName.trim()}.`
     : "Si necesitas apoyo para coordinar, comunícate con el secretario ejecutivo.";
 
+  const updatedLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    "", "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
+    ...changeLines, "",
+    `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
+    payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
+    "", "Gracias por tu disposición y tu fe.", secretaryLine, "",
+    "Con cariño fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Actualización de tu entrevista",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.interviewTime,
-      }),
-      "",
-      "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
-      ...changeLines,
-      "",
-      `Fecha: ${payload.interviewDate}`,
-      `Hora: ${payload.interviewTime} hrs.`,
-      payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
-      "",
-      "Gracias por tu disposición y tu fe.",
-      secretaryLine,
-      "",
-      "Con cariño fraternal,",
-      wardSig(payload.wardName),
-    ].filter((line): line is string => Boolean(line)).join("\n"),
+    text: updatedLines.filter((l): l is string => Boolean(l)).join("\n"),
+    html: buildHtmlEmail(updatedLines, payload.wardName),
   });
 }
 
@@ -764,27 +718,18 @@ export async function sendInterviewCancelledEmail(payload: {
     return;
   }
 
+  const cancelledLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    "", "Con cariño te informamos que la entrevista programada ha sido cancelada por ahora.",
+    `Fecha original: ${payload.interviewDate}`, `Hora original: ${payload.interviewTime} hrs.`,
+    "", "Agradecemos mucho tu disposición. Si deseas, con gusto coordinamos una nueva fecha.", "",
+    "Con aprecio fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Aviso de cancelación de entrevista",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.interviewTime,
-      }),
-      "",
-      "Con cariño te informamos que la entrevista programada ha sido cancelada por ahora.",
-      `Fecha original: ${payload.interviewDate}`,
-      `Hora original: ${payload.interviewTime} hrs.`,
-      "",
-      "Agradecemos mucho tu disposición. Si deseas, con gusto coordinamos una nueva fecha.",
-      "",
-      "Con aprecio fraternal,",
-      wardSig(payload.wardName),
-    ].join("\n"),
+    text: cancelledLines.join("\n"),
+    html: buildHtmlEmail(cancelledLines, payload.wardName),
   });
 }
 
@@ -804,28 +749,19 @@ export async function sendInterviewReminder24hEmail(payload: {
     return;
   }
 
+  const reminder24Lines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, timeLabel: payload.interviewTime }),
+    "", "Te recordamos con cariño que tienes una entrevista programada para mañana.",
+    `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
+    payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
+    "", "Si necesitas apoyo para reprogramar, contacta al secretario ejecutivo.", "",
+    "Con aprecio fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Recordatorio: entrevista en 24 horas",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-        timeLabel: payload.interviewTime,
-      }),
-      "",
-      "Te recordamos con cariño que tienes una entrevista programada para mañana.",
-      `Fecha: ${payload.interviewDate}`,
-      `Hora: ${payload.interviewTime} hrs.`,
-      payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
-      "",
-      "Si necesitas apoyo para reprogramar, contacta al secretario ejecutivo.",
-      "",
-      "Con aprecio fraternal,",
-      wardSig(payload.wardName),
-    ].filter((line): line is string => Boolean(line)).join("\n"),
+    text: reminder24Lines.filter((l): l is string => Boolean(l)).join("\n"),
+    html: buildHtmlEmail(reminder24Lines, payload.wardName),
   });
 }
 
@@ -844,26 +780,18 @@ export async function sendAssignmentDueReminderEmail(payload: {
     return;
   }
 
+  const assignLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType }),
+    "", "Te recordamos que tienes una asignación pendiente por completar.",
+    `Asignación: ${payload.assignmentTitle}`, `Fecha límite: ${payload.dueDate}`,
+    "", "Gracias por tu servicio y disposición.", "",
+    "Con aprecio fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Recordatorio: asignación por vencer (24h)",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-      }),
-      "",
-      "Te recordamos que tienes una asignación pendiente por completar.",
-      `Asignación: ${payload.assignmentTitle}`,
-      `Fecha límite: ${payload.dueDate}`,
-      "",
-      "Gracias por tu servicio y disposición.",
-      "",
-      "Con aprecio fraternal,",
-      wardSig(payload.wardName),
-    ].join("\n"),
+    text: assignLines.join("\n"),
+    html: buildHtmlEmail(assignLines, payload.wardName),
   });
 }
 
@@ -882,26 +810,19 @@ export async function sendWardCouncilAssignmentEmail(payload: {
     return;
   }
 
+  const councilLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType }),
+    "", "El Consejo de Barrio te ha asignado la siguiente responsabilidad:",
+    `Asignación: ${payload.assignmentTitle}`,
+    payload.dueDate ? `Fecha límite: ${payload.dueDate}` : null,
+    "", "Gracias por tu disposición y servicio en el barrio.", "",
+    "Con aprecio fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Nueva asignación del Consejo de Barrio",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-      }),
-      "",
-      "El Consejo de Barrio te ha asignado la siguiente responsabilidad:",
-      `Asignación: ${payload.assignmentTitle}`,
-      payload.dueDate ? `Fecha límite: ${payload.dueDate}` : null,
-      "",
-      "Gracias por tu disposición y servicio en el barrio.",
-      "",
-      "Con aprecio fraternal,",
-      wardSig(payload.wardName),
-    ].filter((line): line is string => Boolean(line)).join("\n"),
+    text: councilLines.filter((l): l is string => Boolean(l)).join("\n"),
+    html: buildHtmlEmail(councilLines, payload.wardName),
   });
 }
 
@@ -914,6 +835,43 @@ const escapeHtml = (value: string) =>
     .replace(/'/g, "&#39;");
 
 const b = (value: string) => `<strong>${escapeHtml(value)}</strong>`;
+
+const buildHtmlSignatureFooter = (wardName?: string | null) => {
+  const appBase = process.env.APP_BASE_URL || "https://barriom8.zendapp.org";
+  const logoUrl = `${appBase}/icons/compass.svg`;
+  const ward = escapeHtml(resolveWardName(wardName));
+  return `<tr>
+        <td style="border-top:1px solid #e2e8f0;padding:20px 32px;background:#f8fafc;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="padding-right:12px;vertical-align:middle;"><img src="${logoUrl}" width="30" height="30" alt="" style="display:block;" /></td>
+            <td style="vertical-align:middle;">
+              <div style="font-size:14px;font-weight:700;color:#1a3554;">${ward}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px;font-style:italic;">Sirviendo juntos con fe y propósito</div>
+            </td>
+          </tr></table>
+        </td>
+      </tr>`;
+};
+
+const buildHtmlEmail = (lines: (string | null | undefined)[], wardName?: string | null) => {
+  const bodyHtml = lines
+    .filter((l): l is string => l !== null && l !== undefined)
+    .map(line => {
+      if (line === "") return `<div style="height:8px;"></div>`;
+      if (line.startsWith("──")) return `<p style="margin:12px 0 4px;font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.06em;border-bottom:1px solid #f1f5f9;padding-bottom:4px;">${escapeHtml(line)}</p>`;
+      return `<p style="margin:0 0 8px;font-size:14px;color:#374151;line-height:1.6;">${escapeHtml(line)}</p>`;
+    })
+    .join("");
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;"><tr><td align="center" style="padding:32px 16px;">
+  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="padding:32px 32px 24px;">${bodyHtml}</td></tr>
+    ${buildHtmlSignatureFooter(wardName)}
+  </table>
+</td></tr></table>
+</body></html>`;
+};
 
 export async function sendSacramentalAssignmentEmail(payload: {
   toEmail: string;
@@ -1102,9 +1060,19 @@ export async function sendSacramentalAssignmentEmail(payload: {
     ];
   }
 
-  const htmlBody = htmlLines
-    .map((line) => (line === "" ? "<br/>" : `<span>${line}</span><br/>`))
-    .join("\n");
+  const htmlBodyInner = htmlLines
+    .map((line) => (line === "" ? `<div style="height:8px;"></div>` : `<p style="margin:0 0 8px;font-size:14px;color:#374151;line-height:1.6;">${line}</p>`))
+    .join("");
+
+  const htmlBody = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;"><tr><td align="center" style="padding:32px 16px;">
+  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="padding:32px 32px 24px;">${htmlBodyInner}</td></tr>
+    ${buildHtmlSignatureFooter(payload.wardName)}
+  </table>
+</td></tr></table>
+</body></html>`;
 
   await smtp.transporter.sendMail({
     from: smtp.from,
@@ -1152,19 +1120,12 @@ export async function sendBirthdayGreetingEmail(payload: {
     ? `${salutation.charAt(0).toUpperCase()}${salutation.slice(1)} ${normalizedName},`
     : `${salutation.charAt(0).toUpperCase()}${salutation.slice(1)},`;
 
+  const bdayLines = [headerLine, "", ageLine, messageLine, "", "Con cariño,", wardSig(payload.wardName)];
   await transporter.sendMail({
-    from,
-    to: payload.toEmail,
+    from, to: payload.toEmail,
     subject: "¡Feliz cumpleaños!",
-    text: [
-      headerLine,
-      "",
-      ageLine,
-      messageLine,
-      "",
-      "Con cariño,",
-      wardSig(payload.wardName),
-    ].join("\n"),
+    text: bdayLines.join("\n"),
+    html: buildHtmlEmail(bdayLines, payload.wardName),
   });
 }
 
@@ -1236,10 +1197,10 @@ export async function sendBaptismReminderEmail(payload: {
       ].join("\n");
 
   await transporter.sendMail({
-    from,
-    to: payload.toEmail,
+    from, to: payload.toEmail,
     subject,
     text: body,
+    html: buildHtmlEmail(body.split("\n"), payload.wardName),
   });
 }
 
@@ -1259,31 +1220,19 @@ export async function sendBudgetDisbursementRequestEmail(payload: {
     return;
   }
 
+  const budgetReqLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, timeLabel: payload.timeLabel }),
+    "", `El obispo ${payload.bishopName} ha firmado y aprobado la siguiente solicitud de gasto:`,
+    "", `Concepto: ${payload.budgetDescription}`, `Importe: €${payload.budgetAmount}`,
+    "", "El siguiente paso es generar el desembolso correspondiente en el sistema (LCR/MLS Finance).",
+    "", "Una vez realizado, ve al apartado de Asignaciones y marca como completada la asignación «Generar desembolso».",
+    "", "Gracias por tu diligencia y servicio.", "", "Con aprecio fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Solicitud de gasto aprobada — Generar desembolso",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        timeLabel: payload.timeLabel,
-      }),
-      "",
-      `El obispo ${payload.bishopName} ha firmado y aprobado la siguiente solicitud de gasto:`,
-      "",
-      `Concepto: ${payload.budgetDescription}`,
-      `Importe: €${payload.budgetAmount}`,
-      "",
-      "El siguiente paso es generar el desembolso correspondiente en el sistema de la Iglesia (LCR/MLS Finance).",
-      "",
-      "Una vez realizado, por favor ve al apartado de Asignaciones en la aplicación y marca como completada la asignación «Generar desembolso en el sistema de la Iglesia».",
-      "",
-      "Gracias por tu diligencia y servicio.",
-      "",
-      "Con aprecio fraternal,",
-      wardSig(payload.wardName),
-    ].join("\n"),
+    text: budgetReqLines.join("\n"),
+    html: buildHtmlEmail(budgetReqLines, payload.wardName),
   });
 }
 
@@ -1303,29 +1252,18 @@ export async function sendBudgetDisbursementCompletedEmail(payload: {
     return;
   }
 
+  const budgetDoneLines = [
+    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, timeLabel: payload.timeLabel }),
+    "", `El secretario financiero ${payload.secretaryName} ha generado el desembolso para la siguiente solicitud:`,
+    "", `Concepto: ${payload.budgetDescription}`, `Importe: €${payload.budgetAmount}`,
+    "", "Por favor, entra al sistema (LCR/MLS Finance) y finaliza la aprobación del desembolso para que el pago pueda procesarse.",
+    "", "Gracias.", "", "Con aprecio fraternal,", wardSig(payload.wardName),
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
-    subject: "Desembolso generado — Acción requerida en el sistema de la Iglesia",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.recipientName,
-        recipientSex: payload.recipientSex,
-        timeLabel: payload.timeLabel,
-      }),
-      "",
-      `El secretario financiero ${payload.secretaryName} ha generado el desembolso en el sistema de la Iglesia para la siguiente solicitud:`,
-      "",
-      `Concepto: ${payload.budgetDescription}`,
-      `Importe: €${payload.budgetAmount}`,
-      "",
-      "Por favor, entra al sistema de la Iglesia (LCR/MLS Finance) y finaliza la aprobación del desembolso para que el pago pueda procesarse.",
-      "",
-      "Gracias.",
-      "",
-      "Con aprecio fraternal,",
-      wardSig(payload.wardName),
-    ].join("\n"),
+    from: smtp.from, to: payload.toEmail,
+    subject: "Desembolso generado — Acción requerida en el sistema",
+    text: budgetDoneLines.join("\n"),
+    html: buildHtmlEmail(budgetDoneLines, payload.wardName),
   });
 }
 
@@ -1345,35 +1283,27 @@ export async function sendAccessRequestConfirmationEmail(payload: {
   const consentDateStr = payload.consentAt.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
   const ward = payload.wardName?.trim() || "el barrio";
 
+  const accessConfLines = [
+    `Hola ${payload.name},`, "",
+    "Hemos recibido tu solicitud de acceso a la plataforma de gestión del barrio. Este correo confirma los datos que has proporcionado y el consentimiento otorgado.",
+    "", "── DATOS REGISTRADOS ──────────────────",
+    `Nombre: ${payload.name}`, `Email: ${payload.toEmail}`,
+    "", "── CONSENTIMIENTO ─────────────────────",
+    `Fecha y hora: ${consentDateStr}`,
+    "Consentiste ser contactado por email y/o WhatsApp para asuntos relacionados con tu llamamiento en el barrio.",
+    "", "── FINALIDAD DEL TRATAMIENTO ──────────",
+    `Tus datos son utilizados exclusivamente por los líderes de ${ward} para la gestión interna de llamamientos y comunicaciones del barrio. No se comparten con terceros.`,
+    "", "── TUS DERECHOS (RGPD) ────────────────",
+    `Puedes solicitar la eliminación de tus datos en cualquier momento en: ${payload.bajaUrl}`,
+    "También puedes ejercer tus derechos de acceso, rectificación y portabilidad respondiendo a este correo.",
+    "", "Un líder revisará tu solicitud y se pondrá en contacto contigo en breve.",
+    "", "Con aprecio fraternal,", `🧭 ${ward}`,
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Confirmación de solicitud de acceso — Zendapp",
-    text: [
-      `Hola ${payload.name},`,
-      "",
-      "Hemos recibido tu solicitud de acceso a la plataforma de gestión del barrio. Este correo confirma los datos que has proporcionado y el consentimiento otorgado.",
-      "",
-      "── DATOS REGISTRADOS ──────────────────",
-      `Nombre: ${payload.name}`,
-      `Email: ${payload.toEmail}`,
-      "",
-      "── CONSENTIMIENTO ─────────────────────",
-      `Fecha y hora: ${consentDateStr}`,
-      "Consentiste ser contactado por email y/o WhatsApp para asuntos relacionados con tu llamamiento en el barrio.",
-      "",
-      "── FINALIDAD DEL TRATAMIENTO ──────────",
-      `Tus datos son utilizados exclusivamente por los líderes de ${ward} para la gestión interna de callamientos y comunicaciones del barrio. No se comparten con terceros ni con sistemas externos.`,
-      "",
-      "── TUS DERECHOS (RGPD) ────────────────",
-      `Puedes solicitar la eliminación de tus datos en cualquier momento en: ${payload.bajaUrl}`,
-      "También puedes ejercer tus derechos de acceso, rectificación y portabilidad respondiendo a este correo.",
-      "",
-      "Un líder revisará tu solicitud y se pondrá en contacto contigo en breve.",
-      "",
-      "Con aprecio fraternal,",
-      `🧭 ${ward}`,
-    ].join("\n"),
+    text: accessConfLines.join("\n"),
+    html: buildHtmlEmail(accessConfLines, payload.wardName),
   });
 }
 
@@ -1400,38 +1330,29 @@ export async function sendRegistroConfirmationEmail(payload: {
     payload.consentPhone ? "teléfono/WhatsApp" : null,
   ].filter(Boolean).join(" y ");
 
+  const regLines = [
+    `Hola ${payload.nombre} ${payload.apellidos},`, "",
+    "Hemos recibido tu solicitud de registro en el directorio del barrio. Este correo confirma los datos proporcionados y el consentimiento otorgado.",
+    "", "── DATOS REGISTRADOS ──────────────────",
+    `Nombre: ${payload.nombre} ${payload.apellidos}`, `Email: ${payload.toEmail}`,
+    "", "── CONSENTIMIENTO ─────────────────────",
+    `Fecha y hora: ${consentDateStr}`,
+    `Consentiste ser contactado por ${consentChannels} para comunicaciones del barrio.`,
+    "", "── FINALIDAD DEL TRATAMIENTO ──────────",
+    `Tus datos se utilizan exclusivamente por los líderes autorizados de ${ward} para la coordinación interna del barrio. No se comparten con terceros.`,
+    "", "── BASE LEGAL ─────────────────────────",
+    "Tus datos se tratan con base en tu consentimiento expreso (RGPD Art. 6.1.a).",
+    "", "── TUS DERECHOS (RGPD) ────────────────",
+    `Puedes solicitar la eliminación de tus datos en cualquier momento en: ${payload.bajaUrl}`,
+    "También puedes ejercer tus derechos de acceso, rectificación y portabilidad respondiendo a este correo.",
+    "", "Tu solicitud está pendiente de revisión por un líder del barrio, que la confirmará en breve.",
+    "", "Con aprecio fraternal,", `🧭 ${ward}`,
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Confirmación de registro en el directorio — Zendapp",
-    text: [
-      `Hola ${payload.nombre} ${payload.apellidos},`,
-      "",
-      "Hemos recibido tu solicitud de registro en el directorio del barrio. Este correo confirma los datos proporcionados y el consentimiento otorgado.",
-      "",
-      "── DATOS REGISTRADOS ──────────────────",
-      `Nombre: ${payload.nombre} ${payload.apellidos}`,
-      `Email: ${payload.toEmail}`,
-      "",
-      "── CONSENTIMIENTO ─────────────────────",
-      `Fecha y hora: ${consentDateStr}`,
-      `Consentiste ser contactado por ${consentChannels} para comunicaciones del barrio.`,
-      "",
-      "── FINALIDAD DEL TRATAMIENTO ──────────",
-      `Tus datos se utilizan exclusivamente por los líderes autorizados de ${ward} (obispo, consejeros, secretario y presidencias) para la coordinación interna del barrio: actividades, invitaciones, recordatorios y felicitaciones de cumpleaños. No se comparten con terceros ni con sistemas externos.`,
-      "",
-      "── BASE LEGAL ─────────────────────────",
-      "Tus datos se tratan con base en tu consentimiento expreso (RGPD Art. 6.1.a).",
-      "",
-      "── TUS DERECHOS (RGPD) ────────────────",
-      `Puedes solicitar la eliminación completa de tus datos en cualquier momento en: ${payload.bajaUrl}`,
-      "También puedes ejercer tus derechos de acceso, rectificación y portabilidad respondiendo a este correo.",
-      "",
-      "Tu solicitud está pendiente de revisión por un líder del barrio, que la confirmará en breve.",
-      "",
-      "Con aprecio fraternal,",
-      `🧭 ${ward}`,
-    ].join("\n"),
+    text: regLines.join("\n"),
+    html: buildHtmlEmail(regLines, payload.wardName),
   });
 }
 
@@ -1449,24 +1370,19 @@ export async function sendBajaConfirmationEmail(payload: {
 
   const ward = payload.wardName?.trim() || "el barrio";
 
+  const bajaLines = [
+    `Hola ${payload.nombre} ${payload.apellidos},`, "",
+    "Hemos recibido tu solicitud de eliminación de datos del directorio del barrio.",
+    "", "Conforme al artículo 17 del RGPD (derecho de supresión), procesaremos tu solicitud en un plazo máximo de 30 días naturales.",
+    "", "Una vez completada la eliminación, todos tus datos personales serán borrados permanentemente de los sistemas de la plataforma.",
+    "", "Si tienes alguna duda o deseas confirmar el estado de tu solicitud, responde a este correo.",
+    "", "Con aprecio fraternal,", `🧭 ${ward}`,
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: "Confirmación de solicitud de baja — Zendapp",
-    text: [
-      `Hola ${payload.nombre} ${payload.apellidos},`,
-      "",
-      "Hemos recibido tu solicitud de eliminación de datos del directorio del barrio.",
-      "",
-      "Conforme al artículo 17 del RGPD (derecho de supresión), procesaremos tu solicitud en un plazo máximo de 30 días naturales.",
-      "",
-      "Una vez completada la eliminación, todos tus datos personales serán borrados permanentemente de los sistemas de la plataforma.",
-      "",
-      "Si tienes alguna duda o deseas confirmar el estado de tu solicitud, responde a este correo.",
-      "",
-      "Con aprecio fraternal,",
-      `🧭 ${ward}`,
-    ].join("\n"),
+    text: bajaLines.join("\n"),
+    html: buildHtmlEmail(bajaLines, payload.wardName),
   });
 }
 
@@ -1516,22 +1432,18 @@ export async function sendBaptismModerationReminderEmail(payload: {
   const names = payload.candidateNames.join(", ");
   const ward = payload.wardName?.trim() || "el barrio";
 
+  const moderLines = [
+    "Hola,", "",
+    `Hay ${payload.pendingCount} felicitación(es) pendiente(s) de aprobación para el bautismo de ${names}.`,
+    "", "En aproximadamente 1 hora se generarán y enviarán automáticamente los recuerdos de bautismo con los mensajes aprobados hasta ese momento.",
+    "", `Aprueba los mensajes aquí: ${payload.missionUrl}`,
+    "", "Con aprecio fraternal,", `🧭 ${ward}`,
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: `Recordatorio: aprueba las felicitaciones antes del envío del recuerdo de bautismo`,
-    text: [
-      "Hola,",
-      "",
-      `Hay ${payload.pendingCount} felicitación(es) pendiente(s) de aprobación para el bautismo de ${names}.`,
-      "",
-      "En aproximadamente 1 hora se generarán y enviarán automáticamente los recuerdos de bautismo con los mensajes aprobados hasta ese momento.",
-      "",
-      `Aprueba los mensajes aquí: ${payload.missionUrl}`,
-      "",
-      "Con aprecio fraternal,",
-      `🧭 ${ward}`,
-    ].join("\n"),
+    text: moderLines.join("\n"),
+    html: buildHtmlEmail(moderLines, payload.wardName),
   });
 }
 
@@ -1557,22 +1469,18 @@ export async function sendBaptismBannerEmail(payload: {
   });
   const filename = `recuerdo-bautismo-${payload.candidateName.toLowerCase().replace(/\s+/g, "-")}.png`;
 
+  const bannerLines = [
+    `Hola ${payload.candidateName},`, "",
+    `En nombre de los miembros de ${ward}, te enviamos este recuerdo de tu bautismo del ${dateStr}.`,
+    "", "En él encontrarás las felicitaciones de quienes estuvieron presentes ese día.",
+    "", "¡Bienvenido/a a la familia del evangelio!", "",
+    "Con aprecio fraternal,", `🧭 ${ward}`,
+  ];
   await smtp.transporter.sendMail({
-    from: smtp.from,
-    to: payload.toEmail,
+    from: smtp.from, to: payload.toEmail,
     subject: `Tu recuerdo de bautismo — ${payload.candidateName}`,
-    text: [
-      `Hola ${payload.candidateName},`,
-      "",
-      `En nombre de los miembros de ${ward}, te enviamos este recuerdo de tu bautismo del ${dateStr}.`,
-      "",
-      "En él encontrarás las felicitaciones de quienes estuvieron presentes ese día.",
-      "",
-      "¡Bienvenido/a a la familia del evangelio!",
-      "",
-      "Con aprecio fraternal,",
-      `🧭 ${ward}`,
-    ].join("\n"),
+    text: bannerLines.join("\n"),
+    html: buildHtmlEmail(bannerLines, payload.wardName),
     attachments: [
       {
         filename,
