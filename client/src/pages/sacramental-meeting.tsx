@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Plus, FileText, Edit, Trash2, Download, X, ChevronRight, Music, Handshake, Users, BookOpen, Megaphone, Eye, Calendar, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn, normalizeMemberName } from "@/lib/utils";
+import { cn, normalizeMemberName, shortMemberName, shortUserName } from "@/lib/utils";
 import {
   Form,
   FormControl,
@@ -483,7 +483,7 @@ function SacramentalMeetingPageInner() {
   // ── All original data hooks (unchanged) ──
   const { data: members = [] } = useMembers();
   const memberOptions = useMemo(
-    () => members.map((m) => normalizeMemberName(m.nameSurename)).filter((n): n is string => Boolean(n)),
+    () => members.map((m) => shortMemberName(m)).filter((n): n is string => Boolean(n)),
     [members]
   );
   const uniqueMemberOptions = useMemo(
@@ -600,7 +600,7 @@ function SacramentalMeetingPageInner() {
   const deleteMutation = useDeleteSacramentalMeeting();
 
   const bishopricMembers = useMemo(() => users.filter((m: any) => ["obispo", "consejero_obispo"].includes(m.role)), [users]);
-  const getMemberLabel = (m?: any) => m?.fullName || m?.name || m?.email || "";
+  const getMemberLabel = (m?: any) => m ? (shortUserName(m) || m?.email || "") : "";
   const parsePersonValue = (value?: string | null) => {
     const trimmed = (value ?? "").toString().trim();
     if (!trimmed) return { name: "", calling: "" };
