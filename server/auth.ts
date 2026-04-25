@@ -273,47 +273,144 @@ export async function sendNewUserCredentialsEmail(payload: {
   name: string;
   username: string;
   temporaryPassword: string;
+  callingName?: string | null;
   recipientSex?: string | null;
   recipientOrganizationType?: string | null;
   wardName?: string | null;
   loginUrl?: string;
 }) {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = getSmtpFromHeader(payload.wardName);
-
-  if (!host || !port || !user || !pass) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) {
     console.warn("SMTP not configured. New user credentials:", payload);
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
+  const ward = resolveWardName(payload.wardName);
+  const greeting = buildPastoralGreeting({
+    recipientName: payload.name,
+    recipientSex: payload.recipientSex,
+    recipientOrganizationType: payload.recipientOrganizationType,
   });
+  const callingLine = payload.callingName ? ` como <strong>${payload.callingName}</strong>` : "";
+  const callingLinePlain = payload.callingName ? ` como ${payload.callingName}` : "";
+  const loginUrl = payload.loginUrl ?? "";
 
-  await transporter.sendMail({
-    from,
+  const subject = `Tu acceso a ${ward} está listo`;
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+      <!-- HEADER -->
+      <tr>
+        <td style="background:#1a3554;padding:26px 32px;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="font-size:30px;line-height:1;padding-right:14px;vertical-align:middle;">🧭</td>
+            <td style="vertical-align:middle;">
+              <div style="font-size:19px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">${ward}</div>
+              <div style="font-size:11px;color:#93c5fd;margin-top:3px;">La Iglesia de Jesucristo de los Santos de los Últimos Días</div>
+            </td>
+          </tr></table>
+        </td>
+      </tr>
+
+      <!-- BODY -->
+      <tr>
+        <td style="padding:32px 32px 24px;">
+          <p style="margin:0 0 18px;font-size:15px;color:#1e293b;line-height:1.65;">${greeting}</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.65;">
+            Tu cuenta de acceso${callingLine} en <strong>${ward}</strong> ha sido creada correctamente.
+            A continuación encontrarás tus credenciales para iniciar sesión:
+          </p>
+
+          <!-- CREDENTIALS BOX -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr>
+              <td style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:22px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;padding-bottom:5px;">Usuario</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:17px;font-weight:700;color:#1a3554;font-family:Courier New,monospace;padding-bottom:18px;border-bottom:1px solid #e2e8f0;">${payload.username}</td>
+                  </tr>
+                  <tr><td style="padding-top:14px;"></td></tr>
+                  <tr>
+                    <td style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;padding-bottom:5px;">Contraseña temporal</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:17px;font-weight:700;color:#1a3554;font-family:Courier New,monospace;">${payload.temporaryPassword}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- CTA BUTTON -->
+          ${loginUrl ? `
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr>
+              <td style="background:#1a3554;border-radius:8px;">
+                <a href="${loginUrl}" style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;">
+                  Iniciar sesión &rarr;
+                </a>
+              </td>
+            </tr>
+          </table>
+          ` : ""}
+
+          <p style="margin:0;font-size:13px;color:#64748b;line-height:1.55;background:#fef9c3;border-left:3px solid #f59e0b;padding:10px 14px;border-radius:4px;">
+            🔒 Por seguridad, deberás establecer una nueva contraseña personal en tu primer inicio de sesión.
+          </p>
+        </td>
+      </tr>
+
+      <!-- SIGNATURE -->
+      <tr>
+        <td style="border-top:1px solid #e2e8f0;padding:20px 32px;background:#f8fafc;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="font-size:22px;line-height:1;padding-right:12px;vertical-align:middle;">🧭</td>
+            <td style="vertical-align:middle;">
+              <div style="font-size:14px;font-weight:700;color:#1a3554;">${ward}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px;">La Iglesia de Jesucristo de los Santos de los Últimos Días &middot; Madrid, España</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:1px;font-style:italic;">Sirviendo juntos con fe y propósito</div>
+            </td>
+          </tr></table>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+
+  const text = [
+    greeting,
+    "",
+    `Tu cuenta de acceso${callingLinePlain} en ${ward} ha sido creada correctamente.`,
+    "",
+    `Usuario: ${payload.username}`,
+    `Contraseña temporal: ${payload.temporaryPassword}`,
+    loginUrl ? `Iniciar sesión: ${loginUrl}` : null,
+    "",
+    "Por seguridad, deberás establecer una nueva contraseña en tu primer inicio de sesión.",
+    "",
+    "Con aprecio,",
+    ward,
+    "La Iglesia de Jesucristo de los Santos de los Últimos Días",
+  ].filter((line): line is string => line !== null).join("\n");
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
     to: payload.toEmail,
-    subject: "Credenciales de tu nueva cuenta",
-    text: [
-      buildPastoralGreeting({
-        recipientName: payload.name,
-        recipientSex: payload.recipientSex,
-        recipientOrganizationType: payload.recipientOrganizationType,
-      }),
-      "",
-      "Tu cuenta ha sido creada. Usa estas credenciales para iniciar sesión:",
-      `Usuario: ${payload.username}`,
-      `Contraseña temporal: ${payload.temporaryPassword}`,
-      payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
-      "",
-      "Por seguridad, deberás cambiar esta contraseña en tu primer inicio de sesión.",
-    ].filter((line): line is string => Boolean(line)).join("\n"),
+    subject,
+    text,
+    html,
   });
 }
 
@@ -388,9 +485,8 @@ const buildPastoralGreeting = (options: {
   const salutation = getRecipientSalutation(options.recipientSex, options.recipientOrganizationType);
   const normalizedName = normalizeRecipientName(options.recipientName);
   const prefix = [greeting, salutation].filter(Boolean).join(" ");
-  return normalizedName
-    ? `${prefix} ${normalizedName},`
-    : `${prefix},`;
+  const raw = normalizedName ? `${prefix} ${normalizedName},` : `${prefix},`;
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 };
 
 const getTimeGreeting = (timeLabel?: string) => {
