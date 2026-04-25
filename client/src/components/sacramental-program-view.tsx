@@ -22,44 +22,43 @@ const parsePerson = (v?: string | null) => {
 const orgName = (orgs: any[], id?: string) => orgs.find((o: any) => o.id === id)?.name ?? "";
 
 const FONT = "'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif";
-const PX = { top: 32, bottom: 28, sides: 32, gap: 16, footer: 36 };
+const PX = { top: 20, bottom: 20, sides: 18, gap: 10, footer: 32 };
 const SPLIT = "48%";
 
 // ── Primitive components ─────────────────────────────────────────
 
 function SectionCard({ left, right, accent }: { left: React.ReactNode; right: React.ReactNode; accent: string }) {
   return (
-    <div style={{ border: "1px solid #ececec", borderRadius: 15, display: "flex", position: "relative", alignItems: "stretch" }}>
-      {/* Floating center bar — doesn't reach the card border */}
+    <div style={{ border: "1px solid #ececec", borderRadius: 12, display: "flex", position: "relative", alignItems: "stretch" }}>
       <div style={{ position: "absolute", left: SPLIT, top: "12%", bottom: "12%", width: 1, background: "#ececec", pointerEvents: "none" }} />
-      <div style={{ width: SPLIT, padding: "22px 26px", boxSizing: "border-box" }}>{left}</div>
-      <div style={{ flex: 1, padding: "22px 26px 22px 32px", boxSizing: "border-box" }}>{right}</div>
+      <div style={{ width: SPLIT, padding: "12px 14px", boxSizing: "border-box" }}>{left}</div>
+      <div style={{ flex: 1, padding: "12px 14px 12px 18px", boxSizing: "border-box" }}>{right}</div>
     </div>
   );
 }
 
 function FullCard({ children }: { children: React.ReactNode }) {
-  return <div style={{ border: "1px solid #ececec", borderRadius: 15, padding: "22px 26px" }}>{children}</div>;
+  return <div style={{ border: "1px solid #ececec", borderRadius: 12, padding: "12px 14px" }}>{children}</div>;
 }
 
 function Lbl({ accent, small, children }: { accent: string; small?: boolean; children: React.ReactNode }) {
   return (
-    <span style={{ display: "block", color: accent, fontSize: small ? 9 : 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: small ? 10 : 8 }}>
+    <span style={{ display: "block", color: accent, fontSize: small ? 8 : 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: small ? 7 : 5 }}>
       {children}
     </span>
   );
 }
 
 function Name({ children, italic }: { children: React.ReactNode; italic?: boolean }) {
-  return <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#202124", lineHeight: 1.3, fontStyle: italic ? "italic" : undefined }}>{children}</p>;
+  return <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#202124", lineHeight: 1.3, fontStyle: italic ? "italic" : undefined }}>{children}</p>;
 }
 
 function Sub({ children }: { children: React.ReactNode }) {
-  return <p style={{ margin: "3px 0 0", fontSize: 12, color: "#70757a", fontStyle: "italic" }}>{children}</p>;
+  return <p style={{ margin: "2px 0 0", fontSize: 10.5, color: "#70757a", fontStyle: "italic" }}>{children}</p>;
 }
 
 function BlueBar({ accent, children }: { accent: string; children: React.ReactNode }) {
-  return <div style={{ borderLeft: `2.5px solid ${accent}`, paddingLeft: 16, marginTop: 6 }}>{children}</div>;
+  return <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12, marginTop: 4 }}>{children}</div>;
 }
 
 export function SacramentalProgramView({ meeting, organizations, recognitionMembers, onPDF, onClose }: Props) {
@@ -81,9 +80,11 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const curPageRef = useRef(0);
   curPageRef.current = curPage;
 
-  const accent = `#${template?.accentColor ?? "1a3554"}`;
+  const accent = `#${template?.accentColor ?? "004481"}`;
   const wardName = template?.wardName ?? "Barrio";
   const stakeName = template?.stakeName ?? "";
+  // Strip leading "Barrio " so the small label above doesn't duplicate
+  const displayWardName = wardName.replace(/^[Bb]arrio\s+/i, "") || wardName;
 
   const meetingDate = new Date(meeting.date);
   const dayName = meetingDate.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Madrid" }).toUpperCase();
@@ -106,7 +107,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0 || aaronicOrderings.length > 0;
 
   const bul = (items: string[]) => items.filter(Boolean).map((item, i) => (
-    <div key={i} style={{ fontSize: 11.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 6 }}>
+    <div key={i} style={{ fontSize: 10.5, color: "#3c4043", marginBottom: 2, display: "flex", gap: 5 }}>
       <span style={{ color: accent, flexShrink: 0 }}>·</span><span>{item}</span>
     </div>
   ));
@@ -184,7 +185,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
       node: (
         <FullCard>
           <Lbl accent={accent}>Anuncios y Asuntos</Lbl>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, marginTop: 16, borderTop: "1px solid #f1f3f4", paddingTop: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 10, borderTop: "1px solid #f1f3f4", paddingTop: 12 }}>
             <div>
               <Lbl accent={accent} small>Anuncios</Lbl>
               {meeting.announcements?.trim() ? bul(meeting.announcements.split("\n").map((l: string) => l.trim()).filter(Boolean)) : empty}
@@ -348,21 +349,21 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   // ── Header ─────────────────────────────────────────────────────
   const headerNode = (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div>
-          <div style={{ margin: 0, fontWeight: 400, color: "#70757a", fontSize: 14 }}>Barrio</div>
-          <div style={{ margin: "2px 0 0", fontSize: 38, fontWeight: 700, color: "#1a1a1a", lineHeight: 1, letterSpacing: "-1.5px" }}>{wardName}</div>
-          {stakeName && <div style={{ color: accent, fontWeight: 700, fontSize: 10, letterSpacing: "1px", marginTop: 10, textTransform: "uppercase" }}>{stakeName}</div>}
+          <div style={{ margin: 0, fontWeight: 400, color: "#70757a", fontSize: 11 }}>Barrio</div>
+          <div style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 700, color: "#1a1a1a", lineHeight: 1, letterSpacing: "-0.5px" }}>{displayWardName}</div>
+          {stakeName && <div style={{ color: accent, fontWeight: 700, fontSize: 9, letterSpacing: "0.8px", marginTop: 6, textTransform: "uppercase" }}>{stakeName}</div>}
         </div>
-        <div style={{ background: "#f1f3f4", padding: "14px 22px", borderRadius: 15, textAlign: "center", flexShrink: 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#70757a", letterSpacing: "0.06em" }}>{dayName}</div>
-          <div style={{ fontSize: 30, fontWeight: 700, color: accent, lineHeight: 1, margin: "4px 0" }}>{dayNum}</div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#70757a", letterSpacing: "0.06em" }}>{monthYear}</div>
+        <div style={{ background: "#f1f3f4", padding: "10px 16px", borderRadius: 12, textAlign: "center", flexShrink: 0, marginLeft: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#70757a", letterSpacing: "0.06em" }}>{dayName}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: accent, lineHeight: 1, margin: "3px 0" }}>{dayNum}</div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#70757a", letterSpacing: "0.06em" }}>{monthYear}</div>
         </div>
       </div>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ margin: 0, fontSize: 10, textTransform: "uppercase", color: "#70757a", letterSpacing: "1.5px", fontWeight: 600 }}>Programa de</div>
-        <div style={{ fontSize: 24, fontWeight: 700, textTransform: "uppercase", color: "#1a1a1a", margin: "4px 0 0", letterSpacing: "-0.5px" }}>Reunión Sacramental</div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ margin: 0, fontSize: 9, textTransform: "uppercase", color: "#70757a", letterSpacing: "1.5px", fontWeight: 600 }}>Programa de</div>
+        <div style={{ fontSize: 17, fontWeight: 700, textTransform: "uppercase", color: "#1a1a1a", margin: "3px 0 0", letterSpacing: "-0.3px" }}>Reunión Sacramental</div>
       </div>
     </>
   );
@@ -386,9 +387,9 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     overflowX: "hidden",
     padding: `${PX.top}px ${PX.sides}px ${PX.bottom}px`,
     fontFamily: FONT,
-    fontSize: 13,
+    fontSize: 11,
     color: "#333",
-    lineHeight: 1.5,
+    lineHeight: 1.45,
     boxSizing: "border-box" as const,
     borderRadius: 12,
     boxShadow: "0 8px 48px rgba(0,0,0,0.45)",
