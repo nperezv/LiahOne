@@ -302,6 +302,8 @@ export async function sendNewUserCredentialsEmail(payload: {
   const callingLine = callingFull ? ` como <strong>${callingFull}</strong>` : "";
   const callingLinePlain = callingFull ? ` como ${callingFull}` : "";
   const loginUrl = payload.loginUrl ?? "";
+  const appBase = process.env.APP_BASE_URL || "https://barriom8.zendapp.org";
+  const logoUrl = `${appBase}/icons/compass.svg`;
 
   const subject = `Tu acceso a ${ward} está listo`;
 
@@ -317,7 +319,7 @@ export async function sendNewUserCredentialsEmail(payload: {
       <tr>
         <td style="background:#1a3554;padding:26px 32px;">
           <table cellpadding="0" cellspacing="0"><tr>
-            <td style="font-size:30px;line-height:1;padding-right:14px;vertical-align:middle;">🧭</td>
+            <td style="padding-right:14px;vertical-align:middle;"><img src="${logoUrl}" width="40" height="40" alt="" style="display:block;" /></td>
             <td style="vertical-align:middle;">
               <div style="font-size:19px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">${ward}</div>
             </td>
@@ -380,7 +382,7 @@ export async function sendNewUserCredentialsEmail(payload: {
       <tr>
         <td style="border-top:1px solid #e2e8f0;padding:20px 32px;background:#f8fafc;">
           <table cellpadding="0" cellspacing="0"><tr>
-            <td style="font-size:22px;line-height:1;padding-right:12px;vertical-align:middle;">🧭</td>
+            <td style="padding-right:12px;vertical-align:middle;"><img src="${logoUrl}" width="30" height="30" alt="" style="display:block;" /></td>
             <td style="vertical-align:middle;">
               <div style="font-size:14px;font-weight:700;color:#1a3554;">${ward}</div>
               <div style="font-size:11px;color:#94a3b8;margin-top:2px;font-style:italic;">Sirviendo juntos con fe y propósito</div>
