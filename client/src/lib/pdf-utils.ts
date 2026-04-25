@@ -725,7 +725,7 @@ export async function generateSacramentalMeetingPDF(
   // Título principal
   ensureSpace(ctx, 16);
   setBodyFont(ctx, 16, "bold");
-  ctx.doc.text("Programa de Reunión Sacramental", ctx.marginX, ctx.y);
+  ctx.doc.text("PROGRAMA DE REUNIÓN SACRAMENTAL", ctx.marginX, ctx.y);
   ctx.y += 10;
 
   // Bloque de roles inicio
@@ -769,15 +769,38 @@ export async function generateSacramentalMeetingPDF(
     });
     if (deduped.length) leftItems.push(["Reconocimiento", deduped.join(", ")]);
   }
-  if (normalizedMeeting.musicDirector) {
-    const musicDirector = normalizeSingleLine(String(normalizedMeeting.musicDirector));
-    if (musicDirector) leftItems.push(["Dirección de la música", musicDirector]);
-  }
-
   if (normalizedMeeting.director) rightItems.push(["Dirige", String(normalizedMeeting.director)]);
-  if (normalizedMeeting.pianist) rightItems.push(["Acompañamiento en el Piano", String(normalizedMeeting.pianist)]);
 
   drawKeyValueTwoColumns(ctx, leftItems, rightItems);
+
+  // Salto de línea adicional tras el bloque de Reconocimiento/autoridades
+  ctx.y += 3;
+
+  // Dirección de la música y Acompañamiento en el Piano en la misma línea
+  const musicDirectorRaw = normalizedMeeting.musicDirector
+    ? normalizeSingleLine(String(normalizedMeeting.musicDirector))
+    : "";
+  const pianistRaw = normalizedMeeting.pianist ? String(normalizedMeeting.pianist) : "";
+
+  if (musicDirectorRaw || pianistRaw) {
+    ensureSpace(ctx, 8);
+    setBodyFont(ctx, 11, "bold");
+    if (musicDirectorRaw) {
+      ctx.doc.text("Dirección de la música:", ctx.marginX, ctx.y);
+      const labelW = ctx.doc.getTextWidth("Dirección de la música:");
+      setBodyFont(ctx, 11, "normal");
+      ctx.doc.text(musicDirectorRaw, ctx.marginX + labelW + 3, ctx.y);
+    }
+    if (pianistRaw) {
+      const midX = 110;
+      setBodyFont(ctx, 11, "bold");
+      ctx.doc.text("Acompañamiento en el Piano:", midX, ctx.y);
+      const labelW2 = ctx.doc.getTextWidth("Acompañamiento en el Piano:");
+      setBodyFont(ctx, 11, "normal");
+      ctx.doc.text(pianistRaw, midX + labelW2 + 3, ctx.y);
+    }
+    ctx.y += ctx.lineHeight + 2;
+  }
 
   // Apertura
   if (normalizedMeeting.openingHymn) {
@@ -810,14 +833,6 @@ export async function generateSacramentalMeetingPDF(
     }
   } else {
     drawParagraph(ctx, "—", { indent: 14 });
-  }
-
-  if (normalizedMeeting.stakeBusiness && String(normalizedMeeting.stakeBusiness).trim()) {
-    ctx.y += 2;
-    setBodyFont(ctx, 11, "bold");
-    ctx.doc.text("Asuntos de estaca:", ctx.marginX, ctx.y);
-    ctx.y += 6;
-    drawParagraph(ctx, String(normalizedMeeting.stakeBusiness), { indent: 14 });
   }
 
   const filteredReleases = Array.isArray(normalizedMeeting.releases)
@@ -947,6 +962,15 @@ export async function generateSacramentalMeetingPDF(
       const bullets = childBlessings.map((n: string) => `${n}`);
       drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
     }
+  }
+
+  // Anuncios de estaca — después de los asuntos de barrio
+  if (normalizedMeeting.stakeBusiness && String(normalizedMeeting.stakeBusiness).trim()) {
+    ctx.y += 2;
+    setBodyFont(ctx, 11, "bold");
+    ctx.doc.text("Asuntos de estaca:", ctx.marginX, ctx.y);
+    ctx.y += 6;
+    drawParagraph(ctx, String(normalizedMeeting.stakeBusiness), { indent: 14 });
   }
 
   // --- SANTA CENA ---
