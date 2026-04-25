@@ -1807,6 +1807,7 @@ function SacramentalMeetingPageInner() {
         meeting={programMeeting}
         organizations={organizations as any[]}
         recognitionMembers={getRecognitionMembers(programMeeting)}
+        onPDF={handleGeneratePDF}
         onClose={() => setProgramMeeting(null)}
       />
     )}

@@ -9,6 +9,7 @@ interface Props {
   meeting: any;
   organizations: any[];
   recognitionMembers: RecognitionMember[];
+  onPDF: (meeting: any) => void;
   onClose: () => void;
 }
 
@@ -27,7 +28,7 @@ const bullets = (items: string[], accent: string) =>
     </div>
   ));
 
-export function SacramentalProgramView({ meeting, organizations, recognitionMembers, onClose }: Props) {
+export function SacramentalProgramView({ meeting, organizations, recognitionMembers, onPDF, onClose }: Props) {
   const { data: template } = useQuery({
     queryKey: ["/api/pdf-template"],
     queryFn: async () => {
@@ -377,9 +378,9 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
           </button>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => window.print()}
+          <button onClick={() => onPDF(meeting)}
             style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, color: "white", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-            <Printer size={14} /> Imprimir
+            <Printer size={14} /> PDF
           </button>
           <button onClick={onClose}
             style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, color: "white", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
