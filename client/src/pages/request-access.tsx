@@ -9,18 +9,25 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-const requestAccessSchema = z.object({
-  name: z
-    .string()
-    .min(3, "Ingresa tu nombre completo")
-    .refine((value) => value.trim().split(/\s+/).length >= 2, "Incluye nombre y apellido"),
-  email: z.string().email("Email inválido"),
-  calling: z.string().min(2, "Indica tu llamamiento"),
-  phone: z.string().optional(),
-  contactConsent: z.boolean().optional(),
-});
+const requestAccessSchema = z
+  .object({
+    nombre: z.string().min(1, "El nombre es requerido"),
+    apellidos: z.string().min(1, "Los apellidos son requeridos"),
+    sex: z.enum(["M", "F"], { required_error: "Indica tu sexo" }),
+    birthday: z.string().min(1, "La fecha de nacimiento es requerida"),
+    email: z.string().email("Email inválido"),
+    calling: z.string().min(2, "Indica tu llamamiento"),
+    phone: z.string().optional(),
+    consentEmail: z.boolean().optional(),
+    consentPhone: z.boolean().optional(),
+  })
+  .refine((data) => data.consentEmail || data.consentPhone, {
+    message: "Acepta al menos un tipo de contacto",
+    path: ["consentEmail"],
+  });
 
 type RequestAccessFormValues = z.infer<typeof requestAccessSchema>;
 
@@ -32,11 +39,15 @@ export default function RequestAccessPage() {
   const form = useForm<RequestAccessFormValues>({
     resolver: zodResolver(requestAccessSchema),
     defaultValues: {
-      name: "",
+      nombre: "",
+      apellidos: "",
+      sex: undefined,
+      birthday: "",
       email: "",
       calling: "",
       phone: "",
-      contactConsent: false,
+      consentEmail: false,
+      consentPhone: false,
     },
   });
 
@@ -47,9 +58,17 @@ export default function RequestAccessPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...values,
+          nombre: values.nombre.trim(),
+          apellidos: values.apellidos.trim(),
+          name: `${values.nombre.trim()} ${values.apellidos.trim()}`,
+          sex: values.sex,
+          birthday: values.birthday,
+          email: values.email,
+          calling: values.calling,
           phone: values.phone || undefined,
-          contactConsent: Boolean(values.contactConsent),
+          consentEmail: Boolean(values.consentEmail),
+          consentPhone: Boolean(values.consentPhone),
+          contactConsent: Boolean(values.consentEmail || values.consentPhone),
         }),
       });
 
@@ -67,14 +86,9 @@ export default function RequestAccessPage() {
         description: "El obispo recibirá tu solicitud y se pondrá en contacto.",
       });
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : "No se pudo enviar la solicitud. Intenta nuevamente.";
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
+      const message =
+        error instanceof Error ? error.message : "No se pudo enviar la solicitud. Intenta nuevamente.";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -85,9 +99,7 @@ export default function RequestAccessPage() {
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Solicitar acceso</CardTitle>
-          <CardDescription>
-            Completa el formulario y revisaremos tu solicitud.
-          </CardDescription>
+          <CardDescription>Completa el formulario y revisaremos tu solicitud.</CardDescription>
         </CardHeader>
         <CardContent>
           {isSubmitted ? (
@@ -102,19 +114,71 @@ export default function RequestAccessPage() {
           ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre completo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nombre y apellido" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="nombre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nombre" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="apellidos"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Apellidos</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Apellidos" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="sex"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sexo</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="M">Hombre</SelectItem>
+                            <SelectItem value="F">Mujer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="birthday"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha de nacimiento</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}
@@ -124,24 +188,6 @@ export default function RequestAccessPage() {
                       <FormLabel>Email</FormLabel>
                       <FormControl>
                         <Input type="email" placeholder="correo@ejemplo.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="calling"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Llamamiento</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Ej. Secretario de barrio"
-                          {...field}
-                          className="min-h-[90px]"
-                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -164,18 +210,58 @@ export default function RequestAccessPage() {
 
                 <FormField
                   control={form.control}
-                  name="contactConsent"
+                  name="calling"
                   render={({ field }) => (
-                    <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormItem>
+                      <FormLabel>Llamamiento</FormLabel>
                       <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        <Textarea
+                          placeholder="Ej. Secretario de barrio"
+                          {...field}
+                          className="min-h-[80px]"
+                        />
                       </FormControl>
-                      <FormLabel className="text-sm font-normal">
-                        Acepto ser contactado por email y WhatsApp.
-                      </FormLabel>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Consentimiento de contacto</p>
+                  <p className="text-xs text-muted-foreground">Acepta al menos una opción para que podamos contactarte.</p>
+                  <FormField
+                    control={form.control}
+                    name="consentEmail"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-2 space-y-0">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <FormLabel className="text-sm font-normal">
+                          Acepto ser contactado por correo electrónico
+                        </FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="consentPhone"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-2 space-y-0">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <FormLabel className="text-sm font-normal">
+                          Acepto ser contactado por teléfono / WhatsApp
+                        </FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {form.formState.errors.consentEmail && (
+                    <p className="text-sm text-destructive">{form.formState.errors.consentEmail.message}</p>
+                  )}
+                </div>
 
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? "Enviando..." : "Enviar solicitud"}

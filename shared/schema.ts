@@ -345,11 +345,18 @@ export const bajaRequests = pgTable("baja_requests", {
 export const accessRequests = pgTable("access_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  nombre: text("nombre"),
+  apellidos: text("apellidos"),
+  sex: text("sex"),
+  birthday: timestamp("birthday", { withTimezone: true }),
   email: text("email").notNull(),
   calling: text("calling"),
   phone: text("phone"),
   contactConsent: boolean("contact_consent").notNull().default(false),
   contactConsentAt: timestamp("contact_consent_at"),
+  consentEmail: boolean("consent_email").notNull().default(false),
+  consentPhone: boolean("consent_phone").notNull().default(false),
+  memberId: varchar("member_id").references(() => members.id),
   status: accessRequestStatusEnum("status").notNull().default("pendiente"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

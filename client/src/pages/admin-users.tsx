@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Edit, Trash2, Key } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Key, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -223,10 +223,17 @@ const MemberAutocomplete = ({
 interface AccessRequest {
   id: string;
   name: string;
+  nombre?: string | null;
+  apellidos?: string | null;
+  sex?: string | null;
+  birthday?: string | null;
   email: string;
   calling?: string | null;
   phone?: string | null;
   contactConsent: boolean;
+  consentEmail: boolean;
+  consentPhone: boolean;
+  memberId?: string | null;
   status: "pendiente" | "aprobada" | "rechazada";
   createdAt: string;
 }
@@ -304,6 +311,8 @@ export default function AdminUsersPage() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [accessRequestStep, setAccessRequestStep] = useState<1 | 2>(1);
+  const [isRegisteringMember, setIsRegisteringMember] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
@@ -358,7 +367,7 @@ export default function AdminUsersPage() {
     enabled: isAdmin,
   });
 
-  const { data: members = [] } = useMembers({ enabled: isAdmin });
+  const { data: members = [], refetch: refetchMembers } = useMembers({ enabled: isAdmin });
 
   const { data: sessions = [], refetch: refetchSessions } = useQuery<AdminSession[]>({
     queryKey: ["/api/admin/sessions"],
@@ -422,26 +431,28 @@ export default function AdminUsersPage() {
       return;
     }
 
-    const suggestedUsername = accessRequest.email
-      ? accessRequest.email.split("@")[0]
-      : accessRequest.name
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, ".");
-
-    createForm.reset({
-      username: suggestedUsername,
-      name: normalizeMemberName(accessRequest.name),
-      email: accessRequest.email,
-      phone: accessRequest.phone || "",
-      role: "secretario",
-      organizationId: "",
-      memberId: "",
-      callingName: "",
-      isActive: true,
-    });
-
     setPrefilledRequestId(accessRequest.id);
+
+    if (accessRequest.memberId) {
+      const suggestedUsername = accessRequest.email
+        ? accessRequest.email.split("@")[0]
+        : accessRequest.name.trim().toLowerCase().replace(/\s+/g, ".");
+      createForm.reset({
+        username: suggestedUsername,
+        name: normalizeMemberName(accessRequest.name),
+        email: accessRequest.email,
+        phone: accessRequest.phone || "",
+        role: "secretario",
+        organizationId: "",
+        memberId: accessRequest.memberId,
+        callingName: accessRequest.calling || "",
+        isActive: true,
+      });
+      setAccessRequestStep(2);
+    } else {
+      setAccessRequestStep(1);
+    }
+
     setIsCreateDialogOpen(true);
   }, [accessRequest, createForm, prefilledRequestId]);
 
@@ -871,6 +882,56 @@ export default function AdminUsersPage() {
     if (member.phone) editUserForm.setValue("phone", member.phone);
   }, [selectedEditMemberId, membersById, editUserForm]);
 
+  const handleRegisterInDirectory = async () => {
+    if (!accessRequest) return;
+    setIsRegisteringMember(true);
+    try {
+      const response = await fetch(`/api/access-requests/${accessRequest.id}/register-member`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Error al registrar en el directorio");
+      }
+      const { memberId } = await response.json();
+
+      const suggestedUsername = accessRequest.email
+        ? accessRequest.email.split("@")[0]
+        : accessRequest.name.trim().toLowerCase().replace(/\s+/g, ".");
+
+      createForm.reset({
+        username: suggestedUsername,
+        name: normalizeMemberName(accessRequest.name),
+        email: accessRequest.email,
+        phone: accessRequest.phone || "",
+        role: "secretario",
+        organizationId: "",
+        memberId,
+        callingName: accessRequest.calling || "",
+        isActive: true,
+      });
+
+      const memberLabel =
+        accessRequest.apellidos && accessRequest.nombre
+          ? `${accessRequest.apellidos}, ${accessRequest.nombre}`
+          : accessRequest.name;
+      setMemberSearch(memberLabel);
+
+      await refetchMembers();
+      setAccessRequestStep(2);
+      toast({ title: "Directorio actualizado", description: "El miembro ha sido registrado en el directorio." });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo registrar en el directorio.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRegisteringMember(false);
+    }
+  };
+
   const onCreateUser = async (data: CreateUserFormValues) => {
     if (!canCreateUser) {
       toast({
@@ -1123,26 +1184,76 @@ export default function AdminUsersPage() {
               Nuevo Usuario
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-xl">
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+              <DialogTitle>
+                {accessRequest
+                  ? accessRequestStep === 1
+                    ? "Alta de usuario — Paso 1 de 2"
+                    : "Alta de usuario — Paso 2 de 2"
+                  : "Crear Nuevo Usuario"}
+              </DialogTitle>
               <DialogDescription>
-                Se generará una contraseña temporal y se enviará al correo si el acceso está activo.
+                {accessRequest
+                  ? accessRequestStep === 1
+                    ? "Revisa los datos y regístralos en el directorio antes de crear la cuenta."
+                    : "Miembro registrado en el directorio. Completa los datos para crear la cuenta."
+                  : "Se generará una contraseña temporal y se enviará al correo si el acceso está activo."}
               </DialogDescription>
             </DialogHeader>
+
+            {accessRequest && accessRequestStep === 1 ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                  <div className="font-medium text-base">Datos del solicitante</div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {(accessRequest.nombre || accessRequest.apellidos) ? (
+                      <>
+                        <div><span className="text-muted-foreground">Nombre:</span> {accessRequest.nombre}</div>
+                        <div><span className="text-muted-foreground">Apellidos:</span> {accessRequest.apellidos}</div>
+                      </>
+                    ) : (
+                      <div className="col-span-2"><span className="text-muted-foreground">Nombre:</span> {accessRequest.name}</div>
+                    )}
+                    {accessRequest.sex && (
+                      <div><span className="text-muted-foreground">Sexo:</span> {accessRequest.sex === "M" ? "Hombre" : "Mujer"}</div>
+                    )}
+                    {accessRequest.birthday && (
+                      <div><span className="text-muted-foreground">Nacimiento:</span> {new Date(accessRequest.birthday).toLocaleDateString("es-ES")}</div>
+                    )}
+                    <div><span className="text-muted-foreground">Email:</span> {accessRequest.email}</div>
+                    {accessRequest.phone && (
+                      <div><span className="text-muted-foreground">Teléfono:</span> {accessRequest.phone}</div>
+                    )}
+                    {accessRequest.calling && (
+                      <div className="col-span-2"><span className="text-muted-foreground">Llamamiento:</span> {accessRequest.calling}</div>
+                    )}
+                  </div>
+                  <div className="pt-1 flex gap-3 text-xs text-muted-foreground">
+                    {accessRequest.consentEmail && <span>✓ Acepta contacto por email</span>}
+                    {accessRequest.consentPhone && <span>✓ Acepta contacto por teléfono</span>}
+                  </div>
+                </div>
+                {!(accessRequest.nombre && accessRequest.apellidos && accessRequest.sex && accessRequest.birthday) && (
+                  <p className="text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                    Esta solicitud no incluye todos los datos del directorio (nombre separado, sexo, fecha de nacimiento). El miembro se registrará con los datos disponibles y podrás completarlos desde el directorio.
+                  </p>
+                )}
+                <Button
+                  className="w-full"
+                  onClick={handleRegisterInDirectory}
+                  disabled={isRegisteringMember}
+                >
+                  {isRegisteringMember ? "Registrando..." : "Registrar en directorio"}
+                </Button>
+              </div>
+            ) : (
             <Form {...createForm}>
               <form onSubmit={createForm.handleSubmit(onCreateUser)} className="space-y-4">
-                {accessRequest && (
-                  <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 text-sm space-y-2">
-                    <div className="font-medium">Solicitud de acceso pendiente</div>
-                    <div>
-                      <span className="text-muted-foreground">Llamamiento:</span>{" "}
-                      {accessRequest.calling || "No especificado"}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Teléfono:</span>{" "}
-                      {accessRequest.phone || "No especificado"}
-                    </div>
+                {accessRequest && accessRequestStep === 2 && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900 px-4 py-3 text-sm flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                    <span className="text-green-700 dark:text-green-400">Paso 1 completado — Miembro registrado en el directorio</span>
                   </div>
                 )}
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1366,6 +1477,7 @@ export default function AdminUsersPage() {
                 </div>
               </form>
             </Form>
+            )}
           </DialogContent>
         </Dialog>
           <Button

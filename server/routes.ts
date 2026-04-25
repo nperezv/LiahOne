@@ -49,6 +49,8 @@ import {
   sacramentalMeetings as sacramentalMeetingsTable,
   agendaEvents,
   bajaRequests,
+  members as membersTable,
+  accessRequests,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -1679,9 +1681,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const birthdayDate = parsed.data.birthday
+        ? new Date(typeof parsed.data.birthday === "string" ? `${parsed.data.birthday}T12:00:00` : parsed.data.birthday)
+        : undefined;
+
       const accessRequest = await storage.createAccessRequest({
         ...parsed.data,
         email: normalizedEmail,
+        birthday: birthdayDate && !isNaN(birthdayDate.getTime()) ? birthdayDate : undefined,
         contactConsentAt: parsed.data.contactConsent ? new Date() : undefined,
       });
 
@@ -1756,6 +1763,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(accessRequest);
       } catch (error) {
         res.status(500).json({ error: "Failed to load access request" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/access-requests/:id/register-member",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
+      try {
+        const accessRequest = await storage.getAccessRequest(req.params.id);
+        if (!accessRequest) {
+          return res.status(404).json({ error: "Solicitud no encontrada" });
+        }
+
+        if (accessRequest.memberId) {
+          return res.json({ memberId: accessRequest.memberId });
+        }
+
+        const apellidos = (accessRequest.apellidos ?? "").trim();
+        const nombre = (accessRequest.nombre ?? "").trim();
+        const nameSurename = apellidos && nombre
+          ? `${apellidos}, ${nombre}`
+          : accessRequest.name.trim();
+
+        const birthday = accessRequest.birthday
+          ? new Date(accessRequest.birthday)
+          : new Date("1900-01-01T12:00:00Z");
+
+        const sex = accessRequest.sex ?? "M";
+
+        const consentAt = new Date();
+
+        const [member] = await db
+          .insert(membersTable)
+          .values({
+            nameSurename,
+            nombre: nombre || null,
+            apellidos: apellidos || null,
+            sex,
+            birthday,
+            phone: accessRequest.phone ?? null,
+            email: accessRequest.email,
+            memberStatus: "active",
+            emailConsentGranted: accessRequest.consentEmail || accessRequest.consentPhone || accessRequest.contactConsent,
+            emailConsentDate: consentAt,
+          })
+          .returning({ id: membersTable.id });
+
+        await db
+          .update(accessRequests)
+          .set({ memberId: member.id })
+          .where(eq(accessRequests.id, req.params.id));
+
+        return res.json({ memberId: member.id });
+      } catch (error) {
+        console.error("[register-member]", error);
+        return res.status(500).json({ error: "Error al registrar en el directorio" });
       }
     }
   );
@@ -4601,7 +4666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
       }
   
-      if (interviewData.date || interviewData.resolution === "completada" || interviewData.resolution === "cancelada") {
+      if (interviewData.date || interviewData.interviewerId || interviewData.resolution === "completada" || interviewData.resolution === "cancelada") {
         const assignments = await storage.getAllAssignments();
         const relatedAssignment = assignments.find(
           (assignment: any) => assignment.relatedTo === `interview:${interview.id}`
@@ -4623,6 +4688,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .filter(Boolean)
               .join("\n");
           } else {
+            if (interviewData.interviewerId && interviewData.interviewerId !== relatedAssignment.assignedTo) {
+              updateAssignmentData.assignedTo = interviewData.interviewerId;
+            }
+
             if (interviewData.date) {
               const interviewDateValue = new Date(interview.date);
               const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
