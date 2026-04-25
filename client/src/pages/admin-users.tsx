@@ -666,12 +666,11 @@ export default function AdminUsersPage() {
       "Líder de guardería",
     ],
     escuela_dominical: [
-      "Presidente",
-      "Primer consejero",
-      "Segundo consejero",
-      "Secretario",
-      "Maestro",
-      "Maestra",
+      "Presidente", "Presidenta",
+      "Primer consejero", "Primera consejera",
+      "Segundo consejero", "Segunda consejera",
+      "Secretario", "Secretaria",
+      "Maestro", "Maestra",
     ],
     jas: ["Líder de JAS"],
     as: ["Líder de AS"],
@@ -709,8 +708,11 @@ export default function AdminUsersPage() {
   );
 
   const displayCallings = useMemo(() => {
-    if (selectedOrganizationType === "escuela_dominical" && selectedMember?.sex === "F") {
-      return ["Presidenta", "Primera consejera", "Segunda consejera", "Secretaria", "Maestra"];
+    if (selectedOrganizationType === "escuela_dominical") {
+      if (selectedMember?.sex === "F") {
+        return ["Presidenta", "Primera consejera", "Segunda consejera", "Secretaria", "Maestra"];
+      }
+      return ["Presidente", "Primer consejero", "Segundo consejero", "Secretario", "Maestro", "Maestra"];
     }
     return orgCallings;
   }, [selectedOrganizationType, selectedMember?.sex, orgCallings]);
@@ -833,10 +835,10 @@ export default function AdminUsersPage() {
     if (selectedRole && !roleOptions.some((option) => option.value === selectedRole)) {
       createForm.setValue("role", roleOptions[0]?.value ?? "secretario");
     }
-    if (selectedCallingName && !displayCallings.includes(selectedCallingName)) {
+    if (selectedCallingName && !orgCallings.includes(selectedCallingName)) {
       createForm.setValue("callingName", "");
     }
-  }, [selectedCallingName, selectedOrganizationId, selectedRole, displayCallings, roleOptions, createForm]);
+  }, [selectedCallingName, selectedOrganizationId, selectedRole, orgCallings, roleOptions, createForm]);
 
   useEffect(() => {
     if (!selectedCallingName) return;
