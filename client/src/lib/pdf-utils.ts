@@ -152,10 +152,16 @@ function drawAccentRule(ctx: PdfCtx) {
   ctx.y += 10;
 }
 
-function drawSectionHeader(ctx: PdfCtx, title: string) {
+function drawSectionHeader(ctx: PdfCtx, title: string, options?: { accent?: boolean }) {
   ensureSpace(ctx, 14);
   setBodyFont(ctx, 12, "bold");
-  ctx.doc.setTextColor(0, 0, 0);
+
+  const useAccent = options?.accent ?? false;
+  const r = useAccent ? ctx.accent.r : 0;
+  const g = useAccent ? ctx.accent.g : 0;
+  const b = useAccent ? ctx.accent.b : 0;
+
+  ctx.doc.setTextColor(r, g, b);
 
   const upper = title.toUpperCase();
   const x = ctx.marginX;
@@ -167,9 +173,13 @@ function drawSectionHeader(ctx: PdfCtx, title: string) {
   const lineStartX = x + textW + 5;
   const lineEndX = ctx.pageWidth - ctx.marginX;
 
+  ctx.doc.setDrawColor(r, g, b);
+  ctx.doc.setLineWidth(useAccent ? 0.6 : 0.3);
+  ctx.doc.line(lineStartX, y + 0.8, lineEndX, y + 0.8);
+
+  ctx.doc.setTextColor(0, 0, 0);
   ctx.doc.setDrawColor(0, 0, 0);
   ctx.doc.setLineWidth(0.3);
-  ctx.doc.line(lineStartX, y + 0.8, lineEndX, y + 0.8);
 
   ctx.y += 10;
 }
@@ -771,14 +781,31 @@ export async function generateSacramentalMeetingPDF(
   }
   if (normalizedMeeting.director) rightItems.push(["Dirige", String(normalizedMeeting.director)]);
 
-  drawKeyValueTwoColumns(ctx, leftItems, rightItems);
-
-  // Dirección de la música y Acompañamiento en el Piano en la misma línea
   const musicDirectorRaw = normalizedMeeting.musicDirector
     ? normalizeSingleLine(String(normalizedMeeting.musicDirector))
     : "";
   const pianistRaw = normalizedMeeting.pianist ? String(normalizedMeeting.pianist) : "";
 
+  // Estimar altura del bloque de cabecera para dibujar el fondo antes del texto
+  const recogLines = recognitionEntries.length > 1 ? recognitionEntries.length : 1;
+  const leftHeight = leftItems.length * ctx.lineHeight + (recogLines - 1) * ctx.lineHeight;
+  const rightHeight = rightItems.length * ctx.lineHeight;
+  const musicLineH = (musicDirectorRaw || pianistRaw) ? ctx.lineHeight + 4 : 0;
+  const blockH = Math.max(leftHeight, rightHeight) + musicLineH + 10;
+
+  const cardPad = 4;
+  ctx.doc.setFillColor(246, 246, 246);
+  ctx.doc.roundedRect(
+    ctx.marginX - cardPad,
+    ctx.y - cardPad,
+    ctx.pageWidth - 2 * ctx.marginX + 2 * cardPad,
+    blockH,
+    2, 2, "F"
+  );
+
+  drawKeyValueTwoColumns(ctx, leftItems, rightItems);
+
+  // Dirección de la música y Acompañamiento en el Piano en la misma línea
   if (musicDirectorRaw || pianistRaw) {
     ensureSpace(ctx, 8);
     setBodyFont(ctx, 11, "bold");
@@ -972,8 +999,8 @@ export async function generateSacramentalMeetingPDF(
   }
 
   // --- SANTA CENA ---
-  ctx.y += 4; // ESPACIO ENTRE SECCIONES
-  drawSectionHeader(ctx, "SANTA CENA");
+  ctx.y += 4;
+  drawSectionHeader(ctx, "SANTA CENA", { accent: true });
 
   if (normalizedMeeting.sacramentHymn) {
     drawLabelLine(ctx, "Himno Sacramental", String(normalizedMeeting.sacramentHymn), { italicValue: true });
