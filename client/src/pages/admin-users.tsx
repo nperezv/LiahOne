@@ -703,10 +703,12 @@ export default function AdminUsersPage() {
     ],
   };
 
-  const orgCallings = useMemo(
-    () => callingsByOrgType[selectedOrganizationType] ?? [],
-    [selectedOrganizationType]
-  );
+  const orgCallings = useMemo(() => {
+    if (selectedOrganizationType === "escuela_dominical" && selectedMember?.sex === "F") {
+      return ["Presidenta", "Primera consejera", "Segunda consejera", "Secretaria", "Maestra"];
+    }
+    return callingsByOrgType[selectedOrganizationType] ?? [];
+  }, [selectedOrganizationType, selectedMember?.sex]);
 
   const roleOptions = useMemo(() => {
     if (selectedOrganizationType === "obispado") {
@@ -952,7 +954,7 @@ export default function AdminUsersPage() {
         phone: data.phone || undefined,
         memberId: data.memberId || undefined,
         callingName: data.callingName || undefined,
-        isActive: typeof data.isActive === "boolean" ? data.isActive : undefined,
+        isActive: true,
         accessRequestId: accessRequest?.id,
       };
 
@@ -1363,20 +1365,9 @@ export default function AdminUsersPage() {
                     control={createForm.control}
                     name="isActive"
                     render={({ field }) => (
-                      <FormItem className="md:col-span-2 flex items-center justify-between rounded-3xl bg-muted/30 p-4">
-                        <div className="space-y-1">
-                          <FormLabel className="text-base">Acceso activo</FormLabel>
-                          <p className="text-xs text-muted-foreground">
-                            Si se desactiva, no podrá iniciar sesión.
-                          </p>
-                        </div>
+                      <FormItem className="hidden">
                         <FormControl>
-                          <Switch
-                            checked={field.value ?? true}
-                            onCheckedChange={field.onChange}
-                            data-testid="switch-create-active"
-                            className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted"
-                          />
+                          <Input {...field} type="hidden" value="true" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -1440,27 +1431,10 @@ export default function AdminUsersPage() {
                     control={createForm.control}
                     name="role"
                     render={({ field }) => (
-                      <FormItem className="md:col-span-2">
-                        <FormLabel>Rol</FormLabel>
-                        <Select
-                          value={field.value ?? ""}
-                          onValueChange={field.onChange}
-                          disabled={!selectedOrganizationId}
-                        >
-                          <FormControl>
-                            <SelectTrigger data-testid="select-create-role">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {roleOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
+                      <FormItem className="hidden">
+                        <FormControl>
+                          <Input {...field} type="hidden" />
+                        </FormControl>
                       </FormItem>
                     )}
                   />
