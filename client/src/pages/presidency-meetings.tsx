@@ -581,6 +581,7 @@ export default function PresidencyMeetingsPage() {
     primaria: "primaria",
     "escuela-dominical": "escuela_dominical",
     jas: "jas",
+    as: "as",
     "cuorum-elderes": "cuorum_elderes",
   };
 
@@ -591,6 +592,7 @@ export default function PresidencyMeetingsPage() {
     primaria: "Primaria",
     "escuela-dominical": "Escuela Dominical",
     jas: "JAS",
+    as: "Adultos Solteros",
     "cuorum-elderes": "Cuórum de Élderes",
   };
 
