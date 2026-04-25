@@ -483,8 +483,8 @@ const getMadridGreeting = () => {
     new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "Europe/Madrid" }).format(new Date()),
     10
   );
-  if (h < 12) return "Buenos días";
-  if (h < 19) return "Buenas tardes";
+  if (h < 14) return "Buenos días";
+  if (h < 21) return "Buenas tardes";
   return "Buenas noches";
 };
 
