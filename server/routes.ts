@@ -8952,7 +8952,9 @@ Devuelve SOLO un JSON con esta estructura exacta:
       }
 
       if (!canEditAssignment) {
-        const attemptedFields = Object.keys(req.body ?? {}).filter((key) => key !== "status");
+        // id y cancellationReason son compañeros legítimos del cambio de estado
+        const STATUS_ONLY_KEYS = new Set(["status", "id", "cancellationReason"]);
+        const attemptedFields = Object.keys(req.body ?? {}).filter((key) => !STATUS_ONLY_KEYS.has(key));
         if (attemptedFields.length > 0) {
           return res.status(403).json({
             error: "Solo quien asigna (o el obispado) puede editar esta asignación",
