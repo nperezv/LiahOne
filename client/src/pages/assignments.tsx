@@ -196,6 +196,8 @@ export default function Assignments() {
   const [detailsAssignment, setDetailsAssignment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [completionDialogAssignment, setCompletionDialogAssignment] = useState<any>(null);
+  const [completionNote, setCompletionNote] = useState("");
 
   useEffect(() => {
     if (shouldAutoOpenCreate) {
@@ -253,12 +255,25 @@ export default function Assignments() {
     });
   };
 
-  const updateStatus = (id: string, status: string, cancellationReason?: string) => {
+  const updateStatus = (id: string, status: string, cancellationReason?: string, note?: string) => {
     updateMutation.mutate({
       id,
       status,
       ...(cancellationReason ? { cancellationReason } : {}),
+      ...(note?.trim() ? { completionNote: note.trim() } : {}),
     });
+  };
+
+  const requestCompletion = (assignment: any) => {
+    setCompletionNote("");
+    setCompletionDialogAssignment(assignment);
+  };
+
+  const confirmCompletion = () => {
+    if (!completionDialogAssignment) return;
+    updateStatus(completionDialogAssignment.id, "completada", undefined, completionNote);
+    setCompletionDialogAssignment(null);
+    setCompletionNote("");
   };
 
   const startEdit = (assignment: any) => {
@@ -370,6 +385,11 @@ export default function Assignments() {
 
   const handleQuickStatusChange = (assignment: any, nextStatus: string) => {
     if (!nextStatus || nextStatus === assignment.status) return;
+
+    if (nextStatus === "completada") {
+      requestCompletion(assignment);
+      return;
+    }
 
     let cancellationReason: string | undefined;
     if (nextStatus === "cancelada") {
@@ -915,10 +935,18 @@ export default function Assignments() {
               <span className="font-medium">Resolución:</span>{" "}
               {detailsAssignment?.resolution ? detailsAssignment.resolution.charAt(0).toUpperCase() + detailsAssignment.resolution.slice(1) : "Sin resolución"}
             </div>
-            <div>
-              <span className="font-medium">Motivo de cancelación:</span>{" "}
-              {detailsAssignment?.cancellationReason || "N/A"}
-            </div>
+            {detailsAssignment?.cancellationReason && (
+              <div>
+                <span className="font-medium">Motivo de cancelación:</span>{" "}
+                {detailsAssignment.cancellationReason}
+              </div>
+            )}
+            {detailsAssignment?.completionNote && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                <span className="font-medium text-green-800 block mb-1">Informe de finalización:</span>
+                <p className="text-green-900 text-sm whitespace-pre-wrap">{detailsAssignment.completionNote}</p>
+              </div>
+            )}
             <div>
               <span className="font-medium">Archivada:</span>{" "}
               {detailsAssignment?.archivedAt
@@ -929,6 +957,53 @@ export default function Assignments() {
           <div className="flex justify-end">
             <Button type="button" variant="outline" onClick={closeDetails}>
               Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Completion dialog */}
+      <Dialog
+        open={Boolean(completionDialogAssignment)}
+        onOpenChange={(open) => { if (!open) { setCompletionDialogAssignment(null); setCompletionNote(""); } }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Marcar como completada</DialogTitle>
+            <DialogDescription>
+              Deja un breve informe sobre cómo quedó esta tarea. Es opcional pero muy útil para el seguimiento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm font-medium">
+              {completionDialogAssignment?.title}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Informe de finalización</label>
+              <Textarea
+                placeholder="¿Qué se hizo? ¿Cómo quedó? ¿Algún seguimiento necesario?…"
+                value={completionNote}
+                onChange={(e) => setCompletionNote(e.target.value)}
+                className="min-h-[100px] resize-none text-sm"
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setCompletionDialogAssignment(null); setCompletionNote(""); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={updateMutation.isPending}
+              onClick={confirmCompletion}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1.5" />
+              Completar
             </Button>
           </div>
         </DialogContent>

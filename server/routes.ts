@@ -1155,6 +1155,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false
   `);
 
+  // Auto-migration: completion_note on assignments
+  await db.execute(sql`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS completion_note text`);
+
   // Auto-migration: update renamed checklist item labels
   await db.execute(sql`UPDATE activity_checklist_items SET label = 'Último himno'   WHERE item_key = 'prog_himno_cierre'   AND label = 'Himno de cierre'`);
   await db.execute(sql`UPDATE activity_checklist_items SET label = 'Última oración' WHERE item_key = 'prog_oracion_cierre' AND label = 'Oración de cierre'`);
@@ -8952,8 +8955,8 @@ Devuelve SOLO un JSON con esta estructura exacta:
       }
 
       if (!canEditAssignment) {
-        // id y cancellationReason son compañeros legítimos del cambio de estado
-        const STATUS_ONLY_KEYS = new Set(["status", "id", "cancellationReason"]);
+        // id, cancellationReason y completionNote son compañeros legítimos del cambio de estado
+        const STATUS_ONLY_KEYS = new Set(["status", "id", "cancellationReason", "completionNote"]);
         const attemptedFields = Object.keys(req.body ?? {}).filter((key) => !STATUS_ONLY_KEYS.has(key));
         if (attemptedFields.length > 0) {
           return res.status(403).json({
@@ -8993,7 +8996,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
         });
       }
 
-      const { cancellationReason, ...assignmentBody } = req.body;
+      const { cancellationReason, completionNote, ...assignmentBody } = req.body;
       const assignmentData = insertAssignmentSchema.partial().parse(assignmentBody);
 
       const trimmedCancellationReason = getTrimmedCancellationReason({
@@ -9025,6 +9028,9 @@ Devuelve SOLO un JSON con esta estructura exacta:
       if (assignmentData.status === "completada") {
         assignmentData.status = "archivada";
         assignmentData.resolution = "completada";
+        if (completionNote?.trim()) {
+          assignmentData.completionNote = completionNote.trim();
+        }
       }
 
       if (assignmentData.status === "archivada" && !assignmentData.resolution && assignment.resolution) {

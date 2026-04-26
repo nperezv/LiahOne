@@ -902,6 +902,7 @@ export const assignments = pgTable("assignments", {
   area: text("area"), // §29.2.5 area: 'livingGospel' | 'careForOthers' | 'missionary' | 'familyHistory'
   notes: text("notes"),
   cancellationReason: text("cancellation_reason"),
+  completionNote: text("completion_note"),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
