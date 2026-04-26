@@ -971,7 +971,7 @@ export default function Assignments() {
           <DialogHeader>
             <DialogTitle>Marcar como completada</DialogTitle>
             <DialogDescription>
-              Deja un breve informe sobre cómo quedó esta tarea. Es opcional pero muy útil para el seguimiento.
+              Escribe un breve informe sobre cómo quedó esta tarea antes de marcarla como completada.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-1">
@@ -987,6 +987,9 @@ export default function Assignments() {
                 className="min-h-[100px] resize-none text-sm"
                 autoFocus
               />
+              {completionNote.trim().length === 0 && (
+                <p className="text-xs text-destructive mt-1">El informe es obligatorio para completar la tarea.</p>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -999,7 +1002,7 @@ export default function Assignments() {
             </Button>
             <Button
               type="button"
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || completionNote.trim().length === 0}
               onClick={confirmCompletion}
             >
               <CheckCircle2 className="h-4 w-4 mr-1.5" />
