@@ -116,6 +116,8 @@ function LogisticsDetail({
     queryKey: ["/api/baptisms/services", baptismServiceId, "coordination"],
     queryFn: () => apiRequest("GET", `/api/baptisms/services/${baptismServiceId}/coordination`),
     enabled: Boolean(baptismServiceId),
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -1162,9 +1164,8 @@ export default function ActivityLogisticsPage() {
     queryKey: ["/api/service-tasks"],
     queryFn: () => apiRequest("GET", "/api/service-tasks"),
     enabled: Boolean(user) && ALLOWED_ROLES.includes(user?.role ?? ""),
-    refetchInterval: 5000,
     refetchOnWindowFocus: true,
-    staleTime: 3000,
+    staleTime: 1000 * 30,
   });
 
   const now = new Date();
