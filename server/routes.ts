@@ -2033,10 +2033,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         memberId: memberId || null,
       });
 
+      let callingName: string | undefined;
       if (memberId && memberForCalling) {
         const trimmedCallingOverride =
           typeof callingNameOverride === "string" ? callingNameOverride.trim() : "";
-        const callingName = trimmedCallingOverride || getCallingLabel(role, memberForCalling.sex);
+        callingName = trimmedCallingOverride || getCallingLabel(role, memberForCalling.sex) || undefined;
         if (callingName) {
           const obispadoOrganizationId = await getObispadoOrganizationId();
           const callingOrganizationId = OBISPADO_ROLES.has(role)
