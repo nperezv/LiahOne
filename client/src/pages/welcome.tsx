@@ -279,7 +279,12 @@ export default function WelcomePage() {
           <img src="/icons/compass.svg" alt="" className="h-8 w-8 opacity-70" />
           <span className="font-semibold text-sm text-white/60 tracking-tight">{displayName}</span>
         </div>
-        <div className="landing-fade-up" style={{ animationDelay: "80ms" }}>
+        <div className="landing-fade-up flex items-center gap-2" style={{ animationDelay: "80ms" }}>
+          <Link href="/actividades">
+            <button className="text-xs text-white/35 hover:text-white/70 transition-colors px-3.5 py-1.5 rounded-full hover:bg-white/[0.05]">
+              Actividades
+            </button>
+          </Link>
           <Link href="/login">
             <button className="text-xs text-white/40 hover:text-white/80 transition-colors px-3.5 py-1.5 rounded-full border border-white/[0.12] hover:border-white/25 backdrop-blur-sm">
               Acceso líderes
@@ -300,20 +305,11 @@ export default function WelcomePage() {
         <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 80px 0 120px rgba(7,7,9,0.7), inset -80px 0 120px rgba(7,7,9,0.7)" }} />
 
         <div className="relative z-10 max-w-3xl mx-auto">
-          {stakeName && (
-            <div
-              className="landing-fade-up inline-flex items-center gap-2 bg-[#C9A227]/10 border border-[#C9A227]/25 backdrop-blur-sm rounded-full px-4 py-1.5 text-xs text-[#C9A227]/80 mb-8 uppercase tracking-widest font-semibold"
-              style={{ animationDelay: "100ms" }}
-            >
-              {stakeName}
-            </div>
-          )}
-
           {/* Big tagline */}
           <h1
             className="landing-fade-up landing-gradient-text font-black leading-[0.95] tracking-tight mb-5"
             style={{
-              animationDelay: "200ms",
+              animationDelay: "160ms",
               fontSize: "clamp(3.5rem, 11vw, 7rem)",
               letterSpacing: "-0.03em",
             }}
@@ -321,26 +317,41 @@ export default function WelcomePage() {
             Todos son<br />bienvenidos.
           </h1>
 
-          {/* Ward name — smaller, secondary */}
+          {/* Ward name — secondary */}
           <p
-            className="landing-fade-up text-sm md:text-base font-semibold tracking-[0.15em] uppercase text-white/40 mb-8"
-            style={{ animationDelay: "320ms" }}
+            className="landing-fade-up font-semibold tracking-[0.16em] uppercase text-white/40 mb-1"
+            style={{ animationDelay: "300ms", fontSize: "clamp(0.75rem, 2vw, 1rem)" }}
           >
             {displayName}
           </p>
 
-          {/* Meeting pill */}
+          {/* Stake name — plain text, no pill */}
+          {stakeName && (
+            <p
+              className="landing-fade-up tracking-[0.10em] uppercase text-white/20 mb-8"
+              style={{ animationDelay: "360ms", fontSize: "clamp(0.6rem, 1.4vw, 0.75rem)" }}
+            >
+              {stakeName}
+            </p>
+          )}
+          {!stakeName && <div className="mb-8" />}
+
+          {/* Meeting button — scrolls to cuando-donde */}
           <div
             className="landing-fade-up flex items-center justify-center"
-            style={{ animationDelay: "420ms" }}
+            style={{ animationDelay: "440ms" }}
           >
-            <div className="flex items-center gap-2.5 bg-white/[0.06] backdrop-blur-sm border border-white/[0.10] rounded-full px-5 py-2.5 text-sm text-white/60">
-              <CalendarDays className="h-4 w-4 text-[#C9A227]/70 shrink-0" />
+            <button
+              onClick={() => document.getElementById("cuando-donde")?.scrollIntoView({ behavior: "smooth" })}
+              className="group flex items-center gap-2.5 bg-white/[0.06] hover:bg-white/[0.10] backdrop-blur-sm border border-white/[0.10] hover:border-[#C9A227]/30 rounded-full px-5 py-2.5 text-sm text-white/60 hover:text-white/80 transition-all duration-300 cursor-pointer"
+            >
+              <CalendarDays className="h-4 w-4 text-[#C9A227]/70 shrink-0 group-hover:text-[#C9A227] transition-colors" />
               <span>
                 Cada domingo
                 {meetingTime ? ` · ${meetingTime}h` : " — reunión sacramental"}
               </span>
-            </div>
+              <ChevronDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-70 transition-opacity" />
+            </button>
           </div>
         </div>
 
@@ -398,7 +409,7 @@ export default function WelcomePage() {
           <div className="max-w-6xl mx-auto px-6">
             <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
           </div>
-          <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-20">
+          <section id="cuando-donde" className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-20">
             <RevealSection className="mb-10">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Únete a nosotros</p>
               <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Cuándo y dónde</h2>
@@ -510,21 +521,57 @@ export default function WelcomePage() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="relative z-10 border-t border-white/[0.06] py-8 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 opacity-25">
-            <img src="/icons/compass.svg" alt="" className="h-4 w-4" />
-            <span className="text-xs text-white/60">
-              {displayName}{stakeName ? ` · ${stakeName}` : ""}
-            </span>
+      <footer className="relative z-10 border-t border-white/[0.06] pt-10 pb-8 px-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Top row */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-2.5 opacity-40">
+              <img src="/icons/compass.svg" alt="" className="h-5 w-5" />
+              <div>
+                <p className="text-sm font-semibold text-white leading-none">{displayName}</p>
+                {stakeName && <p className="text-[10px] text-white/50 mt-0.5 tracking-wide">{stakeName}</p>}
+              </div>
+            </div>
+            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <Link href="/actividades">
+                <button className="text-xs text-white/25 hover:text-white/55 transition-colors">Actividades</button>
+              </Link>
+              <a
+                href="https://www.churchofjesuschrist.org/comeuntochrist/es"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-white/25 hover:text-white/55 transition-colors"
+              >
+                La Iglesia
+              </a>
+              <Link href="/request-access">
+                <button className="text-xs text-white/25 hover:text-white/55 transition-colors">Solicitar acceso</button>
+              </Link>
+              <Link href="/login">
+                <button className="text-xs text-white/25 hover:text-white/55 transition-colors">Acceso líderes →</button>
+              </Link>
+            </nav>
           </div>
-          <div className="flex items-center gap-5">
-            <Link href="/request-access">
-              <button className="text-xs text-white/20 hover:text-white/50 transition-colors">Solicitar acceso</button>
-            </Link>
-            <Link href="/login">
-              <button className="text-xs text-white/20 hover:text-white/50 transition-colors">Acceso líderes →</button>
-            </Link>
+
+          {/* Bottom row — copyright + legal */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-white/[0.05]">
+            <p className="text-[11px] text-white/15">
+              © {new Date().getFullYear()} {displayName} · La Iglesia de Jesucristo de los Santos de los Últimos Días
+            </p>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://www.churchofjesuschrist.org/legal/privacy-notice?lang=spa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-white/15 hover:text-white/35 transition-colors"
+              >
+                Política de privacidad
+              </a>
+              <span className="text-white/10 text-[11px]">·</span>
+              <p className="text-[11px] text-white/15">
+                Este sitio usa cookies técnicas necesarias para su funcionamiento.
+              </p>
+            </div>
           </div>
         </div>
       </footer>
