@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Redirect } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { CalendarDays, MapPin, ChevronRight } from "lucide-react";
+import { CalendarDays, MapPin, ChevronRight, ChevronDown } from "lucide-react";
 
 interface PublicActivity {
   id: string;
@@ -36,13 +36,22 @@ const TYPE_LABELS: Record<string, string> = {
   otro: "Actividad",
 };
 
-const TYPE_COLORS: Record<string, string> = {
-  servicio_bautismal: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  deportiva: "bg-green-500/20 text-green-300 border-green-500/30",
-  capacitacion: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  fiesta: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  hermanamiento: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  otro: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+const TYPE_COLORS: Record<string, { pill: string; border: string; accent: string }> = {
+  servicio_bautismal: { pill: "bg-blue-500/15 text-blue-300 border-blue-500/25", border: "border-l-blue-500/50", accent: "#3b82f6" },
+  deportiva:          { pill: "bg-green-500/15 text-green-300 border-green-500/25", border: "border-l-green-500/50", accent: "#22c55e" },
+  capacitacion:       { pill: "bg-purple-500/15 text-purple-300 border-purple-500/25", border: "border-l-purple-500/50", accent: "#a855f7" },
+  fiesta:             { pill: "bg-pink-500/15 text-pink-300 border-pink-500/25", border: "border-l-pink-500/50", accent: "#ec4899" },
+  hermanamiento:      { pill: "bg-orange-500/15 text-orange-300 border-orange-500/25", border: "border-l-orange-500/50", accent: "#f97316" },
+  otro:               { pill: "bg-amber-500/15 text-amber-300 border-amber-500/25", border: "border-l-amber-500/50", accent: "#f59e0b" },
+};
+
+const TYPE_ART: Record<string, string> = {
+  servicio_bautismal: "/backgrounds/solemne-bautismo.svg",
+  deportiva:          "/backgrounds/energetico-deportes.svg",
+  capacitacion:       "/backgrounds/espiritual-conferencia.svg",
+  fiesta:             "/backgrounds/festivo-fiesta.svg",
+  hermanamiento:      "/backgrounds/calido-hermanamiento.svg",
+  otro:               "/backgrounds/calido-raices.svg",
 };
 
 function joinNames(names: string[]): string {
@@ -59,14 +68,13 @@ function formatDate(dateStr: string) {
     month: d.toLocaleDateString("es-ES", { month: "short" }).toUpperCase(),
     weekday: d.toLocaleDateString("es-ES", { weekday: "long" }),
     time: d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
-    fullDate: d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }),
   };
 }
 
 function getWeekBounds() {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const diff = day === 0 ? -6 : 1 - day; // Monday
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
   const start = new Date(now);
   start.setDate(now.getDate() + diff);
   start.setHours(0, 0, 0, 0);
@@ -83,7 +91,7 @@ function useScrollReveal() {
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { el.classList.add("is-visible"); observer.unobserve(el); } },
-      { threshold: 0.1 }
+      { threshold: 0.08 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -108,62 +116,79 @@ function ActivityCard({ item, delay }: { item: MixedActivity; delay: number }) {
   if (item.isBaptism && item.baptism) {
     const svc = item.baptism;
     return (
-      <RevealSection delay={delay}>
-        <div className="group h-full rounded-2xl border border-blue-500/20 bg-blue-500/[0.04] hover:bg-blue-500/[0.08] hover:border-blue-500/35 transition-all duration-300 p-5 flex flex-col gap-4">
-          <div className="flex gap-4">
-            <div className="shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-blue-500/15 border border-blue-500/25 group-hover:bg-blue-500/25 transition-colors">
-              <span className="text-xl font-bold text-blue-300 leading-none">{day}</span>
-              <span className="text-[10px] font-semibold text-blue-300/70 uppercase tracking-wider mt-0.5">{month}</span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider border rounded-full px-2 py-0.5 mb-2 bg-blue-500/20 text-blue-300 border-blue-500/30">
-                🕊️ Bautismo
-              </span>
-              <h3 className="font-semibold text-white/90 text-sm leading-snug">{joinNames(svc.candidates)}</h3>
-              <div className="flex items-center gap-1 mt-1.5 text-white/40 text-xs">
-                <CalendarDays className="h-3 w-3 shrink-0" />
-                <span className="capitalize">{weekday} · {time}</span>
+      <RevealSection delay={delay} className="h-full">
+        <div className="group relative h-full overflow-hidden rounded-2xl border border-blue-500/20 bg-[#0a0f1e] hover:border-blue-500/40 transition-all duration-300 flex flex-col">
+          {/* Art */}
+          <img src="/backgrounds/solemne-bautismo.svg" aria-hidden className="pointer-events-none absolute right-0 top-0 h-full w-44 object-contain opacity-[0.07] group-hover:opacity-[0.12] transition-opacity" />
+          {/* Top accent */}
+          <div className="h-0.5 w-full bg-gradient-to-r from-blue-500/60 to-transparent" />
+          <div className="relative flex flex-col gap-3 p-5 flex-1">
+            <div className="flex items-start gap-4">
+              <div className="shrink-0 flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/20">
+                <span className="text-lg font-bold text-blue-300 leading-none">{day}</span>
+                <span className="text-[9px] font-bold text-blue-300/60 uppercase tracking-wider mt-0.5">{month}</span>
               </div>
-              {svc.locationName && (
-                <div className="flex items-center gap-1 mt-1 text-white/40 text-xs">
-                  <MapPin className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{svc.locationName}</span>
-                </div>
-              )}
+              <div className="min-w-0 flex-1 pt-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider border rounded-full px-2 py-0.5 mb-2 bg-blue-500/15 text-blue-300 border-blue-500/25">
+                  🕊️ Bautismo
+                </span>
+                <h3 className="font-semibold text-white/90 text-sm leading-snug">{joinNames(svc.candidates)}</h3>
+                <p className="mt-1.5 text-white/40 text-xs capitalize">{weekday} · {time}</p>
+                {svc.locationName && (
+                  <div className="flex items-center gap-1 mt-1 text-white/35 text-xs">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{svc.locationName}</span>
+                  </div>
+                )}
+              </div>
             </div>
+            {svc.withinWindow && svc.stableUrl && (
+              <a href={svc.stableUrl} className="mt-auto flex items-center justify-center gap-2 text-xs font-semibold text-white bg-blue-600/60 hover:bg-blue-600/80 border border-blue-500/30 rounded-xl px-4 py-2.5 transition-all hover:scale-[1.02] active:scale-95">
+                Ver Programa <ChevronRight className="h-3.5 w-3.5" />
+              </a>
+            )}
           </div>
-          {svc.withinWindow && svc.stableUrl && (
-            <a href={svc.stableUrl} className="flex items-center justify-center gap-2 text-xs font-semibold text-white bg-blue-600/70 hover:bg-blue-600 border border-blue-500/40 rounded-xl px-4 py-2.5 transition-all hover:scale-[1.02] active:scale-95">
-              Ver Programa <ChevronRight className="h-3.5 w-3.5" />
-            </a>
-          )}
         </div>
       </RevealSection>
     );
   }
 
   const activity = item.activity!;
+  const colors = TYPE_COLORS[activity.type] ?? TYPE_COLORS.otro;
+  const art = TYPE_ART[activity.type] ?? TYPE_ART.otro;
+
   return (
-    <RevealSection delay={delay}>
-      <div className="group h-full rounded-2xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-[#C9A227]/25 transition-all duration-300 p-5 flex gap-4 cursor-default">
-        <div className="shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-[#C9A227]/12 border border-[#C9A227]/20 group-hover:bg-[#C9A227]/20 transition-colors">
-          <span className="text-xl font-bold text-[#C9A227] leading-none">{day}</span>
-          <span className="text-[10px] font-semibold text-[#C9A227]/70 uppercase tracking-wider mt-0.5">{month}</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <span className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider border rounded-full px-2 py-0.5 mb-2 ${TYPE_COLORS[activity.type] ?? TYPE_COLORS.otro}`}>
-            {TYPE_LABELS[activity.type] ?? "Actividad"}
-          </span>
-          <h3 className="font-semibold text-white/90 text-sm leading-snug">{activity.title}</h3>
-          <div className="flex items-center gap-1 mt-1.5 text-white/40 text-xs">
-            <CalendarDays className="h-3 w-3 shrink-0" />
-            <span className="capitalize">{weekday} · {time}</span>
-          </div>
-          {activity.location && (
-            <div className="flex items-center gap-1 mt-1 text-white/40 text-xs">
-              <MapPin className="h-3 w-3 shrink-0" />
-              <span className="truncate">{activity.location}</span>
+    <RevealSection delay={delay} className="h-full">
+      <div className="group relative h-full overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] hover:bg-white/[0.045] hover:border-white/[0.14] transition-all duration-300 flex flex-col">
+        {/* SVG art */}
+        <img src={art} aria-hidden className="pointer-events-none absolute right-0 top-0 h-full w-44 object-contain opacity-[0.06] group-hover:opacity-[0.11] transition-opacity" />
+        {/* Top accent line */}
+        <div className="h-0.5 w-full" style={{ background: `linear-gradient(to right, ${colors.accent}99, transparent)` }} />
+        <div className="relative flex flex-col gap-3 p-5 flex-1">
+          <div className="flex items-start gap-4">
+            <div className="shrink-0 flex flex-col items-center justify-center w-12 h-12 rounded-xl border" style={{ background: `${colors.accent}18`, borderColor: `${colors.accent}30` }}>
+              <span className="text-lg font-bold leading-none" style={{ color: colors.accent }}>{day}</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5" style={{ color: `${colors.accent}99` }}>{month}</span>
             </div>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <span className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider border rounded-full px-2 py-0.5 mb-2 ${colors.pill}`}>
+                {TYPE_LABELS[activity.type] ?? "Actividad"}
+              </span>
+              <h3 className="font-semibold text-white/90 text-sm leading-snug">{activity.title}</h3>
+              <div className="flex items-center gap-1 mt-1.5 text-white/40 text-xs">
+                <CalendarDays className="h-3 w-3 shrink-0" />
+                <span className="capitalize">{weekday} · {time}</span>
+              </div>
+              {activity.location && (
+                <div className="flex items-center gap-1 mt-1 text-white/35 text-xs">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{activity.location}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          {activity.description && (
+            <p className="text-xs text-white/30 leading-relaxed line-clamp-2 mt-1">{activity.description}</p>
           )}
         </div>
       </div>
@@ -171,11 +196,15 @@ function ActivityCard({ item, delay }: { item: MixedActivity; delay: number }) {
   );
 }
 
+function SkeletonCard() {
+  return <div className="h-40 rounded-2xl border border-white/[0.06] bg-white/[0.02] animate-pulse" />;
+}
+
 function EmptyWeek() {
   return (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-10 text-center">
-      <CalendarDays className="h-8 w-8 text-white/20 mx-auto mb-3" />
-      <p className="text-white/35 text-sm">No hay actividades programadas esta semana.</p>
+    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-12 text-center">
+      <CalendarDays className="h-9 w-9 text-white/15 mx-auto mb-3" />
+      <p className="text-white/30 text-sm">Sin actividades programadas esta semana.</p>
     </div>
   );
 }
@@ -203,134 +232,195 @@ export default function WelcomePage() {
 
   const wardName = wardInfo.wardName ?? "Barrio";
   const stakeName = wardInfo.stakeName ?? "";
-  // Strip "Barrio " prefix for display since we'll prefix it ourselves
   const shortWardName = wardName.replace(/^[Bb]arrio\s+/i, "") || wardName;
   const showBarrioPrefix = !/^[Bb]arrio\b/i.test(wardName);
+  const displayName = showBarrioPrefix ? `Barrio ${shortWardName}` : wardName;
 
-  // Merge and sort all activities
   const { start: weekStart, end: weekEnd } = getWeekBounds();
   const allItems: MixedActivity[] = [
     ...baptismServices.map(b => ({ id: b.id, date: b.serviceAt, isBaptism: true, baptism: b })),
     ...activities.map(a => ({ id: a.id, date: a.date, isBaptism: false, activity: a })),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const thisWeek = allItems.filter(a => {
-    const d = new Date(a.date);
-    return d >= weekStart && d <= weekEnd;
-  });
+  const thisWeek = allItems.filter(a => { const d = new Date(a.date); return d >= weekStart && d <= weekEnd; });
   const upcoming = allItems.filter(a => new Date(a.date) > weekEnd);
 
-  return (
-    <div className="min-h-screen bg-[#080808] text-white overflow-x-hidden">
-      {/* Noise texture */}
-      <div className="pointer-events-none fixed inset-0 opacity-[0.03] bg-[url('data:image/svg+xml,%3Csvg viewBox=%220 0 256 256%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noise%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%224%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noise)%22/%3E%3C/svg%3E')]" />
-      <div className="landing-glow pointer-events-none fixed top-0 left-1/2 w-[800px] h-[480px] rounded-full blur-[140px]" style={{ background: "radial-gradient(ellipse, #C9A227 0%, transparent 70%)" }} />
-      <div className="pointer-events-none fixed bottom-0 right-0 w-[500px] h-[400px] rounded-full blur-[120px] opacity-[0.04]" style={{ background: "radial-gradient(ellipse, #C9A227 0%, transparent 70%)" }} />
+  // Next Sunday
+  const now = new Date();
+  const daysUntilSunday = (7 - now.getDay()) % 7 || 7;
+  const nextSunday = new Date(now);
+  nextSunday.setDate(now.getDate() + daysUntilSunday);
+  const sundayLabel = nextSunday.toLocaleDateString("es-ES", { day: "numeric", month: "long" });
 
-      {/* Nav */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
+  return (
+    <div className="min-h-screen bg-[#070709] text-white overflow-x-hidden">
+
+      {/* ── NAV ── */}
+      <header className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
         <div className="landing-fade-up flex items-center gap-2.5" style={{ animationDelay: "0ms" }}>
-          <img src="/icons/compass.svg" alt="" className="h-9 w-9 opacity-80" />
-          <span className="font-semibold text-base text-white/70 tracking-tight">
-            {showBarrioPrefix ? `Barrio ${shortWardName}` : wardName}
-          </span>
+          <img src="/icons/compass.svg" alt="" className="h-8 w-8 opacity-70" />
+          <span className="font-semibold text-sm text-white/60 tracking-tight">{displayName}</span>
         </div>
         <div className="landing-fade-up" style={{ animationDelay: "80ms" }}>
           <Link href="/login">
-            <button className="text-xs text-white/35 hover:text-white/70 transition-colors px-3 py-1.5 rounded-full border border-white/10 hover:border-white/20">
+            <button className="text-xs text-white/40 hover:text-white/80 transition-colors px-3.5 py-1.5 rounded-full border border-white/[0.12] hover:border-white/25 backdrop-blur-sm">
               Acceso líderes
             </button>
           </Link>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative z-10 pt-16 pb-20 px-6 text-center max-w-4xl mx-auto">
-        {stakeName && (
-          <div
-            className="landing-fade-up inline-flex items-center gap-2 bg-[#C9A227]/10 border border-[#C9A227]/20 rounded-full px-4 py-1.5 text-xs text-[#C9A227]/80 mb-8 uppercase tracking-widest font-semibold"
-            style={{ animationDelay: "120ms" }}
-          >
-            {stakeName}
-          </div>
-        )}
+      {/* ── HERO ── */}
+      <section
+        className="relative flex flex-col items-center justify-center text-center min-h-[92vh] px-6"
+        style={{
+          backgroundImage: "linear-gradient(to bottom, rgba(7,7,9,0.45) 0%, rgba(7,7,9,0.72) 55%, rgba(7,7,9,1) 100%), url('/covenantspathfamily.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center 30%",
+        }}
+      >
+        {/* Subtle vignette edges */}
+        <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 80px 0 120px rgba(7,7,9,0.7), inset -80px 0 120px rgba(7,7,9,0.7)" }} />
 
-        <h1 className="tracking-tight leading-[1.05] mb-5">
-          {showBarrioPrefix && (
-            <span className="landing-fade-up block text-2xl md:text-3xl font-medium text-white/40 mb-1" style={{ animationDelay: "200ms" }}>
-              Barrio
-            </span>
+        <div className="relative z-10 max-w-3xl mx-auto">
+          {stakeName && (
+            <div
+              className="landing-fade-up inline-flex items-center gap-2 bg-[#C9A227]/10 border border-[#C9A227]/25 backdrop-blur-sm rounded-full px-4 py-1.5 text-xs text-[#C9A227]/80 mb-8 uppercase tracking-widest font-semibold"
+              style={{ animationDelay: "100ms" }}
+            >
+              {stakeName}
+            </div>
           )}
-          <span className="landing-fade-up landing-gradient-text block text-5xl md:text-7xl font-bold" style={{ animationDelay: "280ms" }}>
-            {shortWardName}
-          </span>
-        </h1>
 
-        <p className="landing-fade-up text-base text-white/40 max-w-lg mx-auto leading-relaxed" style={{ animationDelay: "380ms" }}>
-          Bienvenidos. Aquí encontrarás las actividades y eventos de nuestra comunidad.
-        </p>
+          <h1 className="tracking-tight leading-none mb-6">
+            {showBarrioPrefix && (
+              <span
+                className="landing-fade-up block text-xl md:text-2xl font-light text-white/50 mb-2 tracking-[0.18em] uppercase"
+                style={{ animationDelay: "180ms" }}
+              >
+                Barrio
+              </span>
+            )}
+            <span
+              className="landing-fade-up landing-gradient-text block text-6xl md:text-8xl font-black"
+              style={{ animationDelay: "260ms" }}
+            >
+              {shortWardName}
+            </span>
+          </h1>
+
+          <p
+            className="landing-fade-up text-base md:text-lg text-white/50 max-w-md mx-auto leading-relaxed font-light"
+            style={{ animationDelay: "360ms" }}
+          >
+            Una comunidad de fe donde todos son bienvenidos.
+          </p>
+
+          {/* Sunday pill */}
+          <div
+            className="landing-fade-up flex flex-col sm:flex-row items-center justify-center gap-3 mt-10"
+            style={{ animationDelay: "460ms" }}
+          >
+            <div className="flex items-center gap-2.5 bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] rounded-full px-5 py-2.5 text-sm text-white/70">
+              <CalendarDays className="h-4 w-4 text-[#C9A227]/80 shrink-0" />
+              <span>Cada domingo — reunión sacramental</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-30 animate-bounce">
+          <ChevronDown className="h-5 w-5 text-white" />
+        </div>
       </section>
 
-      {/* Divider */}
-      <div className="relative z-10 max-w-6xl mx-auto px-6 mb-16">
-        <div className="h-px bg-gradient-to-r from-transparent via-[#C9A227]/30 to-transparent" />
-      </div>
-
-      {/* Esta semana */}
-      <section className="relative z-10 px-6 max-w-6xl mx-auto mb-20">
-        <RevealSection className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#C9A227] mb-1">Esta semana</p>
-          <h2 className="text-2xl md:text-3xl font-bold text-white">
-            En el Barrio {shortWardName}
-          </h2>
+      {/* ── ESTA SEMANA ── */}
+      <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-20">
+        <RevealSection className="mb-10">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Esta semana</p>
+              <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
+                En el {displayName}
+              </h2>
+            </div>
+            <p className="text-sm text-white/30">
+              {new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+            </p>
+          </div>
         </RevealSection>
 
         {loadingActivities ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2].map((i) => <div key={i} className="h-44 rounded-2xl border border-white/8 bg-white/[0.03] animate-pulse" />)}
+            {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
           </div>
         ) : thisWeek.length === 0 ? (
           <RevealSection><EmptyWeek /></RevealSection>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
             {thisWeek.map((item, i) => <ActivityCard key={item.id} item={item} delay={i * 80} />)}
           </div>
         )}
       </section>
 
-      {/* Próximas actividades */}
+      {/* ── DIVIDER ── */}
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+      </div>
+
+      {/* ── PRÓXIMAS ACTIVIDADES ── */}
       {!loadingActivities && upcoming.length > 0 && (
-        <section className="relative z-10 px-6 max-w-6xl mx-auto mb-24">
-          <RevealSection className="mb-8">
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#C9A227] mb-1">Próximamente</p>
-            <h2 className="text-2xl md:text-3xl font-bold text-white">Actividades del mes</h2>
+        <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-24">
+          <RevealSection className="mb-10">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Próximamente</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Actividades del mes</h2>
           </RevealSection>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
             {upcoming.map((item, i) => <ActivityCard key={item.id} item={item} delay={i * 60} />)}
           </div>
         </section>
       )}
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-white/8 py-8 px-6">
+      {/* ── COMMUNITY BANNER ── */}
+      <RevealSection>
+        <section
+          className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl mb-20"
+          style={{
+            backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.92) 40%, rgba(7,7,9,0.55) 100%), url('/flyer-assets/photos/temple1.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="relative z-10 px-8 md:px-14 py-14 md:py-16 max-w-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-4">La Iglesia de Jesucristo</p>
+            <h3 className="text-2xl md:text-3xl font-bold text-white leading-snug mb-4">
+              Construyendo familias eternas
+            </h3>
+            <p className="text-sm text-white/45 leading-relaxed">
+              Somos parte de La Iglesia de Jesucristo de los Santos de los Últimos Días.
+              Creemos en la familia, el servicio y el evangelio de Jesucristo.
+            </p>
+          </div>
+          {/* Gradient fade to right for image bleed */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070709]/80 via-transparent to-transparent" />
+        </section>
+      </RevealSection>
+
+      {/* ── FOOTER ── */}
+      <footer className="relative z-10 border-t border-white/[0.06] py-8 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 opacity-30">
-            <img src="/icons/compass.svg" alt="" className="h-5 w-5" />
+          <div className="flex items-center gap-2 opacity-25">
+            <img src="/icons/compass.svg" alt="" className="h-4 w-4" />
             <span className="text-xs text-white/60">
-              {showBarrioPrefix ? `Barrio ${shortWardName}` : wardName}
-              {stakeName ? ` · ${stakeName}` : ""}
+              {displayName}{stakeName ? ` · ${stakeName}` : ""}
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <Link href="/request-access">
-              <button className="text-xs text-white/25 hover:text-white/50 transition-colors">
-                Solicitar acceso
-              </button>
+              <button className="text-xs text-white/20 hover:text-white/50 transition-colors">Solicitar acceso</button>
             </Link>
             <Link href="/login">
-              <button className="text-xs text-white/25 hover:text-white/50 transition-colors">
-                Acceso líderes →
-              </button>
+              <button className="text-xs text-white/20 hover:text-white/50 transition-colors">Acceso líderes →</button>
             </Link>
           </div>
         </div>
