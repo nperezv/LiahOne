@@ -348,10 +348,6 @@ function AppSidebarInner() {
   const { user } = useAuth();
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
-  const [wardName, setWardName] = React.useState<string | null>(null);
-  React.useEffect(() => {
-    fetch("/api/public/ward-info").then(r => r.json()).then(d => setWardName(d.wardName ?? null)).catch(() => {});
-  }, []);
 
   const [, startTransition] = React.useTransition();
 
@@ -427,7 +423,7 @@ function AppSidebarInner() {
               <img src="/icons/compass.svg" alt="Zendapp" className="h-6 w-6 object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-none">{wardName ?? "Zendapp"}</p>
+              <p className="truncate text-sm font-semibold leading-none">Zendapp</p>
               <p className="truncate pt-1 text-[11px] text-sidebar-foreground/65">Panel principal</p>
             </div>
           </div>
