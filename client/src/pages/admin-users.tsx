@@ -61,7 +61,7 @@ const resetPasswordSchema = z.object({
 });
 
 const editUserSchema = z.object({
-  apellidos: z.string().min(1, "Los apellidos son requeridos"),
+  apellidos: z.string().optional().or(z.literal("")),
   nombre: z.string().min(1, "El nombre es requerido"),
   username: z.string().min(3, "El usuario debe tener al menos 3 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
@@ -69,6 +69,7 @@ const editUserSchema = z.object({
   role: z.enum(["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero", "presidente_organizacion", "secretario_organizacion", "consejero_organizacion", "bibliotecario", "lider_actividades", "mission_leader", "ward_missionary", "full_time_missionary", "technology_specialist"]),
   organizationId: z.string().optional(),
   memberId: z.string().optional().or(z.literal("")),
+  callingName: z.string().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
 
@@ -553,6 +554,8 @@ export default function AdminUsersPage() {
   const selectedRole = createForm.watch("role");
   const selectedEditRole = editUserForm.watch("role");
   const selectedEditMemberId = editUserForm.watch("memberId");
+  const selectedEditOrganizationId = editUserForm.watch("organizationId");
+  const selectedEditCallingName = editUserForm.watch("callingName");
   const selectedMemberId = createForm.watch("memberId");
   const selectedOrganizationId = createForm.watch("organizationId");
   const selectedCallingName = createForm.watch("callingName");
@@ -571,6 +574,9 @@ export default function AdminUsersPage() {
   const selectedMember = selectedMemberId ? membersById.get(selectedMemberId) : undefined;
   const selectedOrganization = organizations.find((org) => org.id === selectedOrganizationId);
   const selectedOrganizationType = selectedOrganization?.type ?? "";
+  const selectedEditMember = selectedEditMemberId ? membersById.get(selectedEditMemberId) : undefined;
+  const selectedEditOrganization = organizations.find((org) => org.id === selectedEditOrganizationId);
+  const selectedEditOrgType = selectedEditOrganization?.type ?? "";
 
   const formatMemberLabel = (member: DirectoryMember) => {
     const orgLabel = member.organizationName ? ` (${member.organizationName})` : "";
@@ -718,6 +724,20 @@ export default function AdminUsersPage() {
     return orgCallings;
   }, [selectedOrganizationType, selectedMember?.sex, orgCallings]);
 
+  const editOrgCallings = useMemo(
+    () => callingsByOrgType[selectedEditOrgType] ?? [],
+    [selectedEditOrgType]
+  );
+  const editDisplayCallings = useMemo(() => {
+    if (selectedEditOrgType === "escuela_dominical") {
+      if (selectedEditMember?.sex === "F") {
+        return ["Presidenta", "Primera consejera", "Segunda consejera", "Secretaria", "Maestra"];
+      }
+      return ["Presidente", "Primer consejero", "Segundo consejero", "Secretario", "Maestro", "Maestra"];
+    }
+    return editOrgCallings;
+  }, [selectedEditOrgType, selectedEditMember?.sex, editOrgCallings]);
+
   const roleOptions = useMemo(() => {
     if (selectedOrganizationType === "obispado") {
       return [
@@ -848,6 +868,21 @@ export default function AdminUsersPage() {
       createForm.setValue("role", inferredRole);
     }
   }, [selectedCallingName, selectedOrganizationType, selectedRole, createForm]);
+
+  // Role inference for edit form
+  useEffect(() => {
+    if (!selectedEditCallingName || !selectedEditOrgType) return;
+    const inferredRole = inferRoleFromCalling(selectedEditCallingName, selectedEditOrgType);
+    if (inferredRole) editUserForm.setValue("role", inferredRole as EditUserFormValues["role"]);
+  }, [selectedEditCallingName, selectedEditOrgType]);
+
+  // Clear calling when edit org changes
+  useEffect(() => {
+    if (!selectedEditOrganizationId) return;
+    if (selectedEditCallingName && !editOrgCallings.includes(selectedEditCallingName)) {
+      editUserForm.setValue("callingName", "");
+    }
+  }, [selectedEditOrganizationId, editOrgCallings]);
 
   // Derive short display name from member's nombre/apellidos
   const memberDisplayNamePreview = selectedMember
@@ -1031,6 +1066,7 @@ export default function AdminUsersPage() {
           role: data.role,
           organizationId: data.organizationId || undefined,
           memberId: data.memberId || null,
+          callingName: data.callingName || undefined,
           isActive: typeof data.isActive === "boolean" ? data.isActive : undefined,
         }),
       });
@@ -1929,6 +1965,7 @@ export default function AdminUsersPage() {
                                     role: u.role as EditUserFormValues["role"],
                                     organizationId: u.organizationId || "",
                                     memberId: u.memberId || "",
+                                    callingName: "",
                                     isActive: u.isActive ?? true,
                                   });
                                 }}
@@ -2072,28 +2109,27 @@ export default function AdminUsersPage() {
                                       )}
                                     />
 
+                                    {/* Organización */}
                                     <FormField
                                       control={editUserForm.control}
-                                      name="role"
+                                      name="organizationId"
                                       render={({ field }) => (
                                         <FormItem>
-                                          <FormLabel>Rol</FormLabel>
-                                          <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                                          <FormLabel>Organización</FormLabel>
+                                          <Select
+                                            value={field.value ?? ""}
+                                            onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}
+                                          >
                                             <FormControl>
-                                              <SelectTrigger data-testid="select-edit-role">
-                                                <SelectValue />
+                                              <SelectTrigger data-testid="select-edit-organization">
+                                                <SelectValue placeholder="Selecciona una organización" />
                                               </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                              <SelectItem value="obispo">Obispo</SelectItem>
-                                              <SelectItem value="consejero_obispo">Consejero del Obispo</SelectItem>
-                                              <SelectItem value="secretario">Secretario</SelectItem>
-                                              <SelectItem value="secretario_ejecutivo">Secretario Ejecutivo</SelectItem>
-                                              <SelectItem value="secretario_financiero">Secretario Financiero</SelectItem>
-                                              <SelectItem value="bibliotecario">Bibliotecario</SelectItem>
-                                              <SelectItem value="presidente_organizacion">Presidente de Organización</SelectItem>
-                                              <SelectItem value="secretario_organizacion">Secretario de Organización</SelectItem>
-                                              <SelectItem value="consejero_organizacion">Consejero de Organización</SelectItem>
+                                              <SelectItem value="__none__">Sin organización</SelectItem>
+                                              {organizations.map((org) => (
+                                                <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                                              ))}
                                             </SelectContent>
                                           </Select>
                                           <FormMessage />
@@ -2101,34 +2137,32 @@ export default function AdminUsersPage() {
                                       )}
                                     />
 
-                                    {["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(selectedEditRole) && (
+                                    {/* Llamamiento (cuando hay org seleccionada) */}
+                                    {selectedEditOrganizationId && editDisplayCallings.length > 0 && (
                                       <FormField
                                         control={editUserForm.control}
-                                        name="organizationId"
+                                        name="callingName"
                                         render={({ field }) => (
                                           <FormItem>
-                                            <FormLabel>Organización</FormLabel>
-                                            <Select
-                                              value={field.value ?? ""}
-                                              onValueChange={(value) =>
-                                                field.onChange(value === "__none__" ? "" : value)
-                                              }
-                                            >
+                                            <FormLabel>Llamamiento</FormLabel>
+                                            <Select value={field.value ?? ""} onValueChange={field.onChange}>
                                               <FormControl>
-                                                <SelectTrigger data-testid="select-edit-organization">
-                                                  <SelectValue placeholder="Selecciona una organización" />
+                                                <SelectTrigger data-testid="select-edit-calling">
+                                                  <SelectValue placeholder="Selecciona un llamamiento" />
                                                 </SelectTrigger>
                                               </FormControl>
                                               <SelectContent>
-                                                <SelectItem value="__none__">Sin organización</SelectItem>
-                                                {organizations.map((org) => (
-                                                  <SelectItem key={org.id} value={org.id}>
-                                                    {org.name}
-                                                  </SelectItem>
+                                                {editDisplayCallings.map((c) => (
+                                                  <SelectItem key={c} value={c}>{c}</SelectItem>
                                                 ))}
                                               </SelectContent>
                                             </Select>
                                             <FormMessage />
+                                            {selectedEditCallingName && selectedEditRole && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Rol asignado: <span className="font-medium">{selectedEditRole.replace(/_/g, " ")}</span>
+                                              </p>
+                                            )}
                                           </FormItem>
                                         )}
                                       />
