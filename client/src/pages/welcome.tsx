@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Redirect } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { CalendarDays, MapPin, ChevronRight, ChevronDown } from "lucide-react";
+import { CalendarDays, MapPin, ChevronRight, ChevronDown, Clock, ExternalLink } from "lucide-react";
 
 interface PublicActivity {
   id: string;
@@ -25,6 +25,9 @@ interface PublicBaptismService {
 interface WardInfo {
   wardName: string | null;
   stakeName: string | null;
+  meetingCenterName: string | null;
+  meetingCenterAddress: string | null;
+  sacramentMeetingTime: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,13 +39,13 @@ const TYPE_LABELS: Record<string, string> = {
   otro: "Actividad",
 };
 
-const TYPE_COLORS: Record<string, { pill: string; border: string; accent: string }> = {
-  servicio_bautismal: { pill: "bg-blue-500/15 text-blue-300 border-blue-500/25", border: "border-l-blue-500/50", accent: "#3b82f6" },
-  deportiva:          { pill: "bg-green-500/15 text-green-300 border-green-500/25", border: "border-l-green-500/50", accent: "#22c55e" },
-  capacitacion:       { pill: "bg-purple-500/15 text-purple-300 border-purple-500/25", border: "border-l-purple-500/50", accent: "#a855f7" },
-  fiesta:             { pill: "bg-pink-500/15 text-pink-300 border-pink-500/25", border: "border-l-pink-500/50", accent: "#ec4899" },
-  hermanamiento:      { pill: "bg-orange-500/15 text-orange-300 border-orange-500/25", border: "border-l-orange-500/50", accent: "#f97316" },
-  otro:               { pill: "bg-amber-500/15 text-amber-300 border-amber-500/25", border: "border-l-amber-500/50", accent: "#f59e0b" },
+const TYPE_COLORS: Record<string, { pill: string; accent: string }> = {
+  servicio_bautismal: { pill: "bg-blue-500/15 text-blue-300 border-blue-500/25",   accent: "#3b82f6" },
+  deportiva:          { pill: "bg-green-500/15 text-green-300 border-green-500/25", accent: "#22c55e" },
+  capacitacion:       { pill: "bg-purple-500/15 text-purple-300 border-purple-500/25", accent: "#a855f7" },
+  fiesta:             { pill: "bg-pink-500/15 text-pink-300 border-pink-500/25",    accent: "#ec4899" },
+  hermanamiento:      { pill: "bg-orange-500/15 text-orange-300 border-orange-500/25", accent: "#f97316" },
+  otro:               { pill: "bg-amber-500/15 text-amber-300 border-amber-500/25", accent: "#f59e0b" },
 };
 
 const TYPE_ART: Record<string, string> = {
@@ -64,10 +67,10 @@ function joinNames(names: string[]): string {
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return {
-    day: d.toLocaleDateString("es-ES", { day: "2-digit", timeZone: "UTC" }),
-    month: d.toLocaleDateString("es-ES", { month: "short", timeZone: "UTC" }).toUpperCase(),
+    day:     d.toLocaleDateString("es-ES", { day: "2-digit", timeZone: "UTC" }),
+    month:   d.toLocaleDateString("es-ES", { month: "short", timeZone: "UTC" }).toUpperCase(),
     weekday: d.toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" }),
-    time: `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`,
+    time:    `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`,
   };
 }
 
@@ -118,9 +121,7 @@ function ActivityCard({ item, delay }: { item: MixedActivity; delay: number }) {
     return (
       <RevealSection delay={delay} className="h-full">
         <div className="group relative h-full overflow-hidden rounded-2xl border border-blue-500/20 bg-[#0a0f1e] hover:border-blue-500/40 transition-all duration-300 flex flex-col">
-          {/* Art */}
           <img src="/backgrounds/solemne-bautismo.svg" aria-hidden className="pointer-events-none absolute right-0 top-0 h-full w-44 object-contain opacity-[0.07] group-hover:opacity-[0.12] transition-opacity" />
-          {/* Top accent */}
           <div className="h-0.5 w-full bg-gradient-to-r from-blue-500/60 to-transparent" />
           <div className="relative flex flex-col gap-3 p-5 flex-1">
             <div className="flex items-start gap-4">
@@ -135,9 +136,9 @@ function ActivityCard({ item, delay }: { item: MixedActivity; delay: number }) {
                 <h3 className="font-semibold text-white/90 text-sm leading-snug">{joinNames(svc.candidates)}</h3>
                 <p className="mt-1.5 text-white/40 text-xs capitalize">{weekday} · {time}</p>
                 {svc.locationName && (
-                  <div className="flex items-center gap-1 mt-1 text-white/35 text-xs">
-                    <MapPin className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{svc.locationName}</span>
+                  <div className="flex items-start gap-1 mt-1 text-white/35 text-xs">
+                    <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+                    <span>{svc.locationName}</span>
                   </div>
                 )}
               </div>
@@ -160,9 +161,7 @@ function ActivityCard({ item, delay }: { item: MixedActivity; delay: number }) {
   return (
     <RevealSection delay={delay} className="h-full">
       <div className="group relative h-full overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] hover:bg-white/[0.045] hover:border-white/[0.14] transition-all duration-300 flex flex-col">
-        {/* SVG art */}
         <img src={art} aria-hidden className="pointer-events-none absolute right-0 top-0 h-full w-44 object-contain opacity-[0.06] group-hover:opacity-[0.11] transition-opacity" />
-        {/* Top accent line */}
         <div className="h-0.5 w-full" style={{ background: `linear-gradient(to right, ${colors.accent}99, transparent)` }} />
         <div className="relative flex flex-col gap-3 p-5 flex-1">
           <div className="flex items-start gap-4">
@@ -180,15 +179,15 @@ function ActivityCard({ item, delay }: { item: MixedActivity; delay: number }) {
                 <span className="capitalize">{weekday} · {time}</span>
               </div>
               {activity.location && (
-                <div className="flex items-center gap-1 mt-1 text-white/35 text-xs">
-                  <MapPin className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{activity.location}</span>
+                <div className="flex items-start gap-1 mt-1 text-white/35 text-xs">
+                  <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+                  <span>{activity.location}</span>
                 </div>
               )}
             </div>
           </div>
           {activity.description && (
-            <p className="text-xs text-white/30 leading-relaxed line-clamp-2 mt-1">{activity.description}</p>
+            <p className="text-xs text-white/30 leading-relaxed line-clamp-2">{activity.description}</p>
           )}
         </div>
       </div>
@@ -209,22 +208,43 @@ function EmptyWeek() {
   );
 }
 
+const BELIEFS = [
+  {
+    icon: "✝️",
+    title: "Jesucristo",
+    body: "La Expiación de Jesucristo es el centro de nuestra fe. Creemos en la resurrección y en la vida eterna para toda la humanidad.",
+  },
+  {
+    icon: "🏠",
+    title: "La familia es eterna",
+    body: "El plan de Dios nos permite estar con nuestras familias para siempre a través de ordenanzas sagradas del templo.",
+  },
+  {
+    icon: "📖",
+    title: "Escrituras y profetas",
+    body: "Creemos en la Biblia y en el Libro de Mormón como palabra de Dios, y que Él sigue guiándonos a través de profetas vivos.",
+  },
+];
+
 export default function WelcomePage() {
   const { isAuthenticated } = useAuth();
   const [activities, setActivities] = useState<PublicActivity[]>([]);
   const [baptismServices, setBaptismServices] = useState<PublicBaptismService[]>([]);
-  const [wardInfo, setWardInfo] = useState<WardInfo>({ wardName: null, stakeName: null });
+  const [wardInfo, setWardInfo] = useState<WardInfo>({
+    wardName: null, stakeName: null,
+    meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null,
+  });
   const [loadingActivities, setLoadingActivities] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/public/activities").then((r) => r.json()).catch(() => []),
       fetch("/api/public/baptism-services").then((r) => r.json()).catch(() => []),
-      fetch("/api/public/ward-info").then((r) => r.json()).catch(() => ({ wardName: null, stakeName: null })),
+      fetch("/api/public/ward-info").then((r) => r.json()).catch(() => ({})),
     ]).then(([acts, baps, info]) => {
       setActivities(Array.isArray(acts) ? acts : []);
       setBaptismServices(Array.isArray(baps) ? baps : []);
-      setWardInfo(info ?? { wardName: null, stakeName: null });
+      setWardInfo({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, ...info });
     }).finally(() => setLoadingActivities(false));
   }, []);
 
@@ -236,6 +256,11 @@ export default function WelcomePage() {
   const showBarrioPrefix = !/^[Bb]arrio\b/i.test(wardName);
   const displayName = showBarrioPrefix ? `Barrio ${shortWardName}` : wardName;
 
+  const meetingTime = wardInfo.sacramentMeetingTime ?? null;
+  const meetingAddress = (wardInfo.meetingCenterAddress ?? "").trim();
+  const meetingCenterName = (wardInfo.meetingCenterName ?? "").trim();
+  const mapsUrl = meetingAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meetingAddress)}` : null;
+
   const { start: weekStart, end: weekEnd } = getWeekBounds();
   const allItems: MixedActivity[] = [
     ...baptismServices.map(b => ({ id: b.id, date: b.serviceAt, isBaptism: true, baptism: b })),
@@ -244,13 +269,6 @@ export default function WelcomePage() {
 
   const thisWeek = allItems.filter(a => { const d = new Date(a.date); return d >= weekStart && d <= weekEnd; });
   const upcoming = allItems.filter(a => new Date(a.date) > weekEnd);
-
-  // Next Sunday
-  const now = new Date();
-  const daysUntilSunday = (7 - now.getDay()) % 7 || 7;
-  const nextSunday = new Date(now);
-  nextSunday.setDate(now.getDate() + daysUntilSunday);
-  const sundayLabel = nextSunday.toLocaleDateString("es-ES", { day: "numeric", month: "long" });
 
   return (
     <div className="min-h-screen bg-[#070709] text-white overflow-x-hidden">
@@ -274,12 +292,11 @@ export default function WelcomePage() {
       <section
         className="relative flex flex-col items-center justify-center text-center min-h-[92vh] px-6"
         style={{
-          backgroundImage: "linear-gradient(to bottom, rgba(7,7,9,0.45) 0%, rgba(7,7,9,0.72) 55%, rgba(7,7,9,1) 100%), url('/covenantspathfamily.png')",
+          backgroundImage: "linear-gradient(to bottom, rgba(7,7,9,0.42) 0%, rgba(7,7,9,0.70) 55%, rgba(7,7,9,1) 100%), url('/covenantspathfamily.png')",
           backgroundSize: "cover",
           backgroundPosition: "center 30%",
         }}
       >
-        {/* Subtle vignette edges */}
         <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 80px 0 120px rgba(7,7,9,0.7), inset -80px 0 120px rgba(7,7,9,0.7)" }} />
 
         <div className="relative z-10 max-w-3xl mx-auto">
@@ -292,44 +309,42 @@ export default function WelcomePage() {
             </div>
           )}
 
-          <h1 className="tracking-tight leading-none mb-6">
-            {showBarrioPrefix && (
-              <span
-                className="landing-fade-up block text-xl md:text-2xl font-light text-white/50 mb-2 tracking-[0.18em] uppercase"
-                style={{ animationDelay: "180ms" }}
-              >
-                Barrio
-              </span>
-            )}
-            <span
-              className="landing-fade-up landing-gradient-text block text-6xl md:text-8xl font-black"
-              style={{ animationDelay: "260ms" }}
-            >
-              {shortWardName}
-            </span>
+          {/* Big tagline */}
+          <h1
+            className="landing-fade-up landing-gradient-text font-black leading-[0.95] tracking-tight mb-5"
+            style={{
+              animationDelay: "200ms",
+              fontSize: "clamp(3.5rem, 11vw, 7rem)",
+              letterSpacing: "-0.03em",
+            }}
+          >
+            Todos son<br />bienvenidos.
           </h1>
 
+          {/* Ward name — smaller, secondary */}
           <p
-            className="landing-fade-up text-base md:text-lg text-white/50 max-w-md mx-auto leading-relaxed font-light"
-            style={{ animationDelay: "360ms" }}
+            className="landing-fade-up text-sm md:text-base font-semibold tracking-[0.15em] uppercase text-white/40 mb-8"
+            style={{ animationDelay: "320ms" }}
           >
-            Una comunidad de fe donde todos son bienvenidos.
+            {displayName}
           </p>
 
-          {/* Sunday pill */}
+          {/* Meeting pill */}
           <div
-            className="landing-fade-up flex flex-col sm:flex-row items-center justify-center gap-3 mt-10"
-            style={{ animationDelay: "460ms" }}
+            className="landing-fade-up flex items-center justify-center"
+            style={{ animationDelay: "420ms" }}
           >
-            <div className="flex items-center gap-2.5 bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] rounded-full px-5 py-2.5 text-sm text-white/70">
-              <CalendarDays className="h-4 w-4 text-[#C9A227]/80 shrink-0" />
-              <span>Cada domingo — reunión sacramental</span>
+            <div className="flex items-center gap-2.5 bg-white/[0.06] backdrop-blur-sm border border-white/[0.10] rounded-full px-5 py-2.5 text-sm text-white/60">
+              <CalendarDays className="h-4 w-4 text-[#C9A227]/70 shrink-0" />
+              <span>
+                Cada domingo
+                {meetingTime ? ` · ${meetingTime}h` : " — reunión sacramental"}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-30 animate-bounce">
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-25 animate-bounce">
           <ChevronDown className="h-5 w-5 text-white" />
         </div>
       </section>
@@ -340,13 +355,9 @@ export default function WelcomePage() {
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Esta semana</p>
-              <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                En el {displayName}
-              </h2>
+              <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">En el {displayName}</h2>
             </div>
-            <p className="text-sm text-white/30">
-              {new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
-            </p>
+            <p className="text-sm text-white/25">{new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</p>
           </div>
         </RevealSection>
 
@@ -365,12 +376,12 @@ export default function WelcomePage() {
 
       {/* ── DIVIDER ── */}
       <div className="max-w-6xl mx-auto px-6">
-        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
       </div>
 
       {/* ── PRÓXIMAS ACTIVIDADES ── */}
       {!loadingActivities && upcoming.length > 0 && (
-        <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-24">
+        <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-20">
           <RevealSection className="mb-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Próximamente</p>
             <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Actividades del mes</h2>
@@ -381,30 +392,122 @@ export default function WelcomePage() {
         </section>
       )}
 
-      {/* ── COMMUNITY BANNER ── */}
-      <RevealSection>
-        <section
-          className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl mb-20"
-          style={{
-            backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.92) 40%, rgba(7,7,9,0.55) 100%), url('/flyer-assets/photos/temple1.png')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
+      {/* ── HORARIOS Y UBICACIÓN ── */}
+      {(meetingTime || meetingAddress) && (
+        <>
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+          </div>
+          <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-20">
+            <RevealSection className="mb-10">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Únete a nosotros</p>
+              <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Cuándo y dónde</h2>
+            </RevealSection>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {meetingTime && (
+                <RevealSection delay={0}>
+                  <div className="relative overflow-hidden rounded-2xl border border-[#C9A227]/15 bg-[#C9A227]/[0.04] p-6 flex gap-4">
+                    <div className="shrink-0 flex items-center justify-center w-12 h-12 rounded-xl bg-[#C9A227]/12 border border-[#C9A227]/20">
+                      <Clock className="h-5 w-5 text-[#C9A227]" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#C9A227]/70 mb-1">Reunión Sacramental</p>
+                      <p className="text-white font-bold text-xl leading-tight">{meetingTime}h</p>
+                      <p className="text-white/40 text-sm mt-0.5">Cada domingo</p>
+                    </div>
+                  </div>
+                </RevealSection>
+              )}
+              {meetingAddress && (
+                <RevealSection delay={80}>
+                  <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex gap-4">
+                    <div className="shrink-0 flex items-center justify-center w-12 h-12 rounded-xl bg-white/[0.05] border border-white/[0.10]">
+                      <MapPin className="h-5 w-5 text-white/50" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1">Centro de Reuniones</p>
+                      {meetingCenterName && <p className="text-white font-semibold text-sm leading-snug">{meetingCenterName}</p>}
+                      <p className="text-white/50 text-sm mt-0.5 leading-snug">{meetingAddress}</p>
+                      {mapsUrl && (
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-3 text-xs text-[#C9A227]/70 hover:text-[#C9A227] transition-colors font-medium"
+                        >
+                          Ver en Google Maps <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </RevealSection>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* ── QUIÉNES SOMOS ── */}
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+      </div>
+      <section
+        className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl my-20"
+        style={{
+          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.94) 45%, rgba(7,7,9,0.60) 100%), url('/flyer-assets/photos/temple1.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <RevealSection>
           <div className="relative z-10 px-8 md:px-14 py-14 md:py-16 max-w-xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-4">La Iglesia de Jesucristo</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-white leading-snug mb-4">
-              Construyendo familias eternas
-            </h3>
-            <p className="text-sm text-white/45 leading-relaxed">
-              Somos parte de La Iglesia de Jesucristo de los Santos de los Últimos Días.
-              Creemos en la familia, el servicio y el evangelio de Jesucristo.
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-4">Quiénes somos</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white leading-snug mb-5">
+              Una congregación de fe<br />en el corazón de Madrid
+            </h2>
+            <p className="text-sm text-white/50 leading-relaxed">
+              Somos el {displayName}, una congregación de La Iglesia de Jesucristo de los Santos de los Últimos Días.
+              Creemos en la familia, en el servicio al prójimo y en el evangelio de Jesucristo.
+              Todas las personas son bienvenidas, independientemente de su origen o historia.
             </p>
           </div>
-          {/* Gradient fade to right for image bleed */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070709]/80 via-transparent to-transparent" />
-        </section>
-      </RevealSection>
+        </RevealSection>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070709]/70 via-transparent to-transparent" />
+      </section>
+
+      {/* ── QUÉ CREEMOS ── */}
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+      </div>
+      <section className="relative z-10 px-6 max-w-6xl mx-auto pt-20 pb-24">
+        <RevealSection className="mb-10">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-2">Nuestra fe</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Qué creemos</h2>
+        </RevealSection>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          {BELIEFS.map((b, i) => (
+            <RevealSection key={b.title} delay={i * 80}>
+              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-6 h-full">
+                <span className="text-3xl mb-4 block">{b.icon}</span>
+                <h3 className="font-bold text-white text-base mb-2">{b.title}</h3>
+                <p className="text-white/45 text-sm leading-relaxed">{b.body}</p>
+              </div>
+            </RevealSection>
+          ))}
+        </div>
+
+        <RevealSection delay={240}>
+          <a
+            href="https://www.churchofjesuschrist.org/comeuntochrist/es"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#C9A227]/70 hover:text-[#C9A227] transition-colors"
+          >
+            Conoce más en churchofjesuschrist.org <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </RevealSection>
+      </section>
 
       {/* ── FOOTER ── */}
       <footer className="relative z-10 border-t border-white/[0.06] py-8 px-6">

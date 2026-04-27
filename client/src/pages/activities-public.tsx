@@ -30,8 +30,8 @@ const GLOBAL_STYLES = `
   .pub-scroll-hint { animation: scroll-hint 2s ease-in-out infinite; }
 
   .pub-card {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.07);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     transition: transform .28s ease, box-shadow .28s ease,
@@ -40,19 +40,19 @@ const GLOBAL_STYLES = `
   }
   .pub-card:hover {
     transform: translateY(-6px) scale(1.01);
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(139,92,246,0.45);
-    box-shadow: 0 24px 64px rgba(139,92,246,0.18), 0 8px 24px rgba(0,0,0,0.5);
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(201,162,39,0.40);
+    box-shadow: 0 24px 64px rgba(201,162,39,0.12), 0 8px 24px rgba(0,0,0,0.5);
   }
   .pub-pill {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
   .pub-detail-chip {
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
   }
 `;
 
@@ -99,56 +99,41 @@ function parseDateParts(dateStr: string) {
 }
 
 const ACCENT_COLORS = [
-  "#8b5cf6", // violet
+  "#C9A227", // gold
   "#60a5fa", // blue
-  "#f472b6", // pink
+  "#f97316", // orange
   "#34d399", // emerald
-  "#fb923c", // orange
-  "#a78bfa", // purple-light
+  "#f59e0b", // amber
+  "#e2a84b", // warm gold
 ];
 
 // ── Background aurora ─────────────────────────────────────────────────────────
 function AuroraBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 overflow-hidden" style={{ zIndex: 0 }}>
-      {/* base gradient */}
-      <div
-        className="absolute inset-0"
-        style={{ background: "linear-gradient(135deg, #080612 0%, #0d0a1f 50%, #060a18 100%)" }}
-      />
-      {/* blob 1 — violet */}
+      {/* base */}
+      <div className="absolute inset-0" style={{ background: "#070709" }} />
+      {/* blob 1 — gold top-left */}
       <div
         className="pub-aurora-1 absolute"
         style={{
-          top: "-15%", left: "-10%",
-          width: "60vw", height: "60vw",
-          maxWidth: 700, maxHeight: 700,
+          top: "-15%", left: "30%",
+          width: "70vw", height: "50vw",
+          maxWidth: 800, maxHeight: 600,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(139,92,246,0.22) 0%, transparent 70%)",
-          filter: "blur(60px)",
+          background: "radial-gradient(ellipse, rgba(201,162,39,0.13) 0%, transparent 70%)",
+          filter: "blur(80px)",
         }}
       />
-      {/* blob 2 — blue */}
+      {/* blob 2 — blue bottom-right */}
       <div
         className="pub-aurora-2 absolute"
         style={{
-          bottom: "5%", right: "-15%",
-          width: "55vw", height: "55vw",
-          maxWidth: 650, maxHeight: 650,
+          bottom: "0%", right: "-10%",
+          width: "50vw", height: "40vw",
+          maxWidth: 600, maxHeight: 500,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(96,165,250,0.18) 0%, transparent 70%)",
-          filter: "blur(70px)",
-        }}
-      />
-      {/* blob 3 — pink accent */}
-      <div
-        className="pub-aurora-3 absolute"
-        style={{
-          top: "40%", left: "40%",
-          width: "40vw", height: "40vw",
-          maxWidth: 500, maxHeight: 500,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(244,114,182,0.1) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(0,68,129,0.14) 0%, transparent 70%)",
           filter: "blur(80px)",
         }}
       />
@@ -347,7 +332,7 @@ export function ActivitiesLobby() {
           >
             <span
               style={{
-                background: "linear-gradient(135deg, #fff 30%, rgba(139,92,246,0.85) 100%)",
+                background: "linear-gradient(135deg, #fff 30%, #C9A227 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -391,7 +376,7 @@ export function ActivitiesLobby() {
               borderRadius: 999,
               fontWeight: showPast ? 400 : 600,
               color: showPast ? "rgba(248,250,252,0.5)" : "#fff",
-              background: showPast ? "transparent" : "rgba(139,92,246,0.35)",
+              background: showPast ? "transparent" : "rgba(201,162,39,0.22)",
               border: "none",
               cursor: "pointer",
               transition: "all .2s",
@@ -407,7 +392,7 @@ export function ActivitiesLobby() {
               borderRadius: 999,
               fontWeight: showPast ? 600 : 400,
               color: showPast ? "#fff" : "rgba(248,250,252,0.5)",
-              background: showPast ? "rgba(139,92,246,0.35)" : "transparent",
+              background: showPast ? "rgba(201,162,39,0.22)" : "transparent",
               border: "none",
               cursor: "pointer",
               transition: "all .2s",
@@ -473,11 +458,11 @@ export function ActivitiesLobby() {
                 className="rounded-full flex items-center justify-center mb-6"
                 style={{
                   width: 80, height: 80,
-                  background: "rgba(139,92,246,0.12)",
-                  border: "1px solid rgba(139,92,246,0.25)",
+                  background: "rgba(201,162,39,0.10)",
+                  border: "1px solid rgba(201,162,39,0.22)",
                 }}
               >
-                <CalendarDays style={{ width: 36, height: 36, color: "#8b5cf6" }} />
+                <CalendarDays style={{ width: 36, height: 36, color: "#C9A227" }} />
               </div>
               <p className="font-bold text-white" style={{ fontSize: 22 }}>Sin actividades próximas</p>
               <p style={{ color: "rgba(248,250,252,0.45)", marginTop: 8, maxWidth: 320 }}>
@@ -529,7 +514,7 @@ export function ActivityPublicDetail() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "#080612", fontFamily: "'Outfit', sans-serif" }}
+        style={{ background: "#070709", fontFamily: "'Outfit', sans-serif" }}
       >
         <AuroraBackground />
         <motion.div
@@ -541,8 +526,8 @@ export function ActivityPublicDetail() {
           <div
             style={{
               width: 48, height: 48, borderRadius: "50%",
-              border: "3px solid rgba(139,92,246,0.3)",
-              borderTop: "3px solid #8b5cf6",
+              border: "3px solid rgba(201,162,39,0.25)",
+              borderTop: "3px solid #C9A227",
               animation: "spin 1s linear infinite",
               margin: "0 auto 16px",
             }}
@@ -558,7 +543,7 @@ export function ActivityPublicDetail() {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center text-center px-6"
-        style={{ background: "#080612", fontFamily: "'Outfit', sans-serif", color: "#f8fafc" }}
+        style={{ background: "#070709", fontFamily: "'Outfit', sans-serif", color: "#f8fafc" }}
       >
         <AuroraBackground />
         <motion.div
@@ -574,7 +559,7 @@ export function ActivityPublicDetail() {
           <a
             href="/actividades"
             className="inline-flex items-center gap-2 mt-8 pub-pill rounded-full px-5 py-2.5"
-            style={{ color: "#8b5cf6", fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+            style={{ color: "#C9A227", fontSize: 14, fontWeight: 600, textDecoration: "none" }}
           >
             <ArrowLeft style={{ width: 16, height: 16 }} />
             Ver todas las actividades
@@ -589,7 +574,7 @@ export function ActivityPublicDetail() {
   return (
     <div
       className="relative min-h-screen"
-      style={{ fontFamily: "'Outfit', sans-serif", color: "#f8fafc", background: "#080612", overflowX: "hidden" }}
+      style={{ fontFamily: "'Outfit', sans-serif", color: "#f8fafc", background: "#070709", overflowX: "hidden" }}
     >
       <AuroraBackground />
 
@@ -650,7 +635,7 @@ export function ActivityPublicDetail() {
           style={{
             minHeight: 280, zIndex: 1,
             paddingTop: 80, paddingBottom: 48,
-            background: "linear-gradient(160deg, rgba(139,92,246,0.18) 0%, transparent 60%)",
+            background: "linear-gradient(160deg, rgba(201,162,39,0.10) 0%, transparent 60%)",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
           }}
         >
@@ -661,7 +646,7 @@ export function ActivityPublicDetail() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
                 className="font-semibold uppercase tracking-widest mb-3"
-                style={{ fontSize: 11, color: "#8b5cf6" }}
+                style={{ fontSize: 11, color: "#C9A227" }}
               >
                 {act.organization_name}
               </motion.p>
@@ -693,7 +678,7 @@ export function ActivityPublicDetail() {
             {act.organization_name && (
               <p
                 className="font-semibold uppercase tracking-widest mb-2"
-                style={{ fontSize: 11, color: "#8b5cf6" }}
+                style={{ fontSize: 11, color: "#C9A227" }}
               >
                 {act.organization_name}
               </p>
@@ -720,7 +705,7 @@ export function ActivityPublicDetail() {
               <p className="font-extrabold leading-none text-white" style={{ fontSize: 20 }}>{dp.day}</p>
             </div>
             <div>
-              <p className="font-semibold" style={{ fontSize: 13, color: "#8b5cf6" }}>
+              <p className="font-semibold" style={{ fontSize: 13, color: "#C9A227" }}>
                 {dp.month} {dp.year}
               </p>
               <p className="capitalize" style={{ fontSize: 12, color: "rgba(248,250,252,0.5)", marginTop: 1 }}>
@@ -775,13 +760,13 @@ export function ActivityPublicDetail() {
           <div
             className="rounded-2xl p-5"
             style={{
-              background: "rgba(139,92,246,0.08)",
-              border: "1px solid rgba(139,92,246,0.2)",
+              background: "rgba(201,162,39,0.06)",
+              border: "1px solid rgba(201,162,39,0.18)",
             }}
           >
             <p
               className="font-semibold uppercase tracking-widest mb-2"
-              style={{ fontSize: 11, color: "#8b5cf6" }}
+              style={{ fontSize: 11, color: "#C9A227" }}
             >
               Objetivo
             </p>

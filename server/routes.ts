@@ -7925,11 +7925,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/public/ward-info", async (_req: Request, res: Response) => {
     try {
-      const result = await db.execute(sql`SELECT ward_name, stake_name FROM pdf_templates LIMIT 1`);
+      const result = await db.execute(sql`
+        SELECT ward_name, stake_name, meeting_center_name, meeting_center_address, sacrament_meeting_time
+        FROM pdf_templates LIMIT 1
+      `);
       const row = (result.rows as any[])[0];
-      return res.json({ wardName: row?.ward_name ?? null, stakeName: row?.stake_name ?? null });
+      return res.json({
+        wardName: row?.ward_name ?? null,
+        stakeName: row?.stake_name ?? null,
+        meetingCenterName: row?.meeting_center_name ?? null,
+        meetingCenterAddress: row?.meeting_center_address ?? null,
+        sacramentMeetingTime: row?.sacrament_meeting_time ?? null,
+      });
     } catch {
-      return res.json({ wardName: null, stakeName: null });
+      return res.json({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null });
     }
   });
 
