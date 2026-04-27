@@ -64,10 +64,10 @@ function joinNames(names: string[]): string {
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return {
-    day: d.toLocaleDateString("es-ES", { day: "2-digit" }),
-    month: d.toLocaleDateString("es-ES", { month: "short" }).toUpperCase(),
-    weekday: d.toLocaleDateString("es-ES", { weekday: "long" }),
-    time: d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+    day: d.toLocaleDateString("es-ES", { day: "2-digit", timeZone: "UTC" }),
+    month: d.toLocaleDateString("es-ES", { month: "short", timeZone: "UTC" }).toUpperCase(),
+    weekday: d.toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" }),
+    time: `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`,
   };
 }
 
