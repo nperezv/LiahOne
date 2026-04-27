@@ -18,7 +18,7 @@ import { PushNotificationSettings } from "@/components/push-notification-setting
 import { getStoredTheme, setStoredTheme, type ThemePreference } from "@/lib/theme";
 
 const profileSchema = z.object({
-  apellidos: z.string().min(1, "Los apellidos son requeridos"),
+  apellidos: z.string().optional().or(z.literal("")),
   nombre: z.string().min(1, "El nombre es requerido"),
   phone: z.string().optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
@@ -87,6 +87,7 @@ export default function ProfilePage() {
     if (commaIdx !== -1) {
       return { apellidos: raw.slice(0, commaIdx), nombre: raw.slice(commaIdx + 2) };
     }
+    // No comma format — put everything in nombre, leave apellidos for user to fill
     return { apellidos: "", nombre: raw };
   }, [user?.name]);
 
@@ -101,6 +102,19 @@ export default function ProfilePage() {
       requireEmailOtp: user?.requireEmailOtp ?? false,
     },
   });
+
+  // Reset form when user data loads asynchronously (prevents empty fields on first render)
+  useEffect(() => {
+    if (!user) return;
+    form.reset({
+      apellidos: parsedName.apellidos,
+      nombre: parsedName.nombre,
+      phone: user.phone || "",
+      email: user.email || "",
+      username: user.username || "",
+      requireEmailOtp: user.requireEmailOtp ?? false,
+    });
+  }, [user?.id]);
 
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
