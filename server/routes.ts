@@ -7923,6 +7923,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/public/ward-info", async (_req: Request, res: Response) => {
+    try {
+      const result = await db.execute(sql`SELECT ward_name, stake_name FROM pdf_templates LIMIT 1`);
+      const row = (result.rows as any[])[0];
+      return res.json({ wardName: row?.ward_name ?? null, stakeName: row?.stake_name ?? null });
+    } catch {
+      return res.json({ wardName: null, stakeName: null });
+    }
+  });
+
   app.get("/api/activities", requireAuth, async (req: Request, res: Response) => {
     try {
       const activities = await storage.getAllActivities();
