@@ -601,17 +601,31 @@ export function useCreateBudgetRequest() {
       });
     },
     onError: async (error: any) => {
+      let title = "Error al solicitar presupuesto";
       let message = "No se pudo crear la solicitud. Intenta nuevamente.";
       try {
         const payload = await error.response?.json?.();
         if (payload?.code === "OVERDUE_BUDGET_RECEIPTS") {
-          message = payload.error;
+          title = "Comprobantes pendientes";
+          const items: string[] = (payload.overdueAssignments ?? []).map((a: any) => {
+            const parts: string[] = [];
+            if (a.title) parts.push(a.title);
+            if (a.amount != null) parts.push(`€${a.amount}`);
+            if (a.activityDate) {
+              const d = new Date(a.activityDate);
+              if (!isNaN(d.getTime())) parts.push(d.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" }));
+            }
+            return parts.join(" · ");
+          });
+          message = items.length > 0
+            ? `Debes adjuntar los comprobantes de:\n${items.map(i => `• ${i}`).join("\n")}`
+            : payload.error;
         }
       } catch {
         // ignore response parsing errors
       }
       toast({
-        title: "Error",
+        title,
         description: message,
         variant: "destructive",
       });

@@ -5,16 +5,16 @@ import type { Notification } from "@shared/schema";
 export function useNotifications() {
   const notificationsQuery = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
-    refetchInterval: 5000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: true,
-    staleTime: 3000,
+    staleTime: 20000,
   });
 
   const unreadCountQuery = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/count"],
-    refetchInterval: 5000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: true,
-    staleTime: 3000,
+    staleTime: 20000,
   });
 
   const markAsReadMutation = useMutation({
@@ -73,7 +73,6 @@ export function useNotifications() {
       queryClient.setQueryData<Notification[]>(["/api/notifications"], (old) =>
         old?.map((n) => ({ ...n, isRead: true }))
       );
-
       queryClient.setQueryData<{ count: number }>(["/api/notifications/count"], { count: 0 });
 
       return { previousNotifications, previousCount };
@@ -86,8 +85,9 @@ export function useNotifications() {
         queryClient.setQueryData(["/api/notifications/count"], context.previousCount);
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    // No invalidate on success — optimistic update is already accurate.
+    // Only refetch count to stay in sync.
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/count"] });
     },
   });
