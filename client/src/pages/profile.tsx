@@ -38,6 +38,30 @@ const passwordSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
+// Compress + resize avatar client-side → data URL stored directly in DB
+// Avoids ephemeral-disk loss on cloud deployments
+function compressAvatar(file: File, maxPx = 240, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas not available"));
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Image load failed")); };
+    img.src = objectUrl;
+  });
+}
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -95,19 +119,8 @@ export default function ProfilePage() {
       }
 
       if (avatarFile) {
-        const formData = new FormData();
-        formData.append("file", avatarFile);
-        const uploadResponse = await fetchWithAuthRetry("/api/uploads", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Error al subir la foto");
-        }
-
-        const uploaded = await uploadResponse.json();
-        avatarUrl = uploaded.url;
+        // Compress client-side and store as data URL in DB — avoids ephemeral disk loss
+        avatarUrl = await compressAvatar(avatarFile);
       }
 
       const response = await fetch("/api/profile", {
