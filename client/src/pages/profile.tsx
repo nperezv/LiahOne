@@ -640,15 +640,15 @@ function InterviewWindowsSettings() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch("/api/interview-windows", { headers: { ...JSON.parse(localStorage.getItem("auth_tokens") || "{}") } })
+    fetchWithAuthRetry("/api/interview-windows")
       .then(r => r.json())
       .then((data: any[]) => {
-        if (data.length > 0) {
-          setActiveDays(data.map(w => w.dayOfWeek));
-          setStartTime(data[0].startTime);
-          setEndTime(data[0].endTime);
-          setSlotMin(data[0].slotMinutes);
-          setMaxPerDay(data[0].maxPerDay);
+        if (Array.isArray(data) && data.length > 0) {
+          setActiveDays(data.map(w => Number(w.dayOfWeek)));
+          setStartTime(data[0].startTime ?? "18:00");
+          setEndTime(data[0].endTime ?? "20:00");
+          setSlotMin(Number(data[0].slotMinutes) || 30);
+          setMaxPerDay(Number(data[0].maxPerDay) || 4);
         }
       })
       .catch(() => {})
@@ -661,8 +661,11 @@ function InterviewWindowsSettings() {
   const save = async () => {
     setSaving(true);
     try {
-      const { apiRequest } = await import("@/lib/queryClient");
-      await apiRequest("PUT", "/api/interview-windows", { activeDays, startTime, endTime, slotMinutes, maxPerDay });
+      await fetchWithAuthRetry("/api/interview-windows", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activeDays, startTime, endTime, slotMinutes, maxPerDay }),
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
