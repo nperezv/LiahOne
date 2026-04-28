@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { CalendarDays, MapPin, Users, ArrowLeft, Clock, ChevronDown } from "lucide-react";
+import { ChioChat } from "@/components/chio-chat";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 
@@ -484,10 +485,11 @@ export function ActivitiesLobby() {
         className="pointer-events-none fixed bottom-0 left-0 right-0"
         style={{
           height: 120,
-          background: "linear-gradient(to top, #080612 0%, transparent 100%)",
+          background: "linear-gradient(to top, #070709 0%, transparent 100%)",
           zIndex: 2,
         }}
       />
+      <ChioChat />
     </div>
   );
 }

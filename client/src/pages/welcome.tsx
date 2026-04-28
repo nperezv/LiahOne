@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Redirect } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { CalendarDays, MapPin, ChevronRight, ChevronDown, Clock, ExternalLink } from "lucide-react";
+import { ChioChat } from "@/components/chio-chat";
 
 interface PublicActivity {
   id: string;
@@ -582,6 +583,8 @@ export default function WelcomePage() {
         </RevealSection>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070709]/60 via-transparent to-transparent" />
       </section>
+
+      <ChioChat />
 
       {/* ── FOOTER ── */}
       <footer className="relative z-10 border-t border-white/[0.06] pt-10 pb-8 px-6">

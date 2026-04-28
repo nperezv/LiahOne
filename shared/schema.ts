@@ -1870,8 +1870,24 @@ export const pdfTemplates = pgTable("pdf_templates", {
   instagramUrl: text("instagram_url").default(""),
   facebookUrl: text("facebook_url").default(""),
   contactEmail: text("contact_email").default(""),
+  whatsappPhone: text("whatsapp_phone").default(""),
+  missionOfficeEmail: text("mission_office_email").default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Interview requests from Chio chat
+export const interviewRequests = pgTable("interview_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: text("nombre").notNull(),
+  apellidos: text("apellidos").notNull(),
+  email: text("email").notNull(),
+  telefono: text("telefono").default(""),
+  asunto: text("asunto").notNull(),
+  notas: text("notas").default(""),
+  leaderRole: text("leader_role").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertPdfTemplateSchema = createInsertSchema(pdfTemplates).omit({

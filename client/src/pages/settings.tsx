@@ -36,6 +36,8 @@ const templateSchema = z.object({
   instagramUrl: z.string().optional(),
   facebookUrl: z.string().optional(),
   contactEmail: z.string().optional(),
+  whatsappPhone: z.string().optional(),
+  missionOfficeEmail: z.string().optional(),
 });
 
 type TemplateFormValues = z.infer<typeof templateSchema>;
@@ -81,6 +83,8 @@ export default function Settings() {
       instagramUrl: template?.instagramUrl || "",
       facebookUrl: template?.facebookUrl || "",
       contactEmail: template?.contactEmail || "",
+      whatsappPhone: template?.whatsappPhone || "",
+      missionOfficeEmail: template?.missionOfficeEmail || "",
     },
   });
 
@@ -155,6 +159,8 @@ export default function Settings() {
         instagramUrl: template.instagramUrl || "",
         facebookUrl: template.facebookUrl || "",
         contactEmail: template.contactEmail || "",
+        whatsappPhone: template.whatsappPhone || "",
+        missionOfficeEmail: template.missionOfficeEmail || "",
       }, { keepValues: false });
     }
   }, [template]);
@@ -286,6 +292,40 @@ export default function Settings() {
                       />
                     </div>
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="whatsappPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>WhatsApp del barrio (Chio)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+34600000000" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Número al que Chio redirige cuando alguien quiere hablar con alguien del barrio. Si se deja vacío, Chio mostrará que no hay nadie disponible.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="missionOfficeEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email de la Misión (no miembros)</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="mision@example.com" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Las solicitudes de no miembros desde Chio se envían a este email (oficina de la misión).
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}

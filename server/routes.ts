@@ -999,6 +999,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`
     ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS contact_email text NOT NULL DEFAULT ''
   `);
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS whatsapp_phone text NOT NULL DEFAULT ''
+  `);
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS mission_office_email text NOT NULL DEFAULT ''
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS interview_requests (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      nombre text NOT NULL,
+      apellidos text NOT NULL,
+      email text NOT NULL,
+      telefono text DEFAULT '',
+      asunto text NOT NULL,
+      notas text DEFAULT '',
+      leader_role text NOT NULL,
+      status text NOT NULL DEFAULT 'pending',
+      created_at timestamp DEFAULT now() NOT NULL
+    )
+  `);
   // Auto-migration: add requires_registration to activities if missing
   await db.execute(sql`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
@@ -7937,7 +7957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = await db.execute(sql`
         SELECT ward_name, stake_name, meeting_center_name, meeting_center_address, sacrament_meeting_time,
-               instagram_url, facebook_url
+               instagram_url, facebook_url, whatsapp_phone, mission_office_email
         FROM pdf_templates LIMIT 1
       `);
       const row = (result.rows as any[])[0];
@@ -7949,9 +7969,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sacramentMeetingTime: row?.sacrament_meeting_time ?? null,
         instagramUrl: row?.instagram_url || null,
         facebookUrl: row?.facebook_url || null,
+        whatsappPhone: row?.whatsapp_phone || null,
+        missionOfficeEmail: row?.mission_office_email || null,
       });
     } catch {
-      return res.json({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, instagramUrl: null, facebookUrl: null });
+      return res.json({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, instagramUrl: null, facebookUrl: null, whatsappPhone: null, missionOfficeEmail: null });
+    }
+  });
+
+  app.post("/api/public/interview-request", async (req: Request, res: Response) => {
+    try {
+      const { nombre, apellidos, email, telefono, asunto, notas, leaderRole } = req.body ?? {};
+      if (!nombre?.trim() || !apellidos?.trim() || !email?.trim() || !asunto?.trim() || !leaderRole?.trim())
+        return res.status(400).json({ error: "Faltan campos obligatorios." });
+
+      await db.execute(sql`
+        INSERT INTO interview_requests (nombre, apellidos, email, telefono, asunto, notas, leader_role)
+        VALUES (${nombre.trim()}, ${apellidos.trim()}, ${email.trim()}, ${telefono?.trim() || ""},
+                ${asunto.trim()}, ${notas?.trim() || ""}, ${leaderRole.trim()})
+      `);
+
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName ?? null;
+      const allUsers = await storage.getAllUsers();
+
+      const leaderRoleMap: Record<string, string> = {
+        obispo: "obispo", consejero_1: "consejero_obispo", consejero_2: "consejero_obispo",
+      };
+      const targetRole = leaderRoleMap[leaderRole] ?? "obispo";
+      const leaders = allUsers.filter(u => u.role === targetRole && u.email);
+      if (leaderRole === "consejero_1") leaders.splice(1);
+      if (leaderRole === "consejero_2") { leaders.reverse(); leaders.splice(1); }
+
+      const recipients = leaders.map(u => u.email!).filter(Boolean);
+      const smtp = (await import("./auth")).createSmtpTransport ? null : null;
+
+      await Promise.all(recipients.map(to =>
+        sendMissionaryContactEmail({
+          name: `${nombre.trim()} ${apellidos.trim()}`,
+          email: email.trim(),
+          phone: telefono?.trim() || undefined,
+          message: `Asunto: ${asunto}\n${notas ? `Notas: ${notas}` : ""}`,
+          bishopEmail: to,
+          wardName,
+        })
+      ));
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("[Interview Request]", err);
+      return res.json({ ok: true });
     }
   });
 
@@ -7964,20 +8031,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName ?? null;
 
-      // Build recipient list: configured contact email + mission leader
+      const isMember = req.body?.isMember !== false;
       const allUsers = await storage.getAllUsers();
       const recipients = new Set<string>();
 
-      const configuredEmail = (template as any)?.contactEmail?.trim() || "";
-      if (configuredEmail) {
-        recipients.add(configuredEmail);
+      if (!isMember) {
+        // Non-member → send to mission office email
+        const missionOfficeEmail = (template as any)?.missionOfficeEmail?.trim() || "";
+        if (missionOfficeEmail) recipients.add(missionOfficeEmail);
+        else {
+          const missionLeader = allUsers.find(u => u.role === "mission_leader");
+          if (missionLeader?.email) recipients.add(missionLeader.email);
+        }
       } else {
-        const bishop = allUsers.find(u => u.role === "obispo");
-        if (bishop?.email) recipients.add(bishop.email);
+        // Member → send to configured contact email or bishop + mission leader
+        const configuredEmail = (template as any)?.contactEmail?.trim() || "";
+        if (configuredEmail) {
+          recipients.add(configuredEmail);
+        } else {
+          const bishop = allUsers.find(u => u.role === "obispo");
+          if (bishop?.email) recipients.add(bishop.email);
+        }
+        const missionLeader = allUsers.find(u => u.role === "mission_leader");
+        if (missionLeader?.email) recipients.add(missionLeader.email);
       }
-
-      const missionLeader = allUsers.find(u => u.role === "mission_leader");
-      if (missionLeader?.email) recipients.add(missionLeader.email);
 
       if (recipients.size === 0) {
         console.warn("[Missionary Contact] No recipients found. Request:", { name, email, phone });
