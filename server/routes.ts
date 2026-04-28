@@ -996,6 +996,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`
     ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS facebook_url text NOT NULL DEFAULT ''
   `);
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS contact_email text NOT NULL DEFAULT ''
+  `);
   // Auto-migration: add requires_registration to activities if missing
   await db.execute(sql`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
@@ -7961,11 +7964,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName ?? null;
 
-      // Get bishop email
-      const allUsers = await storage.getAllUsers();
-      const bishop = allUsers.find(u => u.role === "obispo");
-      if (!bishop?.email) {
-        console.warn("[Missionary Contact] No bishop with email found. Request:", { name, email, phone });
+      // Use configured contact email, fall back to bishop's email
+      let recipientEmail = (template as any)?.contactEmail?.trim() || "";
+      if (!recipientEmail) {
+        const allUsers = await storage.getAllUsers();
+        const bishop = allUsers.find(u => u.role === "obispo");
+        recipientEmail = bishop?.email ?? "";
+      }
+      if (!recipientEmail) {
+        console.warn("[Missionary Contact] No recipient email configured. Request:", { name, email, phone });
         return res.json({ ok: true });
       }
 
@@ -7974,7 +7981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: email?.trim() || undefined,
         phone: phone?.trim() || undefined,
         message: message?.trim() || undefined,
-        bishopEmail: bishop.email,
+        bishopEmail: recipientEmail,
         wardName,
       });
 

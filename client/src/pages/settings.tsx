@@ -35,6 +35,7 @@ const templateSchema = z.object({
   meetingCenterAddress: z.string().optional(),
   instagramUrl: z.string().optional(),
   facebookUrl: z.string().optional(),
+  contactEmail: z.string().optional(),
 });
 
 type TemplateFormValues = z.infer<typeof templateSchema>;
@@ -79,6 +80,7 @@ export default function Settings() {
       meetingCenterAddress: template?.meetingCenterAddress || "",
       instagramUrl: template?.instagramUrl || "",
       facebookUrl: template?.facebookUrl || "",
+      contactEmail: template?.contactEmail || "",
     },
   });
 
@@ -152,6 +154,7 @@ export default function Settings() {
         meetingCenterAddress: template.meetingCenterAddress || "",
         instagramUrl: template.instagramUrl || "",
         facebookUrl: template.facebookUrl || "",
+        contactEmail: template.contactEmail || "",
       }, { keepValues: false });
     }
   }, [template]);
@@ -283,6 +286,23 @@ export default function Settings() {
                       />
                     </div>
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="contactEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email de contacto público</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="barrio8madrid@gmail.com" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Las solicitudes de visita misionera se enviarán a este email. Si se deja vacío, se usará el email del obispo.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <div className="pt-2 pb-1">
                     <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">

@@ -1869,6 +1869,7 @@ export const pdfTemplates = pgTable("pdf_templates", {
   meetingCenterAddress: text("meeting_center_address").default(""),
   instagramUrl: text("instagram_url").default(""),
   facebookUrl: text("facebook_url").default(""),
+  contactEmail: text("contact_email").default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
