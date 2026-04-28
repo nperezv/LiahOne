@@ -1006,6 +1006,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS mission_office_email text NOT NULL DEFAULT ''
   `);
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS interview_windows (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day_of_week integer NOT NULL,
+      start_time text NOT NULL,
+      end_time text NOT NULL,
+      slot_minutes integer NOT NULL DEFAULT 30,
+      max_per_day integer NOT NULL DEFAULT 4,
+      is_active boolean NOT NULL DEFAULT true,
+      created_at timestamp DEFAULT now() NOT NULL
+    )
+  `);
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS interview_requests (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       nombre text NOT NULL,

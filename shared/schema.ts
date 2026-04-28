@@ -1876,6 +1876,19 @@ export const pdfTemplates = pgTable("pdf_templates", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Interview availability windows per leader (bishop / counselors)
+export const interviewWindows = pgTable("interview_windows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Mon … 6=Sun
+  startTime: text("start_time").notNull(),     // "18:00"
+  endTime: text("end_time").notNull(),         // "20:00"
+  slotMinutes: integer("slot_minutes").notNull().default(30),
+  maxPerDay: integer("max_per_day").notNull().default(4),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Interview requests from Chio chat
 export const interviewRequests = pgTable("interview_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
