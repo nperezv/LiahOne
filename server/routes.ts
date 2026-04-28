@@ -4306,7 +4306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (current >= win.max_per_day) {
             return res.status(409).json({
               code: "INTERVIEW_WINDOW_FULL",
-              error: `${interviewer?.name ?? "El líder"} ya tiene ${current} entrevistas ese día (máximo configurado: ${win.max_per_day}). Ajusta la disponibilidad en el perfil o elige otro día.`,
+              error: `${interviewer?.name ?? "El líder"} ya tiene ${current} entrevistas ese día y ha alcanzado su límite (${win.max_per_day}). Coordina con ${interviewer?.name ?? "el líder"} para ajustar su disponibilidad o elige otro día.`,
               current,
               max: win.max_per_day,
             });
