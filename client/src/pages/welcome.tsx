@@ -327,9 +327,9 @@ export default function WelcomePage() {
       <section
         className="relative flex flex-col items-center justify-center text-center min-h-[92vh] px-6"
         style={{
-          backgroundImage: "linear-gradient(to bottom, rgba(7,7,9,0.42) 0%, rgba(7,7,9,0.70) 55%, rgba(7,7,9,1) 100%), url('/covenantspathfamily.png')",
+          backgroundImage: "linear-gradient(to bottom, rgba(7,7,9,0.35) 0%, rgba(7,7,9,0.65) 55%, rgba(7,7,9,1) 100%), url('/flyer-assets/photos/temple-madrid-hero.jpg')",
           backgroundSize: "cover",
-          backgroundPosition: "center 30%",
+          backgroundPosition: "center 40%",
         }}
       >
         <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 80px 0 120px rgba(7,7,9,0.7), inset -80px 0 120px rgba(7,7,9,0.7)" }} />
@@ -495,7 +495,7 @@ export default function WelcomePage() {
       <section
         className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl my-20"
         style={{
-          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.94) 45%, rgba(7,7,9,0.60) 100%), url('/flyer-assets/photos/temple1.png')",
+          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.94) 45%, rgba(7,7,9,0.55) 100%), url('/flyer-assets/photos/temple-madrid-quienes.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -557,9 +557,9 @@ export default function WelcomePage() {
       <section
         className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl my-20"
         style={{
-          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.93) 45%, rgba(7,7,9,0.55) 100%), url('/covenantspath.png')",
+          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.93) 45%, rgba(7,7,9,0.50) 100%), url('/flyer-assets/photos/temple-madrid-misioneros.jpg')",
           backgroundSize: "cover",
-          backgroundPosition: "center 20%",
+          backgroundPosition: "center 30%",
         }}
       >
         <RevealSection>
