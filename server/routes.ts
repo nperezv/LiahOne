@@ -7964,26 +7964,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName ?? null;
 
-      // Use configured contact email, fall back to bishop's email
-      let recipientEmail = (template as any)?.contactEmail?.trim() || "";
-      if (!recipientEmail) {
-        const allUsers = await storage.getAllUsers();
+      // Build recipient list: configured contact email + mission leader
+      const allUsers = await storage.getAllUsers();
+      const recipients = new Set<string>();
+
+      const configuredEmail = (template as any)?.contactEmail?.trim() || "";
+      if (configuredEmail) {
+        recipients.add(configuredEmail);
+      } else {
         const bishop = allUsers.find(u => u.role === "obispo");
-        recipientEmail = bishop?.email ?? "";
+        if (bishop?.email) recipients.add(bishop.email);
       }
-      if (!recipientEmail) {
-        console.warn("[Missionary Contact] No recipient email configured. Request:", { name, email, phone });
+
+      const missionLeader = allUsers.find(u => u.role === "mission_leader");
+      if (missionLeader?.email) recipients.add(missionLeader.email);
+
+      if (recipients.size === 0) {
+        console.warn("[Missionary Contact] No recipients found. Request:", { name, email, phone });
         return res.json({ ok: true });
       }
 
-      await sendMissionaryContactEmail({
-        name: name.trim(),
-        email: email?.trim() || undefined,
-        phone: phone?.trim() || undefined,
-        message: message?.trim() || undefined,
-        bishopEmail: recipientEmail,
-        wardName,
-      });
+      await Promise.all([...recipients].map(recipientEmail =>
+        sendMissionaryContactEmail({
+          name: name.trim(),
+          email: email?.trim() || undefined,
+          phone: phone?.trim() || undefined,
+          message: message?.trim() || undefined,
+          bishopEmail: recipientEmail,
+          wardName,
+        })
+      ));
 
       return res.json({ ok: true });
     } catch (err) {
