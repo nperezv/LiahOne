@@ -495,7 +495,7 @@ export default function WelcomePage() {
       <section
         className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl my-20"
         style={{
-          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.94) 45%, rgba(7,7,9,0.55) 100%), url('/flyer-assets/photos/temple-madrid-quienes.jpg')",
+          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.94) 45%, rgba(7,7,9,0.45) 100%), url('/flyer-assets/photos/members.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -557,7 +557,7 @@ export default function WelcomePage() {
       <section
         className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl my-20"
         style={{
-          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.93) 45%, rgba(7,7,9,0.50) 100%), url('/flyer-assets/photos/temple-madrid-misioneros.jpg')",
+          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.93) 45%, rgba(7,7,9,0.45) 100%), url('/flyer-assets/photos/missionaries.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center 30%",
         }}
