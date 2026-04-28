@@ -1028,10 +1028,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       asunto text NOT NULL,
       notas text DEFAULT '',
       leader_role text NOT NULL,
+      preferred_date text DEFAULT '',
+      preferred_time text DEFAULT '',
       status text NOT NULL DEFAULT 'pending',
       created_at timestamp DEFAULT now() NOT NULL
     )
   `);
+  await db.execute(sql`ALTER TABLE interview_requests ADD COLUMN IF NOT EXISTS preferred_date text DEFAULT ''`);
+  await db.execute(sql`ALTER TABLE interview_requests ADD COLUMN IF NOT EXISTS preferred_time text DEFAULT ''`);
   // Auto-migration: add requires_registration to activities if missing
   await db.execute(sql`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
@@ -7990,16 +7994,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Interview Windows (leader availability config) ──────────────────────────
+
+  app.get("/api/interview-windows", requireAuth, async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const result = await db.execute(sql`
+      SELECT id, day_of_week AS "dayOfWeek", start_time AS "startTime",
+             end_time AS "endTime", slot_minutes AS "slotMinutes", max_per_day AS "maxPerDay"
+      FROM interview_windows WHERE user_id = ${user.id} AND is_active = true ORDER BY day_of_week
+    `);
+    return res.json(result.rows);
+  });
+
+  app.put("/api/interview-windows", requireAuth, async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { activeDays = [], startTime = "18:00", endTime = "20:00", slotMinutes = 30, maxPerDay = 4 } = req.body ?? {};
+    await db.execute(sql`DELETE FROM interview_windows WHERE user_id = ${user.id}`);
+    for (const day of activeDays as number[]) {
+      await db.execute(sql`
+        INSERT INTO interview_windows (user_id, day_of_week, start_time, end_time, slot_minutes, max_per_day)
+        VALUES (${user.id}, ${day}, ${startTime}, ${endTime}, ${slotMinutes}, ${maxPerDay})
+      `);
+    }
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/public/interview-availability", async (req: Request, res: Response) => {
+    try {
+      const leaderRole = String(req.query.leaderRole ?? "obispo");
+      const weeks = Math.min(parseInt(String(req.query.weeks ?? "3"), 10), 4);
+
+      const allUsers = await storage.getAllUsers();
+      const candidates = allUsers.filter(u => u.role === (leaderRole === "obispo" ? "obispo" : "consejero_obispo"));
+      const leader = leaderRole === "consejero_2" && candidates.length > 1 ? candidates[1] : candidates[0];
+      if (!leader) return res.json([]);
+
+      const windowsResult = await db.execute(sql`
+        SELECT day_of_week, start_time, end_time, slot_minutes, max_per_day
+        FROM interview_windows WHERE user_id = ${leader.id} AND is_active = true
+      `);
+      const windows = windowsResult.rows as any[];
+      if (!windows.length) return res.json([]);
+
+      const slots: Array<{ date: string; label: string; times: string[] }> = [];
+      const now = new Date();
+
+      for (let d = 1; d <= weeks * 7 && slots.length < 5; d++) {
+        const date = new Date(now);
+        date.setDate(now.getDate() + d);
+        const jsDay = date.getDay(); // 0=Sun
+        const monDay = jsDay === 0 ? 6 : jsDay - 1; // convert to Mon=0
+        const win = windows.find((w: any) => w.day_of_week === monDay);
+        if (!win) continue;
+
+        const dateStr = date.toISOString().slice(0, 10);
+
+        const bookedResult = await db.execute(sql`
+          SELECT COUNT(*) AS cnt FROM interviews
+          WHERE DATE(date) = ${dateStr} AND interviewer_id = ${leader.id}
+            AND status NOT IN ('cancelada','archivada')
+        `);
+        const booked = parseInt((bookedResult.rows[0] as any)?.cnt ?? "0", 10);
+
+        const pendingResult = await db.execute(sql`
+          SELECT COUNT(*) AS cnt FROM interview_requests
+          WHERE preferred_date = ${dateStr} AND leader_role = ${leaderRole} AND status = 'pending'
+        `);
+        const pending = parseInt((pendingResult.rows[0] as any)?.cnt ?? "0", 10);
+
+        const taken = booked + pending;
+        if (taken >= win.max_per_day) continue;
+
+        const [sh, sm] = String(win.start_time).split(":").map(Number);
+        const [eh, em] = String(win.end_time).split(":").map(Number);
+        const startM = sh * 60 + sm;
+        const endM   = eh * 60 + em;
+        const step   = win.slot_minutes;
+        const free   = win.max_per_day - taken;
+        const times: string[] = [];
+        for (let t = startM; t + step <= endM && times.length < free; t += step) {
+          times.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+        }
+        if (!times.length) continue;
+
+        slots.push({
+          date: dateStr,
+          label: date.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }),
+          times,
+        });
+      }
+
+      return res.json(slots);
+    } catch (err) {
+      console.error("[interview-availability]", err);
+      return res.json([]);
+    }
+  });
+
   app.post("/api/public/interview-request", async (req: Request, res: Response) => {
     try {
-      const { nombre, apellidos, email, telefono, asunto, notas, leaderRole } = req.body ?? {};
+      const { nombre, apellidos, email, telefono, asunto, notas, leaderRole, preferredDate, preferredTime } = req.body ?? {};
       if (!nombre?.trim() || !apellidos?.trim() || !email?.trim() || !asunto?.trim() || !leaderRole?.trim())
         return res.status(400).json({ error: "Faltan campos obligatorios." });
 
       await db.execute(sql`
-        INSERT INTO interview_requests (nombre, apellidos, email, telefono, asunto, notas, leader_role)
+        INSERT INTO interview_requests (nombre, apellidos, email, telefono, asunto, notas, leader_role, preferred_date, preferred_time)
         VALUES (${nombre.trim()}, ${apellidos.trim()}, ${email.trim()}, ${telefono?.trim() || ""},
-                ${asunto.trim()}, ${notas?.trim() || ""}, ${leaderRole.trim()})
+                ${asunto.trim()}, ${notas?.trim() || ""}, ${leaderRole.trim()},
+                ${preferredDate?.trim() || ""}, ${preferredTime?.trim() || ""})
       `);
 
       const template = await storage.getPdfTemplate();

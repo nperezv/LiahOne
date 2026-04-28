@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, CalendarDays, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -610,6 +611,167 @@ export default function ProfilePage() {
       <div className="mt-6">
         <PushNotificationSettings />
       </div>
+
+      {(user?.role === "obispo" || user?.role === "consejero_obispo") && (
+        <div className="mt-6">
+          <InterviewWindowsSettings />
+        </div>
+      )}
     </div>
+  );
+}
+
+// ── Interview windows config (visible only to bishop/counselors) ──────────────
+
+const WEEK_DAYS = [
+  { v: 0, l: "Lun" }, { v: 1, l: "Mar" }, { v: 2, l: "Mié" },
+  { v: 3, l: "Jue" }, { v: 4, l: "Vie" }, { v: 5, l: "Sáb" }, { v: 6, l: "Dom" },
+];
+
+function InterviewWindowsSettings() {
+  const [activeDays, setActiveDays] = useState<number[]>([]);
+  const [startTime, setStartTime]   = useState("18:00");
+  const [endTime, setEndTime]       = useState("20:00");
+  const [slotMinutes, setSlotMin]   = useState(30);
+  const [maxPerDay, setMaxPerDay]   = useState(4);
+  const [saving, setSaving]         = useState(false);
+  const [saved, setSaved]           = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetch("/api/interview-windows", { headers: { ...JSON.parse(localStorage.getItem("auth_tokens") || "{}") } })
+      .then(r => r.json())
+      .then((data: any[]) => {
+        if (data.length > 0) {
+          setActiveDays(data.map(w => w.dayOfWeek));
+          setStartTime(data[0].startTime);
+          setEndTime(data[0].endTime);
+          setSlotMin(data[0].slotMinutes);
+          setMaxPerDay(data[0].maxPerDay);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleDay = (d: number) =>
+    setActiveDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a,b)=>a-b));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { apiRequest } = await import("@/lib/queryClient");
+      await apiRequest("PUT", "/api/interview-windows", { activeDays, startTime, endTime, slotMinutes, maxPerDay });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      toast({ title: "Error", description: "No se pudo guardar la disponibilidad", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <Card>
+      <CardContent className="space-y-5 pt-6">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          <h3 className="font-semibold text-sm">Disponibilidad para entrevistas</h3>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Chio solo ofrecerá al público los huecos que configures aquí. El secretario puede seguir añadiendo entrevistas manualmente en cualquier momento.
+        </p>
+
+        {/* Day selector */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Días disponibles</p>
+          <div className="flex gap-2 flex-wrap">
+            {WEEK_DAYS.map(d => (
+              <button
+                key={d.v}
+                type="button"
+                onClick={() => toggleDay(d.v)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  activeDays.includes(d.v)
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                {d.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Time range */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Desde</p>
+            <input
+              type="time"
+              value={startTime}
+              onChange={e => setStartTime(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Hasta</p>
+            <input
+              type="time"
+              value={endTime}
+              onChange={e => setEndTime(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Slot duration + max */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Duración por entrevista</p>
+            <Select value={String(slotMinutes)} onValueChange={v => setSlotMin(Number(v))}>
+              <SelectTrigger className="text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15 min</SelectItem>
+                <SelectItem value="30">30 min</SelectItem>
+                <SelectItem value="45">45 min</SelectItem>
+                <SelectItem value="60">1 hora</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Máximo por día</p>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={maxPerDay}
+              onChange={e => setMaxPerDay(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Preview */}
+        {activeDays.length > 0 && (
+          <div className="rounded-lg bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Resumen: </span>
+            {WEEK_DAYS.filter(d => activeDays.includes(d.v)).map(d => d.l).join(", ")}
+            {" · "}{startTime}–{endTime}
+            {" · "}{slotMinutes} min/entrevista
+            {" · "}{Math.floor(((parseInt(endTime.split(":")[0])*60 + parseInt(endTime.split(":")[1])) - (parseInt(startTime.split(":")[0])*60 + parseInt(startTime.split(":")[1]))) / slotMinutes)} slots disponibles, máx {maxPerDay} al día
+          </div>
+        )}
+
+        <Button onClick={save} disabled={saving} size="sm" className="gap-2">
+          {saved ? <><CheckCircle2 className="h-4 w-4" /> Guardado</> : saving ? "Guardando…" : "Guardar disponibilidad"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

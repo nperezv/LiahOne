@@ -423,17 +423,54 @@ export function ChioChat() {
     setQRs(moreReplies());
   };
 
-  const submitEntrevista = async (leaderRole: string) => {
+  const submitEntrevista = async (leaderRole: string, preferredDate?: string, preferredTime?: string) => {
     setSub(true);
     try {
-      await fetch("/api/public/interview-request", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ...fData, leaderRole }) });
+      await fetch("/api/public/interview-request", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...fData, leaderRole, preferredDate, preferredTime }),
+      });
     } catch {}
     setSub(false);
     setForm(null);
-    setPendingLeader(null);
     setFData({ nombre:"",apellidos:"",email:"",telefono:"",asunto:"",notas:"",mensaje:"",gdpr:false });
-    addMsg({ from:"chio", content:<span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-[#C9A227] shrink-0"/>¡Solicitud enviada! Recibirás confirmación por email en menos de <strong className="text-white">24 horas</strong>.</span> });
+    const slotInfo = preferredDate ? ` para el ${new Date(preferredDate+"T12:00:00").toLocaleDateString("es-ES",{ weekday:"long", day:"numeric", month:"long" })}${preferredTime ? ` a las ${preferredTime}h` : ""}` : "";
+    addMsg({ from:"chio", content:<span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-[#C9A227] shrink-0"/>¡Solicitud enviada{slotInfo}! Recibirás confirmación por email en menos de <strong className="text-white">24 horas</strong>.</span> });
     setQRs(moreReplies());
+  };
+
+  const pickLeaderAndFetchSlots = async (leaderRole: string, leaderLabel: string) => {
+    addMsg({ from: "user", text: leaderLabel });
+    setQRs([]);
+    setTyping(true);
+    try {
+      const res = await fetch(`/api/public/interview-availability?leaderRole=${leaderRole}&weeks=3`);
+      const slots: Array<{ date: string; label: string; times: string[] }> = await res.json();
+      setTyping(false);
+
+      if (!slots.length) {
+        addMsg({ from:"chio", content:<span>No hay huecos disponibles en las próximas semanas 😔<br/>Aun así tramitaré tu solicitud y el líder te confirmará una fecha en <strong className="text-white">menos de 24h</strong>.</span> });
+        submitEntrevista(leaderRole);
+        return;
+      }
+
+      addMsg({ from:"chio", content:"Estos son los próximos huecos disponibles. ¿Cuál te viene bien?" });
+      const slotReplies: QR[] = slots.flatMap(s =>
+        s.times.map(t => ({
+          label: `${s.label.charAt(0).toUpperCase() + s.label.slice(1)} · ${t}h`,
+          onPress: () => {
+            addMsg({ from:"user", text: `${s.label} · ${t}h` });
+            setQRs([]);
+            chioSay(<span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-[#C9A227] shrink-0"/>Perfecto, queda registrado. Recibirás confirmación por email en <strong className="text-white">menos de 24h</strong>.</span>, moreReplies(), 400);
+            submitEntrevista(leaderRole, s.date, t);
+          },
+        }))
+      );
+      setQRs(slotReplies);
+    } catch {
+      setTyping(false);
+      submitEntrevista(leaderRole);
+    }
   };
 
   const setF = (k: string, v: any) => setFData(f=>({...f,[k]:v}));
@@ -487,7 +524,19 @@ export function ChioChat() {
           <Field label="Notas"><textarea rows={2} className={inputCls+" resize-none"} style={inputStyle} placeholder="Contexto opcional…" value={fData.notas} onChange={e=>setF("notas",e.target.value)} /></Field>
           <GdprCheck value={fData.gdpr} onChange={v=>setF("gdpr",v)} error={fErr.gdpr} />
           <button
-            onClick={()=>{ if(validateEntrevista()){ setForm("lider"); chioSay("¿Con quién te gustaría tener la entrevista?", LIDERES.map(l=>({ label:l.l, onPress:()=>{ addMsg({from:"user",text:l.l}); submitEntrevista(l.v); } })), 400); } }}
+            onClick={() => {
+              if (validateEntrevista()) {
+                setForm("lider");
+                chioSay(
+                  "¿Con quién te gustaría tener la entrevista?",
+                  LIDERES.map(l => ({
+                    label: l.l,
+                    onPress: () => pickLeaderAndFetchSlots(l.v, l.l),
+                  })),
+                  400
+                );
+              }
+            }}
             className="w-full bg-[#C9A227] hover:bg-[#d4ac2c] disabled:opacity-40 text-[#070709] font-semibold text-xs px-4 py-2.5 rounded-full transition-all"
           >
             Continuar →
