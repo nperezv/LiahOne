@@ -1491,3 +1491,54 @@ export async function sendBaptismBannerEmail(payload: {
     ],
   });
 }
+
+export async function sendMissionaryContactEmail(payload: {
+  name: string;
+  email?: string;
+  phone?: string;
+  message?: string;
+  bishopEmail: string;
+  wardName?: string | null;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  const ward = resolveWardName(payload.wardName);
+  const date = new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  if (!smtp) {
+    console.warn("[Missionary Contact] SMTP not configured. Contact request:", payload);
+    return;
+  }
+
+  const lines = [
+    `Nueva solicitud de visita misionera — ${ward}`, "",
+    `Nombre: ${payload.name}`,
+    `Email: ${payload.email || "No proporcionado"}`,
+    `Teléfono: ${payload.phone || "No proporcionado"}`,
+    `Mensaje: ${payload.message || "Sin mensaje"}`,
+    "", `Recibido: ${date}`, "", `🧭 ${ward}`,
+  ];
+
+  await smtp.transporter.sendMail({
+    from: smtp.from,
+    to: payload.bishopEmail,
+    subject: `Solicitud de visita misionera — ${payload.name}`,
+    text: lines.join("\n"),
+    html: buildHtmlEmail(lines, payload.wardName),
+  });
+
+  if (payload.email) {
+    const confirmLines = [
+      `Hola ${payload.name},`, "",
+      "Hemos recibido tu solicitud y nos pondremos en contacto contigo pronto.",
+      "", "Si tienes cualquier pregunta, no dudes en escribirnos.", "",
+      `Con aprecio,`, `🧭 ${ward}`,
+    ];
+    await smtp.transporter.sendMail({
+      from: smtp.from,
+      to: payload.email,
+      subject: `Hemos recibido tu solicitud — ${ward}`,
+      text: confirmLines.join("\n"),
+      html: buildHtmlEmail(confirmLines, payload.wardName),
+    });
+  }
+}

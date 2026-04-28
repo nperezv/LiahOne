@@ -91,6 +91,7 @@ import {
   sendAccessRequestConfirmationEmail,
   sendNewUserCredentialsEmail,
   sendLoginOtpEmail,
+  sendMissionaryContactEmail,
   sendAccountRecoveryEmail,
   sendInterviewScheduledEmail,
   sendInterviewUpdatedEmail,
@@ -7948,6 +7949,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch {
       return res.json({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, instagramUrl: null, facebookUrl: null });
+    }
+  });
+
+  app.post("/api/public/missionary-contact", async (req: Request, res: Response) => {
+    try {
+      const { name, email, phone, message } = req.body ?? {};
+      if (!name?.trim()) return res.status(400).json({ error: "El nombre es obligatorio." });
+      if (!email?.trim() && !phone?.trim()) return res.status(400).json({ error: "Proporciona un email o teléfono de contacto." });
+
+      const template = await storage.getPdfTemplate();
+      const wardName = template?.wardName ?? null;
+
+      // Get bishop email
+      const allUsers = await storage.getAllUsers();
+      const bishop = allUsers.find(u => u.role === "obispo");
+      if (!bishop?.email) {
+        console.warn("[Missionary Contact] No bishop with email found. Request:", { name, email, phone });
+        return res.json({ ok: true });
+      }
+
+      await sendMissionaryContactEmail({
+        name: name.trim(),
+        email: email?.trim() || undefined,
+        phone: phone?.trim() || undefined,
+        message: message?.trim() || undefined,
+        bishopEmail: bishop.email,
+        wardName,
+      });
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("[Missionary Contact] Error:", err);
+      return res.json({ ok: true }); // Always return ok so visitor gets good UX
     }
   });
 

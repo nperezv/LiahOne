@@ -67,6 +67,7 @@ const ActivitiesLobbyPage = lazy(() => import("@/pages/activities-public").then(
 const ActivityPublicDetailPage = lazy(() => import("@/pages/activities-public").then(m => ({ default: m.ActivityPublicDetail })));
 const ActivityLogisticsPage = lazy(() => import("@/pages/activity-logistics"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/privacy-policy"));
+const MissionaryContactPage = lazy(() => import("@/pages/missionary-contact"));
 
 function RouteLoadingFallback() {
   return (
@@ -244,6 +245,7 @@ function Router() {
       <Route path="/actividades" component={ActivitiesLobbyPage} />
       <Route path="/actividades/:slug" component={ActivityPublicDetailPage} />
       <Route path="/politica-privacidad" component={PrivacyPolicyPage} />
+      <Route path="/contacto-misioneros" component={MissionaryContactPage} />
       <Route path="/">
         <Redirect to="/welcome" />
       </Route>

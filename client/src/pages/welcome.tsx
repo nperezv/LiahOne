@@ -572,7 +572,7 @@ export default function WelcomePage() {
               Si quieres aprender más sobre nuestra fe, el Libro de Mormón o simplemente conocernos,
               nuestros misioneros estarán encantados de reunirse contigo sin ningún compromiso.
             </p>
-            <Link href="/request-access">
+            <Link href="/contacto-misioneros">
               <button className="inline-flex items-center gap-2 bg-[#C9A227] hover:bg-[#d4ac2c] text-[#070709] font-semibold text-sm px-6 py-3 rounded-full transition-all hover:scale-[1.03] active:scale-95">
                 Solicitar una visita
                 <ChevronRight className="h-4 w-4" />
