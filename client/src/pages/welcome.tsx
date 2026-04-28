@@ -639,14 +639,11 @@ export default function WelcomePage() {
               © {new Date().getFullYear()} {displayName}
             </p>
             <div className="flex items-center gap-4">
-              <a
-                href="https://www.churchofjesuschrist.org/legal/privacy-notice?lang=spa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] text-white/15 hover:text-white/35 transition-colors"
-              >
-                Política de privacidad
-              </a>
+              <Link href="/politica-privacidad">
+                <button className="text-[11px] text-white/15 hover:text-white/35 transition-colors">
+                  Política de privacidad
+                </button>
+              </Link>
               <span className="text-white/10 text-[11px]">·</span>
               <p className="text-[11px] text-white/15">Cookies técnicas necesarias</p>
             </div>

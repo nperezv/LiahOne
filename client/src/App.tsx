@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { CookieBanner } from "@/components/cookie-banner";
 import { Layout } from "@/components/layout";
 import {
   applyTheme,
@@ -65,6 +66,7 @@ const BaptismLobbyPage  = lazy(() => import("@/pages/baptism-lobby"));
 const ActivitiesLobbyPage = lazy(() => import("@/pages/activities-public").then(m => ({ default: m.ActivitiesLobby })));
 const ActivityPublicDetailPage = lazy(() => import("@/pages/activities-public").then(m => ({ default: m.ActivityPublicDetail })));
 const ActivityLogisticsPage = lazy(() => import("@/pages/activity-logistics"));
+const PrivacyPolicyPage = lazy(() => import("@/pages/privacy-policy"));
 
 function RouteLoadingFallback() {
   return (
@@ -241,6 +243,7 @@ function Router() {
       <Route path="/bautismo/:slug" component={BaptismPublicPage} />
       <Route path="/actividades" component={ActivitiesLobbyPage} />
       <Route path="/actividades/:slug" component={ActivityPublicDetailPage} />
+      <Route path="/politica-privacidad" component={PrivacyPolicyPage} />
       <Route path="/">
         <Redirect to="/welcome" />
       </Route>
@@ -280,6 +283,7 @@ function AppShell() {
   return (
     <TooltipProvider>
       <Toaster />
+      <CookieBanner />
       {showSplash && (
         <div className={`app-splash ${isSplashClosing ? "is-closing" : ""}`} aria-hidden="true">
           <div className="app-splash-content">
