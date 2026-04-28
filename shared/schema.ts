@@ -1867,6 +1867,8 @@ export const pdfTemplates = pgTable("pdf_templates", {
   bizumDeepLink: text("bizum_deep_link").default(""),
   meetingCenterName: text("meeting_center_name").default(""),
   meetingCenterAddress: text("meeting_center_address").default(""),
+  instagramUrl: text("instagram_url").default(""),
+  facebookUrl: text("facebook_url").default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

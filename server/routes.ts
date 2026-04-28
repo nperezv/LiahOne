@@ -989,6 +989,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await db.execute(sql`
     ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS meeting_center_address text NOT NULL DEFAULT ''
   `);
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS instagram_url text NOT NULL DEFAULT ''
+  `);
+  await db.execute(sql`
+    ALTER TABLE pdf_templates ADD COLUMN IF NOT EXISTS facebook_url text NOT NULL DEFAULT ''
+  `);
   // Auto-migration: add requires_registration to activities if missing
   await db.execute(sql`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false
@@ -7926,7 +7932,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/public/ward-info", async (_req: Request, res: Response) => {
     try {
       const result = await db.execute(sql`
-        SELECT ward_name, stake_name, meeting_center_name, meeting_center_address, sacrament_meeting_time
+        SELECT ward_name, stake_name, meeting_center_name, meeting_center_address, sacrament_meeting_time,
+               instagram_url, facebook_url
         FROM pdf_templates LIMIT 1
       `);
       const row = (result.rows as any[])[0];
@@ -7936,9 +7943,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         meetingCenterName: row?.meeting_center_name ?? null,
         meetingCenterAddress: row?.meeting_center_address ?? null,
         sacramentMeetingTime: row?.sacrament_meeting_time ?? null,
+        instagramUrl: row?.instagram_url || null,
+        facebookUrl: row?.facebook_url || null,
       });
     } catch {
-      return res.json({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null });
+      return res.json({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, instagramUrl: null, facebookUrl: null });
     }
   });
 

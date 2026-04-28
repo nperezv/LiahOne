@@ -28,6 +28,8 @@ interface WardInfo {
   meetingCenterName: string | null;
   meetingCenterAddress: string | null;
   sacramentMeetingTime: string | null;
+  instagramUrl: string | null;
+  facebookUrl: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -233,6 +235,7 @@ export default function WelcomePage() {
   const [wardInfo, setWardInfo] = useState<WardInfo>({
     wardName: null, stakeName: null,
     meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null,
+    instagramUrl: null, facebookUrl: null,
   });
   const [loadingActivities, setLoadingActivities] = useState(true);
 
@@ -244,9 +247,34 @@ export default function WelcomePage() {
     ]).then(([acts, baps, info]) => {
       setActivities(Array.isArray(acts) ? acts : []);
       setBaptismServices(Array.isArray(baps) ? baps : []);
-      setWardInfo({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, ...info });
+      setWardInfo({ wardName: null, stakeName: null, meetingCenterName: null, meetingCenterAddress: null, sacramentMeetingTime: null, instagramUrl: null, facebookUrl: null, ...info });
     }).finally(() => setLoadingActivities(false));
   }, []);
+
+  // SEO — update title and og: tags once ward info loads
+  useEffect(() => {
+    if (!wardInfo.wardName) return;
+    const title = `${wardInfo.wardName} · La Iglesia de Jesucristo`;
+    document.title = title;
+    const desc = `${wardInfo.wardName} — actividades, reuniones y eventos de nuestra comunidad de fe.`;
+    const img = `${window.location.origin}/covenantspathfamily.png`;
+    const setMeta = (attr: string, val: string, key = "name") => {
+      let el = document.querySelector(`meta[${key}="${attr}"]`) as HTMLMetaElement | null;
+      if (!el) { el = document.createElement("meta"); el.setAttribute(key, attr); document.head.appendChild(el); }
+      el.content = val;
+    };
+    setMeta("description", desc);
+    setMeta("og:title", title, "property");
+    setMeta("og:description", desc, "property");
+    setMeta("og:image", img, "property");
+    setMeta("og:type", "website", "property");
+    setMeta("og:url", window.location.href, "property");
+    setMeta("twitter:card", "summary_large_image");
+    setMeta("twitter:title", title);
+    setMeta("twitter:description", desc);
+    setMeta("twitter:image", img);
+    return () => { document.title = "Gestión Administrativa de Barrio"; };
+  }, [wardInfo.wardName]);
 
   if (isAuthenticated) return <Redirect to="/dashboard" />;
 
@@ -260,6 +288,8 @@ export default function WelcomePage() {
   const meetingAddress = (wardInfo.meetingCenterAddress ?? "").trim();
   const meetingCenterName = (wardInfo.meetingCenterName ?? "").trim();
   const mapsUrl = meetingAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meetingAddress)}` : null;
+  const instagramUrl = wardInfo.instagramUrl || null;
+  const facebookUrl = wardInfo.facebookUrl || null;
 
   const { start: weekStart, end: weekEnd } = getWeekBounds();
   const allItems: MixedActivity[] = [
@@ -520,6 +550,39 @@ export default function WelcomePage() {
         </RevealSection>
       </section>
 
+      {/* ── MISIONEROS ── */}
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+      </div>
+      <section
+        className="relative overflow-hidden mx-4 sm:mx-6 lg:mx-auto max-w-6xl rounded-3xl my-20"
+        style={{
+          backgroundImage: "linear-gradient(to right, rgba(7,7,9,0.93) 45%, rgba(7,7,9,0.55) 100%), url('/covenantspath.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center 20%",
+        }}
+      >
+        <RevealSection>
+          <div className="relative z-10 px-8 md:px-14 py-14 md:py-16 max-w-lg">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C9A227] mb-4">¿Tienes preguntas?</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white leading-snug mb-4">
+              Los misioneros<br />pueden visitarte
+            </h2>
+            <p className="text-sm text-white/45 leading-relaxed mb-8">
+              Si quieres aprender más sobre nuestra fe, el Libro de Mormón o simplemente conocernos,
+              nuestros misioneros estarán encantados de reunirse contigo sin ningún compromiso.
+            </p>
+            <Link href="/request-access">
+              <button className="inline-flex items-center gap-2 bg-[#C9A227] hover:bg-[#d4ac2c] text-[#070709] font-semibold text-sm px-6 py-3 rounded-full transition-all hover:scale-[1.03] active:scale-95">
+                Solicitar una visita
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </Link>
+          </div>
+        </RevealSection>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#070709]/60 via-transparent to-transparent" />
+      </section>
+
       {/* ── FOOTER ── */}
       <footer className="relative z-10 border-t border-white/[0.06] pt-10 pb-8 px-6">
         <div className="max-w-6xl mx-auto">
@@ -532,7 +595,24 @@ export default function WelcomePage() {
                 {stakeName && <p className="text-[10px] text-white/50 mt-0.5 tracking-wide">{stakeName}</p>}
               </div>
             </div>
-            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {/* Social icons */}
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
+                  className="text-white/20 hover:text-white/60 transition-colors">
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+                  </svg>
+                </a>
+              )}
+              {facebookUrl && (
+                <a href={facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"
+                  className="text-white/20 hover:text-white/60 transition-colors">
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </a>
+              )}
               <Link href="/actividades">
                 <button className="text-xs text-white/25 hover:text-white/55 transition-colors">Actividades</button>
               </Link>
@@ -550,13 +630,13 @@ export default function WelcomePage() {
               <Link href="/login">
                 <button className="text-xs text-white/25 hover:text-white/55 transition-colors">Acceso líderes →</button>
               </Link>
-            </nav>
+            </div>
           </div>
 
           {/* Bottom row — copyright + legal */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-white/[0.05]">
             <p className="text-[11px] text-white/15">
-              © {new Date().getFullYear()} {displayName} · La Iglesia de Jesucristo de los Santos de los Últimos Días
+              © {new Date().getFullYear()} {displayName}
             </p>
             <div className="flex items-center gap-4">
               <a
@@ -568,9 +648,7 @@ export default function WelcomePage() {
                 Política de privacidad
               </a>
               <span className="text-white/10 text-[11px]">·</span>
-              <p className="text-[11px] text-white/15">
-                Este sitio usa cookies técnicas necesarias para su funcionamiento.
-              </p>
+              <p className="text-[11px] text-white/15">Cookies técnicas necesarias</p>
             </div>
           </div>
         </div>

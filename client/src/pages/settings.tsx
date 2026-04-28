@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, FileText, MapPin } from "lucide-react";
+import { Bell, FileText, MapPin, Share2 } from "lucide-react";
 
 const templateSchema = z.object({
   wardName: z.string().min(1, "El nombre del barrio es requerido"),
@@ -33,6 +33,8 @@ const templateSchema = z.object({
   bizumDeepLink: z.string().optional(),
   meetingCenterName: z.string().optional(),
   meetingCenterAddress: z.string().optional(),
+  instagramUrl: z.string().optional(),
+  facebookUrl: z.string().optional(),
 });
 
 type TemplateFormValues = z.infer<typeof templateSchema>;
@@ -75,6 +77,8 @@ export default function Settings() {
       bizumDeepLink: template?.bizumDeepLink || "",
       meetingCenterName: template?.meetingCenterName || "",
       meetingCenterAddress: template?.meetingCenterAddress || "",
+      instagramUrl: template?.instagramUrl || "",
+      facebookUrl: template?.facebookUrl || "",
     },
   });
 
@@ -146,6 +150,8 @@ export default function Settings() {
         bizumDeepLink: template.bizumDeepLink || "",
         meetingCenterName: template.meetingCenterName || "",
         meetingCenterAddress: template.meetingCenterAddress || "",
+        instagramUrl: template.instagramUrl || "",
+        facebookUrl: template.facebookUrl || "",
       }, { keepValues: false });
     }
   }, [template]);
@@ -270,6 +276,44 @@ export default function Settings() {
                             <FormLabel>Dirección</FormLabel>
                             <FormControl>
                               <Input placeholder="Calle Ejemplo 123, Ciudad" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 pb-1">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">
+                      <Share2 className="h-4 w-4 text-muted-foreground" />
+                      Redes Sociales
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="instagramUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Instagram</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://instagram.com/barriomadrид8" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                              Aparecerá en el pie de la web pública del barrio.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="facebookUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Facebook</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://facebook.com/barrioXXX" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
