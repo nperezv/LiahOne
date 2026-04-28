@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
-import { MessageCircle, X, ArrowLeft, ChevronRight, CheckCircle } from "lucide-react";
+import { MessageCircle, X, Send, CheckCircle, ArrowLeft } from "lucide-react";
 
-type Screen =
-  | "menu" | "submenu_info" | "submenu_conectar"
-  | "faq_reuniones" | "faq_ubicacion" | "faq_creemos" | "faq_unirse"
-  | "actividades"
-  | "misioneros_check" | "misioneros_miembro" | "misioneros_no" | "misioneros_sent"
-  | "entrevista_check" | "entrevista_form" | "entrevista_lider" | "entrevista_sent"
-  | "whatsapp";
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type ChioMsg  = { id: number; from: "chio"; content: React.ReactNode };
+type UserMsg  = { id: number; from: "user"; text: string };
+type Msg = ChioMsg | UserMsg;
+
+type QR = { label: string; onPress: () => void };
+type FormPhase = "misioneros_miembro" | "misioneros_no" | "entrevista" | "lider" | null;
 
 interface WardInfo {
   wardName: string | null;
@@ -18,25 +19,41 @@ interface WardInfo {
   whatsappPhone: string | null;
 }
 
-const ASUNTOS = [
-  "Consejo personal", "Recomendación de templo", "Llamamiento",
-  "Bendición de salud", "Asuntos generales", "Otro",
-];
-const LIDERES = [
-  { v: "obispo", l: "Obispo" },
-  { v: "consejero_1", l: "Primer Consejero" },
-  { v: "consejero_2", l: "Segundo Consejero" },
-];
+// ── Intent detection ──────────────────────────────────────────────────────────
+
+const INTENTS = [
+  { id: "reuniones",   kw: ["reunion","horario","hora","cuando","domingo","sacrament","misa","culto","servicio"] },
+  { id: "ubicacion",   kw: ["donde","direccion","lugar","capilla","centro","llegar","ubicacion","mapa","address"] },
+  { id: "creemos",     kw: ["creen","creencia","doctrina","fe","mormon","santos","libro","biblia","jesucristo","que son"] },
+  { id: "unirse",      kw: ["unir","bautiz","convert","miembro","como puedo","quiero ser","agregar","hacer","registro"] },
+  { id: "actividades", kw: ["actividad","evento","proxim","semana","programa","que hay","planea","agenda","ocio"] },
+  { id: "misioneros",  kw: ["misionero","mision","visita","aprender","saber","conocer","hablar","contact","preguntar"] },
+  { id: "entrevista",  kw: ["entrevista","obispo","consejero","cita","solicitar","reunion con","hablar con el"] },
+  { id: "whatsapp",    kw: ["whatsapp","directo","alguien","persona","representante","chat","humano","real"] },
+] as const;
+
+type IntentId = typeof INTENTS[number]["id"];
+
+const norm = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9\s]/g, " ");
+
+function detectIntents(text: string): IntentId[] {
+  const n = norm(text);
+  return INTENTS.filter(i => i.kw.some(k => n.includes(k))).map(i => i.id);
+}
+
+const ASUNTOS = ["Consejo personal","Recomendación de templo","Llamamiento","Bendición de salud","Asuntos generales","Otro"];
+const LIDERES = [{ v: "obispo", l: "Obispo" },{ v: "consejero_1", l: "Primer Consejero" },{ v: "consejero_2", l: "Segundo Consejero" }];
+
 const GREETING_QUOTES = [
-  { text: "¡Hola! ¿En qué puedo ayudarte hoy?", source: null },
-  { text: "«Venid a mí todos los que estáis trabajados y cargados, y yo os haré descansar»", source: "Mat. 11:28" },
+  { text: "¡Hola! Estoy aquí para ayudarte 😊", source: null },
+  { text: "«Venid a mí todos los que estáis trabajados y cargados»", source: "Mat. 11:28" },
   { text: "«El Señor es mi pastor; nada me faltará»", source: "Salmo 23:1" },
   { text: "«Confía en el Señor con todo tu corazón»", source: "Prov. 3:5" },
   { text: "«Sed valientes, y el Señor estará con vosotros»", source: "2 Cró. 19:11" },
-  { text: "«Amarás al Señor tu Dios con todo tu corazón»", source: "Mat. 22:37" },
 ];
 
-// ── Greeting bubble ───────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function GreetingBubble({ onOpen }: { onOpen: () => void }) {
   const [visible, setVisible] = useState(false);
@@ -50,7 +67,6 @@ function GreetingBubble({ onOpen }: { onOpen: () => void }) {
   }, []);
 
   if (gone) return null;
-
   return (
     <div
       className="fixed bottom-[88px] right-6 z-50 max-w-[230px] transition-all duration-500"
@@ -68,80 +84,46 @@ function GreetingBubble({ onOpen }: { onOpen: () => void }) {
         >
           <X className="h-2.5 w-2.5" style={{ color: "rgba(255,255,255,0.35)" }} />
         </button>
-        <p className="text-[11px] leading-relaxed italic" style={{ color: "rgba(255,255,255,0.65)" }}>
-          {quote.text}
-        </p>
-        {quote.source && (
-          <p className="text-[9px] mt-1.5 font-semibold" style={{ color: "rgba(201,162,39,0.65)" }}>
-            — {quote.source}
-          </p>
-        )}
+        <p className="text-[11px] leading-relaxed italic" style={{ color: "rgba(255,255,255,0.65)" }}>{quote.text}</p>
+        {quote.source && <p className="text-[9px] mt-1.5 font-semibold" style={{ color: "rgba(201,162,39,0.65)" }}>— {quote.source}</p>}
         <p className="text-[9px] mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>Chio · Toca para abrir</p>
-        {/* Tail */}
         <div className="absolute -bottom-[6px] right-4 w-3 h-3 rotate-45" style={{ background: "#111113", borderRight: "1px solid rgba(255,255,255,0.09)", borderBottom: "1px solid rgba(255,255,255,0.09)" }} />
       </div>
     </div>
   );
 }
 
-// ── Typing dots ───────────────────────────────────────────────────────────────
-
-function TypingDots() {
+function TypingIndicator() {
   return (
-    <div className="flex items-start gap-2 mb-4">
-      <div className="shrink-0 w-7 h-7 rounded-full bg-[#C9A227] flex items-center justify-center text-[#070709] font-black text-xs">C</div>
-      <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-        {[0, 150, 300].map(d => (
-          <div key={d} className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+    <div className="flex items-start gap-2 mb-3">
+      <div className="shrink-0 w-6 h-6 rounded-full bg-[#C9A227] flex items-center justify-center text-[#070709] font-black text-[10px]">C</div>
+      <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl rounded-tl-sm" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {[0,150,300].map(d => (
+          <div key={d} className="w-1.5 h-1.5 rounded-full bg-white/35 animate-bounce" style={{ animationDelay: `${d}ms` }} />
         ))}
       </div>
     </div>
   );
 }
 
-// ── UI atoms ──────────────────────────────────────────────────────────────────
-
-function ChioMsg({ children }: { children: React.ReactNode }) {
+function CMsg({ content }: { content: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 mb-4">
-      <div className="shrink-0 w-7 h-7 rounded-full bg-[#C9A227] flex items-center justify-center text-[#070709] font-black text-xs">C</div>
-      <div className="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm text-white/80 leading-relaxed" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", maxWidth: "88%" }}>
-        {children}
+    <div className="flex items-start gap-2 mb-3">
+      <div className="shrink-0 w-6 h-6 rounded-full bg-[#C9A227] flex items-center justify-center text-[#070709] font-black text-[10px]">C</div>
+      <div className="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-[13px] text-white/80 leading-relaxed" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", maxWidth: "85%" }}>
+        {content}
       </div>
     </div>
   );
 }
 
-function Opt({ onClick, children, emoji }: { onClick: () => void; children: React.ReactNode; emoji?: string }) {
+function UMsg({ text }: { text: string }) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full text-left text-sm px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-2 transition-all duration-150"
-      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.68)" }}
-      onMouseEnter={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: "rgba(255,255,255,0.07)", color: "#fff", borderColor: "rgba(255,255,255,0.16)" }); }}
-      onMouseLeave={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.68)", borderColor: "rgba(255,255,255,0.09)" }); }}
-    >
-      <span>{children}</span>
-      <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-35" />
-    </button>
-  );
-}
-
-function PrimaryBtn({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} disabled={disabled} className="w-full bg-[#C9A227] hover:bg-[#d4ac2c] disabled:opacity-40 text-[#070709] font-semibold text-xs px-4 py-2.5 rounded-full transition-all flex items-center justify-center gap-2">
-      {children}
-    </button>
-  );
-}
-
-function BackBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="flex items-center gap-1.5 text-[11px] mb-3 transition-colors" style={{ color: "rgba(255,255,255,0.28)" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.60)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.28)"; }}>
-      <ArrowLeft className="h-3 w-3" /> Volver
-    </button>
+    <div className="flex justify-end mb-3">
+      <div className="rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-[13px] font-medium leading-relaxed" style={{ background: "rgba(201,162,39,0.18)", border: "1px solid rgba(201,162,39,0.25)", color: "rgba(255,255,255,0.85)", maxWidth: "85%" }}>
+        {text}
+      </div>
+    </div>
   );
 }
 
@@ -178,427 +160,442 @@ function GdprCheck({ value, onChange, error }: { value: boolean; onChange: (v: b
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ChioChat() {
-  const [open, setOpen] = useState(false);
-  const [screen, setScreen] = useState<Screen>("menu");
-  const [navStack, setNavStack] = useState<Screen[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [open, setOpen]         = useState(false);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [quickReplies, setQRs]  = useState<QR[]>([]);
+  const [isTyping, setTyping]   = useState(false);
+  const [inputValue, setInput]  = useState("");
+  const [formPhase, setForm]    = useState<FormPhase>(null);
+  const [isMiembro, setIsMiembro] = useState(false);
+  const [submitting, setSub]    = useState(false);
+  const [fData, setFData]       = useState({ nombre:"", apellidos:"", email:"", telefono:"", asunto:"", notas:"", mensaje:"", gdpr:false });
+  const [fErr, setFErr]         = useState<Record<string,string>>({});
+  const [pendingLeaderCb, setPendingLeader] = useState<((r:string)=>void)|null>(null);
 
-  const [wardInfo, setWardInfo] = useState<WardInfo>({ wardName: null, sacramentMeetingTime: null, meetingCenterName: null, meetingCenterAddress: null, whatsappPhone: null });
+  const [wardInfo, setWardInfo] = useState<WardInfo>({ wardName:null, sacramentMeetingTime:null, meetingCenterName:null, meetingCenterAddress:null, whatsappPhone:null });
   const [activities, setActivities] = useState<any[]>([]);
 
-  const [form, setForm] = useState({ nombre: "", apellidos: "", email: "", telefono: "", asunto: "", notas: "", mensaje: "", gdpr: false });
-  const [isMisionerosMiembro, setIsMisionerosMiembro] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const msgId   = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/public/ward-info").then(r => r.json()).then(d => setWardInfo(d)).catch(() => {});
-    fetch("/api/public/activities").then(r => r.json()).then(d => setActivities(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch("/api/public/ward-info").then(r=>r.json()).then(d=>setWardInfo(d)).catch(()=>{});
+    fetch("/api/public/activities").then(r=>r.json()).then(d=>setActivities(Array.isArray(d)?d:[])).catch(()=>{});
   }, []);
 
-  // Show typing animation on open and on navigation
-  const nav = useCallback((s: Screen, delay = 650) => {
-    setIsTyping(true);
-    setNavStack(h => [...h, screen]);
-    setTimeout(() => { setIsTyping(false); setScreen(s); }, delay);
-  }, [screen]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping, formPhase, quickReplies]);
 
-  const back = () => {
-    const prev = navStack[navStack.length - 1] ?? "menu";
-    setNavStack(h => h.slice(0, -1));
-    setIsTyping(true);
-    setTimeout(() => { setIsTyping(false); setScreen(prev); }, 500);
-  };
+  const ward    = wardInfo.wardName ?? "el barrio";
+  const mapsUrl = wardInfo.meetingCenterAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(wardInfo.meetingCenterAddress)}` : null;
+  const waUrl   = wardInfo.whatsappPhone ? `https://wa.me/${wardInfo.whatsappPhone.replace(/\D/g,"")}?text=${encodeURIComponent(`Hola, me gustaría hablar con alguien de ${ward}`)}` : null;
+  const upcoming = activities.filter(a=>new Date(a.date)>new Date()).slice(0,4);
 
-  const goMenu = () => {
-    setNavStack([]); setIsTyping(true);
-    setForm({ nombre: "", apellidos: "", email: "", telefono: "", asunto: "", notas: "", mensaje: "", gdpr: false });
-    setErrors({});
-    setTimeout(() => { setIsTyping(false); setScreen("menu"); }, 500);
-  };
+  const addMsg = useCallback((msg: Omit<Msg,"id">) => {
+    setMessages(prev => [...prev, { ...msg, id: ++msgId.current } as Msg]);
+  }, []);
+
+  // Chio says something + sets quick replies
+  const chioSay = useCallback((content: React.ReactNode, replies: QR[] = [], delay = 650) => {
+    setTyping(true);
+    setQRs([]);
+    setTimeout(() => {
+      setTyping(false);
+      addMsg({ from:"chio", content });
+      setQRs(replies);
+    }, delay);
+  }, [addMsg]);
+
+  // ── Answer builders ───────────────────────────────────────────────────────
+
+  const menuReplies = useCallback((): QR[] => [
+    { label:"📅 Reuniones e información", onPress:()=>handleInput("reuniones horario") },
+    { label:"📍 ¿Dónde estáis?",           onPress:()=>handleInput("donde estáis") },
+    { label:"📖 ¿Qué creemos?",            onPress:()=>handleInput("qué creéis") },
+    { label:"🎯 Próximas actividades",     onPress:()=>handleInput("actividades") },
+    { label:"🕊️ Hablar con misioneros",   onPress:()=>handleInput("misioneros") },
+    { label:"🗓️ Solicitar entrevista",    onPress:()=>handleInput("entrevista obispo") },
+    { label:"💬 Hablar con alguien",       onPress:()=>handleInput("hablar persona") },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [wardInfo, activities]);
+
+  const moreReplies = useCallback((): QR[] => [
+    { label:"¿Algo más?", onPress:()=>chioSay("¿En qué más puedo ayudarte?", menuReplies(), 400) },
+  ], [chioSay, menuReplies]);
+
+  const showAnswer = useCallback((intentId: IntentId) => {
+    switch (intentId) {
+
+      case "reuniones":
+        chioSay(
+          <span>
+            Nos reunimos cada <strong className="text-white">domingo</strong>
+            {wardInfo.sacramentMeetingTime ? <> a las <strong className="text-white">{wardInfo.sacramentMeetingTime}h</strong></> : ""}.
+            {wardInfo.meetingCenterName && <><br/><br/>En <strong className="text-white">{wardInfo.meetingCenterName}</strong>.</>}
+            {wardInfo.meetingCenterAddress && <><br/>{wardInfo.meetingCenterAddress}.</>}
+            <br/><br/>¡Todos son bienvenidos! 🙌
+          </span>,
+          [
+            ...(mapsUrl ? [{ label:"Ver cómo llegar →", onPress:()=>window.open(mapsUrl,"_blank") }] : []),
+            ...moreReplies(),
+          ]
+        );
+        break;
+
+      case "ubicacion":
+        chioSay(
+          <span>
+            {wardInfo.meetingCenterName ? <><strong className="text-white">{wardInfo.meetingCenterName}</strong><br/></> : ""}
+            {wardInfo.meetingCenterAddress || "La dirección no está configurada aún."}
+          </span>,
+          [
+            ...(mapsUrl ? [{ label:"Abrir en Google Maps →", onPress:()=>window.open(mapsUrl,"_blank") }] : []),
+            ...moreReplies(),
+          ]
+        );
+        break;
+
+      case "creemos":
+        chioSay(
+          <span>
+            Creemos en <strong className="text-white">Jesucristo</strong> y en su Expiación, en la{" "}
+            <strong className="text-white">familia eterna</strong> y en el evangelio restaurado.
+            La Biblia y el Libro de Mormón son nuestras escrituras.
+          </span>,
+          [
+            { label:"Saber más en churchofjesuschrist.org", onPress:()=>window.open("https://www.churchofjesuschrist.org/comeuntochrist/es","_blank") },
+            ...moreReplies(),
+          ]
+        );
+        break;
+
+      case "unirse":
+        chioSay(
+          <span>
+            ¡Nos alegra que preguntes! Puedes visitarnos cualquier{" "}
+            <strong className="text-white">domingo</strong>
+            {wardInfo.sacramentMeetingTime ? ` a las ${wardInfo.sacramentMeetingTime}h` : ""},{" "}
+            hablar con los misioneros o solicitar una entrevista con el obispo.
+          </span>,
+          [
+            { label:"🕊️ Hablar con misioneros", onPress:()=>handleInput("misioneros") },
+            { label:"🗓️ Solicitar entrevista",  onPress:()=>handleInput("entrevista") },
+            ...moreReplies(),
+          ]
+        );
+        break;
+
+      case "actividades":
+        chioSay(
+          upcoming.length > 0 ? (
+            <div className="space-y-2">
+              <p>Estas son las próximas actividades:</p>
+              {upcoming.map(a => {
+                const d = new Date(a.date);
+                const ds = d.toLocaleDateString("es-ES",{ weekday:"short",day:"numeric",month:"short",timeZone:"UTC" });
+                const ts = `${String(d.getUTCHours()).padStart(2,"0")}:${String(d.getUTCMinutes()).padStart(2,"0")}`;
+                return (
+                  <div key={a.id} className="rounded-xl px-3 py-2 mt-2" style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-xs font-semibold text-white/90">{a.title}</p>
+                    <p className="text-[10px] capitalize mt-0.5" style={{ color:"rgba(255,255,255,0.42)" }}>{ds} · {ts}h</p>
+                    {a.location && <p className="text-[10px] mt-0.5" style={{ color:"rgba(255,255,255,0.30)" }}>{a.location}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : <span>No hay actividades programadas próximamente. ¡Vuelve pronto!</span>,
+          [
+            { label:"Ver todas →", onPress:()=>window.open("/actividades","_blank") },
+            ...moreReplies(),
+          ]
+        );
+        break;
+
+      case "misioneros":
+        chioSay("¿Eres miembro de La Iglesia de Jesucristo?", [
+          { label:"Sí, soy miembro",  onPress:()=>{ addMsg({ from:"user", text:"Sí, soy miembro" }); setIsMiembro(true); chioSay("Déjanos tus datos y el líder misional se pondrá en contacto contigo.", [], 500); setTimeout(()=>{ setForm("misioneros_miembro"); setQRs([]); }, 1200); } },
+          { label:"Todavía no",        onPress:()=>{ addMsg({ from:"user", text:"Todavía no" }); setIsMiembro(false); chioSay("¡Estupendo! Déjanos tus datos y nuestros misioneros se pondrán en contacto contigo 🙏", [], 500); setTimeout(()=>{ setForm("misioneros_no"); setQRs([]); }, 1200); } },
+        ]);
+        break;
+
+      case "entrevista":
+        chioSay("¿Eres miembro de La Iglesia de Jesucristo?", [
+          { label:"Sí, soy miembro", onPress:()=>{ addMsg({ from:"user", text:"Sí, soy miembro" }); chioSay("Rellena tus datos para solicitar la entrevista. Los guardaremos para futuras comunicaciones del barrio.", [], 500); setTimeout(()=>{ setForm("entrevista"); setQRs([]); }, 1200); } },
+          { label:"Todavía no",       onPress:()=>handleInput("misioneros") },
+        ]);
+        break;
+
+      case "whatsapp":
+        if (waUrl) {
+          chioSay("Te abrimos WhatsApp para que puedas hablar con alguien del barrio directamente 💬", [
+            { label:"Abrir WhatsApp →", onPress:()=>window.open(waUrl,"_blank") },
+            ...moreReplies(),
+          ]);
+        } else {
+          chioSay("En este momento no hay nadie disponible para el chat en directo. Puedes dejarnos un mensaje o solicitar una entrevista 🙏", [
+            { label:"🗓️ Solicitar entrevista", onPress:()=>handleInput("entrevista") },
+            { label:"📩 Formulario de contacto", onPress:()=>window.open("/contacto-misioneros","_blank") },
+          ]);
+        }
+        break;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wardInfo, activities, mapsUrl, waUrl, upcoming, chioSay, moreReplies, addMsg]);
+
+  // ── Input handler ─────────────────────────────────────────────────────────
+
+  const handleInput = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    addMsg({ from:"user", text: trimmed });
+    setInput("");
+    setQRs([]);
+    setForm(null);
+
+    const matched = detectIntents(trimmed);
+
+    if (matched.length === 1) {
+      showAnswer(matched[0]);
+    } else if (matched.length > 1) {
+      // Ambiguous — show top matches
+      chioSay("Mmm, creo que te puedo ayudar con alguna de estas cosas:", matched.slice(0,3).map(id => ({
+        label: INTENTS.find(i=>i.id===id) ? id === "reuniones" ? "📅 Horarios de reunión" : id === "ubicacion" ? "📍 Ubicación" : id === "creemos" ? "📖 Qué creemos" : id === "unirse" ? "❓ Cómo unirme" : id === "actividades" ? "🎯 Actividades" : id === "misioneros" ? "🕊️ Misioneros" : id === "entrevista" ? "🗓️ Entrevista" : "💬 Hablar con alguien" : id,
+        onPress: () => { addMsg({ from:"user", text: id }); showAnswer(id); },
+      })));
+    } else {
+      chioSay("Hmm, no he entendido bien 😅 ¿Te puedo ayudar con alguna de estas opciones?", menuReplies(), 600);
+    }
+  }, [addMsg, showAnswer, chioSay, menuReplies]);
+
+  // ── Open / init ───────────────────────────────────────────────────────────
 
   const handleOpen = () => {
     if (!open) {
-      setScreen("menu");
-      setNavStack([]);
-      setIsTyping(true);
-      setTimeout(() => setIsTyping(false), 750);
+      setMessages([]);
+      setQRs([]);
+      setForm(null);
+      setInput("");
+      setTyping(true);
+      setTimeout(() => {
+        setTyping(false);
+        addMsg({ from:"chio", content: <span>¡Hola! Soy Chio 👋 El asistente de {ward}.<br/>¿Sobre qué te puedo ayudar? Escribe tu pregunta o elige una opción.</span> });
+        setQRs(menuReplies());
+      }, 800);
     }
     setOpen(o => !o);
   };
 
-  const setF = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  // ── Form validation + submit ───────────────────────────────────────────────
 
-  const ward = wardInfo.wardName ?? "el barrio";
-  const mapsUrl = wardInfo.meetingCenterAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(wardInfo.meetingCenterAddress)}` : null;
-  const waUrl = wardInfo.whatsappPhone ? `https://wa.me/${wardInfo.whatsappPhone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola, me gustaría hablar con alguien de ${ward}`)}` : null;
-  const upcoming = activities.filter(a => new Date(a.date) > new Date()).slice(0, 4);
-
-  const validateEntrevista = () => {
-    const e: Record<string, string> = {};
-    if (!form.nombre.trim()) e.nombre = "Obligatorio";
-    if (!form.apellidos.trim()) e.apellidos = "Obligatorio";
-    if (!form.email.trim()) e.email = "Obligatorio";
-    if (!form.asunto) e.asunto = "Elige un asunto";
-    if (!form.gdpr) e.gdpr = "Debes aceptar el tratamiento de datos";
-    setErrors(e);
+  const validateMisioneros = () => {
+    const e: Record<string,string> = {};
+    if (!fData.nombre.trim())   e.nombre   = "Obligatorio";
+    if (!fData.apellidos.trim()) e.apellidos = "Obligatorio";
+    if (!fData.email.trim() && !fData.telefono.trim()) e.contacto = "Email o teléfono requerido";
+    if (!fData.gdpr) e.gdpr = "Debes aceptar el tratamiento de datos";
+    setFErr(e);
     return Object.keys(e).length === 0;
   };
 
-  const validateMisioneros = () => {
-    const e: Record<string, string> = {};
-    if (!form.nombre.trim()) e.nombre = "Obligatorio";
-    if (!form.apellidos.trim()) e.apellidos = "Obligatorio";
-    if (!form.email.trim() && !form.telefono.trim()) e.contacto = "Proporciona email o teléfono";
-    if (!form.gdpr) e.gdpr = "Debes aceptar el tratamiento de datos";
-    setErrors(e);
+  const validateEntrevista = () => {
+    const e: Record<string,string> = {};
+    if (!fData.nombre.trim())   e.nombre   = "Obligatorio";
+    if (!fData.apellidos.trim()) e.apellidos = "Obligatorio";
+    if (!fData.email.trim())     e.email    = "Obligatorio";
+    if (!fData.asunto)           e.asunto   = "Elige un asunto";
+    if (!fData.gdpr)             e.gdpr     = "Debes aceptar el tratamiento de datos";
+    setFErr(e);
     return Object.keys(e).length === 0;
   };
 
   const submitMisioneros = async (isMember: boolean) => {
     if (!validateMisioneros()) return;
-    setSubmitting(true);
+    setSub(true);
     try {
-      await fetch("/api/public/missionary-contact", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: `${form.nombre.trim()} ${form.apellidos.trim()}`, email: form.email || undefined, phone: form.telefono || undefined, message: form.mensaje || undefined, isMember }),
-      });
+      await fetch("/api/public/missionary-contact", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:`${fData.nombre} ${fData.apellidos}`, email:fData.email||undefined, phone:fData.telefono||undefined, message:fData.mensaje||undefined, isMember }) });
     } catch {}
-    setSubmitting(false);
-    nav("misioneros_sent", 400);
+    setSub(false);
+    setForm(null);
+    setFData({ nombre:"",apellidos:"",email:"",telefono:"",asunto:"",notas:"",mensaje:"",gdpr:false });
+    addMsg({ from:"chio", content:<span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-[#C9A227] shrink-0"/>¡Datos recibidos! {isMember ? "El líder misional se pondrá en contacto pronto." : "Nuestros misioneros se pondrán en contacto pronto 🙏"}</span> });
+    setQRs(moreReplies());
   };
 
   const submitEntrevista = async (leaderRole: string) => {
-    setSubmitting(true);
+    setSub(true);
     try {
-      await fetch("/api/public/interview-request", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, leaderRole }),
-      });
+      await fetch("/api/public/interview-request", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ...fData, leaderRole }) });
     } catch {}
-    setSubmitting(false);
-    setNavStack([]); setIsTyping(true);
-    setTimeout(() => { setIsTyping(false); setScreen("entrevista_sent"); }, 500);
+    setSub(false);
+    setForm(null);
+    setPendingLeader(null);
+    setFData({ nombre:"",apellidos:"",email:"",telefono:"",asunto:"",notas:"",mensaje:"",gdpr:false });
+    addMsg({ from:"chio", content:<span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-[#C9A227] shrink-0"/>¡Solicitud enviada! Recibirás confirmación por email en menos de <strong className="text-white">24 horas</strong>.</span> });
+    setQRs(moreReplies());
   };
 
-  // ── Screens ──────────────────────────────────────────────────────────────
+  const setF = (k: string, v: any) => setFData(f=>({...f,[k]:v}));
 
-  const renderContent = () => {
-    if (isTyping) return <TypingDots />;
+  // ── Forms ─────────────────────────────────────────────────────────────────
 
-    switch (screen) {
+  const renderForm = () => {
+    if (!formPhase) return null;
 
-      case "menu":
-        return (
-          <div className="space-y-1.5">
-            <ChioMsg>¡Hola! Soy Chio 👋<br />¿Sobre qué te puedo ayudar?</ChioMsg>
-            <div className="space-y-1.5">
-              <Opt onClick={() => nav("submenu_info")}>📖 Información y fe</Opt>
-              <Opt onClick={() => nav("submenu_conectar")}>🤝 Conectar con alguien</Opt>
-              <Opt onClick={() => nav("actividades")}>🎯 Actividades y eventos</Opt>
-              <Opt onClick={() => nav("whatsapp")}>💬 Hablar con alguien del barrio</Opt>
-            </div>
+    if (formPhase === "misioneros_miembro" || formPhase === "misioneros_no") {
+      const isMember = formPhase === "misioneros_miembro";
+      return (
+        <div className="px-4 pb-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Nombre" required error={fErr.nombre}><input className={inputCls} style={inputStyle} placeholder="Nombre" value={fData.nombre} onChange={e=>setF("nombre",e.target.value)} /></Field>
+            <Field label="Apellidos" required error={fErr.apellidos}><input className={inputCls} style={inputStyle} placeholder="Apellidos" value={fData.apellidos} onChange={e=>setF("apellidos",e.target.value)} /></Field>
           </div>
-        );
-
-      case "submenu_info":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>¿Qué quieres saber?</ChioMsg>
-            <div className="space-y-1.5">
-              <Opt onClick={() => nav("faq_reuniones")}>📅 ¿Cuándo son las reuniones?</Opt>
-              <Opt onClick={() => nav("faq_ubicacion")}>📍 ¿Dónde estáis?</Opt>
-              <Opt onClick={() => nav("faq_creemos")}>📖 ¿Qué creemos?</Opt>
-              <Opt onClick={() => nav("faq_unirse")}>❓ ¿Cómo puedo unirme?</Opt>
-            </div>
-          </div>
-        );
-
-      case "submenu_conectar":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>¿Cómo quieres conectar con nosotros?</ChioMsg>
-            <div className="space-y-1.5">
-              <Opt onClick={() => nav("misioneros_check")}>🕊️ Hablar con los misioneros</Opt>
-              <Opt onClick={() => nav("entrevista_check")}>🗓️ Solicitar entrevista con un líder</Opt>
-            </div>
-          </div>
-        );
-
-      case "faq_reuniones":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>
-              Nos reunimos cada <strong className="text-white">domingo</strong>
-              {wardInfo.sacramentMeetingTime ? <> a las <strong className="text-white">{wardInfo.sacramentMeetingTime}h</strong></> : ""}.
-              {wardInfo.meetingCenterName && <><br /><br />En <strong className="text-white">{wardInfo.meetingCenterName}</strong>.</>}
-              {wardInfo.meetingCenterAddress && <><br />{wardInfo.meetingCenterAddress}.</>}
-              <br /><br />¡Todos son bienvenidos! 🙌
-            </ChioMsg>
-            {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer"><PrimaryBtn onClick={() => {}}>Ver cómo llegar →</PrimaryBtn></a>}
-          </div>
-        );
-
-      case "faq_ubicacion":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>
-              {wardInfo.meetingCenterName && <><strong className="text-white">{wardInfo.meetingCenterName}</strong><br /></>}
-              {wardInfo.meetingCenterAddress || "La dirección no está configurada aún."}
-            </ChioMsg>
-            {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer"><PrimaryBtn onClick={() => {}}>Abrir en Google Maps →</PrimaryBtn></a>}
-          </div>
-        );
-
-      case "faq_creemos":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>
-              Creemos en <strong className="text-white">Jesucristo</strong> y en su Expiación, en la <strong className="text-white">familia eterna</strong> y en el evangelio restaurado. La Biblia y el Libro de Mormón son nuestras escrituras.
-            </ChioMsg>
-            <a href="https://www.churchofjesuschrist.org/comeuntochrist/es" target="_blank" rel="noopener noreferrer">
-              <Opt onClick={() => {}}>Saber más en churchofjesuschrist.org →</Opt>
-            </a>
-          </div>
-        );
-
-      case "faq_unirse":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>
-              ¡Nos alegra que preguntes! Puedes:<br /><br />
-              • Visitarnos cualquier <strong className="text-white">domingo</strong>{wardInfo.sacramentMeetingTime ? ` a las ${wardInfo.sacramentMeetingTime}h` : ""}<br />
-              • Hablar con los <strong className="text-white">misioneros</strong><br />
-              • Solicitar una <strong className="text-white">entrevista</strong> con el obispo
-            </ChioMsg>
-            <div className="space-y-1.5">
-              <Opt onClick={() => nav("misioneros_check")}>🕊️ Contactar misioneros</Opt>
-              <Opt onClick={() => nav("entrevista_check")}>🗓️ Solicitar entrevista</Opt>
-            </div>
-          </div>
-        );
-
-      case "actividades":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>{upcoming.length > 0 ? "Estas son las próximas actividades:" : "No hay actividades programadas próximamente. ¡Vuelve pronto!"}</ChioMsg>
-            {upcoming.length > 0 && (
-              <div className="space-y-2 mb-3">
-                {upcoming.map(a => {
-                  const d = new Date(a.date);
-                  const dateStr = d.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-                  const timeStr = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-                  return (
-                    <div key={a.id} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                      <p className="text-xs font-semibold text-white/85">{a.title}</p>
-                      <p className="text-[10px] mt-0.5 capitalize" style={{ color: "rgba(255,255,255,0.40)" }}>{dateStr} · {timeStr}h</p>
-                      {a.location && <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.30)" }}>{a.location}</p>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <Link href="/actividades"><Opt onClick={() => {}}>Ver todas las actividades →</Opt></Link>
-          </div>
-        );
-
-      case "misioneros_check":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>¿Eres miembro de La Iglesia de Jesucristo?</ChioMsg>
-            <div className="space-y-1.5">
-              <Opt onClick={() => { setIsMisionerosMiembro(true); nav("misioneros_miembro"); }}>Sí, soy miembro</Opt>
-              <Opt onClick={() => { setIsMisionerosMiembro(false); nav("misioneros_no"); }}>Todavía no</Opt>
-            </div>
-          </div>
-        );
-
-      case "misioneros_miembro":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>Déjanos tus datos y el líder misional se pondrá en contacto contigo.</ChioMsg>
-            <div className="space-y-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Nombre" required error={errors.nombre}><input className={inputCls} style={inputStyle} placeholder="Tu nombre" value={form.nombre} onChange={e => setF("nombre", e.target.value)} /></Field>
-                <Field label="Apellidos" required error={errors.apellidos}><input className={inputCls} style={inputStyle} placeholder="Apellidos" value={form.apellidos} onChange={e => setF("apellidos", e.target.value)} /></Field>
-              </div>
-              <Field label="Email" required error={errors.email}><input type="email" className={inputCls} style={inputStyle} placeholder="email@ejemplo.com" value={form.email} onChange={e => setF("email", e.target.value)} /></Field>
-              <Field label="Teléfono"><input className={inputCls} style={inputStyle} placeholder="+34 600 000 000" value={form.telefono} onChange={e => setF("telefono", e.target.value)} /></Field>
-              <GdprCheck value={form.gdpr} onChange={v => setF("gdpr", v)} error={errors.gdpr} />
-              <PrimaryBtn onClick={() => submitMisioneros(true)} disabled={submitting}>{submitting ? "Enviando…" : "Enviar →"}</PrimaryBtn>
-            </div>
-          </div>
-        );
-
-      case "misioneros_no":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>¡Estupendo! Déjanos tus datos y nuestros misioneros se pondrán en contacto contigo 🙏</ChioMsg>
-            <div className="space-y-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Nombre" required error={errors.nombre}><input className={inputCls} style={inputStyle} placeholder="Tu nombre" value={form.nombre} onChange={e => setF("nombre", e.target.value)} /></Field>
-                <Field label="Apellidos" required error={errors.apellidos}><input className={inputCls} style={inputStyle} placeholder="Apellidos" value={form.apellidos} onChange={e => setF("apellidos", e.target.value)} /></Field>
-              </div>
-              <Field label="Email" error={errors.contacto}><input type="email" className={inputCls} style={inputStyle} placeholder="email@ejemplo.com" value={form.email} onChange={e => setF("email", e.target.value)} /></Field>
-              <Field label="Teléfono"><input className={inputCls} style={inputStyle} placeholder="+34 600 000 000" value={form.telefono} onChange={e => setF("telefono", e.target.value)} /></Field>
-              <Field label="¿Qué te gustaría saber?"><textarea rows={2} className={inputCls + " resize-none"} style={inputStyle} placeholder="Cuéntanos…" value={form.mensaje} onChange={e => setF("mensaje", e.target.value)} /></Field>
-              <GdprCheck value={form.gdpr} onChange={v => setF("gdpr", v)} error={errors.gdpr} />
-              <PrimaryBtn onClick={() => submitMisioneros(false)} disabled={submitting}>{submitting ? "Enviando…" : "Enviar →"}</PrimaryBtn>
-            </div>
-          </div>
-        );
-
-      case "misioneros_sent":
-        return (
-          <div className="text-center py-6">
-            <CheckCircle className="h-10 w-10 text-[#C9A227] mx-auto mb-3" />
-            <p className="text-sm font-semibold text-white mb-2">¡Datos recibidos!</p>
-            <p className="text-xs leading-relaxed mb-5" style={{ color: "rgba(255,255,255,0.42)" }}>
-              {isMisionerosMiembro ? "El líder misional se pondrá en contacto contigo pronto." : "Nuestros misioneros se pondrán en contacto contigo pronto 🙏"}
-            </p>
-            <button onClick={goMenu} className="text-xs" style={{ color: "rgba(201,162,39,0.65)" }}>← Volver al menú</button>
-          </div>
-        );
-
-      case "entrevista_check":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>¿Eres miembro de La Iglesia de Jesucristo?</ChioMsg>
-            <div className="space-y-1.5">
-              <Opt onClick={() => nav("entrevista_form")}>Sí, soy miembro</Opt>
-              <Opt onClick={() => { setIsMisionerosMiembro(false); nav("misioneros_no"); }}>Todavía no — contáctame con los misioneros</Opt>
-            </div>
-          </div>
-        );
-
-      case "entrevista_form":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>Rellena tus datos para solicitar la entrevista. Los guardaremos para futuras comunicaciones del barrio.</ChioMsg>
-            <div className="space-y-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Nombre" required error={errors.nombre}><input className={inputCls} style={inputStyle} placeholder="Tu nombre" value={form.nombre} onChange={e => setF("nombre", e.target.value)} /></Field>
-                <Field label="Apellidos" required error={errors.apellidos}><input className={inputCls} style={inputStyle} placeholder="Apellidos" value={form.apellidos} onChange={e => setF("apellidos", e.target.value)} /></Field>
-              </div>
-              <Field label="Email" required error={errors.email}><input type="email" className={inputCls} style={inputStyle} placeholder="email@ejemplo.com" value={form.email} onChange={e => setF("email", e.target.value)} /></Field>
-              <Field label="Teléfono"><input className={inputCls} style={inputStyle} placeholder="+34 600 000 000" value={form.telefono} onChange={e => setF("telefono", e.target.value)} /></Field>
-              <Field label="Asunto" required error={errors.asunto}>
-                <select value={form.asunto} onChange={e => setF("asunto", e.target.value)} className={inputCls} style={{ ...inputStyle, WebkitAppearance: "none" }}>
-                  <option value="" disabled>Selecciona un asunto…</option>
-                  {ASUNTOS.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </Field>
-              <Field label="Notas adicionales"><textarea rows={2} className={inputCls + " resize-none"} style={inputStyle} placeholder="Añade contexto si lo deseas…" value={form.notas} onChange={e => setF("notas", e.target.value)} /></Field>
-              <GdprCheck value={form.gdpr} onChange={v => setF("gdpr", v)} error={errors.gdpr} />
-              <PrimaryBtn onClick={() => { if (validateEntrevista()) nav("entrevista_lider"); }}>Continuar →</PrimaryBtn>
-            </div>
-          </div>
-        );
-
-      case "entrevista_lider":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            <ChioMsg>¿Con quién te gustaría tener la entrevista?</ChioMsg>
-            <div className="space-y-1.5">
-              {LIDERES.map(l => <Opt key={l.v} onClick={() => submitEntrevista(l.v)}>{l.l}</Opt>)}
-            </div>
-            {submitting && <p className="text-center text-[11px] mt-3" style={{ color: "rgba(255,255,255,0.30)" }}>Enviando solicitud…</p>}
-          </div>
-        );
-
-      case "entrevista_sent":
-        return (
-          <div className="text-center py-6">
-            <CheckCircle className="h-10 w-10 text-[#C9A227] mx-auto mb-3" />
-            <p className="text-sm font-semibold text-white mb-2">¡Solicitud enviada!</p>
-            <p className="text-xs leading-relaxed mb-1" style={{ color: "rgba(255,255,255,0.42)" }}>
-              Recibirás la confirmación por email en <strong className="text-white/70">menos de 24 horas</strong>.
-            </p>
-            <p className="text-[11px] leading-relaxed mb-5" style={{ color: "rgba(255,255,255,0.25)" }}>Si no recibes respuesta, vuelve a contactarnos.</p>
-            <button onClick={goMenu} className="text-xs" style={{ color: "rgba(201,162,39,0.65)" }}>← Volver al menú</button>
-          </div>
-        );
-
-      case "whatsapp":
-        return (
-          <div>
-            <BackBtn onClick={back} />
-            {waUrl ? (
-              <>
-                <ChioMsg>Te abrimos WhatsApp para que puedas hablar directamente con alguien del barrio 💬</ChioMsg>
-                <a href={waUrl} target="_blank" rel="noopener noreferrer"><PrimaryBtn onClick={() => {}}>Abrir WhatsApp →</PrimaryBtn></a>
-              </>
-            ) : (
-              <>
-                <ChioMsg>En este momento no hay nadie disponible para el chat en directo. Puedes dejarnos un mensaje o solicitar una entrevista 🙏</ChioMsg>
-                <div className="space-y-1.5">
-                  <Opt onClick={() => nav("entrevista_check")}>🗓️ Solicitar entrevista</Opt>
-                  <Link href="/contacto-misioneros"><Opt onClick={() => {}}>📩 Formulario de contacto</Opt></Link>
-                </div>
-              </>
-            )}
-          </div>
-        );
-
-      default: return null;
+          {isMember ? (
+            <Field label="Email" required error={fErr.email}><input type="email" className={inputCls} style={inputStyle} placeholder="email@ejemplo.com" value={fData.email} onChange={e=>setF("email",e.target.value)} /></Field>
+          ) : (
+            <>
+              <Field label="Email" error={fErr.contacto}><input type="email" className={inputCls} style={inputStyle} placeholder="email@ejemplo.com" value={fData.email} onChange={e=>setF("email",e.target.value)} /></Field>
+              <Field label="Teléfono"><input className={inputCls} style={inputStyle} placeholder="+34 600 000 000" value={fData.telefono} onChange={e=>setF("telefono",e.target.value)} /></Field>
+              <Field label="¿Qué te gustaría saber?"><textarea rows={2} className={inputCls+" resize-none"} style={inputStyle} placeholder="Cuéntanos…" value={fData.mensaje} onChange={e=>setF("mensaje",e.target.value)} /></Field>
+            </>
+          )}
+          {isMember && <Field label="Teléfono"><input className={inputCls} style={inputStyle} placeholder="+34 600 000 000" value={fData.telefono} onChange={e=>setF("telefono",e.target.value)} /></Field>}
+          <GdprCheck value={fData.gdpr} onChange={v=>setF("gdpr",v)} error={fErr.gdpr} />
+          <button onClick={()=>submitMisioneros(isMember)} disabled={submitting} className="w-full bg-[#C9A227] hover:bg-[#d4ac2c] disabled:opacity-40 text-[#070709] font-semibold text-xs px-4 py-2.5 rounded-full transition-all">
+            {submitting ? "Enviando…" : "Enviar →"}
+          </button>
+        </div>
+      );
     }
+
+    if (formPhase === "entrevista") {
+      return (
+        <div className="px-4 pb-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Nombre" required error={fErr.nombre}><input className={inputCls} style={inputStyle} placeholder="Nombre" value={fData.nombre} onChange={e=>setF("nombre",e.target.value)} /></Field>
+            <Field label="Apellidos" required error={fErr.apellidos}><input className={inputCls} style={inputStyle} placeholder="Apellidos" value={fData.apellidos} onChange={e=>setF("apellidos",e.target.value)} /></Field>
+          </div>
+          <Field label="Email" required error={fErr.email}><input type="email" className={inputCls} style={inputStyle} placeholder="email@ejemplo.com" value={fData.email} onChange={e=>setF("email",e.target.value)} /></Field>
+          <Field label="Teléfono"><input className={inputCls} style={inputStyle} placeholder="+34 600 000 000" value={fData.telefono} onChange={e=>setF("telefono",e.target.value)} /></Field>
+          <Field label="Asunto" required error={fErr.asunto}>
+            <select value={fData.asunto} onChange={e=>setF("asunto",e.target.value)} className={inputCls} style={{...inputStyle,WebkitAppearance:"none"}}>
+              <option value="" disabled>Selecciona un asunto…</option>
+              {ASUNTOS.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+          </Field>
+          <Field label="Notas"><textarea rows={2} className={inputCls+" resize-none"} style={inputStyle} placeholder="Contexto opcional…" value={fData.notas} onChange={e=>setF("notas",e.target.value)} /></Field>
+          <GdprCheck value={fData.gdpr} onChange={v=>setF("gdpr",v)} error={fErr.gdpr} />
+          <button
+            onClick={()=>{ if(validateEntrevista()){ setForm("lider"); chioSay("¿Con quién te gustaría tener la entrevista?", LIDERES.map(l=>({ label:l.l, onPress:()=>{ addMsg({from:"user",text:l.l}); submitEntrevista(l.v); } })), 400); } }}
+            className="w-full bg-[#C9A227] hover:bg-[#d4ac2c] disabled:opacity-40 text-[#070709] font-semibold text-xs px-4 py-2.5 rounded-full transition-all"
+          >
+            Continuar →
+          </button>
+        </div>
+      );
+    }
+
+    return null;
   };
 
-  // ── Shell ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
       <GreetingBubble onOpen={handleOpen} />
 
-      {/* Floating button */}
+      {/* FAB */}
       <button
         onClick={handleOpen}
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 font-bold text-sm px-4 py-3 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95"
-        style={{ background: "#C9A227", color: "#070709", boxShadow: "0 8px 32px rgba(201,162,39,0.35)" }}
+        style={{ background:"#C9A227", color:"#070709", boxShadow:"0 8px 32px rgba(201,162,39,0.35)" }}
       >
-        {open ? <X className="h-4 w-4" /> : <><MessageCircle className="h-4 w-4" /><span>Chio</span></>}
+        {open ? <X className="h-4 w-4" /> : <><MessageCircle className="h-4 w-4"/><span>Chio</span></>}
       </button>
 
-      {/* Chat panel */}
+      {/* Panel */}
       {open && (
         <div
           className="fixed bottom-20 right-6 z-50 flex flex-col rounded-2xl overflow-hidden shadow-2xl"
-          style={{ width: 320, maxHeight: "calc(100svh - 140px)", background: "#0d0d0f", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 80px rgba(0,0,0,0.7)" }}
+          style={{ width:320, maxHeight:"calc(100svh - 140px)", background:"#0d0d0f", border:"1px solid rgba(255,255,255,0.08)", boxShadow:"0 24px 80px rgba(0,0,0,0.7)" }}
         >
           {/* Header */}
-          <div className="flex items-center gap-2.5 px-4 py-3 shrink-0" style={{ background: "#111113", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2.5 px-4 py-3 shrink-0" style={{ background:"#111113", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
             <div className="w-8 h-8 rounded-full bg-[#C9A227] flex items-center justify-center text-[#070709] font-black text-sm">C</div>
             <div>
               <p className="text-sm font-semibold text-white leading-none">Chio</p>
-              <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Asistente del {ward}</p>
+              <p className="text-[10px] mt-0.5" style={{ color:"rgba(255,255,255,0.35)" }}>Asistente del {ward}</p>
             </div>
             <div className="ml-auto flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-              <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.28)" }}>En línea</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"/>
+              <span className="text-[10px]" style={{ color:"rgba(255,255,255,0.28)" }}>En línea</span>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4" style={{ scrollbarWidth: "none" }}>
-            {renderContent()}
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 pt-4" style={{ scrollbarWidth:"none" }}>
+            {messages.map(m =>
+              m.from === "chio"
+                ? <CMsg key={m.id} content={(m as ChioMsg).content} />
+                : <UMsg key={m.id} text={(m as UserMsg).text} />
+            )}
+            {isTyping && <TypingIndicator />}
+
+            {/* Quick replies */}
+            {!isTyping && quickReplies.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {quickReplies.map((qr, i) => (
+                  <button
+                    key={i}
+                    onClick={qr.onPress}
+                    className="text-xs px-3 py-1.5 rounded-full transition-all"
+                    style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)", color:"rgba(255,255,255,0.70)" }}
+                    onMouseEnter={e=>{ Object.assign((e.currentTarget as HTMLElement).style,{ background:"rgba(255,255,255,0.10)", color:"#fff" }); }}
+                    onMouseLeave={e=>{ Object.assign((e.currentTarget as HTMLElement).style,{ background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.70)" }); }}
+                  >
+                    {qr.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div ref={bottomRef} />
           </div>
 
+          {/* Form (shown when active) */}
+          {formPhase && formPhase !== "lider" && renderForm()}
+
+          {/* Text input (hidden during forms) */}
+          {!formPhase && (
+            <div className="px-3 py-3 shrink-0" style={{ borderTop:"1px solid rgba(255,255,255,0.07)" }}>
+              <form
+                onSubmit={e=>{ e.preventDefault(); handleInput(inputValue); }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={e=>setInput(e.target.value)}
+                  placeholder="Escribe tu pregunta…"
+                  className="flex-1 text-xs px-3 py-2 rounded-full text-white placeholder:text-white/25 focus:outline-none transition-colors"
+                  style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.10)" }}
+                />
+                <button
+                  type="submit"
+                  disabled={!inputValue.trim() || isTyping}
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                  style={{ background:"#C9A227" }}
+                >
+                  <Send className="h-3.5 w-3.5 text-[#070709]" />
+                </button>
+              </form>
+            </div>
+          )}
+
           {/* Footer */}
-          <div className="px-4 py-2 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-            <p className="text-[9px] text-center" style={{ color: "rgba(255,255,255,0.13)" }}>{ward} · La Iglesia de Jesucristo</p>
+          <div className="px-4 py-1.5 shrink-0" style={{ borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+            <p className="text-[9px] text-center" style={{ color:"rgba(255,255,255,0.12)" }}>{ward} · La Iglesia de Jesucristo</p>
           </div>
         </div>
       )}
