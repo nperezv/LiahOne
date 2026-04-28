@@ -4286,8 +4286,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } ya tiene otra entrevista confirmada en esa fecha y hora.`,
           });
         }
+
+        // Check daily window limit defined by the leader
+        const iDate = new Date(interviewData.date);
+        const monDay = iDate.getUTCDay() === 0 ? 6 : iDate.getUTCDay() - 1;
+        const dateStr = iDate.toISOString().slice(0, 10);
+        const winResult = await db.execute(sql`
+          SELECT max_per_day FROM interview_windows
+          WHERE user_id = ${interviewData.interviewerId} AND day_of_week = ${monDay} AND is_active = true LIMIT 1
+        `);
+        const win = (winResult.rows as any[])[0];
+        if (win) {
+          const cntResult = await db.execute(sql`
+            SELECT COUNT(*) AS cnt FROM interviews
+            WHERE DATE(date) = ${dateStr} AND interviewer_id = ${interviewData.interviewerId}
+              AND status NOT IN ('cancelada','archivada')
+          `);
+          const current = parseInt((cntResult.rows[0] as any)?.cnt ?? "0", 10);
+          if (current >= win.max_per_day) {
+            return res.status(409).json({
+              code: "INTERVIEW_WINDOW_FULL",
+              error: `${interviewer?.name ?? "El líder"} ya tiene ${current} entrevistas ese día (máximo configurado: ${win.max_per_day}). Ajusta la disponibilidad en el perfil o elige otro día.`,
+              current,
+              max: win.max_per_day,
+            });
+          }
+        }
       }
-  
+
       const interview = await storage.createInterview(interviewData);
       const interviewDateValue = new Date(interview.date);
       const interviewDate = interviewDateValue.toLocaleDateString("es-ES", {
@@ -8017,6 +8043,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
     }
     return res.json({ ok: true });
+  });
+
+  app.get("/api/public/member-lookup", async (req: Request, res: Response) => {
+    try {
+      const email = String(req.query.email ?? "").trim().toLowerCase();
+      if (!email) return res.json({ found: false });
+
+      // Check members directory first
+      const memberResult = await db.execute(sql`
+        SELECT nombre, apellidos, name_surename FROM members
+        WHERE LOWER(email) = ${email} AND member_status = 'active' LIMIT 1
+      `);
+      const member = (memberResult.rows as any[])[0];
+      if (member) {
+        return res.json({
+          found: true,
+          source: "member",
+          nombre: member.nombre || member.name_surename?.split(" ")[0] || "",
+          apellidos: member.apellidos || member.name_surename?.split(" ").slice(1).join(" ") || "",
+        });
+      }
+
+      // Check previous Chio interview requests
+      const reqResult = await db.execute(sql`
+        SELECT nombre, apellidos FROM interview_requests
+        WHERE LOWER(email) = ${email} ORDER BY created_at DESC LIMIT 1
+      `);
+      const prev = (reqResult.rows as any[])[0];
+      if (prev) {
+        return res.json({ found: true, source: "request", nombre: prev.nombre, apellidos: prev.apellidos });
+      }
+
+      return res.json({ found: false });
+    } catch {
+      return res.json({ found: false });
+    }
   });
 
   app.get("/api/public/interview-availability", async (req: Request, res: Response) => {

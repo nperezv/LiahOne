@@ -439,6 +439,32 @@ export function ChioChat() {
     setQRs(moreReplies());
   };
 
+  const checkEmailAndProceed = async () => {
+    if (!validateEntrevista()) return;
+    setForm("lider");
+    setTyping(true);
+
+    try {
+      const res = await fetch(`/api/public/member-lookup?email=${encodeURIComponent(fData.email.trim())}`);
+      const data = await res.json();
+      setTyping(false);
+
+      if (data.found) {
+        // Already know this person
+        const nombre = data.nombre || fData.nombre;
+        addMsg({ from: "chio", content: <span>¡Hola de nuevo, <strong className="text-white">{nombre}</strong>! 👋 Ya tenemos tus datos en nuestro sistema, no hace falta que los vuelvas a introducir.</span> });
+        setQRs(LIDERES.map(l => ({ label: l.l, onPress: () => pickLeaderAndFetchSlots(l.v, l.l) })));
+      } else {
+        addMsg({ from: "chio", content: "¿Con quién te gustaría tener la entrevista?" });
+        setQRs(LIDERES.map(l => ({ label: l.l, onPress: () => pickLeaderAndFetchSlots(l.v, l.l) })));
+      }
+    } catch {
+      setTyping(false);
+      addMsg({ from: "chio", content: "¿Con quién te gustaría tener la entrevista?" });
+      setQRs(LIDERES.map(l => ({ label: l.l, onPress: () => pickLeaderAndFetchSlots(l.v, l.l) })));
+    }
+  };
+
   const pickLeaderAndFetchSlots = async (leaderRole: string, leaderLabel: string) => {
     addMsg({ from: "user", text: leaderLabel });
     setQRs([]);
@@ -524,19 +550,7 @@ export function ChioChat() {
           <Field label="Notas"><textarea rows={2} className={inputCls+" resize-none"} style={inputStyle} placeholder="Contexto opcional…" value={fData.notas} onChange={e=>setF("notas",e.target.value)} /></Field>
           <GdprCheck value={fData.gdpr} onChange={v=>setF("gdpr",v)} error={fErr.gdpr} />
           <button
-            onClick={() => {
-              if (validateEntrevista()) {
-                setForm("lider");
-                chioSay(
-                  "¿Con quién te gustaría tener la entrevista?",
-                  LIDERES.map(l => ({
-                    label: l.l,
-                    onPress: () => pickLeaderAndFetchSlots(l.v, l.l),
-                  })),
-                  400
-                );
-              }
-            }}
+            onClick={checkEmailAndProceed}
             className="w-full bg-[#C9A227] hover:bg-[#d4ac2c] disabled:opacity-40 text-[#070709] font-semibold text-xs px-4 py-2.5 rounded-full transition-all"
           >
             Continuar →
