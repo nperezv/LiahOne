@@ -2357,7 +2357,7 @@ function BaptismalServiceSheet({
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
   const isLiderActividades = userRole === "lider_actividades";
-  const showMisionSections = isObispo || isMissionLeader;
+  const showMisionSections = isObispo || isMissionLeader || isPresidenteOrg;
   const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
   const ALLOWED_ORG_TYPES = ["cuorum_elderes", "sociedad_socorro"];
   const isPresidenteOrg =
@@ -2798,7 +2798,7 @@ function BaptismalServiceSheet({
       : (checklistData.items as any[]);
     const filtered = items.filter((i: any) => (i.itemKey ?? i.item_key) !== "visibilidad_evento");
     if (isObispo) return filtered;
-    if (isMissionLeader) return filtered.filter((i: any) =>
+    if (isMissionLeader || isPresidenteOrg) return filtered.filter((i: any) =>
       MISSION_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
     );
     return filtered;
