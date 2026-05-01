@@ -1095,16 +1095,22 @@ function SectionPanel({
   activityType: string;
   activityOrgId?: string | null;
 }) {
-  const hasSections = items.some(i => i.itemKey.startsWith("prog_") || i.itemKey.startsWith("coord_"));
+  // prog_flyer alone doesn't indicate a sectioned checklist — exclude it from detection
+  const hasSections = items.some(i =>
+    (i.itemKey.startsWith("prog_") && i.itemKey !== "prog_flyer") ||
+    i.itemKey.startsWith("coord_")
+  );
   const [editSection, setEditSection] = useState<"programa" | "coordinacion" | null>(null);
 
   if (!hasSections) {
-    // Flat read-only list for baptism / legacy activities
-    const completed = items.filter(i => i.completed).length;
+    // Flat read-only list for converso baptism / legacy activities
+    const listItems = items.filter(i => i.itemKey !== "prog_flyer");
+    const hasFlyerItem = items.some(i => i.itemKey === "prog_flyer");
+    const completed = listItems.filter(i => i.completed).length;
     return (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground font-medium">Checklist — {completed}/{items.length} completados</p>
-        {items.map(item => (
+        <p className="text-xs text-muted-foreground font-medium">Checklist — {completed}/{listItems.length} completados</p>
+        {listItems.map(item => (
           <div key={item.id} className="flex items-center gap-2 text-sm">
             {item.completed
               ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
@@ -1112,6 +1118,9 @@ function SectionPanel({
             <span className={item.completed ? "line-through text-muted-foreground" : ""}>{item.label}</span>
           </div>
         ))}
+        {hasFlyerItem && (
+          <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={{ type: activityType }} />
+        )}
       </div>
     );
   }
