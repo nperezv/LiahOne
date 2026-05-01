@@ -9122,6 +9122,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const requiresReg = !!(activity as any).requiresRegistration;
 
+      // Resolve candidate names for baptism activities
+      let candidatosLine = "";
+      if ((activity as any).type === "servicio_bautismal") {
+        const baptismServiceId = (activity as any).baptismServiceId;
+        if (baptismServiceId) {
+          // Converso: read from baptism_service_candidates JOIN mission_personas
+          const rows = await db.execute(sql`
+            SELECT mp.nombre FROM baptism_service_candidates bsc
+            JOIN mission_personas mp ON mp.id = bsc.persona_id
+            WHERE bsc.service_id = ${baptismServiceId}
+            ORDER BY mp.nombre
+          `);
+          const names = (rows.rows as any[]).map(r => r.nombre as string).filter(Boolean);
+          if (names.length) candidatosLine = `- Candidato(s) al bautismo: ${names.join(", ")}`;
+        } else {
+          // Niño inscrito: read from section_data.prog_candidatos
+          const sdRow = await db.execute(sql`SELECT section_data FROM activities WHERE id = ${req.params.id}`);
+          const sd: Record<string, string> = (sdRow.rows[0] as any)?.section_data ?? {};
+          const raw = (sd["prog_candidatos"] ?? "").trim();
+          if (raw) candidatosLine = `- Candidato(s) al bautismo: ${raw}`;
+        }
+      }
+
       const tipoLabels: Record<string, string> = {
         servicio_bautismal: "Servicio Bautismal",
         deportiva: "Deportiva / Juegos",
@@ -9144,7 +9167,7 @@ Genera el copy para un flyer de esta actividad:
 - Hora: ${horaPrompt}
 - Lugar: ${meetingAddress || activity.location || "Por confirmar"}
 - Descripción adicional: ${activity.description ?? "Sin descripción"}
-- Requiere inscripción: ${requiresReg ? "Sí" : "No"}
+- Requiere inscripción: ${requiresReg ? "Sí" : "No"}${candidatosLine ? `\n${candidatosLine}` : ""}
 
 ${ctaInstructions}
 
