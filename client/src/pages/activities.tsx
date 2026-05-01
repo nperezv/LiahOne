@@ -902,6 +902,146 @@ function SectionEditDialog({
   );
 }
 
+// ── Keys that belong to each baptism group ───────────────────────────────────
+const BAPTISM_PREP_KEYS = ["entrevista_bautismal", "ropa_bautismal", "visibilidad_evento", "programa"];
+const BAPTISM_LOGISTICS_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
+
+function BaptismChecklistPanel({
+  items, activityId, sectionData, flyerUrl, canUploadFlyer, canEditPrograma, activityType,
+}: {
+  items: ChecklistItem[];
+  activityId: string;
+  sectionData: Record<string, string>;
+  flyerUrl?: string | null;
+  canUploadFlyer: boolean;
+  canEditPrograma: boolean;
+  activityType: string;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const toggleMut = useMutation({
+    mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
+      apiRequest("PATCH", `/api/activities/${activityId}/checklist/${itemId}`, { completed }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/activities"] }),
+    onError: () => toast({ title: "Error al actualizar", variant: "destructive" }),
+  });
+
+  const countable = items.filter(i => i.itemKey !== "prog_flyer");
+  const total = countable.length;
+  const doneCount = countable.filter(i => i.completed).length;
+
+  const prepItems = items.filter(i => BAPTISM_PREP_KEYS.includes(i.itemKey));
+  const logItems  = items.filter(i => BAPTISM_LOGISTICS_KEYS.includes(i.itemKey));
+
+  const groupStatus = (grp: ChecklistItem[]) => {
+    const done = grp.filter(i => i.completed).length;
+    if (grp.length > 0 && done === grp.length) return "completed" as const;
+    if (done > 0) return "in_progress" as const;
+    return "pending" as const;
+  };
+
+  const STATUS_CFG = {
+    completed:   { label: "Completado",  cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+    in_progress: { label: "En progreso", cls: "bg-primary/10 text-primary" },
+    pending:     { label: "Pendiente",   cls: "bg-muted text-muted-foreground" },
+  };
+
+  const renderGroup = (groupItems: ChecklistItem[], cardTitle: string) => {
+    const st = groupStatus(groupItems);
+    const cfg = STATUS_CFG[st];
+    const allDone = st === "completed";
+    const someDone = st === "in_progress";
+
+    return (
+      <div className={`border rounded-lg px-3 py-3 ${allDone ? "border-primary/40 bg-primary/5" : ""}`}>
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full shrink-0 ${allDone ? "bg-green-500" : someDone ? "bg-primary" : "bg-muted-foreground/30"}`} />
+          <span className="text-sm font-medium flex-1">{cardTitle}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.cls}`}>{cfg.label}</span>
+        </div>
+        {groupItems.length > 0 && (
+          <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
+            {groupItems.map((item) => {
+              const detail = sectionData[item.itemKey];
+              return (
+                <AccordionItem key={item.id} value={item.id} className="border-b-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!canEditPrograma || toggleMut.isPending}
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (canEditPrograma) toggleMut.mutate({ itemId: item.id, completed: !item.completed });
+                      }}
+                      className="shrink-0 disabled:opacity-40 disabled:cursor-default"
+                    >
+                      {item.completed
+                        ? <CheckSquare className="h-4 w-4 text-green-600" />
+                        : <Square className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                    <AccordionTrigger className="flex-1 py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5">
+                      <span className={`text-sm ${item.completed ? "text-muted-foreground line-through" : ""}`}>
+                        {item.label}
+                      </span>
+                    </AccordionTrigger>
+                  </div>
+                  <AccordionContent className="pl-6 pb-2">
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {detail && !["listo"].includes(detail) ? (
+                        <p>{detail === "no_aplica" ? "No aplica" : detail}</p>
+                      ) : item.notes ? (
+                        <p>{item.notes}</p>
+                      ) : (
+                        <p className="italic">Sin notas</p>
+                      )}
+                      {item.completed && (item.completedBy || item.completedAt) && (
+                        <p>
+                          ✓{item.completedBy ? ` ${item.completedBy}` : ""}
+                          {item.completedAt ? ` · ${new Date(item.completedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Flyer */}
+      {items.some(i => i.itemKey === "prog_flyer") && (
+        <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={{ type: activityType }} />
+      )}
+
+      {/* Progress bar */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">{doneCount} de {total} completados</span>
+        <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
+          <div className="h-full bg-green-500 transition-all" style={{ width: total > 0 ? `${(doneCount / total) * 100}%` : "0%" }} />
+        </div>
+      </div>
+
+      {/* Preparación bautismal */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Preparación bautismal</p>
+        {renderGroup(prepItems, "Bautismo y preparación")}
+      </div>
+
+      {/* Logística */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Logística</p>
+        {renderGroup(logItems, "Logística del servicio")}
+      </div>
+    </div>
+  );
+}
+
 function SectionPanel({
   items, activityId, sectionData, canEditPrograma, flyerUrl, canUploadFlyer,
   activityType, activityOrgId,
@@ -1378,16 +1518,28 @@ function ActivityCard({
 
           {/* Section panel */}
           {canSeeChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
-            <SectionPanel
-              items={activity.checklistItems}
-              activityId={activity.id}
-              sectionData={(activity as any).sectionData ?? {}}
-              canEditPrograma={editMode ? canEditPrograma : false}
-              flyerUrl={activity.flyerUrl}
-              canUploadFlyer={editMode ? canUploadFlyer : false}
-              activityType={activity.type}
-              activityOrgId={activity.organizationId}
-            />
+            activity.type === "servicio_bautismal" ? (
+              <BaptismChecklistPanel
+                items={activity.checklistItems}
+                activityId={activity.id}
+                sectionData={(activity as any).sectionData ?? {}}
+                flyerUrl={activity.flyerUrl}
+                canUploadFlyer={editMode ? canUploadFlyer : false}
+                canEditPrograma={editMode ? canEditPrograma : false}
+                activityType={activity.type}
+              />
+            ) : (
+              <SectionPanel
+                items={activity.checklistItems}
+                activityId={activity.id}
+                sectionData={(activity as any).sectionData ?? {}}
+                canEditPrograma={editMode ? canEditPrograma : false}
+                flyerUrl={activity.flyerUrl}
+                canUploadFlyer={editMode ? canUploadFlyer : false}
+                activityType={activity.type}
+                activityOrgId={activity.organizationId}
+              />
+            )
           )}
 
           {/* Flyer for non-checklist org activities */}

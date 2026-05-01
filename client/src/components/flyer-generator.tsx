@@ -493,26 +493,74 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
 
   return (
     <>
-      <div className="flex items-center gap-3">
-        {flyerUrl ? (
-          <a
-            href={flyerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            <Image className="h-4 w-4" /> Ver flyer
-          </a>
-        ) : (
+      {flyerUrl ? (
+        /* ── Flyer exists: thumbnail card ── */
+        <div className="relative rounded-lg overflow-hidden border border-border group" style={{ height: 136 }}>
+          <img
+            src={flyerUrl}
+            alt="Flyer"
+            className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2">
+            <span className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+              <Image className="h-3.5 w-3.5" /> Flyer listo
+            </span>
+            <div className="flex gap-1.5">
+              <a
+                href={flyerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs bg-white/20 hover:bg-white/35 text-white px-2.5 py-1 rounded-md backdrop-blur-sm transition-colors"
+              >
+                <Image className="h-3 w-3" /> Ver
+              </a>
+              {canUpload && (
+                <button
+                  onClick={generate}
+                  disabled={generating}
+                  className="inline-flex items-center gap-1 text-xs bg-white/20 hover:bg-white/35 text-white px-2.5 py-1 rounded-md backdrop-blur-sm transition-colors disabled:opacity-50"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {generating ? "…" : "Regenerar"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : canUpload ? (
+        /* ── No flyer, can generate: dashed CTA ── */
+        <button
+          onClick={generate}
+          disabled={generating}
+          className="w-full rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/40 bg-muted/30 hover:bg-muted/50 transition-all p-4 text-left group disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center shrink-0 transition-colors">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                {generating ? "Generando flyer…" : "Generar flyer"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Crea un flyer atractivo para compartir
+              </p>
+            </div>
+            {!generating && (
+              <span className="text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                Crear →
+              </span>
+            )}
+          </div>
+        </button>
+      ) : (
+        /* ── No flyer, read-only ── */
+        <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/20 p-3 flex items-center gap-2">
+          <Image className="h-4 w-4 text-muted-foreground/40 shrink-0" />
           <span className="text-sm text-muted-foreground italic">Sin flyer</span>
-        )}
-        {canUpload && (
-          <Button size="sm" variant="outline" onClick={generate} disabled={generating}>
-            <Sparkles className="h-3.5 w-3.5 mr-1" />
-            {generating ? "Generando..." : flyerUrl ? "Regenerar flyer" : "Generar flyer"}
-          </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Off-screen canvas for html2canvas capture */}
       {copy && (
