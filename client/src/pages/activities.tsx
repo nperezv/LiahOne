@@ -175,13 +175,20 @@ function MemberAutocomplete({ value, options, placeholder, onChange }: {
 type FieldType = "text" | "textarea" | "checkbox" | "number";
 
 const FIELD_META: Record<string, { type: FieldType; placeholder?: string; inputKind?: "member" | "hymn" }> = {
-  prog_preside:          { type: "text", inputKind: "member", placeholder: "Nombre de quien preside" },
-  prog_dirige:           { type: "text", inputKind: "member", placeholder: "Nombre de quien dirige" },
-  prog_himno_apertura:   { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del himno" },
-  prog_oracion_apertura: { type: "text", inputKind: "member", placeholder: "Nombre" },
-  prog_himno_cierre:     { type: "text", inputKind: "hymn",   placeholder: "Número o nombre del último himno" },
-  prog_oracion_cierre:   { type: "text", inputKind: "member", placeholder: "Nombre" },
-  prog_mensaje_1:        { type: "text", inputKind: "member", placeholder: "Nombre del ponente y tema" },
+  prog_preside:          { type: "text",     inputKind: "member", placeholder: "Nombre de quien preside" },
+  prog_dirige:           { type: "text",     inputKind: "member", placeholder: "Nombre de quien dirige" },
+  prog_himno_apertura:   { type: "text",     inputKind: "hymn",   placeholder: "Número o nombre del himno" },
+  prog_oracion_apertura: { type: "text",     inputKind: "member", placeholder: "Nombre" },
+  prog_himno_cierre:     { type: "text",     inputKind: "hymn",   placeholder: "Número o nombre del último himno" },
+  prog_oracion_cierre:   { type: "text",     inputKind: "member", placeholder: "Nombre" },
+  prog_mensaje_1:        { type: "text",     inputKind: "member", placeholder: "Nombre del ponente y tema" },
+  // Baptism-specific program fields
+  prog_candidatos:       { type: "textarea",                      placeholder: "Nombre(s) del/los candidato(s), uno por línea" },
+  prog_numero_especial:  { type: "text",                          placeholder: "Persona y descripción del número especial" },
+  prog_mensaje_2:        { type: "text",     inputKind: "member", placeholder: "Nombre del ponente y tema" },
+  prog_bautismo:         { type: "text",     inputKind: "member", placeholder: "Nombre de quien oficia el bautismo" },
+  prog_testigos:         { type: "text",                          placeholder: "Nombres de los testigos (separados por coma)" },
+  prog_confirmacion:     { type: "text",     inputKind: "member", placeholder: "Nombre de quien oficia la confirmación" },
 };
 
 // Types that require at least one message AND hymns in the program
@@ -196,6 +203,9 @@ const PROG_REQUIRED_WITH_MSG = [...PROG_REQUIRED_BASE, "prog_mensaje_1", "prog_h
 const COORD_REQUIRED = ["coord_espacio", "coord_arreglo", "coord_limpieza"];
 
 function getProgRequired(activityType: string) {
+  if (activityType === "servicio_bautismal") {
+    return ["prog_candidatos", "prog_preside", "prog_dirige", "prog_oracion_apertura", "prog_oracion_cierre"];
+  }
   return TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType)
     ? PROG_REQUIRED_WITH_MSG
     : PROG_REQUIRED_BASE;
@@ -203,6 +213,8 @@ function getProgRequired(activityType: string) {
 
 // Whether a checklist item is optional (doesn't count toward progress) for the given type
 function isOptionalKey(itemKey: string, activityType: string): boolean {
+  // For baptism, all program items are required (none optional)
+  if (activityType === "servicio_bautismal") return false;
   if (HYMN_AND_MSG_KEYS.has(itemKey) && !TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType)) return true;
   return false;
 }
@@ -832,6 +844,8 @@ function SectionEditDialog({
     for (const k of Object.keys(sectionData)) {
       if (/^prog_mensaje_(\d+)$/.test(k) && Number(k.split("_")[2]) > 1) n++;
     }
+    // Baptism services normally have 2 messages — pre-show the second field
+    if (n === 0 && activityType === "servicio_bautismal") return 1;
     return n;
   });
   const [pensamientos, setPensamientos] = useState<string[]>(() => {
@@ -946,6 +960,10 @@ function SectionEditDialog({
                 </div>
               );
             }
+            // Skip prog_mensaje_2+ when already rendered inside the messages block above
+            if (/^prog_mensaje_[2-9]$/.test(item.itemKey) && hasMessages) {
+              return null;
+            }
             {
               const isOptional =
                 (HYMN_KEYS.has(item.itemKey) && !requiresMsgAndHymns) ||
@@ -992,6 +1010,31 @@ function BaptismChecklistPanel({
   activityOrgId?: string | null;
 }) {
   const [editSection, setEditSection] = useState<"programa" | "coordinacion" | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const existingLink = sectionData["programa_publico_url"] ?? null;
+
+  const publishProgram = async () => {
+    setPublishing(true);
+    try {
+      const token = getAccessToken();
+      const res = await fetch(`/api/activities/${activityId}/publish-baptism-program`, {
+        method: "POST",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al publicar");
+      qc.invalidateQueries({ queryKey: ["/api/activities"] });
+      toast({ title: "Programa publicado", description: `Enlace válido 24h desde la fecha del servicio` });
+    } catch (e: any) {
+      toast({ title: "Error al publicar", description: e.message, variant: "destructive" });
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   const bySection: Record<"programa" | "coordinacion", ChecklistItem[]> = { programa: [], coordinacion: [] };
   for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
@@ -1095,6 +1138,50 @@ function BaptismChecklistPanel({
       {bySection.programa.some(i => i.itemKey === "prog_flyer") && (
         <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={{ type: activityType }} />
       )}
+
+      {/* Public program link */}
+      {existingLink ? (
+        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Globe className="h-4 w-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-primary">Programa publicado</p>
+              <a href={existingLink} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-primary/80 hover:underline truncate block max-w-[200px]">
+                {existingLink}
+              </a>
+            </div>
+          </div>
+          {canEditPrograma && (
+            <Button size="sm" variant="outline" className="shrink-0 text-xs h-7"
+              onClick={publishProgram} disabled={publishing}>
+              {publishing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              <span className="ml-1">{publishing ? "..." : "Actualizar"}</span>
+            </Button>
+          )}
+        </div>
+      ) : canEditPrograma ? (
+        <button
+          onClick={publishProgram}
+          disabled={publishing}
+          className="w-full rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/40 bg-muted/30 hover:bg-muted/50 transition-all p-4 text-left group disabled:opacity-60"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center shrink-0 transition-colors">
+              {publishing ? <Loader2 className="h-4 w-4 text-primary animate-spin" /> : <Globe className="h-4 w-4 text-primary" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                {publishing ? "Publicando programa…" : "Publicar programa del servicio"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Genera el enlace público del díptico (válido 24h desde el día del bautismo)
+              </p>
+            </div>
+          </div>
+        </button>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">{doneCount} de {total} completados</span>
         <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">

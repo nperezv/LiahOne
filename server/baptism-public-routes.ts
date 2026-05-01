@@ -32,7 +32,7 @@ function calcAge(fechaNacimiento: string | null): number | null {
 }
 
 function computeTheme(candidates: Array<{ sexo: string | null; fechaNacimiento: string | null }>): BaptismTheme {
-  if (candidates.length === 0) return "fallback";
+  if (candidates.length === 0) return "nino";
 
   if (candidates.length === 1) {
     const c = candidates[0];
@@ -172,14 +172,17 @@ export function registerBaptismPublicRoutes(app: Express) {
           WHERE bpi.service_id = ${link.service_id}
         `),
         db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${link.id} AND status = 'approved' ORDER BY created_at DESC`),
-        // Public: names + personaId for recipient selector
+        // Public: names + personaId for recipient selector (supports niño inscrito where persona_id is null)
         db.execute(sql`
-          SELECT mp.id AS persona_id, mp.nombre
+          SELECT COALESCE(mp.id, bsc.id::text) AS persona_id,
+                 COALESCE(mp.nombre, bsc.nombre) AS nombre
           FROM baptism_service_candidates bsc
-          JOIN mission_personas mp ON mp.id = bsc.persona_id
-          WHERE bsc.service_id = ${link.service_id} ORDER BY mp.nombre
+          LEFT JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${link.service_id}
+            AND COALESCE(mp.nombre, bsc.nombre) IS NOT NULL
+          ORDER BY COALESCE(mp.nombre, bsc.nombre)
         `),
-        // Internal: for theme computation only (never forwarded to client)
+        // Internal: for theme computation only — only populated for converso (has mission_persona)
         db.execute(sql`
           SELECT mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
           FROM baptism_service_candidates bsc

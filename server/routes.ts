@@ -1253,6 +1253,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] checklist regeneration error:", e);
   }
 
+  // Auto-migration: baptism_service_candidates — add nombre column + make persona_id nullable
+  try {
+    await db.execute(sql`ALTER TABLE baptism_service_candidates ADD COLUMN IF NOT EXISTS nombre VARCHAR(255)`);
+    await db.execute(sql`ALTER TABLE baptism_service_candidates ALTER COLUMN persona_id DROP NOT NULL`);
+  } catch (e) {
+    console.error("[Migration] baptism_service_candidates schema error:", e);
+  }
+
   // Auto-migration: regenerate checklist for baptism activities that still use legacy keys
   // (programa, espacio_calendario, etc.) — replace with full prog_* + coord_* + baptism items
   try {
@@ -8734,6 +8742,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("[Activities] PATCH section error:", err);
       res.status(500).json({ error: "Error al guardar sección" });
+    }
+  });
+
+  // ── POST /api/activities/:id/publish-baptism-program ─────────────────────
+  // Creates/updates a baptism_services record from the activity section_data
+  // and publishes the public program link (for niño inscrito activities)
+  app.post("/api/activities/:id/publish-baptism-program", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const activityId = req.params.id;
+      const canPublish = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"].includes(user.role);
+      if (!canPublish) return res.status(403).json({ error: "Sin permiso" });
+
+      const activity = await storage.getActivity(activityId);
+      if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
+      if ((activity as any).type !== "servicio_bautismal") return res.status(400).json({ error: "No es un servicio bautismal" });
+
+      const dataRow = await db.execute(sql`SELECT section_data, baptism_service_id FROM activities WHERE id = ${activityId}`);
+      const sectionData: Record<string, string> = (dataRow.rows[0] as any)?.section_data ?? {};
+      let serviceId: string | null = (dataRow.rows[0] as any)?.baptism_service_id ?? null;
+
+      const unitId = user.organizationId ?? null;
+      const serviceAt = new Date((activity as any).date);
+      const location = (activity as any).location || "Capilla";
+
+      if (!serviceId) {
+        const svcResult = await db.execute(sql`
+          INSERT INTO baptism_services (unit_id, service_at, location_name, approval_status, created_by)
+          VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, 'approved', ${user.id})
+          RETURNING id
+        `);
+        serviceId = (svcResult.rows[0] as any)?.id as string;
+        await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId} WHERE id = ${activityId}`);
+      } else {
+        await db.execute(sql`
+          UPDATE baptism_services SET approval_status = 'approved', service_at = ${serviceAt.toISOString()},
+            location_name = ${location}, updated_at = NOW()
+          WHERE id = ${serviceId}
+        `);
+        await db.execute(sql`DELETE FROM baptism_program_items WHERE service_id = ${serviceId}`);
+        await db.execute(sql`DELETE FROM baptism_service_candidates WHERE service_id = ${serviceId} AND persona_id IS NULL`);
+      }
+
+      // Candidates from prog_candidatos (one per line or comma-separated)
+      const candidatosText = (sectionData["prog_candidatos"] ?? "").trim();
+      const names = candidatosText.split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
+      for (const nombre of names) {
+        await db.execute(sql`
+          INSERT INTO baptism_service_candidates (service_id, persona_id, nombre)
+          VALUES (${serviceId}, NULL, ${nombre})
+        `);
+      }
+
+      // Map section_data → baptism_program_items
+      const PROG_MAP = [
+        { key: "prog_preside",          type: "preside",                order: 1  },
+        { key: "prog_dirige",           type: "dirige",                 order: 2  },
+        { key: "prog_himno_apertura",   type: "primer_himno",           order: 3  },
+        { key: "prog_oracion_apertura", type: "oracion_apertura",       order: 4  },
+        { key: "prog_mensaje_1",        type: "primer_mensaje",         order: 5  },
+        { key: "prog_numero_especial",  type: "numero_especial",        order: 6  },
+        { key: "prog_mensaje_2",        type: "segundo_mensaje",        order: 7  },
+        { key: "prog_bautismo",         type: "ordenanza_bautismo",     order: 9  },
+        { key: "prog_testigos",         type: "testigos",               order: 10 },
+        { key: "prog_confirmacion",     type: "ordenanza_confirmacion", order: 11 },
+        { key: "prog_himno_cierre",     type: "ultimo_himno",           order: 12 },
+        { key: "prog_oracion_cierre",   type: "ultima_oracion",         order: 13 },
+      ];
+
+      for (const { key, type, order } of PROG_MAP) {
+        const value = (sectionData[key] ?? "").trim();
+        if (!value) continue;
+        let hymnId: string | null = null;
+        if (key === "prog_himno_apertura" || key === "prog_himno_cierre") {
+          const m = value.match(/^(\d+)/);
+          if (m) {
+            const hymnResult = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(m[1])} LIMIT 1`);
+            hymnId = (hymnResult.rows[0] as any)?.id ?? null;
+          }
+        }
+        await db.execute(sql`
+          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, hymn_id, updated_by, updated_at)
+          VALUES (${serviceId}, ${type}, ${order}, ${value}, ${hymnId}, ${user.id}, NOW())
+        `);
+      }
+
+      // Create/refresh public link
+      await db.execute(sql`UPDATE baptism_public_links SET revoked_at = NOW() WHERE service_id = ${serviceId} AND revoked_at IS NULL`);
+      const prevSlugResult = await db.execute(sql`SELECT slug FROM baptism_public_links WHERE service_id = ${serviceId} ORDER BY created_at DESC LIMIT 1`);
+      const previousSlug = (prevSlugResult.rows[0] as any)?.slug ?? null;
+      const randomCode = crypto.randomUUID().slice(0, 6);
+      const slug = previousSlug ?? `svc-${serviceId.slice(0, 8)}-${crypto.randomUUID().slice(0, 6)}`;
+      const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
+      const now = new Date();
+      await db.execute(sql`
+        INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
+        VALUES (${serviceId}, ${slug}, ${randomCode}, ${now.toISOString()}, ${expiresAt.toISOString()}, ${user.id})
+      `);
+
+      // Persist the link URL in section_data so the client can display it without a separate query
+      await db.execute(sql`
+        UPDATE activities SET section_data = section_data || ${JSON.stringify({ programa_publico_url: `/bautismo/${slug}` })}::jsonb
+        WHERE id = ${activityId}
+      `);
+
+      res.json({ slug, publicUrl: `/bautismo/${slug}`, expiresAt: expiresAt.toISOString() });
+    } catch (err) {
+      console.error("[POST publish-baptism-program]", err);
+      res.status(500).json({ error: "Error al publicar el programa" });
     }
   });
 

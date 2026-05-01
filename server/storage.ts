@@ -457,11 +457,22 @@ const BASE_CHECKLIST_ITEMS = [
   { key: "limpieza", label: "Limpieza de ambientes al terminar el servicio", sort: 6 },
 ];
 
-const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
-  { key: "entrevista_bautismal", label: "Entrevista bautismal completada", sort: 1 },
-  { key: "ropa_bautismal", label: "Designado recojo de ropa bautismal", sort: 7 },
-  { key: "visibilidad_evento", label: "Visibilidad del evento definida (público o privado)", sort: 8 },
-  { key: "prog_flyer", label: "Flyer", sort: 9 },
+// Full baptism program items — mirrors diptych structure so no field is missing in the public program
+const PROG_BAUTISMO_ITEMS = [
+  { key: "prog_candidatos",       label: "Candidato(s) al bautismo",    sort: 0  },
+  { key: "prog_preside",          label: "Preside",                      sort: 1  },
+  { key: "prog_dirige",           label: "Dirige",                       sort: 2  },
+  { key: "prog_himno_apertura",   label: "Himno de apertura",            sort: 3  },
+  { key: "prog_oracion_apertura", label: "Oración de apertura",          sort: 4  },
+  { key: "prog_mensaje_1",        label: "Primer mensaje",               sort: 5  },
+  { key: "prog_numero_especial",  label: "Número especial",              sort: 6  },
+  { key: "prog_mensaje_2",        label: "Segundo mensaje",              sort: 7  },
+  { key: "prog_bautismo",         label: "Oficia el bautismo",           sort: 8  },
+  { key: "prog_testigos",         label: "Testigos",                     sort: 9  },
+  { key: "prog_confirmacion",     label: "Oficia la confirmación",       sort: 10 },
+  { key: "prog_himno_cierre",     label: "Himno final",                  sort: 11 },
+  { key: "prog_oracion_cierre",   label: "Oración de cierre",            sort: 12 },
+  { key: "prog_flyer",            label: "Flyer",                        sort: 13 },
 ];
 
 // Checklist por tipo de actividad — secciones prog_ / coord_ / log_
@@ -530,14 +541,12 @@ const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort
 
 export function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
   if (activityType === "servicio_bautismal") {
-    // Full sectioned checklist: same program + coord items as any activity,
-    // plus 3 baptism-specific items that go in the coordinacion section
     return [
-      ...PROG_BASE_ITEMS,
+      ...PROG_BAUTISMO_ITEMS,
       ...COORD_BASE_ITEMS,
-      { key: "entrevista_bautismal", label: "Entrevista bautismal completada", sort: 16 },
+      { key: "entrevista_bautismal", label: "Entrevista bautismal completada",    sort: 16 },
       { key: "ropa_bautismal",       label: "Designado recojo de ropa bautismal", sort: 17 },
-      { key: "visibilidad_evento",   label: "Visibilidad del evento definida", sort: 18 },
+      { key: "visibilidad_evento",   label: "Visibilidad del evento definida",     sort: 18 },
     ];
   }
   return CHECKLIST_BY_TYPE[activityType] ?? CHECKLIST_BY_TYPE["otro"];
