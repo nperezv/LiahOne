@@ -1036,6 +1036,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   `);
   await db.execute(sql`ALTER TABLE interview_requests ADD COLUMN IF NOT EXISTS preferred_date text DEFAULT ''`);
   await db.execute(sql`ALTER TABLE interview_requests ADD COLUMN IF NOT EXISTS preferred_time text DEFAULT ''`);
+  await db.execute(sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS baptism_subtype text`);
+  // Backfill: mark existing baptism_service_id activities as 'convert'
+  await db.execute(sql`
+    UPDATE activities SET baptism_subtype = 'convert'
+    WHERE type = 'servicio_bautismal' AND baptism_service_id IS NOT NULL AND baptism_subtype IS NULL
+  `);
+  // Add prog_flyer to existing servicio_bautismal activities that don't have it
+  await db.execute(sql`
+    INSERT INTO activity_checklist_items (activity_id, item_key, label, sort_order, completed)
+    SELECT a.id, 'prog_flyer', 'Flyer', 9, false
+    FROM activities a
+    WHERE a.type = 'servicio_bautismal'
+      AND NOT EXISTS (
+        SELECT 1 FROM activity_checklist_items ci
+        WHERE ci.activity_id = a.id AND ci.item_key = 'prog_flyer'
+      )
+  `);
   // Auto-migration: add requires_registration to activities if missing
   await db.execute(sql`
     ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NOT NULL DEFAULT false

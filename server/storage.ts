@@ -461,6 +461,7 @@ const BAPTISM_EXTRA_CHECKLIST_ITEMS = [
   { key: "entrevista_bautismal", label: "Entrevista bautismal completada", sort: 1 },
   { key: "ropa_bautismal", label: "Designado recojo de ropa bautismal", sort: 7 },
   { key: "visibilidad_evento", label: "Visibilidad del evento definida (público o privado)", sort: 8 },
+  { key: "prog_flyer", label: "Flyer", sort: 9 },
 ];
 
 // Checklist por tipo de actividad — secciones prog_ / coord_ / log_

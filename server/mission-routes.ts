@@ -471,9 +471,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           type: "servicio_bautismal",
           status: "borrador",
           baptismServiceId,
+          baptismSubtype: "convert",
           organizationId: unitId,
           createdBy: userId,
-        });
+        } as any);
       }
     }
 
