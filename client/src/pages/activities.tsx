@@ -997,24 +997,21 @@ function SectionEditDialog({
   );
 }
 
-function BaptismChecklistPanel({
-  items, activityId, sectionData, flyerUrl, canUploadFlyer, canEditPrograma, activityType, activityOrgId,
+// Handles the publish-program link for niño inscrito baptism activities
+function BaptismPublishPanel({
+  activityId, sectionData, approvalStatus, canPublish,
 }: {
-  items: ChecklistItem[];
   activityId: string;
   sectionData: Record<string, string>;
-  flyerUrl?: string | null;
-  canUploadFlyer: boolean;
-  canEditPrograma: boolean;
-  activityType: string;
-  activityOrgId?: string | null;
+  approvalStatus?: string | null;
+  canPublish: boolean;
 }) {
-  const [editSection, setEditSection] = useState<"programa" | "coordinacion" | null>(null);
   const [publishing, setPublishing] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const existingLink = sectionData["programa_publico_url"] ?? null;
+  const isApproved = approvalStatus === "approved";
 
   const publishProgram = async () => {
     setPublishing(true);
@@ -1028,7 +1025,7 @@ function BaptismChecklistPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al publicar");
       qc.invalidateQueries({ queryKey: ["/api/activities"] });
-      toast({ title: "Programa publicado", description: `Enlace válido 24h desde la fecha del servicio` });
+      toast({ title: "Programa publicado", description: "Enlace válido 24h desde la fecha del servicio" });
     } catch (e: any) {
       toast({ title: "Error al publicar", description: e.message, variant: "destructive" });
     } finally {
@@ -1036,173 +1033,52 @@ function BaptismChecklistPanel({
     }
   };
 
-  const bySection: Record<"programa" | "coordinacion", ChecklistItem[]> = { programa: [], coordinacion: [] };
-  for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
-
-  const countable = items.filter(i => i.itemKey !== "prog_flyer");
-  const total = countable.length;
-  const doneCount = countable.filter(i => i.completed).length;
-
-  const progRequired = getProgRequired(activityType);
-  const progFullDone = progRequired.every(k => {
-    const item = items.find(i => i.itemKey === k);
-    return !item || item.completed;
-  });
-
-  const groupStatus = (grp: ChecklistItem[]) => {
-    const done = grp.filter(i => i.itemKey !== "prog_flyer" && i.completed).length;
-    const tot  = grp.filter(i => i.itemKey !== "prog_flyer").length;
-    if (tot > 0 && done === tot) return "completed" as const;
-    if (done > 0) return "in_progress" as const;
-    return "pending" as const;
-  };
-
-  const STATUS_CFG = {
-    completed:   { label: "Completado",  cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-    in_progress: { label: "En progreso", cls: "bg-primary/10 text-primary" },
-    pending:     { label: "Pendiente",   cls: "bg-muted text-muted-foreground" },
-  };
-
-  const renderGroup = (sec: "programa" | "coordinacion") => {
-    const isCoord = sec === "coordinacion";
-    const locked = isCoord && !progFullDone;
-    const groupItems = bySection[sec];
-    const displayItems = groupItems.filter(i => i.itemKey !== "prog_flyer");
-    const st = groupStatus(groupItems);
-    const cfg = STATUS_CFG[st];
-    const allDone = st === "completed";
-    const someDone = st === "in_progress";
-    const groupLabel = isCoord ? "Logística y preparación bautismal" : "Programa y participantes";
-    const sectionLabel = isCoord ? "Coordinación" : "Programa del servicio";
-
+  if (existingLink) {
     return (
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{sectionLabel}</p>
-        <div className={`border rounded-lg px-3 py-3 transition-opacity ${allDone ? "border-primary/40 bg-primary/5" : ""} ${locked ? "opacity-50" : ""}`}>
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full shrink-0 ${allDone ? "bg-green-500" : someDone ? "bg-primary" : "bg-muted-foreground/30"}`} />
-            <span className="text-sm font-medium flex-1">{groupLabel}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.cls}`}>{cfg.label}</span>
+      <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Globe className="h-4 w-4 text-primary shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-primary">Programa publicado</p>
+            <a href={existingLink} target="_blank" rel="noopener noreferrer"
+              className="text-xs text-primary/80 hover:underline truncate block max-w-[220px]">
+              {existingLink}
+            </a>
           </div>
-          {displayItems.length > 0 && (
-            <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
-              {displayItems.map(item => {
-                const detail = sectionData[item.itemKey];
-                return (
-                  <AccordionItem key={item.id} value={item.id} className="border-b-0">
-                    <AccordionTrigger className="py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5">
-                      <div className="flex items-center gap-2 text-sm">
-                        {item.completed
-                          ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
-                          : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                        <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pl-6 pb-2">
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        {detail && detail !== "listo" ? (
-                          <p>{detail === "no_aplica" ? "No aplica" : detail}</p>
-                        ) : detail === "listo" ? (
-                          <p className="text-green-700">✓ Completado</p>
-                        ) : (
-                          <p className="italic">Sin datos aún</p>
-                        )}
-                        {item.completed && item.completedAt && (
-                          <p>✓{item.completedBy ? ` ${item.completedBy}` : ""}{` · ${new Date(item.completedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}`}</p>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                );
-              })}
-            </Accordion>
-          )}
-          {locked ? (
-            <p className="text-[10px] text-muted-foreground italic mt-2 pt-2 border-t border-border/30">Completa el Programa primero</p>
-          ) : canEditPrograma ? (
-            <div className="mt-2 pt-2 border-t border-border/30">
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
-                onClick={() => setEditSection(sec)}>
-                <Pencil className="h-3 w-3 mr-1" />
-                {allDone ? "Editar" : "Completar"}
-              </Button>
-            </div>
-          ) : null}
         </div>
+        {canPublish && isApproved && (
+          <Button size="sm" variant="outline" className="shrink-0 text-xs h-7 gap-1"
+            onClick={publishProgram} disabled={publishing}>
+            {publishing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            {publishing ? "..." : "Actualizar"}
+          </Button>
+        )}
       </div>
     );
-  };
+  }
+
+  if (!canPublish || !isApproved) return null;
 
   return (
-    <div className="space-y-4">
-      {bySection.programa.some(i => i.itemKey === "prog_flyer") && (
-        <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={{ type: activityType }} />
-      )}
-
-      {/* Public program link */}
-      {existingLink ? (
-        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <Globe className="h-4 w-4 text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-primary">Programa publicado</p>
-              <a href={existingLink} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-primary/80 hover:underline truncate block max-w-[200px]">
-                {existingLink}
-              </a>
-            </div>
-          </div>
-          {canEditPrograma && (
-            <Button size="sm" variant="outline" className="shrink-0 text-xs h-7"
-              onClick={publishProgram} disabled={publishing}>
-              {publishing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              <span className="ml-1">{publishing ? "..." : "Actualizar"}</span>
-            </Button>
-          )}
+    <button
+      onClick={publishProgram}
+      disabled={publishing}
+      className="w-full rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/40 bg-muted/30 hover:bg-muted/50 transition-all p-4 text-left group disabled:opacity-60"
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-full bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center shrink-0 transition-colors">
+          {publishing ? <Loader2 className="h-4 w-4 text-primary animate-spin" /> : <Globe className="h-4 w-4 text-primary" />}
         </div>
-      ) : canEditPrograma ? (
-        <button
-          onClick={publishProgram}
-          disabled={publishing}
-          className="w-full rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/40 bg-muted/30 hover:bg-muted/50 transition-all p-4 text-left group disabled:opacity-60"
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center shrink-0 transition-colors">
-              {publishing ? <Loader2 className="h-4 w-4 text-primary animate-spin" /> : <Globe className="h-4 w-4 text-primary" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">
-                {publishing ? "Publicando programa…" : "Publicar programa del servicio"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Genera el enlace público del díptico (válido 24h desde el día del bautismo)
-              </p>
-            </div>
-          </div>
-        </button>
-      ) : null}
-
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{doneCount} de {total} completados</span>
-        <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-green-500 transition-all" style={{ width: total > 0 ? `${(doneCount / total) * 100}%` : "0%" }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">
+            {publishing ? "Publicando programa…" : "Publicar programa del servicio"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Genera el enlace público del díptico (válido 24h desde el día del bautismo)
+          </p>
         </div>
       </div>
-      {renderGroup("programa")}
-      {renderGroup("coordinacion")}
-      {editSection && (
-        <SectionEditDialog
-          section={editSection}
-          items={bySection[editSection]}
-          activityId={activityId}
-          sectionData={sectionData}
-          open={true}
-          onOpenChange={v => { if (!v) setEditSection(null); }}
-          activityType={activityType}
-          activityOrgId={activityOrgId}
-        />
-      )}
-    </div>
+    </button>
   );
 }
 
@@ -1680,31 +1556,28 @@ function ActivityCard({
             <p className="text-sm text-muted-foreground">{activity.description}</p>
           )}
 
-          {/* Section panel */}
+          {/* Section panel — same visual for all activity types including servicio_bautismal */}
           {canSeeChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
-            activity.type === "servicio_bautismal" ? (
-              <BaptismChecklistPanel
-                items={activity.checklistItems}
-                activityId={activity.id}
-                sectionData={(activity as any).sectionData ?? {}}
-                flyerUrl={activity.flyerUrl}
-                canUploadFlyer={editMode ? canUploadFlyer : false}
-                canEditPrograma={editMode ? canEditPrograma : false}
-                activityType={activity.type}
-                activityOrgId={activity.organizationId}
-              />
-            ) : (
-              <SectionPanel
-                items={activity.checklistItems}
-                activityId={activity.id}
-                sectionData={(activity as any).sectionData ?? {}}
-                canEditPrograma={editMode ? canEditPrograma : false}
-                flyerUrl={activity.flyerUrl}
-                canUploadFlyer={editMode ? canUploadFlyer : false}
-                activityType={activity.type}
-                activityOrgId={activity.organizationId}
-              />
-            )
+            <SectionPanel
+              items={activity.checklistItems}
+              activityId={activity.id}
+              sectionData={(activity as any).sectionData ?? {}}
+              canEditPrograma={editMode ? canEditPrograma : false}
+              flyerUrl={activity.flyerUrl}
+              canUploadFlyer={editMode ? canUploadFlyer : false}
+              activityType={activity.type}
+              activityOrgId={activity.organizationId}
+            />
+          )}
+
+          {/* Publish public program link — baptism only, approved only */}
+          {activity.type === "servicio_bautismal" && canSeeChecklist && (
+            <BaptismPublishPanel
+              activityId={activity.id}
+              sectionData={(activity as any).sectionData ?? {}}
+              approvalStatus={activity.approvalStatus}
+              canPublish={canEditPrograma}
+            />
           )}
 
           {/* Flyer for non-checklist org activities */}
