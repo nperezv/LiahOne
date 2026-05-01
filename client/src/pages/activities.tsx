@@ -70,7 +70,6 @@ const activitySchema = z.object({
   location: z.string().optional(),
   organizationId: z.string().optional(),
   type: z.enum(["servicio_bautismal", "deportiva", "capacitacion", "fiesta", "hermanamiento", "actividad_org", "otro"]),
-  baptismSubtype: z.enum(["convert", "child"]).optional(),
   isPublic: z.boolean().default(false),
   requiresRegistration: z.boolean().default(false),
 });
@@ -1287,12 +1286,12 @@ function ActivityCard({
                   <LayoutList className="h-2.5 w-2.5" /> Plan
                 </Badge>
               )}
-              {activity.type === "servicio_bautismal" && activity.baptismSubtype === "child" && (
+              {activity.type === "servicio_bautismal" && !activity.baptismServiceId && (
                 <Badge variant="outline" className="text-[10px] gap-1 border-sky-400 text-sky-600 dark:border-sky-500 dark:text-sky-400">
                   🧒 Niño inscrito
                 </Badge>
               )}
-              {activity.type === "servicio_bautismal" && activity.baptismSubtype === "convert" && (
+              {activity.type === "servicio_bautismal" && activity.baptismServiceId && (
                 <Badge variant="outline" className="text-[10px] gap-1 border-teal-400 text-teal-600 dark:border-teal-500 dark:text-teal-400">
                   🕊️ Converso
                 </Badge>
@@ -1469,7 +1468,6 @@ export default function ActivitiesPage() {
         location: data.location || "",
         organizationId: organizationId,
         type: data.type,
-        baptismSubtype: data.type === "servicio_bautismal" ? (data.baptismSubtype ?? "child") : undefined,
         isPublic: data.isPublic,
         requiresRegistration: data.requiresRegistration,
         responsiblePerson: user?.name || "Sin asignar",
@@ -1581,31 +1579,6 @@ export default function ActivitiesPage() {
                         </FormItem>
                       )}
                     />
-
-                    {/* Baptism subtype — only shown when type = servicio_bautismal */}
-                    {form.watch("type") === "servicio_bautismal" && (
-                      <FormField
-                        control={form.control}
-                        name="baptismSubtype"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Tipo de bautismo</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona el tipo de bautismo" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="convert">🕊️ Converso (obra misional)</SelectItem>
-                                <SelectItem value="child">🧒 Niño inscrito (8 años)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
 
                     <FormField
                       control={form.control}

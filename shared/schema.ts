@@ -920,7 +920,7 @@ export const activities = pgTable("activities", {
   status: activityStatusEnum("status").notNull().default("borrador"),
   // baptism_service_id FK exists in DB but baptism_services has no Drizzle table object
   baptismServiceId: varchar("baptism_service_id"),
-  baptismSubtype: text("baptism_subtype"), // 'convert' | 'child' — only for servicio_bautismal
+  // baptism_subtype exists in DB for reference; logic uses baptismServiceId presence instead
   organizationId: varchar("organization_id").references(() => organizations.id),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
