@@ -2275,6 +2275,7 @@ const PROGRAM_ITEM_LABELS: Record<string, string> = {
   primer_mensaje: "Primer mensaje",
   numero_especial: "Número especial",
   segundo_mensaje: "Segundo mensaje",
+  testigos: "Testigos",
   ordenanza_bautismo: "Ordenanza: Efectúa la ordenanza del Bautismo",
   ordenanza_confirmacion: "Efectúa la ordenanza de la Confirmación",
   ultimo_himno: "Último himno",
@@ -2291,6 +2292,7 @@ const PROGRAM_ORDER = [
   "primer_mensaje",
   "numero_especial",
   "segundo_mensaje",
+  "testigos",
   "ordenanza_bautismo",
   "ordenanza_confirmacion",
   "ultimo_himno",
@@ -3115,6 +3117,18 @@ function BaptismalServiceSheet({
                       </ProgramRow>
                     );
                   })}
+                  <ProgramRow key="testigos" type="testigos">
+                    {editMode ? (
+                      <input
+                        className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                        value={programDraft["testigos"] ?? ""}
+                        placeholder="Nombres de los testigos"
+                        onChange={(e) => setProgramField("testigos", e.target.value)}
+                      />
+                    ) : (
+                      <p className="text-sm">{programDraft["testigos"] || <span className="text-muted-foreground/60">—</span>}</p>
+                    )}
+                  </ProgramRow>
                   {ordinanceConfirmKeys.map((type, idx) => {
                     const candidateName = serviceCandidates[idx]?.nombre;
                     const label = serviceCandidates.length > 1 ? `Confirmación de ${candidateName}` : "Confirmación";

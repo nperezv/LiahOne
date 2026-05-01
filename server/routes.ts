@@ -1266,8 +1266,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   try {
     const staleBaptism = await db.execute(sql`
       SELECT DISTINCT a.id FROM activities a
-      JOIN activity_checklist_items ci ON ci.activity_id = a.id
-      WHERE a.type = 'servicio_bautismal' AND ci.item_key = 'programa'
+      WHERE a.type = 'servicio_bautismal'
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_checklist_items ci2
+          WHERE ci2.activity_id = a.id AND ci2.item_key = 'prog_candidatos'
+        )
     `);
     for (const row of staleBaptism.rows as Array<{ id: string }>) {
       await db.execute(sql`DELETE FROM activity_checklist_items WHERE activity_id = ${row.id}`);

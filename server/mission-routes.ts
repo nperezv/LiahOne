@@ -1833,7 +1833,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       `);
 
       // Auto-mark "programa" checklist item if all required program fields are filled
-      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
+      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","testigos","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
       const savedMap = new Map(items.map((it) => [it.type, it.participantDisplayName]));
       const programComplete = PROGRAM_ORDER.every((t) => savedMap.get(t)?.trim());
       if (programComplete) {
@@ -1950,7 +1950,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       `);
 
       // Sync 'programa' item: mark complete if all program fields are filled
-      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
+      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","testigos","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
       const programItemsRows = await db.execute(sql`
         SELECT type, participant_display_name FROM baptism_program_items
         WHERE service_id = ${req.params.id}
