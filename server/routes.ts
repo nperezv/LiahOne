@@ -58,7 +58,7 @@ import bcrypt from "bcrypt";
 import { sendPushNotification, getVapidPublicKey, isPushConfigured } from "./push-service";
 import { registerInventoryRoutes } from "./inventory-routes";
 import Anthropic from "@anthropic-ai/sdk";
-import { createActivityTasksAndAssignments, autoCompleteAssignmentsForSection } from "./activity-task-helpers";
+import { createActivityTasksAndAssignments, autoCompleteAssignmentsForSection, reassignPendingTasksToNewOrgLider } from "./activity-task-helpers";
 import { registerMissionRoutes } from "./mission-routes";
 import { registerBaptismPublicRoutes } from "./baptism-public-routes";
 import { registerQuarterlyPlanRoutes } from "./quarterly-plan-routes";
@@ -2161,6 +2161,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         memberId: memberId || null,
       });
 
+      // New org lider_actividades: reassign pending fallback tasks from barrio lider
+      if (role === "lider_actividades" && finalOrganizationId) {
+        try {
+          await reassignPendingTasksToNewOrgLider({
+            newUserId: user.id,
+            newUserName: shortDisplayName || formalName,
+            organizationId: finalOrganizationId,
+          });
+        } catch (reassignErr) {
+          console.error("[POST /api/users] reassign tasks failed:", reassignErr);
+        }
+      }
+
       let callingName: string | undefined;
       if (memberId && memberForCalling) {
         const trimmedCallingOverride =
@@ -2300,6 +2313,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
+      }
+
+      // If user was just made lider_actividades for an org, reassign pending fallback tasks
+      if (updatedUser.role === "lider_actividades" && updatedUser.organizationId) {
+        try {
+          await reassignPendingTasksToNewOrgLider({
+            newUserId: updatedUser.id,
+            newUserName: updatedUser.displayName || updatedUser.name || "",
+            organizationId: updatedUser.organizationId,
+          });
+        } catch (reassignErr) {
+          console.error("[PATCH /api/users/:id] reassign tasks failed:", reassignErr);
+        }
       }
 
       // Sync nombre/apellidos back to linked member (bidireccional)
@@ -8614,6 +8640,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               url: `/actividades/${slug}`,
             });
           }
+        }
+      }
+
+      // Ensure logistics task exists for org lider_actividades (idempotent — creates only if missing)
+      if (activity.organizationId) {
+        try {
+          await createActivityTasksAndAssignments({
+            activityId: req.params.id,
+            activityTitle: activity.title,
+            activityDate: new Date((activity as any).date),
+            organizationId: activity.organizationId,
+            createdBy: user.id,
+          });
+        } catch (taskErr) {
+          console.error("[approve] logistics task creation failed:", taskErr);
         }
       }
 

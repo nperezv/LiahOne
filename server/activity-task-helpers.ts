@@ -5,7 +5,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { serviceTasks, users } from "@shared/schema";
+import { serviceTasks, users, organizations } from "@shared/schema";
 import { storage } from "./storage";
 import { sendPushNotification, isPushConfigured } from "./push-service";
 
@@ -30,15 +30,25 @@ export async function createActivityTasksAndAssignments(opts: {
   const { activityId, activityTitle, activityDate, organizationId, createdBy } = opts;
   const dateStr = fmtDate(activityDate);
 
-  // Find org lider_actividades (only the org's own lider, not barrio's)
+  // Find org lider_actividades; fall back to barrio lider if none assigned yet
   const [orgLider] = await db
     .select({ id: users.id, organizationId: users.organizationId })
     .from(users)
     .where(and(eq(users.role, "lider_actividades" as any), eq(users.organizationId, organizationId)))
     .limit(1);
 
-  // Only assign to the org's own lider_actividades
-  const liderIds: string[] = orgLider ? [orgLider.id] : [];
+  let effectiveLider = orgLider ?? null;
+  if (!effectiveLider) {
+    const [barrioLider] = await db
+      .select({ id: users.id, organizationId: users.organizationId })
+      .from(users)
+      .innerJoin(organizations, eq(organizations.id, users.organizationId))
+      .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
+      .limit(1);
+    effectiveLider = barrioLider ?? null;
+  }
+
+  const liderIds: string[] = effectiveLider ? [effectiveLider.id] : [];
 
   // Find org presidency (presidente, consejeros)
   const presidencyRows = await db.execute(sql`
@@ -144,6 +154,85 @@ export async function createActivityTasksAndAssignments(opts: {
     } catch (notifErr) {
       console.error("[createActivityTasksAndAssignments] notification error:", notifErr);
     }
+  }
+}
+
+/**
+ * Called when a new lider_actividades is assigned to an org.
+ * - Pending tasks that were falling back to the barrio lider → reassigned to the new lider + notify both.
+ * - In-progress tasks → notify barrio lider so they can decide to transfer manually.
+ */
+export async function reassignPendingTasksToNewOrgLider(opts: {
+  newUserId: string;
+  newUserName: string;
+  organizationId: string;
+}) {
+  const { newUserId, newUserName, organizationId } = opts;
+
+  // Find the barrio lider (tasks were assigned here as fallback)
+  const [barrioLider] = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .innerJoin(organizations, eq(organizations.id, users.organizationId))
+    .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
+    .limit(1);
+
+  if (!barrioLider || barrioLider.id === newUserId) return;
+
+  // Reassign pending tasks for this org from barrio lider → new org lider
+  const reassigned = await db.execute(sql`
+    UPDATE service_tasks
+    SET assigned_to = ${newUserId}, updated_at = NOW()
+    WHERE organization_id = ${organizationId}
+      AND assigned_to = ${barrioLider.id}
+      AND status = 'pending'
+    RETURNING id, title
+  `);
+
+  // Find in-progress tasks that still belong to barrio lider for this org
+  const inProgressRows = await db.execute(sql`
+    SELECT id, title FROM service_tasks
+    WHERE organization_id = ${organizationId}
+      AND assigned_to = ${barrioLider.id}
+      AND status = 'in_progress'
+  `);
+
+  const orgRow = await db.execute(sql`SELECT name FROM organizations WHERE id = ${organizationId} LIMIT 1`);
+  const orgName = (orgRow.rows[0] as any)?.name ?? "la organización";
+
+  // Notify new lider about their reassigned tasks
+  if (reassigned.rows.length > 0) {
+    try {
+      await storage.createNotification({
+        userId: newUserId,
+        type: "reminder",
+        title: "Tareas de logística asignadas",
+        description: `Se te asignaron ${reassigned.rows.length} tarea(s) de logística de ${orgName}`,
+        relatedId: organizationId,
+        isRead: false,
+      });
+      if (isPushConfigured()) {
+        await sendPushNotification(newUserId, {
+          title: "Tareas de logística asignadas",
+          body: `${reassigned.rows.length} tarea(s) de logística de ${orgName}`,
+          url: "/activity-logistics",
+        });
+      }
+    } catch (_) {}
+  }
+
+  // Notify barrio lider about in-progress tasks they need to transfer manually
+  if ((inProgressRows.rows as any[]).length > 0) {
+    try {
+      await storage.createNotification({
+        userId: barrioLider.id,
+        type: "reminder",
+        title: "Transferir tareas de logística",
+        description: `${orgName} tiene un nuevo lider de actividades (${newUserName}). Hay ${(inProgressRows.rows as any[]).length} tarea(s) en progreso que puedes transferirle.`,
+        relatedId: organizationId,
+        isRead: false,
+      });
+    } catch (_) {}
   }
 }
 
