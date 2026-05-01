@@ -1945,7 +1945,8 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           (${activity.id}, 'presupuesto_refrigerio','Solicitud de presupuesto para refrigerio (si aplica)',4, false),
           (${activity.id}, 'limpieza',              'Limpieza de ambientes al terminar el servicio',       5, false),
           (${activity.id}, 'ropa_bautismal',        'Ropa bautismal coordinada',                           6, false),
-          (${activity.id}, 'entrevista_bautismal',  'Candidatos han completado la entrevista bautismal',   7, false)
+          (${activity.id}, 'entrevista_bautismal',  'Candidatos han completado la entrevista bautismal',   7, false),
+          (${activity.id}, 'prog_flyer',            'Flyer',                                               8, false)
         ON CONFLICT (activity_id, item_key) DO UPDATE SET label = EXCLUDED.label
       `);
 

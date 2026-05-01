@@ -1265,10 +1265,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-migration: regenerate checklist for baptism activities that still use legacy keys
   // (programa, espacio_calendario, etc.) — replace with full prog_* + coord_* + baptism items
   try {
-    // First, clean up any converso activity that was accidentally given PROG_BAUTISMO_ITEMS
+    // Clean up any converso activity accidentally given PROG_BAUTISMO_ITEMS, but keep prog_flyer
     await db.execute(sql`
       DELETE FROM activity_checklist_items
       WHERE (item_key LIKE 'prog_%' OR item_key LIKE 'coord_%')
+        AND item_key != 'prog_flyer'
         AND activity_id IN (
           SELECT id FROM activities
           WHERE type = 'servicio_bautismal' AND baptism_service_id IS NOT NULL

@@ -1556,45 +1556,29 @@ function ActivityCard({
             <p className="text-sm text-muted-foreground">{activity.description}</p>
           )}
 
-          {/* Converso baptism — checklist managed in Obra Misional, show reference only */}
-          {activity.type === "servicio_bautismal" && activity.baptismServiceId ? (
-            canSeeChecklist && (
-              <div className="rounded-lg border border-dashed border-teal-300 bg-teal-50/50 dark:bg-teal-900/10 px-3 py-3 flex items-center gap-2.5">
-                <span className="text-lg">🕊️</span>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-teal-700 dark:text-teal-400">Bautismo de converso</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    El programa y la coordinación se gestionan desde{" "}
-                    <a href="/mission-work" className="underline hover:text-foreground">Obra Misional</a>.
-                  </p>
-                </div>
-              </div>
-            )
-          ) : (
-            <>
-              {/* Niño inscrito — full SectionPanel */}
-              {canSeeChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
-                <SectionPanel
-                  items={activity.checklistItems}
-                  activityId={activity.id}
-                  sectionData={(activity as any).sectionData ?? {}}
-                  canEditPrograma={editMode ? canEditPrograma : false}
-                  flyerUrl={activity.flyerUrl}
-                  canUploadFlyer={editMode ? canUploadFlyer : false}
-                  activityType={activity.type}
-                  activityOrgId={activity.organizationId}
-                />
-              )}
-              {/* Publish public program link — niño inscrito only, approved only */}
-              {activity.type === "servicio_bautismal" && canSeeChecklist && (
-                <BaptismPublishPanel
-                  activityId={activity.id}
-                  sectionData={(activity as any).sectionData ?? {}}
-                  approvalStatus={activity.approvalStatus}
-                  canPublish={canEditPrograma}
-                />
-              )}
-            </>
+          {/* Section panel */}
+          {canSeeChecklist && activity.checklistItems && activity.checklistItems.length > 0 && (
+            <SectionPanel
+              items={activity.checklistItems}
+              activityId={activity.id}
+              sectionData={(activity as any).sectionData ?? {}}
+              // Converso: sections read-only (managed in Obra Misional), but flyer stays editable
+              canEditPrograma={activity.baptismServiceId ? false : (editMode ? canEditPrograma : false)}
+              flyerUrl={activity.flyerUrl}
+              canUploadFlyer={editMode ? canUploadFlyer : false}
+              activityType={activity.type}
+              activityOrgId={activity.organizationId}
+            />
+          )}
+
+          {/* Publish public program link — niño inscrito only, after bishop approval */}
+          {activity.type === "servicio_bautismal" && !activity.baptismServiceId && canSeeChecklist && (
+            <BaptismPublishPanel
+              activityId={activity.id}
+              sectionData={(activity as any).sectionData ?? {}}
+              approvalStatus={activity.approvalStatus}
+              canPublish={canEditPrograma}
+            />
           )}
 
           {/* Flyer for non-checklist org activities */}
