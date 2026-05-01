@@ -2476,18 +2476,30 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const mm = String(svcDate.getUTCMonth() + 1).padStart(2, "0");
         const yyyy = svcDate.getUTCFullYear();
         const serviceDateStr = `${dd}/${mm}/${yyyy}`;
-        const [liderActividades] = await db
+        // Find CE + RS lider_actividades (both receive the logistics task)
+        const ceRsLideres = await db
+          .select({ id: users.id, organizationId: users.organizationId, email: users.email, name: users.name })
+          .from(users)
+          .innerJoin(organizations, eq(organizations.id, users.organizationId))
+          .where(and(
+            eq(users.role, "lider_actividades" as any),
+            inArray(organizations.type as any, ["cuorum_elderes", "sociedad_socorro"])
+          ));
+        // Fallback: ward-level lider_actividades if no org-level ones found
+        const lideresForTask = ceRsLideres.length > 0 ? ceRsLideres : await db
           .select({ id: users.id, organizationId: users.organizationId, email: users.email, name: users.name })
           .from(users)
           .innerJoin(organizations, eq(organizations.id, users.organizationId))
           .where(and(eq(users.role, "lider_actividades" as any), eq(organizations.type, "barrio" as any)))
           .limit(1);
+
         // Logistics deadline: service_at - 3 days (min 1 day from now)
         const logisticsDue = new Date(svcDate.getTime() - 3 * 24 * 60 * 60 * 1000);
         const minDue = new Date(Date.now() + 24 * 60 * 60 * 1000);
         const logisticsDueDate = logisticsDue > minDue ? logisticsDue : minDue;
 
-        if (liderActividades) {
+        const wardNameTask = (await storage.getPdfTemplate())?.wardName ?? null;
+        for (const liderActividades of lideresForTask) {
           await db.insert(serviceTasks).values({
             baptismServiceId: service.id,
             assignedTo: liderActividades.id,
@@ -2515,7 +2527,6 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
             });
           }
           if (liderActividades.email) {
-            const wardNameTask = (await storage.getPdfTemplate())?.wardName ?? null;
             await sendAgendaReminderEmail({
               toEmail: liderActividades.email,
               subject: "Nueva tarea de logística bautismal",
@@ -2531,7 +2542,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
               wardName: wardNameTask,
             });
           }
-        }
+        } // end for lideresForTask
 
         // Task for mission_leader: stay on top of logistics coordination
         const [missionLeaderForTask] = await db

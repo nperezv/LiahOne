@@ -1627,6 +1627,11 @@ export default function ActivitiesPage() {
   const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user?.role || "");
   const isObispado = user?.role === "obispo" || user?.role === "consejero_obispo";
   const isLiderActividades = user?.role === "lider_actividades";
+  const isTechSpecialist = user?.role === "technology_specialist";
+  // Org-level roles (CE, RS, etc.) filter activities to their org, like org members
+  const isOrgLevelActivitiesRole = (isLiderActividades || isTechSpecialist) &&
+    !!user?.organizationType && !["barrio", "obispado"].includes(user.organizationType ?? "");
+  const isOrgMemberOrOrgActivities = isOrgMember || isOrgLevelActivitiesRole;
   const canManage =
     isObispado ||
     user?.role === "secretario" ||
@@ -1644,7 +1649,7 @@ export default function ActivitiesPage() {
   // Filter activities based on user role, then by archive toggle
   const [showArchive, setShowArchive] = useState(false);
   const now = new Date();
-  const roleFilteredActivities = isOrgMember
+  const roleFilteredActivities = isOrgMemberOrOrgActivities
     ? activities.filter((a: any) => a.organizationId === user?.organizationId)
     : activities;
   const filteredActivities = roleFilteredActivities.filter((a: any) => showArchive
@@ -1659,14 +1664,14 @@ export default function ActivitiesPage() {
       description: "",
       date: "",
       location: "",
-      organizationId: isOrgMember ? user?.organizationId || "" : "",
+      organizationId: isOrgMemberOrOrgActivities ? user?.organizationId || "" : "",
       type: "otro",
       isPublic: false,
     },
   });
 
   const onSubmit = (data: ActivityFormValues) => {
-    const organizationId = isOrgMember ? user?.organizationId : data.organizationId || undefined;
+    const organizationId = isOrgMemberOrOrgActivities ? user?.organizationId : data.organizationId || undefined;
 
     createMutation.mutate(
       {

@@ -2527,12 +2527,13 @@ function BaptismalServiceSheet({
 
   // Fetch service task for logistics status (used by obispo + mission leader)
   // Specifically finds the lider_actividades task (not mission_leader_logistics)
-  const serviceTaskQuery = useQuery<{ id: string; status: string; assigned_to: string; assigned_role: string; assignedUserName?: string } | null>({
+  const serviceTaskQuery = useQuery<Array<{ id: string; status: string; assigned_to: string; assigned_role: string; assignedUserName?: string }>>({
     queryKey: ["/api/service-tasks", service?.id],
     queryFn: async () => {
       const tasks = await missionFetch(`/api/service-tasks`);
-      const all = (tasks as any[]).filter((t: any) => t.baptism_service_id === service?.id);
-      return all.find((t: any) => t.assigned_role === "lider_actividades") ?? all[0] ?? null;
+      return (tasks as any[]).filter((t: any) =>
+        t.baptism_service_id === service?.id && t.assigned_role === "lider_actividades"
+      );
     },
     enabled: open && !!service?.id && showLogisticsStatus,
   });
@@ -2782,8 +2783,8 @@ function BaptismalServiceSheet({
 
   const checklistData = checklistQuery.data;
 
-  const logisticsTaskDone = serviceTaskQuery.data?.assigned_role === "lider_actividades"
-    && serviceTaskQuery.data?.status === "completed";
+  const logisticsTaskDone = (serviceTaskQuery.data?.length ?? 0) > 0
+    && serviceTaskQuery.data!.every(t => t.status === "completed");
 
   const visibleChecklistItems = useMemo(() => {
     if (!checklistData?.items) return null;
@@ -2909,7 +2910,7 @@ function BaptismalServiceSheet({
                   { key: "agenda",       label: "Programa",     done: programComplete,        canClick: true },
                   { key: "coordinacion", label: "Coordinación", done: coordComplete,           canClick: true },
                   { key: "aprobacion",   label: "Aprobación",   done: approved,               canClick: true },
-                  { key: "checklist",    label: "Resumen",      done: !!serviceTaskQuery.data, canClick: approved },
+                  { key: "checklist",    label: "Resumen",      done: (serviceTaskQuery.data?.length ?? 0) > 0, canClick: approved },
                 ]
               : [
                   { key: "agenda",       label: "Programa",     done: programComplete,    canClick: true },
@@ -3352,16 +3353,21 @@ function BaptismalServiceSheet({
                           </div>
                           <div>
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Líder de actividades</p>
-                            {task ? (
+                            {(serviceTaskQuery.data?.length ?? 0) > 0 ? (
                               <div className={`border rounded-lg px-3 py-3 ${logEffectiveStatus === "completed" ? "border-primary/40 bg-primary/5" : ""}`}>
                                 <div className="flex items-center gap-2">
                                   <span className={`h-2 w-2 rounded-full shrink-0 ${logEffectiveStatus === "completed" ? "bg-green-500" : logEffectiveStatus === "in_progress" ? "bg-primary" : "bg-muted-foreground/30"}`} />
                                   <span className="text-sm font-medium flex-1">Logística</span>
                                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{statusLabel}</span>
                                 </div>
-                                {task.assignedUserName && (
-                                  <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
-                                )}
+                                {serviceTaskQuery.data!.map(t => (
+                                  <div key={t.id} className="flex items-center justify-between text-xs text-muted-foreground mt-1 pl-4">
+                                    <span>{t.assignedUserName ?? "Líder de actividades"}</span>
+                                    <span className={t.status === "completed" ? "text-green-700 font-medium" : t.status === "in_progress" ? "text-primary" : ""}>
+                                      {t.status === "completed" ? "Completado" : t.status === "in_progress" ? "En progreso" : "Pendiente"}
+                                    </span>
+                                  </div>
+                                ))}
                                 {logisticsItems.length > 0 && (
                                   <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
                                     {logisticsItems.map((item: any) => {
@@ -3449,6 +3455,7 @@ function BaptismalServiceSheet({
                             ) : (
                               <div className="space-y-1">{logisticsItems.map(renderItem)}</div>
                             )}
+                            {/* logisticsItems accordion ends here */}
                           </div>
                         </div>
                       );
@@ -4139,7 +4146,8 @@ function BaptismalServiceSheet({
 
                       {/* Logistics status card — obispo + líder misional */}
                       {showLogisticsStatus && (() => {
-                        const task = serviceTaskQuery.data;
+                        const tasks = serviceTaskQuery.data ?? [];
+                        const firstTask = tasks[0];
                         // Derive status from checklist items (source of truth — synced on every save)
                         // Fall back to task.status only if no checklist items exist yet
                         const logChkItems = (checklistData?.items as any[] | undefined)?.filter((i: any) =>
@@ -4147,9 +4155,13 @@ function BaptismalServiceSheet({
                         ) ?? [];
                         const chkAllDone = logChkItems.length > 0 && logChkItems.every((i: any) => i.completed);
                         const chkSomeDone = logChkItems.some((i: any) => i.completed);
+                        const taskStatus = tasks.length > 0
+                          ? (tasks.every(t => t.status === "completed") ? "completed"
+                            : tasks.some(t => t.status !== "pending") ? "in_progress" : "pending")
+                          : "pending";
                         const effectiveStatus = logChkItems.length > 0
                           ? (chkAllDone ? "completed" : chkSomeDone ? "in_progress" : "pending")
-                          : (task?.status ?? "pending");
+                          : taskStatus;
                         const statusLabel = effectiveStatus === "completed" ? "Completado"
                           : effectiveStatus === "in_progress" ? "En progreso"
                           : "Pendiente";
@@ -4168,9 +4180,22 @@ function BaptismalServiceSheet({
                                 : "bg-muted text-muted-foreground"
                               }`}>{statusLabel}</span>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1.5 pl-4">
-                              Reserva de ambientes, arreglo y preparación, equipo, refrigerio y limpieza — a cargo del líder de actividades
-                            </p>
+                            {tasks.length > 0 ? (
+                              <div className="mt-1.5 pl-4 space-y-0.5">
+                                {tasks.map(t => (
+                                  <div key={t.id} className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{t.assignedUserName ?? "Líder de actividades"}</span>
+                                    <span className={t.status === "completed" ? "text-green-700 font-medium" : t.status === "in_progress" ? "text-primary" : ""}>
+                                      {t.status === "completed" ? "✓" : t.status === "in_progress" ? "En progreso" : "Pendiente"}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-1.5 pl-4">
+                                Reserva de ambientes, arreglo y preparación, equipo, refrigerio y limpieza
+                              </p>
+                            )}
                           </div>
                         );
                       })()}
