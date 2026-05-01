@@ -1253,6 +1253,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] checklist regeneration error:", e);
   }
 
+  // Auto-migration: regenerate checklist for baptism activities that still use legacy keys
+  // (programa, espacio_calendario, etc.) — replace with full prog_* + coord_* + baptism items
+  try {
+    const staleBaptism = await db.execute(sql`
+      SELECT DISTINCT a.id FROM activities a
+      JOIN activity_checklist_items ci ON ci.activity_id = a.id
+      WHERE a.type = 'servicio_bautismal' AND ci.item_key = 'programa'
+    `);
+    for (const row of staleBaptism.rows as Array<{ id: string }>) {
+      await db.execute(sql`DELETE FROM activity_checklist_items WHERE activity_id = ${row.id}`);
+      const defs = getDefaultChecklistItems("servicio_bautismal");
+      for (const item of defs) {
+        await db.execute(sql`
+          INSERT INTO activity_checklist_items (id, activity_id, item_key, label, completed, sort_order)
+          VALUES (${crypto.randomUUID()}, ${row.id}, ${item.key}, ${item.label}, false, ${item.sort})
+        `);
+      }
+    }
+    if (staleBaptism.rows.length > 0) {
+      console.log(`[Migration] Regenerated baptism checklists for ${staleBaptism.rows.length} activities`);
+    }
+  } catch (e) {
+    console.error("[Migration] baptism checklist regeneration error:", e);
+  }
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET,

@@ -529,9 +529,16 @@ const CHECKLIST_BY_TYPE: Record<string, Array<{ key: string; label: string; sort
 };
 
 export function getDefaultChecklistItems(activityType: string): Array<{ key: string; label: string; sort: number }> {
-  // Baptism gets the legacy base + extra items (no section prefixes)
   if (activityType === "servicio_bautismal") {
-    return [...BASE_CHECKLIST_ITEMS, ...BAPTISM_EXTRA_CHECKLIST_ITEMS];
+    // Full sectioned checklist: same program + coord items as any activity,
+    // plus 3 baptism-specific items that go in the coordinacion section
+    return [
+      ...PROG_BASE_ITEMS,
+      ...COORD_BASE_ITEMS,
+      { key: "entrevista_bautismal", label: "Entrevista bautismal completada", sort: 16 },
+      { key: "ropa_bautismal",       label: "Designado recojo de ropa bautismal", sort: 17 },
+      { key: "visibilidad_evento",   label: "Visibilidad del evento definida", sort: 18 },
+    ];
   }
   return CHECKLIST_BY_TYPE[activityType] ?? CHECKLIST_BY_TYPE["otro"];
 }

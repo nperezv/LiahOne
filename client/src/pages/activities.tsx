@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink, Upload, FileCheck } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink, Upload, FileCheck, Shirt } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
 import { normalizeMemberName } from "@/lib/utils";
@@ -216,6 +216,7 @@ const SECTION_CONFIG = {
 
 function sectionOfKey(key: string): "programa" | "coordinacion" {
   if (key.startsWith("coord_")) return "coordinacion";
+  if (["entrevista_bautismal", "ropa_bautismal", "visibilidad_evento"].includes(key)) return "coordinacion";
   return "programa";
 }
 
@@ -285,13 +286,15 @@ const MSG_KEYS  = new Set(["prog_mensaje_1"]);
 type ArregloTask = { persona: string; asignacion: string };
 
 function CoordSectionForm({
-  activityId, sectionData, memberOptions, onSaved,
+  activityId, sectionData, memberOptions, onSaved, activityType,
 }: {
   activityId: string;
   sectionData: Record<string, string>;
   memberOptions: MemberOption[];
   onSaved: () => void;
+  activityType?: string;
 }) {
+  const isBautismo = activityType === "servicio_bautismal";
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -320,6 +323,11 @@ function CoordSectionForm({
     () => parseArr("coord_limpieza_responsables", [""])
   );
   const [limpiezaNotas, setLimpiezaNotas] = useState(sectionData["coord_limpieza_notas"] ?? "");
+
+  // Baptism-specific items (only shown when activityType === "servicio_bautismal")
+  const [entrevistaDetalle, setEntrevistaDetalle] = useState(sectionData["entrevista_bautismal"] ?? "");
+  const [ropaDetalle, setRopaDetalle] = useState(sectionData["ropa_bautismal"] ?? "");
+  const [visibilidadValor, setVisibilidadValor] = useState(sectionData["visibilidad_evento"] ?? "");
 
   async function uploadReceipt(file: File) {
     setUploadingReceipt(true);
@@ -371,6 +379,11 @@ function CoordSectionForm({
         coord_refrigerio_presupuesto:       refrigerioPresupuesto ? "true" : "false",
         coord_limpieza_responsables:        JSON.stringify(limpiezaResponsables.filter(r => r.trim())),
         coord_limpieza_notas:               limpiezaNotas,
+        ...(isBautismo && {
+          entrevista_bautismal: entrevistaDetalle.trim(),
+          ropa_bautismal:       ropaDetalle.trim(),
+          visibilidad_evento:   visibilidadValor.trim(),
+        }),
       };
       return apiRequest("PATCH", `/api/activities/${activityId}/section`, { section: "coordinacion", fields });
     },
@@ -393,17 +406,23 @@ function CoordSectionForm({
   const secEquipo     = !!equipoResponsable.trim();
   const secRefrigerio = !refrigerioAplica || (refrigerioResponsables.some(r => r.trim()) && !!refrigerioDetalle.trim());
   const secLimpieza   = limpiezaResponsables.some(r => r.trim());
-  const completedCount = [secEspacio, secArreglo, secEquipo, secRefrigerio, secLimpieza].filter(Boolean).length;
+  const secEntrevista = isBautismo && !!entrevistaDetalle.trim();
+  const secRopa       = isBautismo && !!ropaDetalle.trim();
+  const secVisibilidad = isBautismo && !!visibilidadValor.trim();
+  const coordItems = [secEspacio, secArreglo, secEquipo, secRefrigerio, secLimpieza,
+    ...(isBautismo ? [secEntrevista, secRopa, secVisibilidad] : [])];
+  const totalCoord = coordItems.length;
+  const completedCount = coordItems.filter(Boolean).length;
 
   return (
     <div className="space-y-4 py-1">
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{completedCount} de 5 listos</span>
-          {completedCount === 5 && <span className="text-green-600 font-medium">Completo</span>}
+          <span>{completedCount} de {totalCoord} listos</span>
+          {completedCount === totalCoord && <span className="text-green-600 font-medium">Completo</span>}
         </div>
         <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-green-500 transition-all" style={{ width: `${(completedCount / 5) * 100}%` }} />
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${totalCoord > 0 ? (completedCount / totalCoord) * 100 : 0}%` }} />
         </div>
       </div>
 
@@ -645,6 +664,63 @@ function CoordSectionForm({
           </AccordionContent>
         </AccordionItem>
 
+        {/* Baptism-specific items */}
+        {isBautismo && (<>
+          <AccordionItem value="entrevista" className={itemCls(secEntrevista)}>
+            <AccordionTrigger className="py-3 hover:no-underline">
+              <div className="flex items-center gap-2 flex-1">
+                <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium">Entrevista bautismal</span>
+                <span className="ml-auto mr-2">{dot(secEntrevista)}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 pt-1">
+                <Label className="text-xs text-muted-foreground mb-1 block">Entrevistador y fecha(s)</Label>
+                <Textarea className="text-sm min-h-[56px] resize-none"
+                  placeholder="Ej: Hno. García — entrevistado el 15 de mayo"
+                  value={entrevistaDetalle} onChange={e => setEntrevistaDetalle(e.target.value)} />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="ropa" className={itemCls(secRopa)}>
+            <AccordionTrigger className="py-3 hover:no-underline">
+              <div className="flex items-center gap-2 flex-1">
+                <Shirt className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium">Ropa bautismal</span>
+                <span className="ml-auto mr-2">{dot(secRopa)}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 pt-1">
+                <Label className="text-xs text-muted-foreground mb-1 block">Responsable del recojo y fecha de prueba</Label>
+                <Textarea className="text-sm min-h-[56px] resize-none"
+                  placeholder="Ej: Hno. López — prueba el 14 de mayo a las 18h"
+                  value={ropaDetalle} onChange={e => setRopaDetalle(e.target.value)} />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="visibilidad" className={itemCls(secVisibilidad)}>
+            <AccordionTrigger className="py-3 hover:no-underline">
+              <div className="flex items-center gap-2 flex-1">
+                <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium">Visibilidad del evento</span>
+                <span className="ml-auto mr-2">{dot(secVisibilidad)}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 pt-1">
+                <Label className="text-xs text-muted-foreground mb-1 block">Público o privado</Label>
+                <Input className="text-sm h-8"
+                  placeholder="Público / Privado"
+                  value={visibilidadValor} onChange={e => setVisibilidadValor(e.target.value)} />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </>)}
+
       </Accordion>
 
       <Button className="w-full" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
@@ -803,6 +879,7 @@ function SectionEditDialog({
             sectionData={sectionData}
             memberOptions={allMemberOptions}
             onSaved={() => onOpenChange(false)}
+            activityType={activityType}
           />
         )}
         {section !== "coordinacion" && <div className="space-y-4 py-1">
@@ -902,12 +979,8 @@ function SectionEditDialog({
   );
 }
 
-// ── Keys that belong to each baptism group ───────────────────────────────────
-const BAPTISM_PREP_KEYS = ["entrevista_bautismal", "ropa_bautismal", "visibilidad_evento", "programa"];
-const BAPTISM_LOGISTICS_KEYS = ["espacio_calendario", "arreglo_espacios", "equipo_tecnologia", "presupuesto_refrigerio", "limpieza"];
-
 function BaptismChecklistPanel({
-  items, activityId, sectionData, flyerUrl, canUploadFlyer, canEditPrograma, activityType,
+  items, activityId, sectionData, flyerUrl, canUploadFlyer, canEditPrograma, activityType, activityOrgId,
 }: {
   items: ChecklistItem[];
   activityId: string;
@@ -916,27 +989,27 @@ function BaptismChecklistPanel({
   canUploadFlyer: boolean;
   canEditPrograma: boolean;
   activityType: string;
+  activityOrgId?: string | null;
 }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
+  const [editSection, setEditSection] = useState<"programa" | "coordinacion" | null>(null);
 
-  const toggleMut = useMutation({
-    mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
-      apiRequest("PATCH", `/api/activities/${activityId}/checklist/${itemId}`, { completed }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/activities"] }),
-    onError: () => toast({ title: "Error al actualizar", variant: "destructive" }),
-  });
+  const bySection: Record<"programa" | "coordinacion", ChecklistItem[]> = { programa: [], coordinacion: [] };
+  for (const item of items) bySection[sectionOfKey(item.itemKey)].push(item);
 
   const countable = items.filter(i => i.itemKey !== "prog_flyer");
   const total = countable.length;
   const doneCount = countable.filter(i => i.completed).length;
 
-  const prepItems = items.filter(i => BAPTISM_PREP_KEYS.includes(i.itemKey));
-  const logItems  = items.filter(i => BAPTISM_LOGISTICS_KEYS.includes(i.itemKey));
+  const progRequired = getProgRequired(activityType);
+  const progFullDone = progRequired.every(k => {
+    const item = items.find(i => i.itemKey === k);
+    return !item || item.completed;
+  });
 
   const groupStatus = (grp: ChecklistItem[]) => {
-    const done = grp.filter(i => i.completed).length;
-    if (grp.length > 0 && done === grp.length) return "completed" as const;
+    const done = grp.filter(i => i.itemKey !== "prog_flyer" && i.completed).length;
+    const tot  = grp.filter(i => i.itemKey !== "prog_flyer").length;
+    if (tot > 0 && done === tot) return "completed" as const;
     if (done > 0) return "in_progress" as const;
     return "pending" as const;
   };
@@ -947,97 +1020,101 @@ function BaptismChecklistPanel({
     pending:     { label: "Pendiente",   cls: "bg-muted text-muted-foreground" },
   };
 
-  const renderGroup = (groupItems: ChecklistItem[], cardTitle: string) => {
+  const renderGroup = (sec: "programa" | "coordinacion") => {
+    const isCoord = sec === "coordinacion";
+    const locked = isCoord && !progFullDone;
+    const groupItems = bySection[sec];
+    const displayItems = groupItems.filter(i => i.itemKey !== "prog_flyer");
     const st = groupStatus(groupItems);
     const cfg = STATUS_CFG[st];
     const allDone = st === "completed";
     const someDone = st === "in_progress";
+    const groupLabel = isCoord ? "Logística y preparación bautismal" : "Programa y participantes";
+    const sectionLabel = isCoord ? "Coordinación" : "Programa del servicio";
 
     return (
-      <div className={`border rounded-lg px-3 py-3 ${allDone ? "border-primary/40 bg-primary/5" : ""}`}>
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full shrink-0 ${allDone ? "bg-green-500" : someDone ? "bg-primary" : "bg-muted-foreground/30"}`} />
-          <span className="text-sm font-medium flex-1">{cardTitle}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.cls}`}>{cfg.label}</span>
-        </div>
-        {groupItems.length > 0 && (
-          <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
-            {groupItems.map((item) => {
-              const detail = sectionData[item.itemKey];
-              return (
-                <AccordionItem key={item.id} value={item.id} className="border-b-0">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={!canEditPrograma || toggleMut.isPending}
-                      onClick={e => {
-                        e.stopPropagation();
-                        if (canEditPrograma) toggleMut.mutate({ itemId: item.id, completed: !item.completed });
-                      }}
-                      className="shrink-0 disabled:opacity-40 disabled:cursor-default"
-                    >
-                      {item.completed
-                        ? <CheckSquare className="h-4 w-4 text-green-600" />
-                        : <Square className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-                    <AccordionTrigger className="flex-1 py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5">
-                      <span className={`text-sm ${item.completed ? "text-muted-foreground line-through" : ""}`}>
-                        {item.label}
-                      </span>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{sectionLabel}</p>
+        <div className={`border rounded-lg px-3 py-3 transition-opacity ${allDone ? "border-primary/40 bg-primary/5" : ""} ${locked ? "opacity-50" : ""}`}>
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${allDone ? "bg-green-500" : someDone ? "bg-primary" : "bg-muted-foreground/30"}`} />
+            <span className="text-sm font-medium flex-1">{groupLabel}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.cls}`}>{cfg.label}</span>
+          </div>
+          {displayItems.length > 0 && (
+            <Accordion type="multiple" className="mt-2 border-t border-border/30 pt-1">
+              {displayItems.map(item => {
+                const detail = sectionData[item.itemKey];
+                return (
+                  <AccordionItem key={item.id} value={item.id} className="border-b-0">
+                    <AccordionTrigger className="py-1.5 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5">
+                      <div className="flex items-center gap-2 text-sm">
+                        {item.completed
+                          ? <CheckSquare className="h-4 w-4 text-green-600 shrink-0" />
+                          : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.label}</span>
+                      </div>
                     </AccordionTrigger>
-                  </div>
-                  <AccordionContent className="pl-6 pb-2">
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      {detail && !["listo"].includes(detail) ? (
-                        <p>{detail === "no_aplica" ? "No aplica" : detail}</p>
-                      ) : item.notes ? (
-                        <p>{item.notes}</p>
-                      ) : (
-                        <p className="italic">Sin notas</p>
-                      )}
-                      {item.completed && (item.completedBy || item.completedAt) && (
-                        <p>
-                          ✓{item.completedBy ? ` ${item.completedBy}` : ""}
-                          {item.completedAt ? ` · ${new Date(item.completedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
-                        </p>
-                      )}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
-        )}
+                    <AccordionContent className="pl-6 pb-2">
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {detail && detail !== "listo" ? (
+                          <p>{detail === "no_aplica" ? "No aplica" : detail}</p>
+                        ) : detail === "listo" ? (
+                          <p className="text-green-700">✓ Completado</p>
+                        ) : (
+                          <p className="italic">Sin datos aún</p>
+                        )}
+                        {item.completed && item.completedAt && (
+                          <p>✓{item.completedBy ? ` ${item.completedBy}` : ""}{` · ${new Date(item.completedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}`}</p>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          )}
+          {locked ? (
+            <p className="text-[10px] text-muted-foreground italic mt-2 pt-2 border-t border-border/30">Completa el Programa primero</p>
+          ) : canEditPrograma ? (
+            <div className="mt-2 pt-2 border-t border-border/30">
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                onClick={() => setEditSection(sec)}>
+                <Pencil className="h-3 w-3 mr-1" />
+                {allDone ? "Editar" : "Completar"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   };
 
   return (
     <div className="space-y-4">
-      {/* Flyer */}
-      {items.some(i => i.itemKey === "prog_flyer") && (
+      {bySection.programa.some(i => i.itemKey === "prog_flyer") && (
         <FlyerGenerator activityId={activityId} flyerUrl={flyerUrl} canUpload={canUploadFlyer} activity={{ type: activityType }} />
       )}
-
-      {/* Progress bar */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">{doneCount} de {total} completados</span>
         <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
           <div className="h-full bg-green-500 transition-all" style={{ width: total > 0 ? `${(doneCount / total) * 100}%` : "0%" }} />
         </div>
       </div>
-
-      {/* Preparación bautismal */}
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Preparación bautismal</p>
-        {renderGroup(prepItems, "Bautismo y preparación")}
-      </div>
-
-      {/* Logística */}
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Logística</p>
-        {renderGroup(logItems, "Logística del servicio")}
-      </div>
+      {renderGroup("programa")}
+      {renderGroup("coordinacion")}
+      {editSection && (
+        <SectionEditDialog
+          section={editSection}
+          items={bySection[editSection]}
+          activityId={activityId}
+          sectionData={sectionData}
+          open={true}
+          onOpenChange={v => { if (!v) setEditSection(null); }}
+          activityType={activityType}
+          activityOrgId={activityOrgId}
+        />
+      )}
     </div>
   );
 }
@@ -1527,6 +1604,7 @@ function ActivityCard({
                 canUploadFlyer={editMode ? canUploadFlyer : false}
                 canEditPrograma={editMode ? canEditPrograma : false}
                 activityType={activity.type}
+                activityOrgId={activity.organizationId}
               />
             ) : (
               <SectionPanel
