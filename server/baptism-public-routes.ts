@@ -172,17 +172,15 @@ export function registerBaptismPublicRoutes(app: Express) {
           WHERE bpi.service_id = ${link.service_id}
         `),
         db.execute(sql`SELECT * FROM baptism_public_posts WHERE public_link_id = ${link.id} AND status = 'approved' ORDER BY created_at DESC`),
-        // Public: names + personaId for recipient selector (supports niño inscrito where persona_id is null)
+        // Public: names from mission_personas (converso) or program_items candidato_nombre (niño inscrito)
         db.execute(sql`
-          SELECT COALESCE(mp.id, bsc.id::text) AS persona_id,
-                 COALESCE(mp.nombre, bsc.nombre) AS nombre
+          SELECT mp.id AS persona_id, mp.nombre
           FROM baptism_service_candidates bsc
-          LEFT JOIN mission_personas mp ON mp.id = bsc.persona_id
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
           WHERE bsc.service_id = ${link.service_id}
-            AND COALESCE(mp.nombre, bsc.nombre) IS NOT NULL
-          ORDER BY COALESCE(mp.nombre, bsc.nombre)
+          ORDER BY mp.nombre
         `),
-        // Internal: for theme computation only — only populated for converso (has mission_persona)
+        // Internal: for theme computation (converso only)
         db.execute(sql`
           SELECT mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
           FROM baptism_service_candidates bsc
@@ -192,7 +190,12 @@ export function registerBaptismPublicRoutes(app: Express) {
         db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
       ]);
 
-      const candidates = (candPublicResult.rows as any[]).map((r) => ({ nombre: r.nombre as string, personaId: r.persona_id as string }));
+      // For niño inscrito (no mission_personas), fall back to candidato_nombre program items
+      let candidates = (candPublicResult.rows as any[]).map((r) => ({ nombre: r.nombre as string, personaId: r.persona_id as string }));
+      if (candidates.length === 0) {
+        const nameItems = (itemsResult.rows as any[]).filter((r) => r.type === "candidato_nombre");
+        candidates = nameItems.map((r) => ({ nombre: r.title as string, personaId: "" }));
+      }
       const theme = computeTheme((candThemeResult.rows as any[]).map((r) => ({
         sexo: r.sexo as string | null,
         fechaNacimiento: r.fechaNacimiento as string | null,

@@ -1253,10 +1253,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] checklist regeneration error:", e);
   }
 
-  // Auto-migration: baptism_service_candidates — add nombre column + make persona_id nullable
+  // Auto-migration: baptism_service_candidates — add nombre column (safe, idempotent)
+  // NOTE: persona_id cannot be made nullable (it is part of the PK). Niño inscrito candidates
+  // are stored as baptism_program_items with type='candidato_nombre' instead.
   try {
     await db.execute(sql`ALTER TABLE baptism_service_candidates ADD COLUMN IF NOT EXISTS nombre VARCHAR(255)`);
-    await db.execute(sql`ALTER TABLE baptism_service_candidates ALTER COLUMN persona_id DROP NOT NULL`);
   } catch (e) {
     console.error("[Migration] baptism_service_candidates schema error:", e);
   }
@@ -8785,16 +8786,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           WHERE id = ${serviceId}
         `);
         await db.execute(sql`DELETE FROM baptism_program_items WHERE service_id = ${serviceId}`);
-        await db.execute(sql`DELETE FROM baptism_service_candidates WHERE service_id = ${serviceId} AND persona_id IS NULL`);
       }
 
-      // Candidates from prog_candidatos (one per line or comma-separated)
+      // Candidate names: stored as program items (type='candidato_nombre') at order 0.
+      // We do NOT use baptism_service_candidates here because persona_id is NOT NULL PK.
       const candidatosText = (sectionData["prog_candidatos"] ?? "").trim();
       const names = candidatosText.split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
-      for (const nombre of names) {
+      for (let i = 0; i < names.length; i++) {
         await db.execute(sql`
-          INSERT INTO baptism_service_candidates (service_id, persona_id, nombre)
-          VALUES (${serviceId}, NULL, ${nombre})
+          INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, public_visibility, updated_by, updated_at)
+          VALUES (${serviceId}, 'candidato_nombre', ${i}, ${names[i]}, false, ${user.id}, NOW())
         `);
       }
 

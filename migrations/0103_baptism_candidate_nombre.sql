@@ -1,6 +1,3 @@
--- Allow niño inscrito baptisms: candidates without a mission_persona record
-ALTER TABLE baptism_service_candidates
-  ADD COLUMN IF NOT EXISTS nombre VARCHAR(255);
-
-ALTER TABLE baptism_service_candidates
-  ALTER COLUMN persona_id DROP NOT NULL;
+-- No schema changes needed for niño inscrito baptisms.
+-- Candidate names are stored as baptism_program_items (type='candidato_nombre').
+-- persona_id cannot be made nullable because it is part of the primary key.
