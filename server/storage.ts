@@ -1886,7 +1886,9 @@ export class DatabaseStorage implements IStorage {
   async createActivity(insertActivity: InsertActivity): Promise<Activity & { checklistItems: ActivityChecklistItem[] }> {
     const [activity] = await db.insert(activities).values(insertActivity).returning();
 
-    const checklistDefs = getDefaultChecklistItems(activity.type ?? "otro");
+    // Converso baptisms: checklist managed by baptism_service (mission-routes), skip here
+    const isConvertBaptism = !!(insertActivity as any).baptismServiceId;
+    const checklistDefs = isConvertBaptism ? [] : getDefaultChecklistItems(activity.type ?? "otro");
     const checklistValues = checklistDefs.map((item) => ({
       activityId: activity.id,
       itemKey: item.key,
