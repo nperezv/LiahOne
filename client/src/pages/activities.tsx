@@ -1632,6 +1632,9 @@ export default function ActivitiesPage() {
   const isOrgLevelActivitiesRole = (isLiderActividades || isTechSpecialist) &&
     !!user?.organizationType && !["barrio", "obispado"].includes(user.organizationType ?? "");
   const isOrgMemberOrOrgActivities = isOrgMember || isOrgLevelActivitiesRole;
+  // servicio_bautismal creation restricted to bishopric + Primary presidency
+  const isPrimaria = user?.organizationType === "primaria";
+  const canCreateBaptism = isObispado || (isOrgMember && isPrimaria);
   const canManage =
     isObispado ||
     user?.role === "secretario" ||
@@ -1781,11 +1784,13 @@ export default function ActivitiesPage() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.entries(ACTIVITY_TYPE_LABELS).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              ))}
+                              {Object.entries(ACTIVITY_TYPE_LABELS)
+                                .filter(([value]) => value !== "servicio_bautismal" || canCreateBaptism)
+                                .map(([value, label]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -1969,7 +1974,11 @@ export default function ActivitiesPage() {
             {filteredActivities.map((activity: any) => {
               const belongsToMyOrg = activity.organizationId === user?.organizationId;
               const actCanUploadFlyer = isObispado || ((isOrgMember || isLiderActividades) && belongsToMyOrg);
-              const actCanEditPrograma = isObispado || (isOrgMember && belongsToMyOrg);
+              // servicio_bautismal: only bishopric + Primary presidency can edit programa/submit
+              const isBaptismActivity = activity.type === "servicio_bautismal" && !activity.baptismServiceId;
+              const actCanEditPrograma = isBaptismActivity
+                ? (isObispado || (isOrgMember && isPrimaria && belongsToMyOrg))
+                : (isObispado || (isOrgMember && belongsToMyOrg));
               const actCanEditBasic = isObispado || (isOrgMember && belongsToMyOrg) || isLiderActividades;
               const actCanDelete = canDelete && (isObispado || (isOrgMember && belongsToMyOrg));
               return (
