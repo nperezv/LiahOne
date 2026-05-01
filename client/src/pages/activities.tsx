@@ -6,6 +6,7 @@ import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, Chevr
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
 import { normalizeMemberName } from "@/lib/utils";
+import { shortNameFromString } from "@shared/name-utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -781,24 +782,21 @@ function SectionEditDialog({
 
   const requiresMsgAndHymns = TYPES_REQUIRING_MSG_AND_HYMNS.includes(activityType);
 
-  // All members normalized
+  // All members — short display name: primer nombre + primer apellido
   const allMemberOptions = useMemo<MemberOption[]>(
     () => Array.from(new Set(
-      (rawMembers as any[]).map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
+      (rawMembers as any[]).map(m => shortNameFromString(m.nameSurename)).filter(Boolean)
     )).map(v => ({ value: v as string })),
     [rawMembers]
   );
 
-  // Bishopric only (preside) — use users table filtered by role, same as sacramental meeting
+  // Bishopric only (preside) — use users table filtered by role
   const bishopricOptions = useMemo<MemberOption[]>(
-    () => {
-      const getMemberLabel = (m: any) => m?.fullName || m?.name || m?.email || "";
-      return (users as any[])
-        .filter(m => ["obispo", "consejero_obispo"].includes(m.role))
-        .map(m => getMemberLabel(m))
-        .filter(Boolean)
-        .map(v => ({ value: v as string }));
-    },
+    () => (users as any[])
+      .filter(m => ["obispo", "consejero_obispo"].includes(m.role))
+      .map(m => shortNameFromString(m.displayName || m.name || m.email || "") || "")
+      .filter(Boolean)
+      .map(v => ({ value: v as string })),
     [users]
   );
 
@@ -808,7 +806,7 @@ function SectionEditDialog({
       if (activityOrgId && (memberCallings as any[]).length > 0) {
         const names = (memberCallings as any[])
           .filter(c => c.organizationId === activityOrgId && c.isActive && c.memberName)
-          .map(c => normalizeMemberName(c.memberName) || c.memberName)
+          .map(c => shortNameFromString(c.memberName) || c.memberName)
           .filter(Boolean);
         const unique = Array.from(new Set(names));
         if (unique.length > 0) return unique.map(v => ({ value: v as string }));
@@ -818,7 +816,7 @@ function SectionEditDialog({
         ? (rawMembers as any[]).filter(m => m.organizationId === activityOrgId)
         : (rawMembers as any[]);
       return Array.from(new Set(
-        filtered.map(m => normalizeMemberName(m.nameSurename)).filter(Boolean)
+        filtered.map(m => shortNameFromString(m.nameSurename)).filter(Boolean)
       )).map(v => ({ value: v as string }));
     },
     [memberCallings, rawMembers, activityOrgId]
@@ -1202,7 +1200,10 @@ function SectionPanel({
                       <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">
                         {["listo", "no_aplica"].includes(sectionData[item.itemKey])
                           ? (sectionData[item.itemKey] === "no_aplica" ? "No aplica" : "✓")
-                          : (sectionData[item.itemKey] === "true" ? "Sí" : sectionData[item.itemKey])}
+                          : sectionData[item.itemKey] === "true" ? "Sí"
+                          : FIELD_META[item.itemKey]?.inputKind === "member"
+                            ? shortNameFromString(sectionData[item.itemKey])
+                            : sectionData[item.itemKey]}
                       </p>
                     )}
                   </div>
