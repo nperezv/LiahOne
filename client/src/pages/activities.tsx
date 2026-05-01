@@ -1231,10 +1231,14 @@ function ApprovalActions({
   activity,
   userRole,
   orgId,
+  isConvertBaptism = false,
+  checklistDone = true,
 }: {
   activity: any;
   userRole?: string;
   orgId?: string;
+  isConvertBaptism?: boolean;
+  checklistDone?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -1261,16 +1265,23 @@ function ApprovalActions({
     onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
   });
 
-  const canSubmit = (isOrgMember && belongsToOrg) || isObispado;
+  const canSubmit = ((isOrgMember && belongsToOrg) || isObispado) && !isConvertBaptism;
   const status = activity.approvalStatus;
 
   return (
     <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
       {canSubmit && (status === "draft" || status === "needs_revision") && (
-        <Button size="sm" variant="outline" onClick={() => submitMut.mutate()} disabled={submitMut.isPending}>
-          <Send className="h-3.5 w-3.5 mr-1" />
-          {submitMut.isPending ? "Enviando..." : "Enviar al obispo"}
-        </Button>
+        checklistDone ? (
+          <Button size="sm" variant="outline" onClick={() => submitMut.mutate()} disabled={submitMut.isPending}>
+            <Send className="h-3.5 w-3.5 mr-1" />
+            {submitMut.isPending ? "Enviando..." : "Enviar al obispo"}
+          </Button>
+        ) : (
+          <p className="text-xs text-muted-foreground italic flex items-center gap-1.5">
+            <CheckCheck className="h-3.5 w-3.5 shrink-0" />
+            Completa el checklist para poder enviar al obispo
+          </p>
+        )
       )}
       {isObispado && status === "submitted" && (
         <>
@@ -1587,7 +1598,13 @@ function ActivityCard({
           )}
 
           {/* Approval actions */}
-          <ApprovalActions activity={activity} userRole={userRole} orgId={orgId} />
+          <ApprovalActions
+            activity={activity}
+            userRole={userRole}
+            orgId={orgId}
+            isConvertBaptism={!!(activity as any).baptismServiceId}
+            checklistDone={totalItems === 0 || doneItems === totalItems}
+          />
 
           {!canSeeChecklist && !isOrgActivity && !activity.description && (
             <p className="text-sm text-muted-foreground italic">Sin detalles adicionales</p>
