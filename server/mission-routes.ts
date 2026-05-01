@@ -690,7 +690,17 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       if (!canDelete) return res.status(403).json({ message: "Sin acceso" });
 
       const personaId = req.params.id;
-      // Delete linked baptism services first (FK is ON DELETE SET NULL, not CASCADE)
+
+      // Collect service IDs before deletion (FK is SET NULL, so must delete activities first)
+      const svcRows = await db.execute(sql`
+        SELECT id FROM baptism_services WHERE candidate_persona_id = ${personaId}
+      `);
+      for (const row of svcRows.rows as Array<{ id: string }>) {
+        await db.execute(sql`DELETE FROM activities WHERE baptism_service_id = ${row.id}`);
+        await db.execute(sql`DELETE FROM service_tasks WHERE baptism_service_id = ${row.id}`);
+      }
+
+      // Delete linked baptism services
       await db.execute(sql`DELETE FROM baptism_services WHERE candidate_persona_id = ${personaId}`);
       await db.execute(sql`DELETE FROM mission_personas WHERE id = ${personaId}`);
       return res.json({ success: true });

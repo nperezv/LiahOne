@@ -1253,6 +1253,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] checklist regeneration error:", e);
   }
 
+  // Cleanup: delete servicio_bautismal activities whose baptism_service no longer exists
+  try {
+    await db.execute(sql`
+      DELETE FROM activities
+      WHERE type = 'servicio_bautismal'
+        AND baptism_service_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM baptism_services WHERE baptism_services.id = activities.baptism_service_id
+        )
+    `);
+  } catch (e) {
+    console.error("[Migration] orphaned baptism activities cleanup error:", e);
+  }
+
   // Auto-migration: baptism_service_candidates — add nombre column (safe, idempotent)
   // NOTE: persona_id cannot be made nullable (it is part of the PK). Niño inscrito candidates
   // are stored as baptism_program_items with type='candidato_nombre' instead.
