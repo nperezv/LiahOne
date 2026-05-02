@@ -1497,12 +1497,12 @@ function ActivityCard({
                   <LayoutList className="h-2.5 w-2.5" /> Plan
                 </Badge>
               )}
-              {activity.type === "servicio_bautismal" && !activity.baptismServiceId && (
+              {activity.type === "servicio_bautismal" && (activity as any).baptismSubtype !== "convert" && (
                 <Badge variant="outline" className="text-[10px] gap-1 border-sky-400 text-sky-600 dark:border-sky-500 dark:text-sky-400">
                   🧒 Niño inscrito
                 </Badge>
               )}
-              {activity.type === "servicio_bautismal" && activity.baptismServiceId && (
+              {activity.type === "servicio_bautismal" && (activity as any).baptismSubtype === "convert" && (
                 <Badge variant="outline" className="text-[10px] gap-1 border-teal-400 text-teal-600 dark:border-teal-500 dark:text-teal-400">
                   🕊️ Converso
                 </Badge>
@@ -1594,7 +1594,7 @@ function ActivityCard({
               activityId={activity.id}
               sectionData={(activity as any).sectionData ?? {}}
               // Converso: sections read-only (managed in Obra Misional), but flyer stays editable
-              canEditPrograma={activity.baptismServiceId ? false : (editMode ? canEditPrograma : false)}
+              canEditPrograma={(activity as any).baptismSubtype === "convert" ? false : (editMode ? canEditPrograma : false)}
               flyerUrl={activity.flyerUrl}
               canUploadFlyer={editMode ? canUploadFlyer : false}
               activityType={activity.type}
@@ -1603,7 +1603,7 @@ function ActivityCard({
           )}
 
           {/* Publish public program link — niño inscrito only, after bishop approval */}
-          {activity.type === "servicio_bautismal" && !activity.baptismServiceId && canSeeChecklist && (
+          {activity.type === "servicio_bautismal" && (activity as any).baptismSubtype !== "convert" && canSeeChecklist && (
             <BaptismPublishPanel
               activityId={activity.id}
               sectionData={(activity as any).sectionData ?? {}}
@@ -1622,7 +1622,7 @@ function ActivityCard({
             activity={activity}
             userRole={userRole}
             orgId={orgId}
-            isConvertBaptism={!!(activity as any).baptismServiceId}
+            isConvertBaptism={(activity as any).baptismSubtype === "convert"}
             checklistDone={totalItems === 0 || doneItems === totalItems}
           />
 
@@ -1995,7 +1995,7 @@ export default function ActivitiesPage() {
               const belongsToMyOrg = activity.organizationId === user?.organizationId;
               const actCanUploadFlyer = isObispado || ((isOrgMember || isLiderActividades) && belongsToMyOrg);
               // servicio_bautismal: only bishopric + Primary presidency can edit programa/submit
-              const isBaptismActivity = activity.type === "servicio_bautismal" && !activity.baptismServiceId;
+              const isBaptismActivity = activity.type === "servicio_bautismal" && (activity as any).baptismSubtype !== "convert";
               const actCanEditPrograma = isBaptismActivity
                 ? (isObispado || (isOrgMember && isPrimaria && belongsToMyOrg))
                 : (isObispado || (isOrgMember && belongsToMyOrg));

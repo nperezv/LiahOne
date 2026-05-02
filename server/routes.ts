@@ -1317,27 +1317,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] baptism checklist regeneration error:", e);
   }
 
-  // Recover niño inscrito activities that accidentally got baptism_service_id set (from broken publish flow)
-  // Move service ref to section_data and clear baptism_service_id so migrations don't treat them as converso
-  try {
-    const wronglyLinked = await db.execute(sql`
-      SELECT id, baptism_service_id FROM activities
-      WHERE type = 'servicio_bautismal' AND baptism_service_id IS NOT NULL AND baptism_subtype = 'nino_inscrito'
-    `);
-    for (const row of wronglyLinked.rows as Array<{ id: string; baptism_service_id: string }>) {
-      await db.execute(sql`
-        UPDATE activities
-        SET baptism_service_id = NULL,
-            section_data = COALESCE(section_data, '{}'::jsonb) || ${JSON.stringify({ baptism_service_ref: row.baptism_service_id })}::jsonb
-        WHERE id = ${row.id}
-      `);
-    }
-    if (wronglyLinked.rows.length > 0)
-      console.log(`[Migration] Recovered ${wronglyLinked.rows.length} niño inscrito activities with wrong baptism_service_id`);
-  } catch (e) {
-    console.error("[Migration] niño inscrito recovery error:", e);
-  }
-
   // Fix sort orders for niño inscrito baptism checklist items (entrevista/ropa first, remove visibilidad)
   try {
     // Delete visibilidad_evento from all activities (redundant with public landing setting)
@@ -8718,8 +8697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             RETURNING id
           `);
           const serviceId = (svcResult.rows[0] as any)?.id as string;
-          // Do NOT set baptism_service_id — that field is reserved for converso (mission flow).
-          // Niño inscrito stores the service ref in section_data to avoid converso migration interference.
+          await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId}, baptism_subtype = 'nino_inscrito' WHERE id = ${req.params.id}`);
 
           // Candidate names as program items (type='candidato_nombre', public_visibility=false)
           const names = (sd["prog_candidatos"] ?? "").split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
@@ -8761,6 +8739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `);
           }
 
+          const prevSlug = null;
           const slug = `svc-${serviceId.slice(0, 8)}-${crypto.randomUUID().slice(0, 6)}`;
           const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
           await db.execute(sql`
@@ -8768,7 +8747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             VALUES (${serviceId}, ${slug}, ${crypto.randomUUID().slice(0, 6)}, NOW(), ${expiresAt.toISOString()}, ${user.id})
           `);
           await db.execute(sql`
-            UPDATE activities SET section_data = section_data || ${JSON.stringify({ baptism_service_ref: serviceId, programa_publico_url: `/bautismo/${slug}` })}::jsonb
+            UPDATE activities SET section_data = section_data || ${JSON.stringify({ programa_publico_url: `/bautismo/${slug}` })}::jsonb
             WHERE id = ${req.params.id}
           `);
         } catch (publishErr) {
@@ -8949,16 +8928,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
       if ((activity as any).type !== "servicio_bautismal") return res.status(400).json({ error: "No es un servicio bautismal" });
 
-      const dataRow = await db.execute(sql`SELECT section_data FROM activities WHERE id = ${activityId}`);
+      const dataRow = await db.execute(sql`SELECT section_data, baptism_service_id FROM activities WHERE id = ${activityId}`);
       const sectionData: Record<string, string> = (dataRow.rows[0] as any)?.section_data ?? {};
-      // service ref stored in section_data — baptism_service_id is reserved for converso (mission flow)
-      let serviceId: string | null = sectionData["baptism_service_ref"] ?? null;
+      let serviceId: string | null = (dataRow.rows[0] as any)?.baptism_service_id ?? null;
 
       const unitId = user.organizationId ?? null;
       const serviceAt = new Date((activity as any).date);
       const location = (activity as any).location || "Capilla";
-      const prepDeadline = new Date(serviceAt.getTime() - 14 * 24 * 60 * 60 * 1000);
 
+      const prepDeadline = new Date(serviceAt.getTime() - 14 * 24 * 60 * 60 * 1000);
       if (!serviceId) {
         const svcResult = await db.execute(sql`
           INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
@@ -8966,11 +8944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           RETURNING id
         `);
         serviceId = (svcResult.rows[0] as any)?.id as string;
-        // Store ref in section_data only — do NOT set baptism_service_id
-        await db.execute(sql`
-          UPDATE activities SET section_data = section_data || ${JSON.stringify({ baptism_service_ref: serviceId })}::jsonb
-          WHERE id = ${activityId}
-        `);
+        await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId}, baptism_subtype = 'nino_inscrito' WHERE id = ${activityId}`);
       } else {
         await db.execute(sql`
           UPDATE baptism_services SET approval_status = 'approved', service_at = ${serviceAt.toISOString()},
