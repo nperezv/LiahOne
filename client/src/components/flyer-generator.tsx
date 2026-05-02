@@ -265,41 +265,41 @@ async function buildFlyerCanvas(
   }
 
   // Description (max 2 lines)
-  ctx.font = "400 20px Raleway";
+  ctx.font = "400 26px Raleway";
   ctx.fillStyle = "rgba(255,255,255,0.82)";
   (ctx as any).letterSpacing = "0px";
   const descLines = wrapText(ctx, copy.descripcion, maxW).slice(0, 2);
-  descLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 28));
-  y += descLines.length * 28 + 12;
+  descLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 34));
+  y += descLines.length * 34 + 8;
 
   // Divider
   ctx.fillStyle = "rgba(212,175,55,0.32)";
   ctx.fillRect(pad, y, maxW, 1);
-  y += 13;
+  y += 10;
 
   // Lugar
   if (copy.lugar) {
-    ctx.font = "600 22px Raleway";
+    ctx.font = "600 30px Raleway";
     ctx.fillStyle = "#ffffff";
-    (ctx as any).letterSpacing = "0.44px";
+    (ctx as any).letterSpacing = "0.6px";
     ctx.fillText(copy.lugar, pad, y);
-    y += 31 + 4;
+    y += 39 + 4;
   }
 
   // Dirección
   if (copy.direccion) {
-    ctx.font = "400 17px Raleway";
+    ctx.font = "400 26px Raleway";
     ctx.fillStyle = "rgba(255,255,255,0.70)";
-    (ctx as any).letterSpacing = "0.17px";
+    (ctx as any).letterSpacing = "0.26px";
     ctx.fillText(copy.direccion, pad, y);
-    y += 24 + 4;
+    y += 34 + 4;
   }
 
   // Barrio
   if (copy.barrio) {
-    ctx.font = "500 18px Raleway";
+    ctx.font = "500 24px Raleway";
     ctx.fillStyle = gold;
-    (ctx as any).letterSpacing = "3.24px";
+    (ctx as any).letterSpacing = "4.32px"; // 0.18em × 24px
     ctx.fillText(copy.barrio.toUpperCase(), pad, y);
   }
 
@@ -417,10 +417,10 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
 
           <p style={{
             fontFamily: "'Raleway', sans-serif",
-            fontSize: "20px",
+            fontSize: "26px",
             color: "rgba(255,255,255,0.82)",
             fontWeight: 400,
-            lineHeight: 1.35,
+            lineHeight: 1.3,
             margin: 0,
             maxWidth: "900px",
             display: "-webkit-box",
@@ -436,21 +436,21 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {copy.lugar && (
               <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "22px", color: "#FFFFFF", fontWeight: 600, letterSpacing: "0.02em", lineHeight: 1.4 }}>
+                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "30px", color: "#FFFFFF", fontWeight: 600, letterSpacing: "0.02em", lineHeight: 1.3 }}>
                   {copy.lugar}
                 </span>
               </div>
             )}
             {copy.direccion && (
               <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "17px", color: "rgba(255,255,255,0.70)", fontWeight: 400, letterSpacing: "0.01em", lineHeight: 1.4 }}>
+                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "26px", color: "rgba(255,255,255,0.70)", fontWeight: 400, letterSpacing: "0.01em", lineHeight: 1.3 }}>
                   {copy.direccion}
                 </span>
               </div>
             )}
             {copy.barrio && (
               <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", marginTop: "2px" }}>
-                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "18px", color: gold, fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.4 }}>
+                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "24px", color: gold, fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.3 }}>
                   {copy.barrio}
                 </span>
               </div>
