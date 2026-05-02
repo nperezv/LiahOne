@@ -37,25 +37,31 @@ export function registerActivityPublicRoutes(app: Express) {
     description: string;
     url: string;
     imageUrl?: string;
+    imageWidth?: string;
+    imageHeight?: string;
   }): string {
-    const { title, description, url, imageUrl } = opts;
+    const { title, description, url, imageUrl, imageWidth = "1200", imageHeight = "630" } = opts;
+    // OG tags must come FIRST in <head> — WhatsApp's crawler stops parsing after ~100 KB of HTML
+    // so injecting before </head> (after all React scripts) means crawlers never see the tags.
     const tags = [
-      `<meta property="og:type" content="website" />`,
-      `<meta property="og:site_name" content="Zendapp" />`,
-      `<meta property="og:title" content="${escapeHtml(title)}" />`,
-      `<meta property="og:description" content="${escapeHtml(description)}" />`,
-      `<meta property="og:url" content="${escapeHtml(url)}" />`,
-      imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="1080" />` : "",
-      `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
-      `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
-      `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
-      imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
-    ].filter(Boolean).map(t => `    ${t}`).join("\n");
+      `<meta property="og:type" content="website">`,
+      `<meta property="og:site_name" content="Zendapp">`,
+      `<meta property="og:title" content="${escapeHtml(title)}">`,
+      `<meta property="og:description" content="${escapeHtml(description)}">`,
+      `<meta property="og:url" content="${escapeHtml(url)}">`,
+      imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}">` : "",
+      imageUrl ? `<meta property="og:image:type" content="image/jpeg">` : "",
+      imageUrl ? `<meta property="og:image:width" content="${imageWidth}">` : "",
+      imageUrl ? `<meta property="og:image:height" content="${imageHeight}">` : "",
+      `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}">`,
+      `<meta name="twitter:title" content="${escapeHtml(title)}">`,
+      `<meta name="twitter:description" content="${escapeHtml(description)}">`,
+      imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}">` : "",
+    ].filter(Boolean).join("\n  ");
 
     let html = baseHtml.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
-    html = html.replace("</head>", `${tags}\n  </head>`);
+    // Inject right after <head> so crawlers see tags before any scripts/styles
+    html = html.replace(/(<head[^>]*>)/, `$1\n  ${tags}`);
     return html;
   }
 
@@ -67,7 +73,7 @@ export function registerActivityPublicRoutes(app: Express) {
 
       // Use the next upcoming public activity for a richer preview
       const rows = await db.execute(sql`
-        SELECT a.title, a.description, a.flyer_url, o.name AS organization_name
+        SELECT a.id, a.title, a.description, a.flyer_url, o.name AS organization_name
         FROM activities a
         LEFT JOIN organizations o ON o.id = a.organization_id
         WHERE a.approval_status = 'approved' AND a.is_public = true AND a.date >= NOW()
@@ -81,11 +87,26 @@ export function registerActivityPublicRoutes(app: Express) {
       const description = act?.description
         ? act.description.slice(0, 200)
         : `Próximas actividades${orgName}`;
-      const imageUrl = absoluteUrl(req, act?.flyer_url);
       const url = `${req.protocol}://${req.get("host")}/actividades`;
 
+      let imageUrl: string | undefined;
+      let imageWidth = "1080";
+      let imageHeight = "1350";
+      if (act?.id) {
+        const ogFilename = `activity-flyer-og-${act.id}.jpg`;
+        const ogPath = path.join(process.cwd(), "uploads", "flyers", ogFilename);
+        if (fs.existsSync(ogPath)) {
+          imageUrl = `${req.protocol}://${req.get("host")}/uploads/flyers/${ogFilename}`;
+          imageWidth = "1200";
+          imageHeight = "630";
+        }
+      }
+      if (!imageUrl && act?.flyer_url) {
+        imageUrl = absoluteUrl(req, act.flyer_url);
+      }
+
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl || undefined }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth, imageHeight }));
     } catch (err) {
       console.error("[og-inject /actividades] error:", err);
       next();
@@ -99,7 +120,7 @@ export function registerActivityPublicRoutes(app: Express) {
       if (!baseHtml) return next();
 
       const rows = await db.execute(sql`
-        SELECT a.title, a.description, a.date, a.location, a.flyer_url, a.slug,
+        SELECT a.id, a.title, a.description, a.date, a.location, a.flyer_url, a.slug,
                o.name AS organization_name
         FROM activities a
         LEFT JOIN organizations o ON o.id = a.organization_id
@@ -118,11 +139,28 @@ export function registerActivityPublicRoutes(app: Express) {
         ? act.description.slice(0, 200)
         : `${dateStr}${orgName}`.trim();
       const description = rawDesc || title;
-      const imageUrl = absoluteUrl(req, act.flyer_url);
       const url = `${req.protocol}://${req.get("host")}/actividades/${act.slug}`;
 
+      // Prefer the landscape 1200×630 OG image (generated when saving a flyer) — WhatsApp
+      // shows a large card only with landscape ratio ≥ 1.91:1. Fall back to portrait flyer.
+      let imageUrl: string | undefined;
+      let imageWidth = "1080";
+      let imageHeight = "1350";
+      if (act.id) {
+        const ogFilename = `activity-flyer-og-${act.id}.jpg`;
+        const ogPath = path.join(process.cwd(), "uploads", "flyers", ogFilename);
+        if (fs.existsSync(ogPath)) {
+          imageUrl = `${req.protocol}://${req.get("host")}/uploads/flyers/${ogFilename}`;
+          imageWidth = "1200";
+          imageHeight = "630";
+        }
+      }
+      if (!imageUrl && act.flyer_url) {
+        imageUrl = absoluteUrl(req, act.flyer_url);
+      }
+
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl || undefined }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth, imageHeight }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
