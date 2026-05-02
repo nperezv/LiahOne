@@ -208,11 +208,11 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         </span>
       </div>
 
-      {/* Main text block — starts at 54% */}
+      {/* Main text block — starts at 50% */}
       <div
         style={{
           position: "absolute",
-          top: "54%",
+          top: "51%",
           bottom: "80px",
           left: 0,
           right: 0,
@@ -223,7 +223,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         }}
       >
         {/* Upper content group */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {/* Hook — Playfair Display italic */}
           <p
             style={{
@@ -241,13 +241,12 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
 
           {/* Title — fixed structure for baptisms, dynamic for other types */}
           {activityType === "servicio_bautismal" ? (
-            <div style={{ margin: 0, display: "flex", flexDirection: "column", gap: 0 }}>
+            <div style={{ margin: 0, lineHeight: 1.0 }}>
               <div style={{
                 fontFamily: "'Raleway', sans-serif",
                 fontSize: "56px",
                 color: "#FFFFFF",
                 fontWeight: 900,
-                lineHeight: 1.0,
                 textTransform: "uppercase",
                 letterSpacing: "-0.01em",
               }}>
@@ -258,10 +257,9 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
                 fontSize: "22px",
                 color: "#FFFFFF",
                 fontWeight: 700,
-                lineHeight: 1.0,
                 letterSpacing: "0.35em",
                 textTransform: "uppercase",
-                marginTop: "10px",
+                marginTop: "14px",
               }}>
                 DE
               </div>
@@ -270,11 +268,12 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
                 fontSize: "56px",
                 color: "#FFFFFF",
                 fontWeight: 900,
-                lineHeight: 1.05,
                 textTransform: "uppercase",
                 letterSpacing: "-0.01em",
-                marginTop: "4px",
-                wordBreak: "break-word",
+                marginTop: "8px",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
               }}>
                 {copy.candidateName || copy.titulo}
               </div>
