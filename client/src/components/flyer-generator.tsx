@@ -219,8 +219,8 @@ async function buildFlyerCanvas(
   ctx.fillText(tipoLabel.toUpperCase(), pad + 21, 72 + 23);
   (ctx as any).letterSpacing = "0px";
 
-  // Main text block — starts at 57%
-  let y = Math.round(FLYER_H * 0.57); // 770px
+  // Main text block — starts at 60%
+  let y = Math.round(FLYER_H * 0.60); // 810px
   ctx.textBaseline = "top";
 
   // Hook — Playfair Display italic, each sentence on its own line
@@ -236,17 +236,17 @@ async function buildFlyerCanvas(
 
   // Title
   if (activityType === "servicio_bautismal") {
+    // "SERVICIO BAUTISMAL DE" on one line — DE bottom-aligned with the big text
     ctx.font = "900 56px Raleway";
     ctx.fillStyle = "#ffffff";
     (ctx as any).letterSpacing = "-0.56px";
     ctx.fillText("SERVICIO BAUTISMAL", pad, y);
-    y += 56 + 10;
+    const sbW = ctx.measureText("SERVICIO BAUTISMAL").width;
 
-    ctx.font = "700 22px Raleway";
-    ctx.fillStyle = "#ffffff";
-    (ctx as any).letterSpacing = "7.7px"; // 0.35em
-    ctx.fillText("DE", pad, y);
-    y += 22 + 4;
+    ctx.font = "700 28px Raleway";
+    (ctx as any).letterSpacing = "5px";
+    ctx.fillText("DE", pad + sbW + 16, y + (56 - 28)); // baseline-align with 56px text
+    y += 56 + 10;
 
     ctx.font = "900 56px Raleway";
     ctx.fillStyle = "#ffffff";
@@ -382,7 +382,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "57%",
+          top: "60%",
           bottom: "80px",
           left: 0,
           right: 0,
@@ -399,13 +399,15 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
 
           {activityType === "servicio_bautismal" ? (
             <div style={{ margin: 0, display: "flex", flexDirection: "column", gap: 0 }}>
-              <div style={{ fontFamily: "'Raleway', sans-serif", fontSize: "56px", color: "#FFFFFF", fontWeight: 900, lineHeight: 1.0, textTransform: "uppercase", letterSpacing: "-0.01em" }}>
-                SERVICIO BAUTISMAL
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "16px" }}>
+                <div style={{ fontFamily: "'Raleway', sans-serif", fontSize: "56px", color: "#FFFFFF", fontWeight: 900, lineHeight: 1.0, textTransform: "uppercase", letterSpacing: "-0.01em" }}>
+                  SERVICIO BAUTISMAL
+                </div>
+                <div style={{ fontFamily: "'Raleway', sans-serif", fontSize: "28px", color: "#FFFFFF", fontWeight: 700, lineHeight: 1.0, letterSpacing: "0.18em", textTransform: "uppercase", paddingBottom: "4px" }}>
+                  DE
+                </div>
               </div>
-              <div style={{ fontFamily: "'Raleway', sans-serif", fontSize: "22px", color: "#FFFFFF", fontWeight: 700, lineHeight: 1.0, letterSpacing: "0.35em", textTransform: "uppercase", marginTop: "10px" }}>
-                DE
-              </div>
-              <div style={{ fontFamily: "'Raleway', sans-serif", fontSize: "56px", color: "#FFFFFF", fontWeight: 900, lineHeight: 1.05, textTransform: "uppercase", letterSpacing: "-0.01em", marginTop: "4px", wordBreak: "break-word" }}>
+              <div style={{ fontFamily: "'Raleway', sans-serif", fontSize: "56px", color: "#FFFFFF", fontWeight: 900, lineHeight: 1.05, textTransform: "uppercase", letterSpacing: "-0.01em", marginTop: "10px", wordBreak: "break-word" }}>
                 {copy.candidateName || copy.titulo}
               </div>
             </div>
