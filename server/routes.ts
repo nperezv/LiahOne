@@ -9014,9 +9014,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
 
       res.json({ slug, publicUrl: `/bautismo/${slug}`, expiresAt: expiresAt.toISOString() });
-    } catch (err) {
-      console.error("[POST publish-baptism-program]", err);
-      res.status(500).json({ error: "Error al publicar el programa" });
+    } catch (err: any) {
+      console.error("[POST publish-baptism-program]", err?.message, err?.stack);
+      res.status(500).json({ error: err?.message ?? "Error al publicar el programa" });
     }
   });
 
