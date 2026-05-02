@@ -103,6 +103,32 @@ function extractColorFromUrl(url: string): Promise<string> {
   });
 }
 
+// Resize an image file to max 1920px (longest side) at JPEG 85% before uploading.
+// Keeps it under nginx's default 1 MB body limit and speeds up the upload.
+function resizeForUpload(file: File, maxDim = 1920): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    const url = URL.createObjectURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const { naturalWidth: w, naturalHeight: h } = img;
+      if (w <= maxDim && h <= maxDim) { resolve(file); return; }
+      const scale = maxDim / Math.max(w, h);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => resolve(blob ? new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }) : file),
+        "image/jpeg",
+        0.85,
+      );
+    };
+    img.src = url;
+  });
+}
+
 function getPhotoUrl(fondo: string, customUrl?: string | null): string | null {
   if (customUrl) return customUrl;
   if (fondo?.startsWith("photos/")) return `/flyer-assets/${fondo}`;
@@ -587,13 +613,15 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const blobUrl = URL.createObjectURL(file);
-    setCustomPhotoUrl(blobUrl);
-    setPendingFile(file);
-    setPendingBlobUrl(blobUrl);
-    setSaveDialogOpen(true);
     e.target.value = "";
-    extractColorFromFile(file).then(setDominantColor);
+    resizeForUpload(file).then((resized) => {
+      const blobUrl = URL.createObjectURL(resized);
+      setCustomPhotoUrl(blobUrl);
+      setPendingFile(resized);
+      setPendingBlobUrl(blobUrl);
+      setSaveDialogOpen(true);
+      extractColorFromFile(resized).then(setDominantColor);
+    });
   }
 
   async function handleSaveDecision(saveToLibrary: boolean) {

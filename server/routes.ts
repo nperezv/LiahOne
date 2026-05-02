@@ -9240,9 +9240,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })[0];
       }
 
+      // Last-resort pool: never use baptism photos for non-baptism activities
+      const lastResortPool = targetCategory !== "bautismo"
+        ? availablePhotos.filter(p => p.category !== "bautismo")
+        : availablePhotos;
       const selectedEntry =
         pickRoundRobin(availablePhotos, targetCategory) ??
         pickRoundRobin(availablePhotos, "general") ??
+        (lastResortPool.length > 0 ? lastResortPool[Math.floor(Math.random() * lastResortPool.length)] : null) ??
         (availablePhotos.length > 0 ? availablePhotos[Math.floor(Math.random() * availablePhotos.length)] : null);
 
       let selectedFondo = selectedEntry ? `photos/${selectedEntry.file}` : "fallback";
