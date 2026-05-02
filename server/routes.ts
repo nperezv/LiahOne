@@ -1319,23 +1319,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Fix sort orders for niño inscrito baptism checklist items (entrevista/ropa first, remove visibilidad)
   try {
-    const bautismoIds = await db.execute(sql`
-      SELECT id FROM activities WHERE type = 'servicio_bautismal' AND baptism_service_id IS NULL
-    `);
-    if (bautismoIds.rows.length > 0) {
-      const ids = (bautismoIds.rows as any[]).map(r => r.id as string);
-      for (const actId of ids) {
-        await db.execute(sql`
-          UPDATE activity_checklist_items SET sort_order = 11 WHERE activity_id = ${actId} AND item_key = 'entrevista_bautismal';
-          UPDATE activity_checklist_items SET sort_order = 12 WHERE activity_id = ${actId} AND item_key = 'ropa_bautismal';
-          UPDATE activity_checklist_items SET sort_order = 13 WHERE activity_id = ${actId} AND item_key = 'coord_espacio';
-          UPDATE activity_checklist_items SET sort_order = 14 WHERE activity_id = ${actId} AND item_key = 'coord_arreglo';
-          UPDATE activity_checklist_items SET sort_order = 15 WHERE activity_id = ${actId} AND item_key = 'coord_equipo';
-          UPDATE activity_checklist_items SET sort_order = 16 WHERE activity_id = ${actId} AND item_key = 'coord_refrigerio';
-          UPDATE activity_checklist_items SET sort_order = 17 WHERE activity_id = ${actId} AND item_key = 'coord_limpieza';
-          DELETE FROM activity_checklist_items WHERE activity_id = ${actId} AND item_key = 'visibilidad_evento';
-        `);
-      }
+    // Delete visibilidad_evento from all activities (redundant with public landing setting)
+    await db.execute(sql`DELETE FROM activity_checklist_items WHERE item_key = 'visibilidad_evento'`);
+    // Fix sort orders one statement at a time
+    const sortFixes: Array<[string, number]> = [
+      ["entrevista_bautismal", 11], ["ropa_bautismal", 12],
+      ["coord_espacio", 13], ["coord_arreglo", 14], ["coord_equipo", 15],
+      ["coord_refrigerio", 16], ["coord_limpieza", 17],
+    ];
+    for (const [key, order] of sortFixes) {
+      await db.execute(sql`
+        UPDATE activity_checklist_items SET sort_order = ${order}
+        WHERE item_key = ${key}
+          AND activity_id IN (
+            SELECT id FROM activities WHERE type = 'servicio_bautismal' AND baptism_service_id IS NULL
+          )
+      `);
     }
   } catch (e) {
     console.error("[Migration] baptism checklist sort order fix error:", e);
