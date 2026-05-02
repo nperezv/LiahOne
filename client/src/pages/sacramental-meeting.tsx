@@ -474,6 +474,7 @@ function SacramentalMeetingPageInner() {
   const [hasReleasesAndSustainments, setHasReleasesAndSustainments] = useState(false);
   const [hasNewMembers, setHasNewMembers] = useState(false);
   const [hasOrderings, setHasOrderings] = useState(false);
+  const [hasAdvancements, setHasAdvancements] = useState(false);
   const [hasChildBlessings, setHasChildBlessings] = useState(false);
   const [hasConfirmations, setHasConfirmations] = useState(false);
   const [hasStakeBusiness, setHasStakeBusiness] = useState(false);
@@ -482,7 +483,8 @@ function SacramentalMeetingPageInner() {
   const [releases, setReleases] = useState<Array<{ name: string; oldCalling: string; organizationId?: string }>>([{ name: "", oldCalling: "" }]);
   const [sustainments, setSustainments] = useState<Array<{ name: string; calling: string; organizationId?: string }>>([{ name: "", calling: "" }]);
   const [newMembers, setNewMembers] = useState<string[]>([""]);
-  const [aaronicOrderings, setAaronicOrderings] = useState<string[]>([""]);
+  const [aaronicOrderings, setAaronicOrderings] = useState<Array<{ name: string; office: string }>>([{ name: "", office: "" }]);
+  const [aaronicAdvancements, setAaronicAdvancements] = useState<Array<{ name: string; office: string }>>([{ name: "", office: "" }]);
   const [childBlessings, setChildBlessings] = useState<string[]>([""]);
   const [confirmations, setConfirmations] = useState<string[]>([""]);
   const [showPastView, setShowPastView] = useState(false);
@@ -711,7 +713,9 @@ function SacramentalMeetingPageInner() {
     setReleases([{ name: "", oldCalling: "" }]);
     setSustainments([{ name: "", calling: "" }]);
     setNewMembers([""]);
-    setAaronicOrderings([""]);
+    setAaronicOrderings([{ name: "", office: "" }]);
+    setAaronicAdvancements([{ name: "", office: "" }]);
+    setHasAdvancements(false);
     setChildBlessings([""]);
     setConfirmations([""]);
     setIntermediateHymnType("");
@@ -762,7 +766,10 @@ function SacramentalMeetingPageInner() {
     setReleases(meeting.releases?.length > 0 ? meeting.releases : [{ name: "", oldCalling: "" }]);
     setSustainments(meeting.sustainments?.length > 0 ? meeting.sustainments : [{ name: "", calling: "" }]);
     setNewMembers(meeting.newMembers || [""]);
-    setAaronicOrderings(meeting.aaronicOrderings || [""]);
+    const toAaronicArr = (arr: any[]) => arr.map((o: any) => typeof o === "string" ? { name: o, office: "" } : o);
+    setAaronicOrderings(meeting.aaronicOrderings?.length > 0 ? toAaronicArr(meeting.aaronicOrderings) : [{ name: "", office: "" }]);
+    setAaronicAdvancements(meeting.aaronicAdvancements?.length > 0 ? toAaronicArr(meeting.aaronicAdvancements) : [{ name: "", office: "" }]);
+    setHasAdvancements((meeting.aaronicAdvancements?.length || 0) > 0);
     setChildBlessings(meeting.childBlessings || [""]);
     setConfirmations(meeting.confirmations || [""]);
     setHasReleasesAndSustainments((meeting.releases?.length || 0) > 0 || (meeting.sustainments?.length || 0) > 0);
@@ -934,7 +941,8 @@ function SacramentalMeetingPageInner() {
       releases: hasReleasesAndSustainments ? releases.filter((r) => r.name && r.oldCalling).map((r) => ({ name: r.name, oldCalling: r.oldCalling, ...(r.organizationId && { organizationId: r.organizationId }) })) : [],
       sustainments: hasReleasesAndSustainments ? sustainments.filter((s) => s.name && s.calling).map((s) => ({ name: s.name, calling: s.calling, ...(s.organizationId && { organizationId: s.organizationId }) })) : [],
       newMembers: hasNewMembers ? newMembers.filter((m) => m.trim()) : [],
-      aaronicOrderings: hasOrderings ? aaronicOrderings.filter((o) => o.trim()) : [],
+      aaronicOrderings: hasOrderings ? aaronicOrderings.filter((o) => o.name.trim()) : [],
+      aaronicAdvancements: hasAdvancements ? aaronicAdvancements.filter((a) => a.name.trim()) : [],
       childBlessings: hasChildBlessings ? childBlessings.filter((b) => b.trim()) : [],
       confirmations: hasConfirmations ? confirmations.filter((c) => c.trim()) : [],
       stakeBusiness: hasStakeBusiness ? (data.stakeBusiness || "") : "",
@@ -1598,25 +1606,63 @@ function SacramentalMeetingPageInner() {
 
                     {/* Small 2-col toggles */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center justify-between p-3 rounded-xl border border-border">
-                        <div className="text-xs font-medium">Ordenaciones Aarónicas</div>
-                        <Checkbox checked={hasOrderings} onCheckedChange={(v) => setHasOrderings(v as boolean)} data-testid="checkbox-orderings" />
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-border cursor-pointer" onClick={() => setHasOrderings(!hasOrderings)}>
+                        <div className="text-xs font-medium">Ordenaciones al Sacerdocio Aarónico</div>
+                        <div className={`h-4 w-4 shrink-0 rounded-sm border-2 flex items-center justify-center transition-colors ${hasOrderings ? "bg-primary border-primary" : "border-muted-foreground/40 bg-background"}`}>
+                          {hasOrderings && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-2.5 w-2.5 text-primary-foreground"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between p-3 rounded-xl border border-border">
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-border cursor-pointer" onClick={() => setHasAdvancements(!hasAdvancements)}>
+                        <div className="text-xs font-medium">Avances en el Sacerdocio Aarónico</div>
+                        <div className={`h-4 w-4 shrink-0 rounded-sm border-2 flex items-center justify-center transition-colors ${hasAdvancements ? "bg-primary border-primary" : "border-muted-foreground/40 bg-background"}`}>
+                          {hasAdvancements && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-2.5 w-2.5 text-primary-foreground"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl border border-border cursor-pointer" onClick={() => setHasChildBlessings(!hasChildBlessings)}>
                         <div className="text-xs font-medium">Bendiciones de niños</div>
-                        <Checkbox checked={hasChildBlessings} onCheckedChange={(v) => setHasChildBlessings(v as boolean)} data-testid="checkbox-child-blessings" />
+                        <div className={`h-4 w-4 shrink-0 rounded-sm border-2 flex items-center justify-center transition-colors ${hasChildBlessings ? "bg-primary border-primary" : "border-muted-foreground/40 bg-background"}`}>
+                          {hasChildBlessings && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-2.5 w-2.5 text-primary-foreground"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
                       </div>
                     </div>
                     {hasOrderings && (
                       <div className="space-y-2 p-3 rounded-xl border border-border bg-muted/20">
-                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ordenaciones Aarónicas</div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ordenaciones al Sacerdocio Aarónico</div>
                         {aaronicOrderings.map((o, i) => (
                           <div key={i} className="flex gap-2">
-                            <Input placeholder="Nombre" value={o} data-testid={`input-ordering-${i}`} onChange={(e) => { const u = [...aaronicOrderings]; u[i] = e.target.value; setAaronicOrderings(u); }} />
+                            <Select value={o.office} onValueChange={(v) => { const u = [...aaronicOrderings]; u[i] = { ...u[i], office: v }; setAaronicOrderings(u); }}>
+                              <SelectTrigger className="h-8 text-xs w-32 shrink-0"><SelectValue placeholder="Oficio" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="diacono">Diácono</SelectItem>
+                                <SelectItem value="maestro">Maestro</SelectItem>
+                                <SelectItem value="presbitero">Presbítero</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input placeholder="Nombre" value={o.name} data-testid={`input-ordering-${i}`} onChange={(e) => { const u = [...aaronicOrderings]; u[i] = { ...u[i], name: e.target.value }; setAaronicOrderings(u); }} />
                             {aaronicOrderings.length > 1 && <button type="button" onClick={() => setAaronicOrderings(aaronicOrderings.filter((_, idx) => idx !== i))} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive transition-all shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>}
                           </div>
                         ))}
-                        <button type="button" onClick={() => setAaronicOrderings([...aaronicOrderings, ""])} className="w-full py-1.5 rounded-lg border border-dashed border-border text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-1"><Plus className="w-3 h-3" />Añadir</button>
+                        <button type="button" onClick={() => setAaronicOrderings([...aaronicOrderings, { name: "", office: "" }])} className="w-full py-1.5 rounded-lg border border-dashed border-border text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-1"><Plus className="w-3 h-3" />Añadir</button>
+                      </div>
+                    )}
+                    {hasAdvancements && (
+                      <div className="space-y-2 p-3 rounded-xl border border-border bg-muted/20">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Avances en el Sacerdocio Aarónico</div>
+                        {aaronicAdvancements.map((a, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Select value={a.office} onValueChange={(v) => { const u = [...aaronicAdvancements]; u[i] = { ...u[i], office: v }; setAaronicAdvancements(u); }}>
+                              <SelectTrigger className="h-8 text-xs w-32 shrink-0"><SelectValue placeholder="Oficio" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="diacono">Diácono</SelectItem>
+                                <SelectItem value="maestro">Maestro</SelectItem>
+                                <SelectItem value="presbitero">Presbítero</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input placeholder="Nombre" value={a.name} data-testid={`input-advancement-${i}`} onChange={(e) => { const u = [...aaronicAdvancements]; u[i] = { ...u[i], name: e.target.value }; setAaronicAdvancements(u); }} />
+                            {aaronicAdvancements.length > 1 && <button type="button" onClick={() => setAaronicAdvancements(aaronicAdvancements.filter((_, idx) => idx !== i))} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive transition-all shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setAaronicAdvancements([...aaronicAdvancements, { name: "", office: "" }])} className="w-full py-1.5 rounded-lg border border-dashed border-border text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-1"><Plus className="w-3 h-3" />Añadir</button>
                       </div>
                     )}
                     {hasChildBlessings && (
