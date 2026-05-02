@@ -493,6 +493,7 @@ function normalizeMeeting(meeting: any) {
   maybeParse("sustainments");
   maybeParse("newMembers");
   maybeParse("aaronicOrderings");
+  maybeParse("aaronicAdvancements");
   maybeParse("childBlessings");
   maybeParse("confirmations");
 
@@ -941,8 +942,13 @@ export async function generateSacramentalMeetingPDF(
     const newMembers = Array.isArray(normalizedMeeting.newMembers)
       ? normalizedMeeting.newMembers.filter((x: string) => x && x.trim())
       : [];
+    const OFFICE_LABEL: Record<string, string> = { diacono: "Diácono", maestro: "Maestro", presbitero: "Presbítero" };
+    const toAaronicItem = (x: any) => typeof x === "string" ? { name: x, office: "" } : x;
     const aaronicOrderings = Array.isArray(normalizedMeeting.aaronicOrderings)
-      ? normalizedMeeting.aaronicOrderings.filter((x: string) => x && x.trim())
+      ? normalizedMeeting.aaronicOrderings.map(toAaronicItem).filter((x: any) => x?.name?.trim())
+      : [];
+    const aaronicAdvancements = Array.isArray(normalizedMeeting.aaronicAdvancements)
+      ? normalizedMeeting.aaronicAdvancements.map(toAaronicItem).filter((x: any) => x?.name?.trim())
       : [];
     const childBlessings = Array.isArray(normalizedMeeting.childBlessings)
       ? normalizedMeeting.childBlessings.filter((x: string) => x && x.trim())
@@ -966,13 +972,33 @@ export async function generateSacramentalMeetingPDF(
 
     if (aaronicOrderings.length) {
       setBodyFont(ctx, 11, "bold");
-      ctx.doc.text("Propuestas de sostenimientos para recibir el Sacerdocio:", ctx.marginX + 6, ctx.y);
+      ctx.doc.text("Propuestas de sostenimientos para recibir el Sacerdocio Aarónico:", ctx.marginX + 6, ctx.y);
       ctx.y += 6;
 
-      const bullets = aaronicOrderings.map(
-        (n: string) =>
-          `Proponemos que ${n} reciba el Sacerdocio Aarónico, y que sea ordenado al oficio de [       ].`
+      const bullets = aaronicOrderings.map((item: any) => {
+        const office = OFFICE_LABEL[item.office] ?? item.office;
+        const officePart = office ? ` al oficio de ${office}` : "";
+        return `Proponemos que ${item.name} reciba el Sacerdocio Aarónico y sea ordenado${officePart}.`;
+      });
+      drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
+
+      drawParagraph(
+        ctx,
+        "Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.",
+        { indent: 6, style: "italic" }
       );
+    }
+
+    if (aaronicAdvancements.length) {
+      setBodyFont(ctx, 11, "bold");
+      ctx.doc.text("Propuestas de avances en el Sacerdocio Aarónico:", ctx.marginX + 6, ctx.y);
+      ctx.y += 6;
+
+      const bullets = aaronicAdvancements.map((item: any) => {
+        const office = OFFICE_LABEL[item.office] ?? item.office;
+        const officePart = office ? ` al oficio de ${office}` : "";
+        return `Proponemos que ${item.name} avance en el Sacerdocio Aarónico${officePart}.`;
+      });
       drawBulletList(ctx, bullets, { indent: 16, bullet: "–" });
 
       drawParagraph(

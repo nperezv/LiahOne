@@ -99,12 +99,15 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const confirmations = (Array.isArray(meeting.confirmations) ? meeting.confirmations : []).filter(Boolean);
   const newMembers = (Array.isArray(meeting.newMembers) ? meeting.newMembers : []).filter(Boolean);
   const childBlessings = (Array.isArray(meeting.childBlessings) ? meeting.childBlessings : []).filter(Boolean);
-  const aaronicOrderings = (Array.isArray(meeting.aaronicOrderings) ? meeting.aaronicOrderings : []).filter(Boolean);
+  const OFFICE_LABEL: Record<string, string> = { diacono: "Diácono", maestro: "Maestro", presbitero: "Presbítero" };
+  const fmtAaronic = (o: any) => typeof o === "string" ? o : `${o.name}${o.office ? ` — ${OFFICE_LABEL[o.office] ?? o.office}` : ""}`;
+  const aaronicOrderings = (Array.isArray(meeting.aaronicOrderings) ? meeting.aaronicOrderings : []).filter((o: any) => typeof o === "string" ? o : o?.name);
+  const aaronicAdvancements = (Array.isArray(meeting.aaronicAdvancements) ? meeting.aaronicAdvancements : []).filter((o: any) => o?.name);
   const discourses = (Array.isArray(meeting.discourses) ? meeting.discourses : []).filter((d: any) => d?.speaker);
   const intermediateHymnLabel = meeting.intermediateHymn
     ? `${meeting.intermediateHymn}${meeting.intermediateHymnType === "choir" ? " (Coro)" : meeting.intermediateHymnType === "congregation" ? " (Congregación)" : ""}`
     : "";
-  const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0 || aaronicOrderings.length > 0;
+  const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0 || aaronicOrderings.length > 0 || aaronicAdvancements.length > 0;
 
   // Don't append "(OrgName)" if a significant word from it already appears in the calling
   const fmtCallingOrg = (calling: string, oName: string) => {
@@ -207,7 +210,8 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
               {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${fmtCallingOrg(s.calling, o)}`; }))}</div>}
               {confirmations.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
               {newMembers.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
-              {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones Aarónicas:</div>{bul(aaronicOrderings)}</div>}
+              {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones al Sacerdocio Aarónico:</div>{bul(aaronicOrderings.map(fmtAaronic))}</div>}
+              {aaronicAdvancements.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Avances en el Sacerdocio Aarónico:</div>{bul(aaronicAdvancements.map(fmtAaronic))}</div>}
               {childBlessings.length > 0 && <div><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Bendición de niños:</div>{bul(childBlessings)}</div>}
             </div>
             <div>
