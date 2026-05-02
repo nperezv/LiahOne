@@ -9250,7 +9250,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (lastResortPool.length > 0 ? lastResortPool[Math.floor(Math.random() * lastResortPool.length)] : null) ??
         (availablePhotos.length > 0 ? availablePhotos[Math.floor(Math.random() * availablePhotos.length)] : null);
 
-      let selectedFondo = selectedEntry ? `photos/${selectedEntry.file}` : "fallback";
+      // Entries uploaded at runtime start with "uploads/" (full URL path).
+      // Built-in entries use the old "category/file.jpg" format → prepend "photos/".
+      let selectedFondo = selectedEntry
+        ? (selectedEntry.file.startsWith("uploads/") ? selectedEntry.file : `photos/${selectedEntry.file}`)
+        : "fallback";
 
       // Update usage stats in manifest
       if (selectedEntry) {
@@ -9441,8 +9445,9 @@ Devuelve SOLO un JSON con esta estructura exacta:
           tags = baseName.replace(/\d+$/, "").split(/[-_]+/).filter(Boolean);
         }
 
-        // Save to subcategory folder with clean naming (templo.jpg → templo1.jpg → templo2.jpg)
-        const photosDir = path.join(process.cwd(), "client", "public", "flyer-assets", "photos", category);
+        // Save to uploads/flyer-assets/photos/{category}/ — served by the /uploads static handler
+        // (client/public/ only works in dev via Vite; in production the server serves dist/public/)
+        const photosDir = path.join(process.cwd(), "uploads", "flyer-assets", "photos", category);
         if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
         const existing = fs.readdirSync(photosDir).map(f => f.replace(/\.[^.]+$/, ""));
         let filename: string;
@@ -9455,7 +9460,8 @@ Devuelve SOLO un JSON con esta estructura exacta:
         }
         fs.writeFileSync(path.join(photosDir, filename), req.file.buffer);
 
-        const fileEntry = `${category}/${filename}`;
+        // Store full URL path so generate-flyer-copy knows to use /uploads/ prefix
+        const fileEntry = `uploads/flyer-assets/photos/${category}/${filename}`;
         const mPath = path.join(process.cwd(), "client", "public", "flyer-assets", "photo-manifest.json");
         let manifest: Array<{ file: string; category: string; tags: string[]; usedCount: number; lastUsed: string | null }> = [];
         try { manifest = JSON.parse(fs.readFileSync(mPath, "utf8")); } catch {}
@@ -9478,7 +9484,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
         manifest.push({ file: fileEntry, category, tags, usedCount: 0, lastUsed: null });
         fs.writeFileSync(mPath, JSON.stringify(manifest, null, 2));
 
-        res.json({ url: `/flyer-assets/photos/${fileEntry}`, file: fileEntry, category, tags });
+        res.json({ url: `/${fileEntry}`, file: fileEntry, category, tags });
       } catch (err) {
         console.error("[POST /api/flyer-assets/photo]", err);
         res.status(500).json({ error: "Error al subir foto" });

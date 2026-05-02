@@ -131,7 +131,8 @@ function resizeForUpload(file: File, maxDim = 1920): Promise<File> {
 
 function getPhotoUrl(fondo: string, customUrl?: string | null): string | null {
   if (customUrl) return customUrl;
-  if (fondo?.startsWith("photos/")) return `/flyer-assets/${fondo}`;
+  if (fondo?.startsWith("uploads/")) return `/${fondo}`; // runtime-uploaded photos
+  if (fondo?.startsWith("photos/")) return `/flyer-assets/${fondo}`; // built-in photos
   return null;
 }
 
@@ -893,7 +894,7 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
       </Dialog>
 
       {/* Save-to-library confirmation dialog */}
-      <Dialog open={saveDialogOpen} onOpenChange={() => handleSaveDecision(false)}>
+      <Dialog open={saveDialogOpen} onOpenChange={() => { if (!savingToLibrary) handleSaveDecision(false); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>¿Guardar en la biblioteca?</DialogTitle>
