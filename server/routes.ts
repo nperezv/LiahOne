@@ -1267,19 +1267,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] orphaned baptism activities cleanup error:", e);
   }
 
-  // Data fix: clear baptism_service_id from niño inscrito activities wrongly linked by broken code.
-  // baptism_subtype = 'nino_inscrito' was set by the broken publish flow; restore them to clean state.
+  // Data fix: clear baptism_service_id from niño inscrito activities wrongly linked by broken publish code.
+  // Detection: servicio_bautismal with baptism_service_id set BUT the linked service has no candidates
+  // (converso services always have rows in baptism_service_candidates; broken niño inscrito ones don't).
   try {
     const wronglyLinked = await db.execute(sql`
-      SELECT id FROM activities
-      WHERE type = 'servicio_bautismal'
-        AND baptism_service_id IS NOT NULL
-        AND baptism_subtype = 'nino_inscrito'
+      SELECT a.id FROM activities a
+      WHERE a.type = 'servicio_bautismal'
+        AND a.baptism_service_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM baptism_service_candidates bsc WHERE bsc.service_id = a.baptism_service_id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM mission_personas mp
+          JOIN baptism_services bs ON bs.candidate_persona_id = mp.id
+          WHERE bs.id = a.baptism_service_id
+        )
     `);
     for (const row of wronglyLinked.rows as Array<{ id: string }>) {
       await db.execute(sql`UPDATE activities SET baptism_service_id = NULL, baptism_subtype = NULL WHERE id = ${row.id}`);
       await db.execute(sql`DELETE FROM activity_checklist_items WHERE activity_id = ${row.id}`);
-      console.log(`[Migration] Restored niño inscrito activity ${row.id}: cleared baptism_service_id and checklist`);
+      console.log(`[Migration] Restored niño inscrito activity ${row.id}`);
     }
   } catch (e) {
     console.error("[Migration] niño inscrito data fix error:", e);
