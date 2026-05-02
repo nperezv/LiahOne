@@ -26,9 +26,9 @@ const TIPO_LABELS: Record<string, string> = {
   servicio_bautismal: "Servicio Bautismal",
   deportiva: "Deportiva",
   capacitacion: "Capacitación",
-  fiesta: "Actividad",
+  fiesta: "Fiesta",
   hermanamiento: "Hermanamiento",
-  actividad_org: "Actividad",
+  actividad_org: "Organización",
   otro: "Actividad",
 };
 
