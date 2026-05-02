@@ -9219,6 +9219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : `CTA: debe invitar a asistir libremente, sin inscripción previa. Sugiere traer amigos y familiares.`;
 
       const prompt = `Eres un experto en neuromarketing y copywriting para comunidades religiosas LDS.
+IMPORTANTE: Usa EXCLUSIVAMENTE vocabulario en español. No uses ninguna palabra en inglés (ni "covenant", "testimony", "ward", "stake", ni ninguna otra).
 Genera el copy para un flyer de esta actividad:
 - Tipo: ${tipoLabels[activity.type ?? "otro"] ?? "Actividad"}
 - Nombre: ${activity.title}
@@ -9260,6 +9261,12 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
 
       copy.lugar = template?.meetingCenterName?.trim() || meetingAddress || activity.location || "";
       copy.barrio = template?.wardName?.trim() || "";
+
+      // For baptism services, pass the candidate name(s) so the frontend renders a fixed title
+      if ((activity as any).type === "servicio_bautismal" && candidatosLine) {
+        const namesStr = candidatosLine.replace(/^- Candidato\(s\) al bautismo:\s*/i, "").trim();
+        copy.candidateName = namesStr;
+      }
 
       res.json(copy);
     } catch (err: any) {

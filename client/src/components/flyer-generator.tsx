@@ -39,6 +39,7 @@ interface FlyCopy {
   fondo: string;
   lugar?: string;
   barrio?: string;
+  candidateName?: string;
 }
 
 // Returns #rrggbb so hex-alpha suffixes in the gradient (${color}55 etc.) stay valid CSS
@@ -235,21 +236,58 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
             {copy.hook}
           </p>
 
-          {/* Title — Raleway 900 uppercase */}
-          <h1
-            style={{
-              fontFamily: "'Raleway', sans-serif",
-              fontSize: "80px",
-              color: "#FFFFFF",
-              lineHeight: 1.0,
-              fontWeight: 900,
-              margin: 0,
-              textTransform: "uppercase",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {copy.titulo}
-          </h1>
+          {/* Title — fixed structure for baptisms, dynamic for other types */}
+          {activityType === "servicio_bautismal" ? (
+            <div style={{ margin: 0, lineHeight: 1.0 }}>
+              <div style={{
+                fontFamily: "'Raleway', sans-serif",
+                fontSize: "60px",
+                color: "#FFFFFF",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "-0.01em",
+              }}>
+                SERVICIO BAUTISMAL
+              </div>
+              <div style={{
+                fontFamily: "'Raleway', sans-serif",
+                fontSize: "22px",
+                color: gold,
+                fontWeight: 700,
+                letterSpacing: "0.35em",
+                textTransform: "uppercase",
+                marginTop: "6px",
+              }}>
+                DE
+              </div>
+              <div style={{
+                fontFamily: "'Raleway', sans-serif",
+                fontSize: "72px",
+                color: "#FFFFFF",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "-0.01em",
+                marginTop: "2px",
+              }}>
+                {copy.candidateName || copy.titulo}
+              </div>
+            </div>
+          ) : (
+            <h1
+              style={{
+                fontFamily: "'Raleway', sans-serif",
+                fontSize: "80px",
+                color: "#FFFFFF",
+                lineHeight: 1.0,
+                fontWeight: 900,
+                margin: 0,
+                textTransform: "uppercase",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {copy.titulo}
+            </h1>
+          )}
 
           {/* Description */}
           <p
