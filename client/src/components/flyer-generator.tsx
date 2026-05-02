@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getAccessToken } from "@/lib/auth-tokens";
-import { Image, RefreshCw, Sparkles, Upload, BookImage, FileImage, Download, Share2 } from "lucide-react";
+import { Image, RefreshCw, Sparkles, Upload, BookImage, FileImage, Download } from "lucide-react";
 
 const FLYER_W = 1080;
 const FLYER_H = 1350;
@@ -668,21 +668,14 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
               <Image className="h-3.5 w-3.5" /> Flyer listo
             </span>
             <div className="flex gap-1.5">
-              <button
-                onClick={() => {
-                  const url = `${window.location.origin}/f/${activityId}`;
-                  if (navigator.share) {
-                    navigator.share({ url });
-                  } else {
-                    navigator.clipboard.writeText(url).then(() =>
-                      toast({ title: "Enlace copiado", description: "Pégalo en WhatsApp para compartir el flyer" })
-                    );
-                  }
-                }}
+              <a
+                href={`/f/${activityId}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs bg-white/20 hover:bg-white/35 text-white px-2.5 py-1 rounded-md backdrop-blur-sm transition-colors"
               >
-                <Share2 className="h-3 w-3" /> Compartir
-              </button>
+                <Image className="h-3 w-3" /> Ver
+              </a>
               <a
                 href={flyerUrl}
                 download="flyer.jpg"
