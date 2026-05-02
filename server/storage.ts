@@ -543,10 +543,14 @@ export function getDefaultChecklistItems(activityType: string): Array<{ key: str
   if (activityType === "servicio_bautismal") {
     return [
       ...PROG_BAUTISMO_ITEMS,
-      ...COORD_BASE_ITEMS,
-      { key: "entrevista_bautismal", label: "Entrevista bautismal completada",    sort: 16 },
-      { key: "ropa_bautismal",       label: "Designado recojo de ropa bautismal", sort: 17 },
-      { key: "visibilidad_evento",   label: "Visibilidad del evento definida",     sort: 18 },
+      // Coordinación: baptism-specific first, then general logistics
+      { key: "entrevista_bautismal", label: "Entrevista bautismal completada",    sort: 11 },
+      { key: "ropa_bautismal",       label: "Ropa bautismal coordinada",           sort: 12 },
+      { key: "coord_espacio",        label: "Reserva de ambientes",                sort: 13 },
+      { key: "coord_arreglo",        label: "Arreglo y preparación",               sort: 14 },
+      { key: "coord_equipo",         label: "Equipo y tecnología",                 sort: 15 },
+      { key: "coord_refrigerio",     label: "Refrigerio",                          sort: 16 },
+      { key: "coord_limpieza",       label: "Limpieza",                            sort: 17 },
     ];
   }
   return CHECKLIST_BY_TYPE[activityType] ?? CHECKLIST_BY_TYPE["otro"];

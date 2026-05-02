@@ -229,7 +229,7 @@ const SECTION_CONFIG = {
 
 // Keys that always belong to coordinacion regardless of prefix
 const COORD_KEYS = new Set([
-  "entrevista_bautismal", "ropa_bautismal", "visibilidad_evento",
+  "entrevista_bautismal", "ropa_bautismal",
   // baptism-service activity-checklist keys (old naming convention)
   "espacio_calendario", "arreglo_espacios", "equipo_tecnologia",
   "presupuesto_refrigerio", "limpieza",
@@ -347,8 +347,9 @@ function CoordSectionForm({
 
   // Baptism-specific items (only shown when activityType === "servicio_bautismal")
   const [entrevistaDetalle, setEntrevistaDetalle] = useState(sectionData["entrevista_bautismal"] ?? "");
-  const [ropaDetalle, setRopaDetalle] = useState(sectionData["ropa_bautismal"] ?? "");
-  const [visibilidadValor, setVisibilidadValor] = useState(sectionData["visibilidad_evento"] ?? "");
+  const [ropaResponsable, setRopaResponsable] = useState(sectionData["ropa_responsable"] ?? "");
+  const [ropaPruebaResponsable, setRopaPruebaResponsable] = useState(sectionData["ropa_prueba_responsable"] ?? "");
+  const [ropaFechaPrueba, setRopaFechaPrueba] = useState(sectionData["ropa_fecha_prueba"] ?? "");
 
   async function uploadReceipt(file: File) {
     setUploadingReceipt(true);
@@ -401,9 +402,10 @@ function CoordSectionForm({
         coord_limpieza_responsables:        JSON.stringify(limpiezaResponsables.filter(r => r.trim())),
         coord_limpieza_notas:               limpiezaNotas,
         ...(isBautismo && {
-          entrevista_bautismal: entrevistaDetalle.trim(),
-          ropa_bautismal:       ropaDetalle.trim(),
-          visibilidad_evento:   visibilidadValor.trim(),
+          entrevista_bautismal:   entrevistaDetalle.trim(),
+          ropa_responsable:       ropaResponsable.trim(),
+          ropa_prueba_responsable: ropaPruebaResponsable.trim(),
+          ropa_fecha_prueba:      ropaFechaPrueba.trim(),
         }),
       };
       return apiRequest("PATCH", `/api/activities/${activityId}/section`, { section: "coordinacion", fields });
@@ -428,10 +430,9 @@ function CoordSectionForm({
   const secRefrigerio = !refrigerioAplica || (refrigerioResponsables.some(r => r.trim()) && !!refrigerioDetalle.trim());
   const secLimpieza   = limpiezaResponsables.some(r => r.trim());
   const secEntrevista = isBautismo && !!entrevistaDetalle.trim();
-  const secRopa       = isBautismo && !!ropaDetalle.trim();
-  const secVisibilidad = isBautismo && !!visibilidadValor.trim();
+  const secRopa       = isBautismo && !!ropaResponsable.trim() && !!ropaPruebaResponsable.trim();
   const coordItems = [secEspacio, secArreglo, secEquipo, secRefrigerio, secLimpieza,
-    ...(isBautismo ? [secEntrevista, secRopa, secVisibilidad] : [])];
+    ...(isBautismo ? [secEntrevista, secRopa] : [])];
   const totalCoord = coordItems.length;
   const completedCount = coordItems.filter(Boolean).length;
 
@@ -448,6 +449,56 @@ function CoordSectionForm({
       </div>
 
       <Accordion type="multiple" className="space-y-1">
+
+        {/* Baptism-specific items — shown first */}
+        {isBautismo && (<>
+          <AccordionItem value="entrevista" className={itemCls(secEntrevista)}>
+            <AccordionTrigger className="py-3 hover:no-underline">
+              <div className="flex items-center gap-2 flex-1">
+                <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium">Entrevista bautismal</span>
+                <span className="ml-auto mr-2">{dot(secEntrevista)}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 pt-1">
+                <Label className="text-xs text-muted-foreground mb-1 block">Entrevistador y fecha(s)</Label>
+                <Textarea className="text-sm min-h-[56px] resize-none"
+                  placeholder="Ej: Hno. García — entrevistado el 15 de mayo"
+                  value={entrevistaDetalle} onChange={e => setEntrevistaDetalle(e.target.value)} />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="ropa" className={itemCls(secRopa)}>
+            <AccordionTrigger className="py-3 hover:no-underline">
+              <div className="flex items-center gap-2 flex-1">
+                <Shirt className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium">Ropa bautismal</span>
+                <span className="ml-auto mr-2">{dot(secRopa)}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-3 pt-1">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable del recojo</Label>
+                  <MemberAutocomplete value={ropaResponsable} options={memberOptions}
+                    placeholder="Nombre del responsable" onChange={setRopaResponsable} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable de la prueba</Label>
+                  <MemberAutocomplete value={ropaPruebaResponsable} options={memberOptions}
+                    placeholder="Nombre del responsable" onChange={setRopaPruebaResponsable} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba (opcional)</Label>
+                  <Input type="date" className="text-sm h-8"
+                    value={ropaFechaPrueba} onChange={e => setRopaFechaPrueba(e.target.value)} />
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </>)}
 
         {/* Reserva de ambientes */}
         <AccordionItem value="espacio" className={itemCls(secEspacio)}>
@@ -685,62 +736,6 @@ function CoordSectionForm({
           </AccordionContent>
         </AccordionItem>
 
-        {/* Baptism-specific items */}
-        {isBautismo && (<>
-          <AccordionItem value="entrevista" className={itemCls(secEntrevista)}>
-            <AccordionTrigger className="py-3 hover:no-underline">
-              <div className="flex items-center gap-2 flex-1">
-                <ClipboardList className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm font-medium">Entrevista bautismal</span>
-                <span className="ml-auto mr-2">{dot(secEntrevista)}</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2 pt-1">
-                <Label className="text-xs text-muted-foreground mb-1 block">Entrevistador y fecha(s)</Label>
-                <Textarea className="text-sm min-h-[56px] resize-none"
-                  placeholder="Ej: Hno. García — entrevistado el 15 de mayo"
-                  value={entrevistaDetalle} onChange={e => setEntrevistaDetalle(e.target.value)} />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="ropa" className={itemCls(secRopa)}>
-            <AccordionTrigger className="py-3 hover:no-underline">
-              <div className="flex items-center gap-2 flex-1">
-                <Shirt className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm font-medium">Ropa bautismal</span>
-                <span className="ml-auto mr-2">{dot(secRopa)}</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2 pt-1">
-                <Label className="text-xs text-muted-foreground mb-1 block">Responsable del recojo y fecha de prueba</Label>
-                <Textarea className="text-sm min-h-[56px] resize-none"
-                  placeholder="Ej: Hno. López — prueba el 14 de mayo a las 18h"
-                  value={ropaDetalle} onChange={e => setRopaDetalle(e.target.value)} />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="visibilidad" className={itemCls(secVisibilidad)}>
-            <AccordionTrigger className="py-3 hover:no-underline">
-              <div className="flex items-center gap-2 flex-1">
-                <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm font-medium">Visibilidad del evento</span>
-                <span className="ml-auto mr-2">{dot(secVisibilidad)}</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2 pt-1">
-                <Label className="text-xs text-muted-foreground mb-1 block">Público o privado</Label>
-                <Input className="text-sm h-8"
-                  placeholder="Público / Privado"
-                  value={visibilidadValor} onChange={e => setVisibilidadValor(e.target.value)} />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </>)}
 
       </Accordion>
 
@@ -1196,28 +1191,38 @@ function SectionPanel({
                     : <Square className="h-3 w-3 shrink-0 mt-0.5" />}
                   <div className="min-w-0">
                     <span className={item.completed ? "line-through" : ""}>{item.label}</span>
-                    {item.completed && sectionData[item.itemKey] && item.itemKey !== "prog_flyer" && (
-                      <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">
-                        {["listo", "no_aplica"].includes(sectionData[item.itemKey])
-                          ? (sectionData[item.itemKey] === "no_aplica" ? "No aplica" : "✓")
-                          : sectionData[item.itemKey] === "true" ? "Sí"
-                          : FIELD_META[item.itemKey]?.inputKind === "member"
-                            ? shortNameFromString(sectionData[item.itemKey])
-                            : sectionData[item.itemKey]}
-                      </p>
-                    )}
+                    {item.itemKey !== "prog_flyer" && item.completed && (() => {
+                      let display = "";
+                      if (item.itemKey === "ropa_bautismal") {
+                        const parts = [
+                          sectionData["ropa_responsable"] ? `Recojo: ${shortNameFromString(sectionData["ropa_responsable"])}` : "",
+                          sectionData["ropa_prueba_responsable"] ? `Prueba: ${shortNameFromString(sectionData["ropa_prueba_responsable"])}` : "",
+                          sectionData["ropa_fecha_prueba"] ? sectionData["ropa_fecha_prueba"] : "",
+                        ].filter(Boolean).join(" · ");
+                        display = display || parts;
+                      } else {
+                        const raw = sectionData[item.itemKey] ?? "";
+                        display = ["listo", "no_aplica"].includes(raw) ? (raw === "no_aplica" ? "No aplica" : "✓")
+                          : raw === "true" ? "Sí"
+                          : FIELD_META[item.itemKey]?.inputKind === "member" ? shortNameFromString(raw)
+                          : raw;
+                      }
+                      return display ? (
+                        <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">{display}</p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
               ))}
-              {/* Show extra saved messages (prog_mensaje_2+) in read mode */}
-              {Object.entries(sectionData)
+              {/* Extra messages (prog_mensaje_2+) — only under Programa section */}
+              {sec === "programa" && Object.entries(sectionData)
                 .filter(([k]) => /^prog_mensaje_[2-9]$/.test(k) && sectionData[k])
                 .map(([k, v]) => (
                   <div key={k} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                     <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0 mt-0.5" />
                     <div>
                       <span className="line-through">Mensaje adicional</span>
-                      <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">{v}</p>
+                      <p className="text-[10px] text-muted-foreground/70 not-line-through truncate max-w-[200px]">{shortNameFromString(v) || v}</p>
                     </div>
                   </div>
                 ))}
