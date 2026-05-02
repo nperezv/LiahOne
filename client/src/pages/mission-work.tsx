@@ -3534,7 +3534,23 @@ function BaptismalServiceSheet({
               {isObispo && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">{approvalBadge()}</div>
-                  {liveService?.approval_status !== "approved" && (
+                  {(liveService?.approval_status === "draft" || liveService?.approval_status === "needs_revision") && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">El programa está en borrador. Envíalo para iniciar el proceso de aprobación.</p>
+                      <Button
+                        className="w-full"
+                        onClick={() => submitForApprovalMutation.mutate(undefined, {
+                          onSuccess: () => { toast({ title: "Programa enviado para aprobación" }); },
+                        })}
+                        disabled={submitForApprovalMutation.isPending || !programComplete}>
+                        {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar para aprobación"}
+                      </Button>
+                      {!programComplete && (
+                        <p className="text-xs text-amber-600">Completa el programa antes de enviar.</p>
+                      )}
+                    </div>
+                  )}
+                  {liveService?.approval_status === "pending_approval" && (
                     <>
                       <div>
                         <Label className="text-xs text-muted-foreground mb-1 block">

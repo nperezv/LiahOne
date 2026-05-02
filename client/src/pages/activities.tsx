@@ -307,13 +307,14 @@ const MSG_KEYS  = new Set(["prog_mensaje_1"]);
 type ArregloTask = { persona: string; asignacion: string };
 
 function CoordSectionForm({
-  activityId, sectionData, memberOptions, onSaved, activityType,
+  activityId, sectionData, memberOptions, onSaved, activityType, activityDate,
 }: {
   activityId: string;
   sectionData: Record<string, string>;
   memberOptions: MemberOption[];
   onSaved: () => void;
   activityType?: string;
+  activityDate?: string;
 }) {
   const isBautismo = activityType === "servicio_bautismal";
   const qc = useQueryClient();
@@ -481,21 +482,39 @@ function CoordSectionForm({
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-3 pt-1">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable del recojo</Label>
-                  <MemberAutocomplete value={ropaResponsable} options={memberOptions}
-                    placeholder="Nombre del responsable" onChange={setRopaResponsable} />
+              <div className="space-y-4 pt-1">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prueba de ropa</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                      <Input type="date" className="h-8 text-sm"
+                        value={ropaFechaPrueba} onChange={e => setRopaFechaPrueba(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                      <MemberAutocomplete value={ropaPruebaResponsable} options={memberOptions}
+                        placeholder="Nombre del miembro" className="h-8 text-sm" onChange={setRopaPruebaResponsable} />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Responsable de la prueba</Label>
-                  <MemberAutocomplete value={ropaPruebaResponsable} options={memberOptions}
-                    placeholder="Nombre del responsable" onChange={setRopaPruebaResponsable} />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha de prueba (opcional)</Label>
-                  <Input type="date" className="text-sm h-8"
-                    value={ropaFechaPrueba} onChange={e => setRopaFechaPrueba(e.target.value)} />
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recojo de ropa mojada</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                      <p className="text-sm text-foreground px-1 h-8 flex items-center">
+                        {activityDate
+                          ? new Date(activityDate).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+                          : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1 block">Responsable</Label>
+                      <MemberAutocomplete value={ropaResponsable} options={memberOptions}
+                        placeholder="Nombre del miembro" className="h-8 text-sm" onChange={setRopaResponsable} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </AccordionContent>
@@ -756,7 +775,7 @@ function CoordSectionForm({
 }
 
 function SectionEditDialog({
-  section, items, activityId, sectionData, open, onOpenChange, activityType, activityOrgId,
+  section, items, activityId, sectionData, open, onOpenChange, activityType, activityOrgId, activityDate,
 }: {
   section: "programa" | "coordinacion";
   items: ChecklistItem[];
@@ -766,6 +785,7 @@ function SectionEditDialog({
   onOpenChange: (v: boolean) => void;
   activityType: string;
   activityOrgId?: string | null;
+  activityDate?: string;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -897,6 +917,7 @@ function SectionEditDialog({
             memberOptions={allMemberOptions}
             onSaved={() => onOpenChange(false)}
             activityType={activityType}
+            activityDate={activityDate}
           />
         )}
         {section !== "coordinacion" && <div className="space-y-4 py-1">
@@ -1087,7 +1108,7 @@ function BaptismPublishPanel({
 
 function SectionPanel({
   items, activityId, sectionData, canEditPrograma, flyerUrl, canUploadFlyer,
-  activityType, activityOrgId,
+  activityType, activityOrgId, activityDate,
 }: {
   items: ChecklistItem[];
   activityId: string;
@@ -1097,6 +1118,7 @@ function SectionPanel({
   canUploadFlyer: boolean;
   activityType: string;
   activityOrgId?: string | null;
+  activityDate?: string;
 }) {
   // Detect sectioned checklist: prog_* (excl. flyer alone), coord_*, or old-style baptism-service keys
   const hasSections = items.some(i =>
@@ -1197,9 +1219,9 @@ function SectionPanel({
                       let display = "";
                       if (item.itemKey === "ropa_bautismal") {
                         const parts = [
+                          sectionData["ropa_fecha_prueba"] ? `Prueba: ${sectionData["ropa_fecha_prueba"]}` : "",
+                          sectionData["ropa_prueba_responsable"] ? `Resp. prueba: ${shortNameFromString(sectionData["ropa_prueba_responsable"])}` : "",
                           sectionData["ropa_responsable"] ? `Recojo: ${shortNameFromString(sectionData["ropa_responsable"])}` : "",
-                          sectionData["ropa_prueba_responsable"] ? `Prueba: ${shortNameFromString(sectionData["ropa_prueba_responsable"])}` : "",
-                          sectionData["ropa_fecha_prueba"] ? sectionData["ropa_fecha_prueba"] : "",
                         ].filter(Boolean).join(" · ");
                         display = display || parts;
                       } else {
@@ -1243,6 +1265,7 @@ function SectionPanel({
           onOpenChange={(v) => { if (!v) setEditSection(null); }}
           activityType={activityType}
           activityOrgId={activityOrgId}
+          activityDate={activityDate}
         />
       )}
     </div>
@@ -1601,6 +1624,7 @@ function ActivityCard({
               canUploadFlyer={editMode ? canUploadFlyer : false}
               activityType={activity.type}
               activityOrgId={activity.organizationId}
+              activityDate={activity.date}
             />
           )}
 
