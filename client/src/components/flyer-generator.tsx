@@ -223,13 +223,13 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         }}
       >
         {/* Upper content group */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Hook — Playfair Display italic */}
           <p
             style={{
               fontFamily: "'Playfair Display', Georgia, serif",
               fontStyle: "italic",
-              fontSize: "30px",
+              fontSize: "36px",
               color: gold,
               fontWeight: 700,
               lineHeight: 1.2,
@@ -300,17 +300,13 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
           <p
             style={{
               fontFamily: "'Raleway', sans-serif",
-              fontSize: "20px",
+              fontSize: "24px",
               color: "rgba(255,255,255,0.82)",
               fontWeight: 400,
-              lineHeight: 1.35,
+              lineHeight: 1.45,
               margin: 0,
               maxWidth: "900px",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            } as React.CSSProperties}
+            }}
           >
             {copy.descripcion}
           </p>

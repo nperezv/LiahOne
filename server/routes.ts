@@ -9214,32 +9214,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         otro: "Actividad General",
       };
 
-      const isBaptism = (activity as any).type === "servicio_bautismal";
-      const ctaInstructions = isBaptism
-        ? `CTA: invita a acompañar al bautizado en este momento especial. Máximo 6 palabras. NO menciones inscripción ni requisitos.`
-        : requiresReg
-          ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
-          : `CTA: debe invitar a asistir libremente, sin inscripción previa. Sugiere traer amigos y familiares.`;
+      const ctaInstructions = requiresReg
+        ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
+        : `CTA: debe invitar a asistir libremente, sin inscripción previa. Sugiere traer amigos y familiares.`;
 
       const prompt = `Eres un experto en neuromarketing y copywriting para comunidades religiosas LDS.
 IMPORTANTE: Usa EXCLUSIVAMENTE vocabulario en español. No uses ninguna palabra en inglés (ni "covenant", "testimony", "ward", "stake", ni ninguna otra).
-IMPORTANTE: En "descripcion" NO incluyas fecha, hora ni dirección — esos datos aparecen en otro lugar del flyer. La descripción debe ser únicamente una frase emotiva e inspiradora.
 Genera el copy para un flyer de esta actividad:
 - Tipo: ${tipoLabels[activity.type ?? "otro"] ?? "Actividad"}
 - Nombre: ${activity.title}
 - Fecha: ${fechaPrompt}
 - Hora: ${horaPrompt}
 - Lugar: ${meetingAddress || activity.location || "Por confirmar"}
-- Descripción adicional: ${activity.description ?? "Sin descripción"}${candidatosLine ? `\n${candidatosLine}` : ""}
+- Descripción adicional: ${activity.description ?? "Sin descripción"}
+- Requiere inscripción: ${requiresReg ? "Sí" : "No"}${candidatosLine ? `\n${candidatosLine}` : ""}
 
 ${ctaInstructions}
 
 Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adicional:
 {
   "titulo": "título emocional máximo 5 palabras",
-  "hook": "frase de impacto máximo 8 palabras, sutil toque LDS",
-  "descripcion": "frase emotiva e inspiradora, máximo 12 palabras, SIN fecha ni dirección",
-  "cta": "llamada a la acción máximo 6 palabras${secretaryPhone && requiresReg && !isBaptism ? ` (incluye el teléfono ${secretaryPhone})` : ""}"
+  "hook": "frase de impacto máximo 10 palabras, sutil toque LDS",
+  "descripcion": "descripción corta máximo 20 palabras, cálida y motivadora",
+  "cta": "llamada a la acción máximo 6 palabras${secretaryPhone && requiresReg ? ` (incluye el teléfono ${secretaryPhone})` : ""}"
 }`;
 
       const client = new Anthropic({ apiKey });
