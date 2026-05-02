@@ -1267,6 +1267,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("[Migration] orphaned baptism activities cleanup error:", e);
   }
 
+  // Data fix: clear baptism_service_id from niño inscrito activities wrongly linked by broken code.
+  // baptism_subtype = 'nino_inscrito' was set by the broken publish flow; restore them to clean state.
+  try {
+    const wronglyLinked = await db.execute(sql`
+      SELECT id FROM activities
+      WHERE type = 'servicio_bautismal'
+        AND baptism_service_id IS NOT NULL
+        AND baptism_subtype = 'nino_inscrito'
+    `);
+    for (const row of wronglyLinked.rows as Array<{ id: string }>) {
+      await db.execute(sql`UPDATE activities SET baptism_service_id = NULL, baptism_subtype = NULL WHERE id = ${row.id}`);
+      await db.execute(sql`DELETE FROM activity_checklist_items WHERE activity_id = ${row.id}`);
+      console.log(`[Migration] Restored niño inscrito activity ${row.id}: cleared baptism_service_id and checklist`);
+    }
+  } catch (e) {
+    console.error("[Migration] niño inscrito data fix error:", e);
+  }
+
   // Auto-migration: baptism_service_candidates — add nombre column (safe, idempotent)
   // NOTE: persona_id cannot be made nullable (it is part of the PK). Niño inscrito candidates
   // are stored as baptism_program_items with type='candidato_nombre' instead.
