@@ -216,8 +216,7 @@ const OptBlock = ({
 }) => (
   <div className="border border-border rounded-xl overflow-hidden mb-2">
     <div
-      className="flex items-center justify-between px-3.5 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
-      onClick={() => onToggle(!checked)}
+      className="flex items-center justify-between px-3.5 py-2.5 transition-colors"
     >
       <div className="flex items-center gap-2.5">
         {color && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />}
