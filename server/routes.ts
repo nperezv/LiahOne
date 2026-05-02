@@ -8996,10 +8996,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
 
-      // Create/refresh public link — delete old ones to avoid UNIQUE slug conflict
-      await db.execute(sql`DELETE FROM baptism_public_links WHERE service_id = ${serviceId}`);
-      const slug = `svc-${serviceId.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
-      const randomCode = randomUUID().slice(0, 6);
+      // Create/refresh public link
+      await db.execute(sql`UPDATE baptism_public_links SET revoked_at = NOW() WHERE service_id = ${serviceId} AND revoked_at IS NULL`);
+      const prevSlugResult = await db.execute(sql`SELECT slug FROM baptism_public_links WHERE service_id = ${serviceId} ORDER BY created_at DESC LIMIT 1`);
+      const previousSlug = (prevSlugResult.rows[0] as any)?.slug ?? null;
+      const randomCode = crypto.randomUUID().slice(0, 6);
+      const slug = previousSlug ?? `svc-${serviceId.slice(0, 8)}-${crypto.randomUUID().slice(0, 6)}`;
       const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
       const now = new Date();
       await db.execute(sql`
