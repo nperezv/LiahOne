@@ -176,12 +176,56 @@ async function buildFlyerCanvas(
   const gold = "#D4AF37";
   const tipoLabel = TIPO_LABELS[activityType] ?? "Actividad";
   const { r, g, b } = hexToRgb(dominantColor);
+  const pad = 72;
+  const maxW = FLYER_W - pad * 2; // 936px
 
-  // Layer 1 — background color
+  // ── Pass 1: measure content height to calculate dynamic startY ────────────
+  ctx.font = "italic 700 30px 'Playfair Display'";
+  const hookLines = copy.hook
+    .split(/\.\s+/)
+    .map((s, i, arr) => (i < arr.length - 1 ? s + "." : s))
+    .filter(Boolean)
+    .flatMap((s) => wrapText(ctx, s, maxW));
+  const hookH = hookLines.length * 37 + 12;
+
+  let titleH: number;
+  let titleLines: string[] = [];
+  let nameLines: string[] = [];
+  if (activityType === "servicio_bautismal") {
+    ctx.font = "900 56px Raleway";
+    nameLines = wrapText(ctx, (copy.candidateName || copy.titulo).toUpperCase(), maxW);
+    titleH = 56 + 10 + nameLines.length * 59 + 12;
+  } else {
+    ctx.font = "900 80px Raleway";
+    titleLines = wrapText(ctx, copy.titulo.toUpperCase(), maxW);
+    titleH = titleLines.length * 82 + 12;
+  }
+
+  ctx.font = "400 26px Raleway";
+  const descLines = wrapText(ctx, copy.descripcion, maxW).slice(0, 2);
+  const descH = descLines.length * 34 + 8;
+
+  const belowDividerH =
+    13 + // divider (1px) + gap (12px)
+    (copy.fecha ? 36 : 0) +     // fecha+hora line
+    (copy.lugar ? 43 : 0) +     // lugar
+    (copy.direccion ? 38 : 0);  // dirección
+
+  const totalH = hookH + titleH + descH + belowDividerH;
+
+  // CTA sits at a fixed distance from bottom
+  const ctaTopY = FLYER_H - 80 - 48; // 1222px
+  const idealStart = ctaTopY - totalH - 48; // 48px breathing room above CTA
+  const startY = Math.min(
+    Math.round(FLYER_H * 0.60), // never start lower than 60%
+    Math.max(Math.round(FLYER_H * 0.45), idealStart), // never higher than 45%
+  );
+
+  // ── Layer 1 — background color ────────────────────────────────────────────
   ctx.fillStyle = dominantColor;
   ctx.fillRect(0, 0, FLYER_W, FLYER_H);
 
-  // Layer 2 — photo
+  // ── Layer 2 — photo ───────────────────────────────────────────────────────
   if (photoUrl) {
     try {
       const img = await loadImg(photoUrl);
@@ -189,95 +233,82 @@ async function buildFlyerCanvas(
     } catch { /* keep bg color */ }
   }
 
-  // Layer 3 — gradient overlay
+  // ── Layer 3 — gradient (anchored to startY) ───────────────────────────────
+  const s = startY / FLYER_H;
   const grad = ctx.createLinearGradient(0, 0, 0, FLYER_H);
-  grad.addColorStop(0.00, `rgba(${r},${g},${b},0)`);
-  grad.addColorStop(0.30, `rgba(${r},${g},${b},0)`);
-  grad.addColorStop(0.40, `rgba(${r},${g},${b},${0x20 / 255})`);
-  grad.addColorStop(0.52, `rgba(${r},${g},${b},${0x55 / 255})`);
-  grad.addColorStop(0.60, `rgba(${r},${g},${b},${0xcc / 255})`);
-  grad.addColorStop(0.63, `rgba(${r},${g},${b},1)`);
+  grad.addColorStop(0,                         `rgba(${r},${g},${b},0)`);
+  grad.addColorStop(Math.max(0, s - 0.30),     `rgba(${r},${g},${b},0)`);
+  grad.addColorStop(Math.max(0, s - 0.20),     `rgba(${r},${g},${b},${0x20 / 255})`);
+  grad.addColorStop(Math.max(0, s - 0.11),     `rgba(${r},${g},${b},${0x55 / 255})`);
+  grad.addColorStop(Math.max(0, s - 0.03),     `rgba(${r},${g},${b},${0xcc / 255})`);
+  grad.addColorStop(s,                          `rgba(${r},${g},${b},1)`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, FLYER_W, FLYER_H);
 
-  // Layer 4 — decorative SVG overlay
+  // ── Layer 4 — decorative SVG overlay ─────────────────────────────────────
   try {
     const svgImg = await loadImg("/flyer-assets/asset_flyer_m8.svg");
     ctx.drawImage(svgImg, 0, 0, FLYER_W, FLYER_H);
   } catch { /* no overlay */ }
 
-  // Layer 5 — text
+  // ── Layer 5 — text ────────────────────────────────────────────────────────
   ctx.save();
-  const pad = 72;
-  const maxW = FLYER_W - pad * 2; // 936px
 
-  // Tipo label + barrio — top left
-  const headerH = copy.barrio ? 72 : 46;
+  // Tipo label + barrio — top left header
+  const headerH = copy.barrio ? 74 : 46;
   ctx.fillStyle = gold;
   ctx.fillRect(pad, 72, 3, headerH);
   ctx.font = "700 22px Raleway";
   ctx.fillStyle = gold;
-  (ctx as any).letterSpacing = "6.6px"; // 0.30em × 22px
+  (ctx as any).letterSpacing = "6.6px";
   ctx.textBaseline = "middle";
   ctx.fillText(tipoLabel.toUpperCase(), pad + 21, 72 + 23);
   if (copy.barrio) {
-    ctx.font = "500 15px Raleway";
-    (ctx as any).letterSpacing = "3.3px"; // 0.22em × 15px
-    ctx.fillStyle = `rgba(212,175,55,0.80)`;
-    ctx.fillText(copy.barrio.toUpperCase(), pad + 21, 72 + 46 + 4 + 12);
+    ctx.font = "500 18px Raleway";
+    (ctx as any).letterSpacing = "3.6px"; // 0.20em × 18px
+    ctx.fillStyle = "rgba(212,175,55,0.80)";
+    ctx.fillText(copy.barrio.toUpperCase(), pad + 21, 72 + 46 + 6 + 9);
   }
   (ctx as any).letterSpacing = "0px";
 
-  // Main text block — starts at 60%
-  let y = Math.round(FLYER_H * 0.60); // 810px
+  // ── Pass 2: render text block starting at startY ──────────────────────────
+  let y = startY;
   ctx.textBaseline = "top";
 
-  // Hook — Playfair Display italic, each sentence on its own line
+  // Hook
   ctx.font = "italic 700 30px 'Playfair Display'";
   ctx.fillStyle = gold;
-  const hookSentences = copy.hook
-    .split(/\.\s+/)
-    .map((s, i, arr) => (i < arr.length - 1 ? s + "." : s))
-    .filter(Boolean)
-    .flatMap((s) => wrapText(ctx, s, maxW));
-  hookSentences.forEach((l, i) => ctx.fillText(l, pad, y + i * 37));
-  y += hookSentences.length * 37 + 12;
+  hookLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 37));
+  y += hookLines.length * 37 + 12;
 
   // Title
   if (activityType === "servicio_bautismal") {
-    // "SERVICIO BAUTISMAL DE" on one line — DE bottom-aligned with the big text
     ctx.font = "900 56px Raleway";
     ctx.fillStyle = "#ffffff";
     (ctx as any).letterSpacing = "-0.56px";
     ctx.fillText("SERVICIO BAUTISMAL", pad, y);
     const sbW = ctx.measureText("SERVICIO BAUTISMAL").width;
-
     ctx.font = "700 28px Raleway";
     (ctx as any).letterSpacing = "5px";
-    ctx.fillText("DE", pad + sbW + 16, y + (56 - 28)); // baseline-align with 56px text
+    ctx.fillText("DE", pad + sbW + 16, y + (56 - 28));
     y += 56 + 10;
-
     ctx.font = "900 56px Raleway";
     ctx.fillStyle = "#ffffff";
     (ctx as any).letterSpacing = "-0.56px";
-    const name = (copy.candidateName || copy.titulo).toUpperCase();
-    const nameLines = wrapText(ctx, name, maxW);
     nameLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 59));
     y += nameLines.length * 59 + 12;
   } else {
     ctx.font = "900 80px Raleway";
     ctx.fillStyle = "#ffffff";
     (ctx as any).letterSpacing = "-0.8px";
-    const titleLines = wrapText(ctx, copy.titulo.toUpperCase(), maxW);
     titleLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 82));
     y += titleLines.length * 82 + 12;
   }
 
-  // Description (max 2 lines)
+  // Description
   ctx.font = "400 26px Raleway";
   ctx.fillStyle = "rgba(255,255,255,0.82)";
   (ctx as any).letterSpacing = "0px";
-  const descLines = wrapText(ctx, copy.descripcion, maxW).slice(0, 2);
   descLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 34));
   y += descLines.length * 34 + 8;
 
@@ -291,9 +322,7 @@ async function buildFlyerCanvas(
     ctx.font = "400 21px Raleway";
     ctx.fillStyle = "rgba(255,255,255,0.60)";
     (ctx as any).letterSpacing = "0.5px";
-    ctx.textBaseline = "top";
-    const fechaHoraText = copy.hora ? `${copy.fecha}  ·  ${copy.hora}` : copy.fecha;
-    ctx.fillText(fechaHoraText, pad, y);
+    ctx.fillText(copy.hora ? `${copy.fecha}  ·  ${copy.hora}` : copy.fecha, pad, y);
     y += 28 + 8;
   }
 
@@ -312,14 +341,13 @@ async function buildFlyerCanvas(
     ctx.fillStyle = "rgba(255,255,255,0.70)";
     (ctx as any).letterSpacing = "0.26px";
     ctx.fillText(copy.direccion, pad, y);
-    y += 34 + 4;
   }
 
   // CTA — fixed position from bottom
   ctx.font = "700 20px Raleway";
   (ctx as any).letterSpacing = "2.8px";
   const ctaText = copy.cta.toUpperCase();
-  const ctaW = ctx.measureText(ctaText).width + 96; // 48px padding each side
+  const ctaW = ctx.measureText(ctaText).width + 96;
   const ctaH = 48;
   const ctaY = FLYER_H - 80 - ctaH;
   ctx.fillStyle = gold;
@@ -397,13 +425,13 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
 
       {/* Tipo label + barrio */}
       <div style={{ position: "absolute", top: "72px", left: "72px", right: "72px", display: "flex", alignItems: "flex-start", gap: "18px" }}>
-        <div style={{ width: "3px", height: copy.barrio ? "72px" : "46px", backgroundColor: gold, flexShrink: 0 }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div style={{ width: "3px", height: copy.barrio ? "74px" : "46px", backgroundColor: gold, flexShrink: 0 }} />
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={{ fontFamily: "'Raleway', sans-serif", color: gold, fontSize: "22px", letterSpacing: "0.30em", textTransform: "uppercase", fontWeight: 700, lineHeight: "46px" }}>
             {tipoLabel}
           </span>
           {copy.barrio && (
-            <span style={{ fontFamily: "'Raleway', sans-serif", color: "rgba(212,175,55,0.80)", fontSize: "15px", letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 500 }}>
+            <span style={{ fontFamily: "'Raleway', sans-serif", color: "rgba(212,175,55,0.80)", fontSize: "18px", letterSpacing: "0.20em", textTransform: "uppercase", fontWeight: 500, marginTop: "6px" }}>
               {copy.barrio}
             </span>
           )}
@@ -414,7 +442,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "60%",
+          top: "55%",
           bottom: "80px",
           left: 0,
           right: 0,
