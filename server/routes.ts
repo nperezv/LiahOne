@@ -9103,6 +9103,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
 
+      // Revoke links from any other service on the same day for this unit
+      // (prevents the lobby from showing stale duplicates)
+      const dayStart = new Date(serviceAt); dayStart.setUTCHours(0, 0, 0, 0);
+      const dayEnd   = new Date(serviceAt); dayEnd.setUTCHours(23, 59, 59, 999);
+      await db.execute(sql`
+        DELETE FROM baptism_public_links
+        WHERE service_id IN (
+          SELECT id FROM baptism_services
+          WHERE unit_id = ${unitId}
+            AND service_at >= ${dayStart.toISOString()}
+            AND service_at <= ${dayEnd.toISOString()}
+            AND id != ${serviceId}
+        )
+      `);
+
       // Reuse the existing slug on updates so shared links keep working
       const slug = existingSlug ?? `svc-${serviceId!.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
       const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);

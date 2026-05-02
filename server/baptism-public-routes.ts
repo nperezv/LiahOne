@@ -92,7 +92,9 @@ export function registerBaptismPublicRoutes(app: Express) {
       const todayEnd = new Date(now);
       todayEnd.setHours(23, 59, 59, 999);
 
-      // Find an approved service whose service_at is today
+      // Find an approved service whose service_at is today.
+      // Order by published_at DESC so the most recently published link wins
+      // when multiple services exist for the same day.
       const svcResult = await db.execute(sql`
         SELECT bs.id, bs.service_at, bpl.slug
         FROM baptism_services bs
@@ -102,7 +104,7 @@ export function registerBaptismPublicRoutes(app: Express) {
           AND bs.service_at <= ${todayEnd.toISOString()}
           AND bpl.revoked_at IS NULL
           AND bpl.expires_at > ${now.toISOString()}
-        ORDER BY bs.service_at ASC
+        ORDER BY bpl.published_at DESC, bs.service_at ASC
         LIMIT 1
       `);
 
