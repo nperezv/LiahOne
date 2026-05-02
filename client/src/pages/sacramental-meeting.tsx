@@ -841,9 +841,10 @@ function SacramentalMeetingPageInner() {
   // All original effects (unchanged)
   useEffect(() => {
     if (!isPanelOpen || editingId) return;
-    const current = form.getValues("presider")?.trim();
-    if (!current && bishopLabel) { const calling = getBishopricCalling(bishopLabel); form.setValue("presider", buildPersonValue(bishopLabel, calling)); setPresiderSelection(bishopLabel); }
-  }, [bishopLabel, editingId, form, isPanelOpen]);
+    // Use presiderValue (useWatch) instead of form.getValues to avoid stale closure
+    // in React 18 concurrent mode — form.getValues() can return a stale value between renders.
+    if (!presiderValue?.trim() && bishopLabel) { const calling = getBishopricCalling(bishopLabel); form.setValue("presider", buildPersonValue(bishopLabel, calling)); setPresiderSelection(bishopLabel); }
+  }, [bishopLabel, editingId, form, isPanelOpen, presiderValue]);
 
   useEffect(() => {
     if (!directorValue) return;
@@ -856,14 +857,15 @@ function SacramentalMeetingPageInner() {
 
   useEffect(() => {
     if (!isPanelOpen) return;
-    const pd = parsePersonValue(form.getValues("director"));
+    // Use directorValue (useWatch) instead of form.getValues to avoid stale closure
+    const pd = parsePersonValue(directorValue);
     const d = pd.name.trim();
     if (!d) { if (directorSelection !== directorAssignedSelection) { if (directorSelection) setDirectorSelection(""); if (directorCustom) setDirectorCustom(""); if (directorCustomCalling) setDirectorCustomCalling(""); } return; }
     if (bishopricNames.includes(d)) { if (directorSelection !== d) setDirectorSelection(d); if (directorCustom) setDirectorCustom(""); if (directorCustomCalling) setDirectorCustomCalling(""); return; }
     if (directorSelection !== directorAssignedSelection) setDirectorSelection(directorAssignedSelection);
     if (!directorCustom) setDirectorCustom(d);
     if (!directorCustomCalling && pd.calling) setDirectorCustomCalling(pd.calling);
-  }, [bishopricNamesKey, directorCustom, directorCustomCalling, directorSelection, form, isPanelOpen]);
+  }, [bishopricNamesKey, directorCustom, directorCustomCalling, directorSelection, directorValue, isPanelOpen]);
 
   useEffect(() => {
     if (!isPanelOpen) return;
