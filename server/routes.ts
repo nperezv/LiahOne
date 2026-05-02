@@ -9023,6 +9023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // baptism_service_id is reserved for converso (mission flow).
       // For niño inscrito the service reference lives in section_data.baptism_service_ref.
       let serviceId: string | null = sectionData["baptism_service_ref"] ?? null;
+      let existingSlug: string | null = null;
 
       const unitId = user.organizationId ?? null;
       const serviceAt = new Date((activity as any).date);
@@ -9050,6 +9051,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           WHERE id = ${serviceId}
         `);
         await db.execute(sql`DELETE FROM baptism_program_items WHERE service_id = ${serviceId}`);
+        // Preserve the existing slug so shared links keep working after updates
+        const existingLinkRow = await db.execute(sql`
+          SELECT slug FROM baptism_public_links WHERE service_id = ${serviceId} LIMIT 1
+        `);
+        existingSlug = (existingLinkRow.rows[0] as any)?.slug ?? null;
         await db.execute(sql`DELETE FROM baptism_public_links WHERE service_id = ${serviceId}`);
       }
 
@@ -9097,8 +9103,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
 
-      // Create public link (old links already deleted above for update case)
-      const slug = `svc-${serviceId!.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
+      // Reuse the existing slug on updates so shared links keep working
+      const slug = existingSlug ?? `svc-${serviceId!.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
       const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
       await db.execute(sql`
         INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
