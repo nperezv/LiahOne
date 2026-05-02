@@ -211,14 +211,21 @@ async function buildFlyerCanvas(
   const pad = 72;
   const maxW = FLYER_W - pad * 2; // 936px
 
-  // Tipo label — top left
+  // Tipo label + barrio — top left
+  const headerH = copy.barrio ? 72 : 46;
   ctx.fillStyle = gold;
-  ctx.fillRect(pad, 72, 3, 46);
+  ctx.fillRect(pad, 72, 3, headerH);
   ctx.font = "700 22px Raleway";
   ctx.fillStyle = gold;
   (ctx as any).letterSpacing = "6.6px"; // 0.30em × 22px
   ctx.textBaseline = "middle";
   ctx.fillText(tipoLabel.toUpperCase(), pad + 21, 72 + 23);
+  if (copy.barrio) {
+    ctx.font = "500 15px Raleway";
+    (ctx as any).letterSpacing = "3.3px"; // 0.22em × 15px
+    ctx.fillStyle = `rgba(212,175,55,0.80)`;
+    ctx.fillText(copy.barrio.toUpperCase(), pad + 21, 72 + 46 + 4 + 12);
+  }
   (ctx as any).letterSpacing = "0px";
 
   // Main text block — starts at 60%
@@ -308,14 +315,6 @@ async function buildFlyerCanvas(
     y += 34 + 4;
   }
 
-  // Barrio
-  if (copy.barrio) {
-    ctx.font = "500 24px Raleway";
-    ctx.fillStyle = gold;
-    (ctx as any).letterSpacing = "4.32px"; // 0.18em × 24px
-    ctx.fillText(copy.barrio.toUpperCase(), pad, y);
-  }
-
   // CTA — fixed position from bottom
   ctx.font = "700 20px Raleway";
   (ctx as any).letterSpacing = "2.8px";
@@ -396,12 +395,19 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
       />
 
-      {/* Tipo label */}
-      <div style={{ position: "absolute", top: "72px", left: "72px", right: "72px", display: "flex", alignItems: "center", gap: "18px" }}>
-        <div style={{ width: "3px", height: "46px", backgroundColor: gold, flexShrink: 0 }} />
-        <span style={{ fontFamily: "'Raleway', sans-serif", color: gold, fontSize: "22px", letterSpacing: "0.30em", textTransform: "uppercase", fontWeight: 700 }}>
-          {tipoLabel}
-        </span>
+      {/* Tipo label + barrio */}
+      <div style={{ position: "absolute", top: "72px", left: "72px", right: "72px", display: "flex", alignItems: "flex-start", gap: "18px" }}>
+        <div style={{ width: "3px", height: copy.barrio ? "72px" : "46px", backgroundColor: gold, flexShrink: 0 }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <span style={{ fontFamily: "'Raleway', sans-serif", color: gold, fontSize: "22px", letterSpacing: "0.30em", textTransform: "uppercase", fontWeight: 700, lineHeight: "46px" }}>
+            {tipoLabel}
+          </span>
+          {copy.barrio && (
+            <span style={{ fontFamily: "'Raleway', sans-serif", color: "rgba(212,175,55,0.80)", fontSize: "15px", letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 500 }}>
+              {copy.barrio}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Main text block */}
@@ -481,13 +487,6 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
               <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
                 <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "26px", color: "rgba(255,255,255,0.70)", fontWeight: 400, letterSpacing: "0.01em", lineHeight: 1.3 }}>
                   {copy.direccion}
-                </span>
-              </div>
-            )}
-            {copy.barrio && (
-              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", marginTop: "2px" }}>
-                <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "24px", color: gold, fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.3 }}>
-                  {copy.barrio}
                 </span>
               </div>
             )}
