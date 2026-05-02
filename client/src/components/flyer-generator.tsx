@@ -223,12 +223,16 @@ async function buildFlyerCanvas(
   let y = Math.round(FLYER_H * 0.60); // 810px
   ctx.textBaseline = "top";
 
-  // Hook — Playfair Display italic
+  // Hook — Playfair Display italic, each sentence on its own line
   ctx.font = "italic 700 30px 'Playfair Display'";
   ctx.fillStyle = gold;
-  const hookLines = wrapText(ctx, copy.hook, maxW);
-  hookLines.forEach((l, i) => ctx.fillText(l, pad, y + i * 37));
-  y += hookLines.length * 37 + 12;
+  const hookSentences = copy.hook
+    .split(/\.\s+/)
+    .map((s, i, arr) => (i < arr.length - 1 ? s + "." : s))
+    .filter(Boolean)
+    .flatMap((s) => wrapText(ctx, s, maxW));
+  hookSentences.forEach((l, i) => ctx.fillText(l, pad, y + i * 37));
+  y += hookSentences.length * 37 + 12;
 
   // Title
   if (activityType === "servicio_bautismal") {
@@ -389,8 +393,8 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "30px", color: gold, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
-            {copy.hook}
+          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "30px", color: gold, fontWeight: 700, lineHeight: 1.2, margin: 0, whiteSpace: "pre-line" }}>
+            {copy.hook.replace(/\.\s+/g, ".\n")}
           </p>
 
           {activityType === "servicio_bautismal" ? (
