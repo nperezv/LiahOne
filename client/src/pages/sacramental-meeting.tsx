@@ -230,7 +230,7 @@ const OptBlock = ({
           which combined with parent state updates caused React error #185 (>50 renders). */}
       <div
         className={`h-4 w-4 shrink-0 rounded-sm border-2 flex items-center justify-center transition-colors ${checked ? "bg-primary border-primary" : "border-muted-foreground/40 bg-background"}`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onToggle(!checked); }}
       >
         {checked && (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-2.5 w-2.5 text-primary-foreground">
