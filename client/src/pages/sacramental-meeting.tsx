@@ -226,7 +226,18 @@ const OptBlock = ({
           {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
         </div>
       </div>
-      <Checkbox checked={checked} onCheckedChange={onToggle} onClick={(e) => e.stopPropagation()} />
+      {/* Plain CSS toggle — Radix UI Checkbox uses usePresence+useLayoutEffect internally
+          which combined with parent state updates caused React error #185 (>50 renders). */}
+      <div
+        className={`h-4 w-4 shrink-0 rounded-sm border-2 flex items-center justify-center transition-colors ${checked ? "bg-primary border-primary" : "border-muted-foreground/40 bg-background"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {checked && (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-2.5 w-2.5 text-primary-foreground">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </div>
     </div>
     {checked && children && (
       <div className="px-3.5 pb-3.5 pt-2 border-t border-border bg-muted/20">
