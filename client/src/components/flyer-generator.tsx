@@ -620,7 +620,7 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
             </span>
             <div className="flex gap-1.5">
               <a
-                href={flyerUrl}
+                href={`/f/${activityId}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs bg-white/20 hover:bg-white/35 text-white px-2.5 py-1 rounded-md backdrop-blur-sm transition-colors"

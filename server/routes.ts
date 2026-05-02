@@ -8077,6 +8077,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ACTIVITIES
   // ========================================
 
+  // ── GET /f/:activityId — public flyer preview page (OG tags for WhatsApp large preview)
+  app.get("/f/:activityId", async (req: Request, res: Response) => {
+    try {
+      const activity = await storage.getActivity(req.params.activityId);
+      const flyerUrl = (activity as any)?.flyerUrl as string | undefined;
+      if (!activity || !flyerUrl) return res.status(404).send("Flyer no encontrado");
+
+      const title = ((activity as any).title ?? "Actividad").replace(/[<>&"]/g, (c: string) =>
+        ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] ?? c)
+      );
+      const host = `${req.protocol}://${req.get("host")}`;
+      const absImg = flyerUrl.startsWith("http") ? flyerUrl : `${host}${flyerUrl}`;
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${title}">
+  <meta property="og:image" content="${absImg}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1080">
+  <meta property="og:image:height" content="1350">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="${absImg}">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#111;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px;font-family:sans-serif}
+    img{max-width:100%;max-height:90vh;object-fit:contain;border-radius:4px}
+    a{padding:12px 32px;background:#D4AF37;color:#000;font-weight:700;text-decoration:none;border-radius:4px;font-size:16px;letter-spacing:.05em}
+  </style>
+</head>
+<body>
+  <img src="${flyerUrl}" alt="${title}">
+  <a href="${flyerUrl}" download="flyer.jpg">Descargar imagen</a>
+</body>
+</html>`);
+    } catch {
+      res.status(500).send("Error");
+    }
+  });
+
   // Public endpoint — no auth required, only returns is_public activities
   app.get("/api/public/activities", async (_req: Request, res: Response) => {
     try {
