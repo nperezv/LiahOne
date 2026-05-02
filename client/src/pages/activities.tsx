@@ -1214,9 +1214,9 @@ function SectionPanel({
                   </div>
                 </div>
               ))}
-              {/* Extra messages (prog_mensaje_2+) — only under Programa section */}
+              {/* Extra messages (prog_mensaje_3+) without a checklist item — only under Programa */}
               {sec === "programa" && Object.entries(sectionData)
-                .filter(([k]) => /^prog_mensaje_[2-9]$/.test(k) && sectionData[k])
+                .filter(([k]) => /^prog_mensaje_[2-9]$/.test(k) && sectionData[k] && !secItems.some(i => i.itemKey === k))
                 .map(([k, v]) => (
                   <div key={k} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                     <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0 mt-0.5" />
