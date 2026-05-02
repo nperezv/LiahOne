@@ -83,6 +83,40 @@ const publicPostSchema = z.object({
 
 export function registerBaptismPublicRoutes(app: Express) {
 
+  // ── Startup cleanup: remove stale/duplicate public links ──────────────────
+  // Runs once at boot. Deletes:
+  //   1. Expired links (expires_at already passed)
+  //   2. Duplicate links for the same unit+day — keeps only the most recently published one
+  void (async () => {
+    try {
+      // 1. Expired links
+      await db.execute(sql`
+        DELETE FROM baptism_public_links WHERE expires_at <= NOW()
+      `);
+
+      // 2. Duplicates per unit+day — keep the row with MAX(published_at)
+      await db.execute(sql`
+        DELETE FROM baptism_public_links
+        WHERE id IN (
+          SELECT bpl.id
+          FROM baptism_public_links bpl
+          JOIN baptism_services bs ON bs.id = bpl.service_id
+          WHERE bpl.revoked_at IS NULL
+            AND bpl.id NOT IN (
+              SELECT DISTINCT ON (bs2.unit_id, date_trunc('day', bs2.service_at))
+                bpl2.id
+              FROM baptism_public_links bpl2
+              JOIN baptism_services bs2 ON bs2.id = bpl2.service_id
+              WHERE bpl2.revoked_at IS NULL
+              ORDER BY bs2.unit_id, date_trunc('day', bs2.service_at), bpl2.published_at DESC
+            )
+        )
+      `);
+    } catch (e) {
+      console.error("[baptism-public-routes] startup cleanup error:", e);
+    }
+  })();
+
   // ── Lobby: today's active service ─────────────────────────────────────────
   app.get("/api/bautismo", async (_req, res) => {
     try {
