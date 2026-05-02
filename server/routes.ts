@@ -8084,11 +8084,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const flyerUrl = (activity as any)?.flyerUrl as string | undefined;
       if (!activity || !flyerUrl) return res.status(404).send("Flyer no encontrado");
 
-      const title = ((activity as any).title ?? "Actividad").replace(/[<>&"]/g, (c: string) =>
-        ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] ?? c)
-      );
-      const host = `${req.protocol}://${req.get("host")}`;
-      const absImg = flyerUrl.startsWith("http") ? flyerUrl : `${host}${flyerUrl}`;
+      const esc = (s: string) => s.replace(/[<>&"]/g, (c: string) =>
+        ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] ?? c));
+      const title = esc((activity as any).title ?? "Actividad");
+      const desc  = esc(((activity as any).description ?? "").slice(0, 200));
+      const host  = `${req.protocol}://${req.get("host")}`;
+      const pageUrl = `${host}/f/${req.params.activityId}`;
+      const absFlyer = flyerUrl.startsWith("http") ? flyerUrl : `${host}${flyerUrl}`;
+
+      // Use landscape OG image (1200×630) if it was generated — WhatsApp shows it as a large card.
+      // Falls back to the portrait flyer (thumbnail) when the OG image has not been created yet.
+      const ogFilename = `activity-flyer-og-${req.params.activityId}.jpg`;
+      const ogPath = path.join(process.cwd(), "uploads", "flyers", ogFilename);
+      const hasOg = fs.existsSync(ogPath);
+      const ogImgUrl  = hasOg ? `${host}/uploads/flyers/${ogFilename}` : absFlyer;
+      const ogWidth   = hasOg ? "1200" : "1080";
+      const ogHeight  = hasOg ? "630"  : "1350";
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(`<!DOCTYPE html>
@@ -8096,15 +8107,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title}</title>
   <meta property="og:type" content="website">
+  <meta property="og:url" content="${pageUrl}">
+  <meta property="og:site_name" content="Zendapp">
   <meta property="og:title" content="${title}">
-  <meta property="og:image" content="${absImg}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:image" content="${ogImgUrl}">
   <meta property="og:image:type" content="image/jpeg">
-  <meta property="og:image:width" content="1080">
-  <meta property="og:image:height" content="1350">
+  <meta property="og:image:width" content="${ogWidth}">
+  <meta property="og:image:height" content="${ogHeight}">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="${absImg}">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${desc}">
+  <meta name="twitter:image" content="${ogImgUrl}">
+  <title>${title}</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#111;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px;font-family:sans-serif}
@@ -8113,8 +8129,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   </style>
 </head>
 <body>
-  <img src="${flyerUrl}" alt="${title}">
-  <a href="${flyerUrl}" download="flyer.jpg">Descargar imagen</a>
+  <img src="${absFlyer}" alt="${title}">
+  <a href="${absFlyer}" download="flyer.jpg">Descargar imagen</a>
 </body>
 </html>`);
     } catch {
@@ -9104,8 +9120,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── POST /api/activities/:id/flyer ────────────────────────────────────────
-  // Upload flyer image for an activity
-  app.post("/api/activities/:id/flyer", requireAuth, multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single("flyer"), async (req: Request, res: Response) => {
+  // Upload flyer image for an activity. Accepts "flyer" (portrait) + optional "og" (1200×630 landscape)
+  app.post("/api/activities/:id/flyer", requireAuth,
+    multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+      .fields([{ name: "flyer", maxCount: 1 }, { name: "og", maxCount: 1 }]),
+    async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
       const activity = await storage.getActivity(req.params.id);
@@ -9117,14 +9136,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Sin permiso" });
       }
 
-      if (!req.file) return res.status(400).json({ error: "No se recibió archivo" });
+      const files = req.files as { [f: string]: Express.Multer.File[] } | undefined;
+      const flyerFile = files?.["flyer"]?.[0];
+      if (!flyerFile) return res.status(400).json({ error: "No se recibió archivo" });
 
-      const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
-      const filename = `activity-flyer-${req.params.id}-${Date.now()}.${ext}`;
       const uploadDir = path.join(process.cwd(), "uploads", "flyers");
       if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, filename);
-      fs.writeFileSync(filePath, req.file.buffer);
+
+      const ext = flyerFile.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
+      const filename = `activity-flyer-${req.params.id}-${Date.now()}.${ext}`;
+      fs.writeFileSync(path.join(uploadDir, filename), flyerFile.buffer);
+
+      // Save optional landscape OG image (1200×630) for WhatsApp large-card preview
+      const ogFile = files?.["og"]?.[0];
+      if (ogFile) {
+        const ogFilename = `activity-flyer-og-${req.params.id}.jpg`;
+        fs.writeFileSync(path.join(uploadDir, ogFilename), ogFile.buffer);
+      }
 
       const flyerUrl = `/uploads/flyers/${filename}`;
       const updated = await storage.updateActivity(req.params.id, { flyerUrl } as any);
@@ -9310,6 +9338,10 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
       copy.lugar = template?.meetingCenterName?.trim() || activity.location || "";
       copy.direccion = template?.meetingCenterAddress?.trim() || "";
       copy.barrio = template?.wardName?.trim() || "";
+
+      // Date + time for flyer display (short format, no year)
+      copy.fecha = activityDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+      copy.hora  = activityDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
       // For baptism services, pass the candidate name(s) so the frontend renders a fixed title
       if ((activity as any).type === "servicio_bautismal" && candidatosLine) {

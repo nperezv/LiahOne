@@ -42,6 +42,8 @@ interface FlyCopy {
   direccion?: string;
   barrio?: string;
   candidateName?: string;
+  fecha?: string;
+  hora?: string;
 }
 
 // Returns #rrggbb so hex-alpha suffixes in the gradient stay valid CSS
@@ -275,7 +277,18 @@ async function buildFlyerCanvas(
   // Divider
   ctx.fillStyle = "rgba(212,175,55,0.32)";
   ctx.fillRect(pad, y, maxW, 1);
-  y += 10;
+  y += 12;
+
+  // Fecha y hora
+  if (copy.fecha) {
+    ctx.font = "400 21px Raleway";
+    ctx.fillStyle = "rgba(255,255,255,0.60)";
+    (ctx as any).letterSpacing = "0.5px";
+    ctx.textBaseline = "top";
+    const fechaHoraText = copy.hora ? `${copy.fecha}  ·  ${copy.hora}` : copy.fecha;
+    ctx.fillText(fechaHoraText, pad, y);
+    y += 28 + 8;
+  }
 
   // Lugar
   if (copy.lugar) {
@@ -318,6 +331,19 @@ async function buildFlyerCanvas(
 
   ctx.restore();
   return canvas;
+}
+
+// Generates a 1200×630 landscape image from the portrait flyer (top crop).
+// WhatsApp renders og:image as a large card only when the image is landscape (≥1.91:1).
+async function buildOgCanvas(flyerCanvas: HTMLCanvasElement): Promise<HTMLCanvasElement> {
+  const og = document.createElement("canvas");
+  og.width = 1200;
+  og.height = 630;
+  const ctx = og.getContext("2d")!;
+  // Scale flyer to fill 1200px wide; canvas clips at 630px showing the top (photo + tipo label)
+  const scaledH = Math.round(FLYER_H * (1200 / FLYER_W));
+  ctx.drawImage(flyerCanvas, 0, 0, 1200, scaledH);
+  return og;
 }
 
 // ── CSS preview component (dialog display only) ───────────────────────────────
@@ -434,6 +460,14 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
           </p>
 
           <div style={{ width: "100%", height: "1px", backgroundColor: "rgba(212,175,55,0.32)" }} />
+
+          {copy.fecha && (
+            <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: "21px", color: "rgba(255,255,255,0.60)", fontWeight: 400, letterSpacing: "0.5px", lineHeight: 1.3 }}>
+                {copy.hora ? `${copy.fecha}  ·  ${copy.hora}` : copy.fecha}
+              </span>
+            </div>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {copy.lugar && (
@@ -574,16 +608,29 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
       const photoUrl = getPhotoUrl(copy.fondo, customPhotoUrl);
       const canvas = await buildFlyerCanvas(copy, activity.type, dominantColor, photoUrl);
 
-      const blob = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
-          "image/jpeg",
-          0.92,
+      const [blob, ogBlob] = await Promise.all([
+        new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
+            "image/jpeg",
+            0.92,
+          ),
         ),
-      );
+        buildOgCanvas(canvas).then(
+          (ogCanvas) =>
+            new Promise<Blob>((resolve, reject) =>
+              ogCanvas.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error("toBlob og falló"))),
+                "image/jpeg",
+                0.85,
+              ),
+            ),
+        ),
+      ]);
 
       const form = new FormData();
       form.append("flyer", blob, "flyer.jpg");
+      form.append("og", ogBlob, "og.jpg");
       const token = getAccessToken();
       const uploadRes = await fetch(`/api/activities/${activityId}/flyer`, {
         method: "POST",
