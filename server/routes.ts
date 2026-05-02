@@ -9214,9 +9214,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         otro: "Actividad General",
       };
 
-      const ctaInstructions = requiresReg
-        ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
-        : `CTA: debe invitar a asistir libremente, sin inscripción previa. Sugiere traer amigos y familiares.`;
+      const isBaptism = (activity as any).type === "servicio_bautismal";
+      const ctaInstructions = isBaptism
+        ? `CTA: es un servicio bautismal. Debe invitar a acompañar y ser testigo del bautismo. NO uses "entrada libre", "sin inscripción", "reserva" ni ninguna referencia a inscripciones. Ejemplos de tono: "Ven a ser testigo", "Acompáñanos en este momento", "Únete a esta celebración".`
+        : requiresReg
+          ? `CTA: debe invitar a inscribirse. ${secretaryPhone ? `Incluye el texto "Contacto: ${secretaryPhone}" en el CTA o descripción.` : "Indica que deben inscribirse con anticipación."}`
+          : `CTA: debe invitar a asistir. Sugiere traer amigos y familiares. No menciones inscripciones.`;
 
       const prompt = `Eres un experto en neuromarketing y copywriting para comunidades religiosas LDS.
 IMPORTANTE: Usa EXCLUSIVAMENTE vocabulario en español. No uses ninguna palabra en inglés (ni "covenant", "testimony", "ward", "stake", ni ninguna otra).

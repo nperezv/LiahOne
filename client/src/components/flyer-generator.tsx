@@ -219,8 +219,8 @@ async function buildFlyerCanvas(
   ctx.fillText(tipoLabel.toUpperCase(), pad + 21, 72 + 23);
   (ctx as any).letterSpacing = "0px";
 
-  // Main text block — starts at 63% (where gradient becomes solid)
-  let y = Math.round(FLYER_H * 0.63); // 851px
+  // Main text block — starts at 60%
+  let y = Math.round(FLYER_H * 0.60); // 810px
   ctx.textBaseline = "top";
 
   // Hook — Playfair Display italic
@@ -378,7 +378,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "63%",
+          top: "60%",
           bottom: "80px",
           left: 0,
           right: 0,
