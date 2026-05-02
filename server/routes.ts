@@ -8697,7 +8697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             RETURNING id
           `);
           const serviceId = (svcResult.rows[0] as any)?.id as string;
-          await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId} WHERE id = ${req.params.id}`);
+          await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId}, baptism_subtype = 'nino_inscrito' WHERE id = ${req.params.id}`);
 
           // Candidate names as program items (type='candidato_nombre', public_visibility=false)
           const names = (sd["prog_candidatos"] ?? "").split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
@@ -8944,7 +8944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           RETURNING id
         `);
         serviceId = (svcResult.rows[0] as any)?.id as string;
-        await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId} WHERE id = ${activityId}`);
+        await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId}, baptism_subtype = 'nino_inscrito' WHERE id = ${activityId}`);
       } else {
         await db.execute(sql`
           UPDATE baptism_services SET approval_status = 'approved', service_at = ${serviceAt.toISOString()},
