@@ -9259,7 +9259,8 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
       // Photo selected by backend (random among best match), not by Claude
       copy.fondo = selectedFondo;
 
-      copy.lugar = template?.meetingCenterName?.trim() || meetingAddress || activity.location || "";
+      copy.lugar = template?.meetingCenterName?.trim() || activity.location || "";
+      copy.direccion = template?.meetingCenterAddress?.trim() || "";
       copy.barrio = template?.wardName?.trim() || "";
 
       // For baptism services, pass the candidate name(s) so the frontend renders a fixed title

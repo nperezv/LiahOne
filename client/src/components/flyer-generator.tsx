@@ -9,6 +9,8 @@ import "@fontsource/playfair-display/700.css";
 import "@fontsource/playfair-display/700-italic.css";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getAccessToken } from "@/lib/auth-tokens";
@@ -38,6 +40,7 @@ interface FlyCopy {
   cta: string;
   fondo: string;
   lugar?: string;
+  direccion?: string;
   barrio?: string;
   candidateName?: string;
 }
@@ -313,37 +316,47 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
             }}
           />
 
-          {/* Lugar + Barrio — one line each, overflow on wrapper div not span */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {/* Lugar + Dirección + Barrio */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {copy.lugar && (
-              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", paddingBottom: "4px" }}>
-                <span
-                  style={{
-                    fontFamily: "'Raleway', sans-serif",
-                    fontSize: "22px",
-                    color: "#FFFFFF",
-                    fontWeight: 600,
-                    letterSpacing: "0.02em",
-                    lineHeight: 1.5,
-                  }}
-                >
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                <span style={{
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "22px",
+                  color: "#FFFFFF",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  lineHeight: 1.4,
+                }}>
                   {copy.lugar}
                 </span>
               </div>
             )}
+            {copy.direccion && (
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                <span style={{
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "17px",
+                  color: "rgba(255,255,255,0.70)",
+                  fontWeight: 400,
+                  letterSpacing: "0.01em",
+                  lineHeight: 1.4,
+                }}>
+                  {copy.direccion}
+                </span>
+              </div>
+            )}
             {copy.barrio && (
-              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", paddingBottom: "4px" }}>
-                <span
-                  style={{
-                    fontFamily: "'Raleway', sans-serif",
-                    fontSize: "18px",
-                    color: gold,
-                    fontWeight: 500,
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                    lineHeight: 1.5,
-                  }}
-                >
+              <div style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", marginTop: "2px" }}>
+                <span style={{
+                  fontFamily: "'Raleway', sans-serif",
+                  fontSize: "18px",
+                  color: gold,
+                  fontWeight: 500,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  lineHeight: 1.4,
+                }}>
                   {copy.barrio}
                 </span>
               </div>
@@ -658,6 +671,29 @@ export function FlyerGenerator({ activityId, flyerUrl, canUpload, activity }: Fl
                     activityType={activity.type}
                     dominantColor={dominantColor}
                     photoUrl={photoUrl}
+                  />
+                </div>
+              </div>
+
+              {/* Editable location fields */}
+              <div className="space-y-2 rounded-lg border px-3 py-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lugar del evento</p>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Centro de reuniones</Label>
+                  <Input
+                    className="h-8 text-sm"
+                    value={copy.lugar ?? ""}
+                    onChange={(e) => setCopy(c => c ? { ...c, lugar: e.target.value } : c)}
+                    placeholder="Nombre del centro"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Dirección</Label>
+                  <Input
+                    className="h-8 text-sm"
+                    value={copy.direccion ?? ""}
+                    onChange={(e) => setCopy(c => c ? { ...c, direccion: e.target.value } : c)}
+                    placeholder="Calle, número, ciudad…"
                   />
                 </div>
               </div>
