@@ -212,7 +212,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
       <div
         style={{
           position: "absolute",
-          top: "51%",
+          top: "55%",
           bottom: "80px",
           left: 0,
           right: 0,
@@ -223,7 +223,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
         }}
       >
         {/* Upper content group */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           {/* Hook — Playfair Display italic */}
           <p
             style={{
@@ -244,7 +244,7 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
             <div style={{ margin: 0, lineHeight: 1.0 }}>
               <div style={{
                 fontFamily: "'Raleway', sans-serif",
-                fontSize: "56px",
+                fontSize: "60px",
                 color: "#FFFFFF",
                 fontWeight: 900,
                 textTransform: "uppercase",
@@ -255,25 +255,22 @@ function FlyerCanvas({ copy, activityType, dominantColor, photoUrl }: {
               <div style={{
                 fontFamily: "'Raleway', sans-serif",
                 fontSize: "22px",
-                color: "#FFFFFF",
+                color: gold,
                 fontWeight: 700,
                 letterSpacing: "0.35em",
                 textTransform: "uppercase",
-                marginTop: "14px",
+                marginTop: "6px",
               }}>
                 DE
               </div>
               <div style={{
                 fontFamily: "'Raleway', sans-serif",
-                fontSize: "56px",
+                fontSize: "72px",
                 color: "#FFFFFF",
                 fontWeight: 900,
                 textTransform: "uppercase",
                 letterSpacing: "-0.01em",
-                marginTop: "8px",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-                textOverflow: "ellipsis",
+                marginTop: "2px",
               }}>
                 {copy.candidateName || copy.titulo}
               </div>
