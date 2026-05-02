@@ -8707,22 +8707,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Auto-publish public program for niño inscrito baptism (no existing baptism_service)
+      // Auto-publish public program for niño inscrito baptism (no mission-flow baptism_service)
       if ((activity as any).type === "servicio_bautismal" && !(activity as any).baptismServiceId) {
         try {
           const dataRow = await db.execute(sql`SELECT section_data FROM activities WHERE id = ${req.params.id}`);
           const sd: Record<string, string> = (dataRow.rows[0] as any)?.section_data ?? {};
+          // Skip if already published (ref stored in section_data)
+          if (sd["baptism_service_ref"]) throw new Error("already_published");
           const unitId = user.organizationId ?? null;
           const serviceAt = new Date((activity as any).date);
           const location = (activity as any).location || "Capilla";
+          const prepDeadline = new Date(serviceAt.getTime() - 14 * 24 * 60 * 60 * 1000);
 
           const svcResult = await db.execute(sql`
-            INSERT INTO baptism_services (unit_id, service_at, location_name, approval_status, created_by)
-            VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, 'approved', ${user.id})
+            INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
+            VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, ${prepDeadline.toISOString()}, 'approved', ${user.id})
             RETURNING id
           `);
           const serviceId = (svcResult.rows[0] as any)?.id as string;
-          await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId} WHERE id = ${req.params.id}`);
+          // Store ref in section_data only — do NOT set baptism_service_id (reserved for converso)
 
           // Candidate names as program items (type='candidato_nombre', public_visibility=false)
           const names = (sd["prog_candidatos"] ?? "").split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
@@ -8764,19 +8767,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `);
           }
 
-          const prevSlug = null;
-          const slug = `svc-${serviceId.slice(0, 8)}-${crypto.randomUUID().slice(0, 6)}`;
+          const slug = `svc-${serviceId.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
           const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
           await db.execute(sql`
             INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
-            VALUES (${serviceId}, ${slug}, ${crypto.randomUUID().slice(0, 6)}, NOW(), ${expiresAt.toISOString()}, ${user.id})
+            VALUES (${serviceId}, ${slug}, ${randomUUID().slice(0, 6)}, NOW(), ${expiresAt.toISOString()}, ${user.id})
           `);
           await db.execute(sql`
-            UPDATE activities SET section_data = section_data || ${JSON.stringify({ programa_publico_url: `/bautismo/${slug}` })}::jsonb
+            UPDATE activities
+            SET section_data = COALESCE(section_data, '{}'::jsonb) || ${JSON.stringify({ baptism_service_ref: serviceId, programa_publico_url: `/bautismo/${slug}` })}::jsonb
             WHERE id = ${req.params.id}
           `);
-        } catch (publishErr) {
-          console.error("[approve] Auto-publish baptism program failed:", publishErr);
+        } catch (publishErr: any) {
+          if (publishErr?.message !== "already_published")
+            console.error("[approve] Auto-publish baptism program failed:", publishErr);
         }
       }
 
@@ -8953,29 +8957,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!activity) return res.status(404).json({ error: "Actividad no encontrada" });
       if ((activity as any).type !== "servicio_bautismal") return res.status(400).json({ error: "No es un servicio bautismal" });
 
-      const dataRow = await db.execute(sql`SELECT section_data, baptism_service_id FROM activities WHERE id = ${activityId}`);
+      const dataRow = await db.execute(sql`SELECT section_data FROM activities WHERE id = ${activityId}`);
       const sectionData: Record<string, string> = (dataRow.rows[0] as any)?.section_data ?? {};
-      let serviceId: string | null = (dataRow.rows[0] as any)?.baptism_service_id ?? null;
+      // baptism_service_id is reserved for converso (mission flow).
+      // For niño inscrito the service reference lives in section_data.baptism_service_ref.
+      let serviceId: string | null = sectionData["baptism_service_ref"] ?? null;
 
       const unitId = user.organizationId ?? null;
       const serviceAt = new Date((activity as any).date);
       const location = (activity as any).location || "Capilla";
+      const prepDeadline = new Date(serviceAt.getTime() - 14 * 24 * 60 * 60 * 1000);
 
       if (!serviceId) {
         const svcResult = await db.execute(sql`
-          INSERT INTO baptism_services (unit_id, service_at, location_name, approval_status, created_by)
-          VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, 'approved', ${user.id})
+          INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
+          VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, ${prepDeadline.toISOString()}, 'approved', ${user.id})
           RETURNING id
         `);
         serviceId = (svcResult.rows[0] as any)?.id as string;
-        await db.execute(sql`UPDATE activities SET baptism_service_id = ${serviceId} WHERE id = ${activityId}`);
+        // Store service ref in section_data — do NOT set baptism_service_id
+        await db.execute(sql`
+          UPDATE activities
+          SET section_data = COALESCE(section_data, '{}'::jsonb) || ${JSON.stringify({ baptism_service_ref: serviceId })}::jsonb
+          WHERE id = ${activityId}
+        `);
       } else {
         await db.execute(sql`
-          UPDATE baptism_services SET approval_status = 'approved', service_at = ${serviceAt.toISOString()},
-            location_name = ${location}, updated_at = NOW()
+          UPDATE baptism_services
+          SET approval_status = 'approved', service_at = ${serviceAt.toISOString()},
+              location_name = ${location}, prep_deadline_at = ${prepDeadline.toISOString()}, updated_at = NOW()
           WHERE id = ${serviceId}
         `);
         await db.execute(sql`DELETE FROM baptism_program_items WHERE service_id = ${serviceId}`);
+        await db.execute(sql`DELETE FROM baptism_public_links WHERE service_id = ${serviceId}`);
       }
 
       // Candidate names: stored as program items (type='candidato_nombre') at order 0.
@@ -9022,22 +9036,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
 
-      // Create/refresh public link
-      await db.execute(sql`UPDATE baptism_public_links SET revoked_at = NOW() WHERE service_id = ${serviceId} AND revoked_at IS NULL`);
-      const prevSlugResult = await db.execute(sql`SELECT slug FROM baptism_public_links WHERE service_id = ${serviceId} ORDER BY created_at DESC LIMIT 1`);
-      const previousSlug = (prevSlugResult.rows[0] as any)?.slug ?? null;
-      const randomCode = crypto.randomUUID().slice(0, 6);
-      const slug = previousSlug ?? `svc-${serviceId.slice(0, 8)}-${crypto.randomUUID().slice(0, 6)}`;
+      // Create public link (old links already deleted above for update case)
+      const slug = `svc-${serviceId!.slice(0, 8)}-${randomUUID().slice(0, 6)}`;
       const expiresAt = new Date(serviceAt.getTime() + 24 * 60 * 60 * 1000);
-      const now = new Date();
       await db.execute(sql`
         INSERT INTO baptism_public_links (service_id, slug, code, published_at, expires_at, created_by)
-        VALUES (${serviceId}, ${slug}, ${randomCode}, ${now.toISOString()}, ${expiresAt.toISOString()}, ${user.id})
+        VALUES (${serviceId}, ${slug}, ${randomUUID().slice(0, 6)}, NOW(), ${expiresAt.toISOString()}, ${user.id})
       `);
 
-      // Persist the link URL in section_data so the client can display it without a separate query
+      // Store public URL + service ref in section_data
       await db.execute(sql`
-        UPDATE activities SET section_data = section_data || ${JSON.stringify({ programa_publico_url: `/bautismo/${slug}` })}::jsonb
+        UPDATE activities
+        SET section_data = COALESCE(section_data, '{}'::jsonb) || ${JSON.stringify({ baptism_service_ref: serviceId, programa_publico_url: `/bautismo/${slug}` })}::jsonb
         WHERE id = ${activityId}
       `);
 
