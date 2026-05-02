@@ -101,6 +101,11 @@ const HymnAutocomplete = ({
   );
 };
 
+// Stable empty array — prevents the memberCallings default `[]` from creating
+// a new reference every render, which would cascade through useMemo/useCallback
+// and trigger the releases useEffect in an infinite loop.
+const EMPTY_CALLINGS: never[] = [];
+
 // ─── MemberAutocomplete ───────────────────────────────────────────────────────
 const filterMemberOptions = (options: MemberOption[], query: string) => {
   const trimmed = query.trim();
@@ -493,7 +498,7 @@ function SacramentalMeetingPageInner() {
   );
   const { user } = useAuth();
   const canReadAllMemberCallings = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user?.role || "");
-  const { data: memberCallings = [] } = useAllMemberCallings({ enabled: canReadAllMemberCallings });
+  const { data: memberCallings = EMPTY_CALLINGS } = useAllMemberCallings({ enabled: canReadAllMemberCallings });
 
   const normalizeText = (value: string) =>
     value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
@@ -686,8 +691,6 @@ function SacramentalMeetingPageInner() {
   };
   const normalizeMemberField = (value?: string) => normalizeMemberIfComma(value);
   const authorityCallingByValue = (value: string) => authorityOptions.find((o) => o.value === value)?.calling || "";
-
-  console.log("Loaded meetings from API:", meetings);
 
   const canEdit = user?.role === "obispo" || user?.role === "consejero_obispo" || user?.role === "secretario_ejecutivo";
 
