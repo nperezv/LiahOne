@@ -402,10 +402,12 @@ function CoordSectionForm({
         coord_limpieza_responsables:        JSON.stringify(limpiezaResponsables.filter(r => r.trim())),
         coord_limpieza_notas:               limpiezaNotas,
         ...(isBautismo && {
-          entrevista_bautismal:   entrevistaDetalle.trim(),
-          ropa_responsable:       ropaResponsable.trim(),
+          entrevista_bautismal:    entrevistaDetalle.trim(),
+          // ropa_bautismal is the checklist key — set to "listo" when both responsables filled
+          ropa_bautismal:          (ropaResponsable.trim() && ropaPruebaResponsable.trim()) ? "listo" : "",
+          ropa_responsable:        ropaResponsable.trim(),
           ropa_prueba_responsable: ropaPruebaResponsable.trim(),
-          ropa_fecha_prueba:      ropaFechaPrueba.trim(),
+          ropa_fecha_prueba:       ropaFechaPrueba.trim(),
         }),
       };
       return apiRequest("PATCH", `/api/activities/${activityId}/section`, { section: "coordinacion", fields });
