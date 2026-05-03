@@ -66,10 +66,10 @@ function BlueBar({ accent, children }: { accent: string; children: React.ReactNo
   return <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12, marginTop: 4 }}>{children}</div>;
 }
 
-function MiniCard({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
+function MiniCard({ title, children }: { title: string; color?: string; children: React.ReactNode }) {
   return (
-    <div style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", background: `${color}08`, marginBottom: 6 }}>
-      <div style={{ fontSize: 9, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
+    <div style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 800, color: "#004481", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
         {title}
       </div>
       {children}
@@ -181,6 +181,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
 
   const voteItem = (label: string, onClick: () => void) => (
     <div
+      className="spv-clickable"
       style={{ fontSize: 10.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 5, alignItems: "flex-start",
         cursor: "pointer", borderRadius: 5, padding: "2px 4px", transition: "background .15s" }}
       onClick={onClick}
@@ -189,7 +190,6 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     >
       <span style={{ color: accent, flexShrink: 0 }}>·</span>
       <span>{label}</span>
-      <span style={{ fontSize: 8, color: "#6366f1", marginLeft: 2, flexShrink: 0, alignSelf: "center" }}>▶ votar</span>
     </div>
   );
 
@@ -670,5 +670,15 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     document.body
   ) : null;
 
-  return <>{mainPortal}{votePortal}</>;
+  const pulseStyle = (
+    <style>{`
+      @keyframes spv-pulse {
+        0%, 100% { box-shadow: none; }
+        50% { box-shadow: 0 0 0 2px rgba(99,102,241,0.22); }
+      }
+      .spv-clickable { animation: spv-pulse 2.2s ease-in-out infinite; }
+    `}</style>
+  );
+
+  return <>{pulseStyle}{mainPortal}{votePortal}</>;
 }
