@@ -66,6 +66,17 @@ function BlueBar({ accent, children }: { accent: string; children: React.ReactNo
   return <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12, marginTop: 4 }}>{children}</div>;
 }
 
+function MiniCard({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
+  return (
+    <div style={{ border: `1px solid ${color}30`, borderRadius: 8, padding: "7px 10px", background: `${color}08`, marginBottom: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export function SacramentalProgramView({ meeting, organizations, recognitionMembers, onPDF, onClose }: Props) {
   const { data: template } = useQuery({
     queryKey: ["/api/pdf-template"],
@@ -264,13 +275,42 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <div>
               <Lbl accent={accent} small>Asuntos de barrio</Lbl>
               {!hasWardBusiness && empty}
-              {releases.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Relevos:</div>{releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); const label = `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; return voteItem(label, () => openVote("relevo", r.name, r.oldCalling || "", o || undefined)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
-              {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); const label = `${s.name} — ${fmtCallingOrg(s.calling, o)}`; return voteItem(label, () => openVote("sostenimiento", s.name, s.calling, o || undefined)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
-              {confirmations.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
-              {newMembers.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
-              {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones al Sacerdocio Aarónico:</div>{aaronicOrderings.map((o: any, i: number) => { const office = OFFICE_LABEL[o.office] ?? o.office ?? ""; return voteItem(fmtAaronic(o), () => openVote("ordenacion", o.name, office)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
-              {aaronicAdvancements.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Avances en el Sacerdocio Aarónico:</div>{aaronicAdvancements.map((a: any, i: number) => { const office = OFFICE_LABEL[a.office] ?? a.office ?? ""; return voteItem(fmtAaronic(a), () => openVote("avance", a.name, office)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
-              {childBlessings.length > 0 && <div><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Bendición de niños:</div>{bul(childBlessings)}</div>}
+              {/* ── Mini-cards por tipo de asunto ── */}
+              {releases.length > 0 && (
+                <MiniCard title="Relevos" color="#dc2626">
+                  {releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); const label = `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; return <div key={i}>{voteItem(label, () => openVote("relevo", r.name, r.oldCalling || "", o || undefined))}</div>; })}
+                </MiniCard>
+              )}
+              {sustainments.length > 0 && (
+                <MiniCard title="Sostenimientos" color="#16a34a">
+                  {sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); const label = `${s.name} — ${fmtCallingOrg(s.calling, o)}`; return <div key={i}>{voteItem(label, () => openVote("sostenimiento", s.name, s.calling, o || undefined))}</div>; })}
+                </MiniCard>
+              )}
+              {confirmations.length > 0 && (
+                <MiniCard title="Confirmaciones" color="#0891b2">
+                  {bul(confirmations)}
+                </MiniCard>
+              )}
+              {newMembers.length > 0 && (
+                <MiniCard title="Nuevos miembros" color="#0891b2">
+                  {bul(newMembers)}
+                </MiniCard>
+              )}
+              {aaronicOrderings.length > 0 && (
+                <MiniCard title="Ordenaciones al Sacerdocio Aarónico" color="#7c3aed">
+                  {aaronicOrderings.map((o: any, i: number) => { const office = OFFICE_LABEL[o.office] ?? o.office ?? ""; return <div key={i}>{voteItem(fmtAaronic(o), () => openVote("ordenacion", o.name, office))}</div>; })}
+                </MiniCard>
+              )}
+              {aaronicAdvancements.length > 0 && (
+                <MiniCard title="Avances en el Sacerdocio Aarónico" color="#7c3aed">
+                  {aaronicAdvancements.map((a: any, i: number) => { const office = OFFICE_LABEL[a.office] ?? a.office ?? ""; return <div key={i}>{voteItem(fmtAaronic(a), () => openVote("avance", a.name, office))}</div>; })}
+                </MiniCard>
+              )}
+              {childBlessings.length > 0 && (
+                <MiniCard title="Bendición de niños" color="#d97706">
+                  {bul(childBlessings)}
+                </MiniCard>
+              )}
             </div>
             <div>
               <Lbl accent={accent} small>Asuntos de estaca</Lbl>
