@@ -185,7 +185,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
       style={{ fontSize: 10.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 5, alignItems: "flex-start",
         cursor: "pointer", borderRadius: 5, padding: "2px 4px", transition: "background .15s" }}
       onClick={onClick}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#eef2ff"; }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#e8f0fb"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
     >
       <span style={{ color: accent, flexShrink: 0 }}>·</span>
@@ -674,7 +674,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     <style>{`
       @keyframes spv-pulse {
         0%, 100% { box-shadow: none; }
-        50% { box-shadow: 0 0 0 2px rgba(99,102,241,0.22); }
+        50% { box-shadow: 0 0 0 2px rgba(0,68,129,0.25); }
       }
       .spv-clickable { animation: spv-pulse 2.2s ease-in-out infinite; }
     `}</style>
