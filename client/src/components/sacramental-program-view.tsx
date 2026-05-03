@@ -105,6 +105,12 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     avance:        (n, d)    => `Proponemos que ${n} avance en el Sacerdocio Aarónico al oficio de ${d}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
   };
 
+  const meetingDate = new Date(meeting.date);
+  const dayName = meetingDate.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Madrid" }).toUpperCase();
+  const dayNum = meetingDate.getDate();
+  const monthYear = meetingDate.toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "Europe/Madrid" }).toUpperCase();
+  const longDate = meetingDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Madrid" });
+
   const openVote = useCallback((type: VoteType, name: string, detail: string, organization?: string) => {
     const phrase = VOTE_PHRASE[type](name, detail, organization);
     setVoteDialog({ item: { type, phrase, name, detail, organization }, phase: "vote", opponentName: "", sending: false, done: false });
@@ -139,12 +145,6 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const stakeName = template?.stakeName ?? "";
   // Strip leading "Barrio " so the small label above doesn't duplicate
   const displayWardName = wardName.replace(/^[Bb]arrio\s+/i, "") || wardName;
-
-  const meetingDate = new Date(meeting.date);
-  const dayName = meetingDate.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Madrid" }).toUpperCase();
-  const dayNum = meetingDate.getDate();
-  const monthYear = meetingDate.toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "Europe/Madrid" }).toUpperCase();
-  const longDate = meetingDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Madrid" });
 
   const presider = parsePerson(meeting.presider);
   const director = parsePerson(meeting.director);
