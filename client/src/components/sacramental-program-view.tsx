@@ -10,7 +10,8 @@ interface VoteResultRecord { result: "unanimous" | "opposed"; opponentName?: str
 type VoteResults = Partial<Record<VoteType, VoteResultRecord>>;
 interface VoteDialog {
   type: VoteType;
-  phrase: string;
+  intro: string;
+  close: string;
   items: VoteGroupItem[];
   phase: "vote" | "opposed" | "done";
   opponentName: string;
@@ -126,19 +127,32 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     return (vr && typeof vr === "object" && !Array.isArray(vr)) ? vr as VoteResults : {};
   });
 
-  const GROUP_PHRASE: Record<VoteType, (items: VoteGroupItem[]) => string> = {
-    sostenimiento: (items) => items.length === 1
-      ? `Proponemos que ${items[0].name} sea sostenido(a) como ${items[0].detail}${items[0].organization ? ` en ${items[0].organization}` : ""}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
-      : `Proponemos que las siguientes personas sean sostenidas en los llamamientos mencionados. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
-    relevo: (items) => items.length === 1
-      ? `Proponemos relevar a ${items[0].name} como ${items[0].detail}${items[0].organization ? ` en ${items[0].organization}` : ""} y agradecemos su servicio. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
-      : `Proponemos relevar a las siguientes personas de los llamamientos mencionados, y les agradecemos su servicio. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
-    ordenacion: (items) => items.length === 1
-      ? `Proponemos que ${items[0].name} reciba el Sacerdocio Aarónico y sea ordenado al oficio de ${items[0].detail}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
-      : `Proponemos que las siguientes personas reciban el Sacerdocio Aarónico en los oficios mencionados. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
-    avance: (items) => items.length === 1
-      ? `Proponemos que ${items[0].name} avance en el Sacerdocio Aarónico al oficio de ${items[0].detail}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
-      : `Proponemos que las siguientes personas avancen en el Sacerdocio Aarónico a los oficios mencionados. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+  const VOTE_CLOSE = "Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.";
+  const GROUP_PHRASE: Record<VoteType, (items: VoteGroupItem[]) => { intro: string; close: string }> = {
+    sostenimiento: (items) => ({
+      intro: items.length === 1
+        ? `Proponemos que ${items[0].name} sea sostenido(a) como ${items[0].detail}${items[0].organization ? ` en ${items[0].organization}` : ""}.`
+        : `Proponemos que las siguientes personas sean sostenidas en los llamamientos mencionados:`,
+      close: VOTE_CLOSE,
+    }),
+    relevo: (items) => ({
+      intro: items.length === 1
+        ? `Se ha relevado a ${items[0].name} de su llamamiento como ${items[0].detail}${items[0].organization ? ` en ${items[0].organization}` : ""}.`
+        : `Se ha relevado a las siguientes personas:`,
+      close: "Agradecemos su dedicación y fiel servicio al Señor.",
+    }),
+    ordenacion: (items) => ({
+      intro: items.length === 1
+        ? `Proponemos que ${items[0].name} reciba el Sacerdocio Aarónico y sea ordenado al oficio de ${items[0].detail}.`
+        : `Proponemos que los siguientes hermanos reciban el Sacerdocio Aarónico y sean ordenados al oficio correspondiente:`,
+      close: VOTE_CLOSE,
+    }),
+    avance: (items) => ({
+      intro: items.length === 1
+        ? `Proponemos que ${items[0].name} avance en el Sacerdocio Aarónico al oficio de ${items[0].detail}.`
+        : `Proponemos que los siguientes hermanos avancen en el Sacerdocio Aarónico al oficio correspondiente:`,
+      close: VOTE_CLOSE,
+    }),
   };
 
   const meetingDate = new Date(meeting.date);
@@ -148,7 +162,8 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const longDate = meetingDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Madrid" });
 
   const openGroupVote = useCallback((type: VoteType, items: VoteGroupItem[]) => {
-    setVoteDialog({ type, phrase: GROUP_PHRASE[type](items), items, phase: "vote", opponentName: "", opposedTo: "", sending: false });
+    const { intro, close } = GROUP_PHRASE[type](items);
+    setVoteDialog({ type, intro, close, items, phase: "vote", opponentName: "", opposedTo: "", sending: false });
   }, []);
 
   const submitVote = useCallback(async (result: "unanimous" | "opposed") => {
@@ -647,21 +662,25 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <p style={{ fontSize: 10, fontWeight: 700, color: "#004481", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
               {TYPE_LABEL_DIALOG[voteDialog.type]}
             </p>
-            {/* Collective phrase */}
-            <p style={{ fontSize: 13.5, lineHeight: 1.65, color: "#1a1a2e", fontStyle: "italic", background: "#f0f6ff", borderRadius: 10, padding: "12px 14px", marginBottom: voteDialog.items.length > 1 ? 14 : 18, borderLeft: "3px solid #004481" }}>
-              "{voteDialog.phrase}"
-            </p>
-            {/* List of people when multiple */}
-            {voteDialog.items.length > 1 && (
-              <div style={{ marginBottom: 18 }}>
-                {voteDialog.items.map((it, i) => (
-                  <div key={i} style={{ display: "flex", gap: 6, fontSize: 12, color: "#3c4043", marginBottom: 4 }}>
-                    <span style={{ color: "#004481", flexShrink: 0 }}>·</span>
-                    <span><strong>{it.name}</strong>{it.detail ? ` — ${it.detail}` : ""}{it.organization ? ` (${it.organization})` : ""}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Phrase: intro + list + close */}
+            <div style={{ background: "#f0f6ff", borderRadius: 10, padding: "12px 14px", marginBottom: 18, borderLeft: "3px solid #004481" }}>
+              <p style={{ margin: "0 0 10px", fontSize: 13.5, lineHeight: 1.65, color: "#1a1a2e", fontStyle: "italic" }}>
+                "{voteDialog.intro}"
+              </p>
+              {voteDialog.items.length > 1 && (
+                <div style={{ margin: "0 0 10px", paddingLeft: 4 }}>
+                  {voteDialog.items.map((it, i) => (
+                    <div key={i} style={{ display: "flex", gap: 6, fontSize: 12, color: "#3c4043", marginBottom: 4 }}>
+                      <span style={{ color: "#004481", flexShrink: 0 }}>·</span>
+                      <span><strong>{it.name}</strong>{it.detail ? ` — ${it.detail}` : ""}{it.organization ? ` (${it.organization})` : ""}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65, color: "#1a1a2e", fontStyle: "italic" }}>
+                "{voteDialog.close}"
+              </p>
+            </div>
             <p style={{ fontSize: 12, color: "#555", marginBottom: 10, fontWeight: 600 }}>Resultado de la votación:</p>
             <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
               <button disabled={voteDialog.sending} onClick={() => submitVote("unanimous")}
