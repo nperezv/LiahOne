@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/auth-tokens";
+
+type VoteType = "sostenimiento" | "relevo" | "ordenacion" | "avance";
+type VotePhase = "vote" | "opposed";
+interface VoteItem { type: VoteType; phrase: string; name: string; detail: string; organization?: string; }
+interface VoteDialog { item: VoteItem; phase: VotePhase; opponentName: string; sending: boolean; done: boolean; }
 
 interface RecognitionMember { name: string; role: string; calling: string; }
 interface Props {
@@ -80,6 +85,44 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const curPageRef = useRef(0);
   curPageRef.current = curPage;
 
+  const [voteDialog, setVoteDialog] = useState<VoteDialog | null>(null);
+
+  const VOTE_PHRASE: Record<VoteType, (name: string, detail: string, org?: string) => string> = {
+    sostenimiento: (n, d, o) => `Proponemos que ${n} sea sostenido(a) como ${d}${o ? ` en ${o}` : ""}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+    relevo:        (n, d, o) => `Proponemos relevar a ${n} como ${d}${o ? ` en ${o}` : ""} y agradecemos su servicio. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+    ordenacion:    (n, d)    => `Proponemos que ${n} reciba el Sacerdocio Aarónico y sea ordenado al oficio de ${d}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+    avance:        (n, d)    => `Proponemos que ${n} avance en el Sacerdocio Aarónico al oficio de ${d}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+  };
+
+  const openVote = useCallback((type: VoteType, name: string, detail: string, organization?: string) => {
+    const phrase = VOTE_PHRASE[type](name, detail, organization);
+    setVoteDialog({ item: { type, phrase, name, detail, organization }, phase: "vote", opponentName: "", sending: false, done: false });
+  }, []);
+
+  const submitVote = useCallback(async (result: "unanimous" | "opposed") => {
+    if (!voteDialog) return;
+    setVoteDialog(d => d ? { ...d, sending: true } : null);
+    try {
+      await fetch("/api/sacramental-meetings/vote-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          meetingDate: longDate,
+          type: voteDialog.item.type,
+          name: voteDialog.item.name,
+          detail: voteDialog.item.detail,
+          organization: voteDialog.item.organization,
+          result,
+          opponentName: voteDialog.opponentName || undefined,
+        }),
+      });
+      setVoteDialog(d => d ? { ...d, sending: false, done: true } : null);
+      setTimeout(() => setVoteDialog(null), 1800);
+    } catch {
+      setVoteDialog(d => d ? { ...d, sending: false } : null);
+    }
+  }, [voteDialog, longDate]);
+
   const accent = "#004481";
   const wardName = template?.wardName ?? "Barrio";
   const stakeName = template?.stakeName ?? "";
@@ -124,6 +167,21 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
       <span style={{ color: accent, flexShrink: 0 }}>·</span><span>{item}</span>
     </div>
   ));
+
+  const voteItem = (label: string, onClick: () => void) => (
+    <div
+      style={{ fontSize: 10.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 5, alignItems: "flex-start",
+        cursor: "pointer", borderRadius: 5, padding: "2px 4px", transition: "background .15s" }}
+      onClick={onClick}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#eef2ff"; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >
+      <span style={{ color: accent, flexShrink: 0 }}>·</span>
+      <span>{label}</span>
+      <span style={{ fontSize: 8, color: "#6366f1", marginLeft: 2, flexShrink: 0, alignSelf: "center" }}>▶ votar</span>
+    </div>
+  );
+
   const empty = <span style={{ color: "#ccc", fontSize: 11 }}>—</span>;
 
   // ── Flow sections ──────────────────────────────────────────────
@@ -206,12 +264,12 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <div>
               <Lbl accent={accent} small>Asuntos de barrio</Lbl>
               {!hasWardBusiness && empty}
-              {releases.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Relevos:</div>{bul(releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; }))}</div>}
-              {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{bul(sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return `${s.name} — ${fmtCallingOrg(s.calling, o)}`; }))}</div>}
+              {releases.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Relevos:</div>{releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); const label = `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; return voteItem(label, () => openVote("relevo", r.name, r.oldCalling || "", o || undefined)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
+              {sustainments.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Sostenimientos:</div>{sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); const label = `${s.name} — ${fmtCallingOrg(s.calling, o)}`; return voteItem(label, () => openVote("sostenimiento", s.name, s.calling, o || undefined)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
               {confirmations.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Confirmaciones:</div>{bul(confirmations)}</div>}
               {newMembers.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Nuevos miembros:</div>{bul(newMembers)}</div>}
-              {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones al Sacerdocio Aarónico:</div>{bul(aaronicOrderings.map(fmtAaronic))}</div>}
-              {aaronicAdvancements.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Avances en el Sacerdocio Aarónico:</div>{bul(aaronicAdvancements.map(fmtAaronic))}</div>}
+              {aaronicOrderings.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Ordenaciones al Sacerdocio Aarónico:</div>{aaronicOrderings.map((o: any, i: number) => { const office = OFFICE_LABEL[o.office] ?? o.office ?? ""; return voteItem(fmtAaronic(o), () => openVote("ordenacion", o.name, office)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
+              {aaronicAdvancements.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Avances en el Sacerdocio Aarónico:</div>{aaronicAdvancements.map((a: any, i: number) => { const office = OFFICE_LABEL[a.office] ?? a.office ?? ""; return voteItem(fmtAaronic(a), () => openVote("avance", a.name, office)); }).map((el, i) => <div key={i}>{el}</div>)}</div>}
               {childBlessings.length > 0 && <div><div style={{ fontSize: 10, fontWeight: 700, color: "#555", marginBottom: 4 }}>Bendición de niños:</div>{bul(childBlessings)}</div>}
             </div>
             <div>
@@ -418,8 +476,8 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     flexDirection: "column" as const,
   };
 
-  return createPortal(
-    <div id="prog-portal" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#0f172a", display: "flex", flexDirection: "column" }}>
+  const mainPortal = createPortal(
+    <div id="prog-portal" style={{ position: "fixed", inset: 0, zIndex: 9998, background: "#0f172a", display: "flex", flexDirection: "column" }}>
 
       {/* Toolbar */}
       <div className="prog-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", flexShrink: 0 }}>
@@ -495,4 +553,82 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     </div>,
     document.body
   );
+
+  // ── Vote dialog ────────────────────────────────────────────────────────────
+  const votePortal = voteDialog ? createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      onClick={() => !voteDialog.sending && setVoteDialog(null)}
+    >
+      <div style={{ background: "#fff", borderRadius: 16, padding: 32, maxWidth: 540, width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,0.35)", position: "relative" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {voteDialog.done ? (
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#166534" }}>Notificación enviada</p>
+          </div>
+        ) : voteDialog.phase === "vote" ? (
+          <>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+              {{ sostenimiento: "Sostenimiento", relevo: "Relevo", ordenacion: "Ordenación", avance: "Avance" }[voteDialog.item.type]}
+            </p>
+            <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1a1a2e", fontStyle: "italic", background: "#f8f9fe", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              "{voteDialog.item.phrase}"
+            </p>
+            <p style={{ fontSize: 12, color: "#555", marginBottom: 16, fontWeight: 600 }}>Resultado de la votación:</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                disabled={voteDialog.sending}
+                onClick={() => submitVote("unanimous")}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+              >
+                ✅ Unánime
+              </button>
+              <button
+                disabled={voteDialog.sending}
+                onClick={() => setVoteDialog(d => d ? { ...d, phase: "opposed" } : null)}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#f59e0b", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+              >
+                ⚠️ Con oposición
+              </button>
+            </div>
+            <button onClick={() => setVoteDialog(null)} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 8, border: "1px solid #e5e7eb", background: "transparent", fontSize: 13, color: "#888", cursor: "pointer" }}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#b45309", marginBottom: 16 }}>⚠️ Registrar oposición</p>
+            <p style={{ fontSize: 12, color: "#555", marginBottom: 10 }}>Nombre de quien se opuso <span style={{ color: "#aaa" }}>(opcional)</span></p>
+            <input
+              type="text"
+              placeholder="Nombre completo..."
+              value={voteDialog.opponentName}
+              onChange={e => setVoteDialog(d => d ? { ...d, opponentName: e.target.value } : null)}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, marginBottom: 16, boxSizing: "border-box" }}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setVoteDialog(d => d ? { ...d, phase: "vote" } : null)}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1px solid #e5e7eb", background: "transparent", fontSize: 13, color: "#555", cursor: "pointer" }}
+              >
+                ← Atrás
+              </button>
+              <button
+                disabled={voteDialog.sending}
+                onClick={() => submitVote("opposed")}
+                style={{ flex: 2, padding: "11px 0", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+              >
+                {voteDialog.sending ? "Enviando..." : "Confirmar y notificar"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
+  return <>{mainPortal}{votePortal}</>;
 }

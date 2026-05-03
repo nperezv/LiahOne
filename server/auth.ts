@@ -1542,3 +1542,86 @@ export async function sendMissionaryContactEmail(payload: {
     });
   }
 }
+
+// ── Vote result emails (sacramental meeting) ──────────────────────────────────
+export async function sendVoteResultEmail(payload: {
+  secretaryEmail: string | null;
+  bishopEmail: string | null;
+  secEjecutivoEmail: string | null;
+  wardName?: string | null;
+  meetingDate: string;
+  type: "sostenimiento" | "relevo" | "ordenacion" | "avance";
+  name: string;
+  detail: string;
+  organization?: string;
+  result: "unanimous" | "opposed";
+  opponentName?: string;
+}) {
+  const smtp = createSmtpTransport(payload.wardName);
+  if (!smtp) { console.warn("[sendVoteResultEmail] SMTP not configured"); return; }
+
+  const TYPE_LABEL: Record<string, string> = {
+    sostenimiento: "Sostenimiento",
+    relevo: "Relevo",
+    ordenacion: "Ordenación",
+    avance: "Avance en el Sacerdocio",
+  };
+  const typeLabel = TYPE_LABEL[payload.type] ?? payload.type;
+  const ward = resolveWardName(payload.wardName);
+  const orgPart = payload.organization ? ` · ${payload.organization}` : "";
+  const detailLine = `${typeLabel}: ${payload.name} — ${payload.detail}${orgPart}`;
+
+  if (payload.result === "unanimous" && payload.secretaryEmail) {
+    const lines = [
+      `✅ Votación unánime — Reunión Sacramental ${payload.meetingDate}`,
+      ``,
+      detailLine,
+      ``,
+      `Por favor regístralo en el sistema de la iglesia (LCR).`,
+    ];
+    await smtp.transporter.sendMail({
+      from: smtp.from,
+      to: payload.secretaryEmail,
+      subject: `[${ward}] Votación unánime — ${typeLabel} de ${payload.name}`,
+      text: lines.join("\n"),
+      html: buildHtmlEmail(lines, payload.wardName),
+    });
+  }
+
+  if (payload.result === "opposed") {
+    const opponentPart = payload.opponentName ? ` por parte de ${payload.opponentName}` : "";
+    const secretaryLines = [
+      `⚠️ Oposición en votación — Reunión Sacramental ${payload.meetingDate}`,
+      ``,
+      detailLine,
+      ``,
+      `Hubo oposición${opponentPart}. El obispo revisará la situación.`,
+    ];
+    const bishopLines = [
+      `⚠️ Oposición en votación — Reunión Sacramental ${payload.meetingDate}`,
+      ``,
+      detailLine,
+      ``,
+      `Hubo oposición${opponentPart}. Por favor coordina una entrevista a través del secretario ejecutivo con la persona que se opuso.`,
+    ];
+    if (payload.secretaryEmail) {
+      await smtp.transporter.sendMail({
+        from: smtp.from,
+        to: payload.secretaryEmail,
+        subject: `[${ward}] Oposición en votación — ${typeLabel} de ${payload.name}`,
+        text: secretaryLines.join("\n"),
+        html: buildHtmlEmail(secretaryLines, payload.wardName),
+      });
+    }
+    const opposedRecipients = [payload.bishopEmail, payload.secEjecutivoEmail].filter(Boolean).join(",");
+    if (opposedRecipients) {
+      await smtp.transporter.sendMail({
+        from: smtp.from,
+        to: opposedRecipients,
+        subject: `[${ward}] Oposición en votación — ${typeLabel} de ${payload.name}`,
+        text: bishopLines.join("\n"),
+        html: buildHtmlEmail(bishopLines, payload.wardName),
+      });
+    }
+  }
+}

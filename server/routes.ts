@@ -102,6 +102,7 @@ import {
   sendAssignmentDueReminderEmail,
   sendWardCouncilAssignmentEmail,
   sendSacramentalAssignmentEmail,
+  sendVoteResultEmail,
   sendBirthdayGreetingEmail,
   sendAgendaReminderEmail,
   sendBaptismReminderEmail,
@@ -2754,6 +2755,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ========================================
   // SACRAMENTAL MEETINGS
   // ========================================
+
+  // ── POST /api/sacramental-meetings/vote-result ────────────────────────────
+  app.post("/api/sacramental-meetings/vote-result", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { meetingDate, type, name, detail, organization, result, opponentName } = req.body;
+      const allUsers = await storage.getAllUsers();
+      const secretary    = (allUsers as any[]).find((u: any) => u.role === "secretario" && u.email);
+      const bishop       = (allUsers as any[]).find((u: any) => u.role === "obispo" && u.email);
+      const secEjec      = (allUsers as any[]).find((u: any) => u.role === "secretario_ejecutivo" && u.email);
+      const template     = await storage.getPdfTemplate();
+      await sendVoteResultEmail({
+        secretaryEmail:    secretary?.email ?? null,
+        bishopEmail:       bishop?.email ?? null,
+        secEjecutivoEmail: secEjec?.email ?? null,
+        wardName:          template?.wardName ?? null,
+        meetingDate, type, name, detail, organization, result,
+        opponentName: opponentName || undefined,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[vote-result]", err);
+      res.status(500).json({ error: "Error al enviar notificación" });
+    }
+  });
 
   app.get("/api/sacramental-meetings", requireAuth, async (req: Request, res: Response) => {
     try {
