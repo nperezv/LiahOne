@@ -68,7 +68,7 @@ function BlueBar({ accent, children }: { accent: string; children: React.ReactNo
 
 function MiniCard({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
   return (
-    <div style={{ border: `1px solid ${color}30`, borderRadius: 8, padding: "7px 10px", background: `${color}08`, marginBottom: 6 }}>
+    <div style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", background: `${color}08`, marginBottom: 6 }}>
       <div style={{ fontSize: 9, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
         {title}
       </div>
