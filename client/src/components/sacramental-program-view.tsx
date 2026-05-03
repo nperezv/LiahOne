@@ -66,9 +66,15 @@ function BlueBar({ accent, children }: { accent: string; children: React.ReactNo
   return <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12, marginTop: 4 }}>{children}</div>;
 }
 
-function MiniCard({ title, children }: { title: string; color?: string; children: React.ReactNode }) {
+function MiniCard({ title, onClick, children }: { title: string; color?: string; onClick?: () => void; children: React.ReactNode }) {
   return (
-    <div style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
+    <div
+      className={onClick ? "spv-clickable" : undefined}
+      style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", marginBottom: 6, cursor: onClick ? "pointer" : undefined, transition: "background .15s" }}
+      onClick={onClick}
+      onMouseEnter={onClick ? e => { (e.currentTarget as HTMLElement).style.background = "#e8f0fb"; } : undefined}
+      onMouseLeave={onClick ? e => { (e.currentTarget as HTMLElement).style.background = ""; } : undefined}
+    >
       <div style={{ fontSize: 9, fontWeight: 800, color: "#004481", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
         {title}
       </div>
@@ -179,17 +185,9 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
     </div>
   ));
 
-  const voteItem = (label: string, onClick: () => void) => (
-    <div
-      className="spv-clickable"
-      style={{ fontSize: 10.5, color: "#3c4043", marginBottom: 3, display: "flex", gap: 5, alignItems: "flex-start",
-        cursor: "pointer", borderRadius: 5, padding: "2px 4px", transition: "background .15s" }}
-      onClick={onClick}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#e8f0fb"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-    >
-      <span style={{ color: accent, flexShrink: 0 }}>·</span>
-      <span>{label}</span>
+  const itemText = (label: string) => (
+    <div style={{ fontSize: 10.5, color: "#3c4043", display: "flex", gap: 5, alignItems: "flex-start" }}>
+      <span style={{ color: accent, flexShrink: 0 }}>·</span><span>{label}</span>
     </div>
   );
 
@@ -275,42 +273,13 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <div>
               <Lbl accent={accent} small>Asuntos de barrio</Lbl>
               {!hasWardBusiness && empty}
-              {/* ── Mini-cards por tipo de asunto ── */}
-              {releases.length > 0 && (
-                <MiniCard title="Relevos" color="#dc2626">
-                  {releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); const label = `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; return <div key={i}>{voteItem(label, () => openVote("relevo", r.name, r.oldCalling || "", o || undefined))}</div>; })}
-                </MiniCard>
-              )}
-              {sustainments.length > 0 && (
-                <MiniCard title="Sostenimientos" color="#16a34a">
-                  {sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); const label = `${s.name} — ${fmtCallingOrg(s.calling, o)}`; return <div key={i}>{voteItem(label, () => openVote("sostenimiento", s.name, s.calling, o || undefined))}</div>; })}
-                </MiniCard>
-              )}
-              {confirmations.length > 0 && (
-                <MiniCard title="Confirmaciones" color="#0891b2">
-                  {bul(confirmations)}
-                </MiniCard>
-              )}
-              {newMembers.length > 0 && (
-                <MiniCard title="Nuevos miembros" color="#0891b2">
-                  {bul(newMembers)}
-                </MiniCard>
-              )}
-              {aaronicOrderings.length > 0 && (
-                <MiniCard title="Ordenaciones al Sacerdocio Aarónico" color="#7c3aed">
-                  {aaronicOrderings.map((o: any, i: number) => { const office = OFFICE_LABEL[o.office] ?? o.office ?? ""; return <div key={i}>{voteItem(fmtAaronic(o), () => openVote("ordenacion", o.name, office))}</div>; })}
-                </MiniCard>
-              )}
-              {aaronicAdvancements.length > 0 && (
-                <MiniCard title="Avances en el Sacerdocio Aarónico" color="#7c3aed">
-                  {aaronicAdvancements.map((a: any, i: number) => { const office = OFFICE_LABEL[a.office] ?? a.office ?? ""; return <div key={i}>{voteItem(fmtAaronic(a), () => openVote("avance", a.name, office))}</div>; })}
-                </MiniCard>
-              )}
-              {childBlessings.length > 0 && (
-                <MiniCard title="Bendición de niños" color="#d97706">
-                  {bul(childBlessings)}
-                </MiniCard>
-              )}
+              {releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); const label = `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; return <MiniCard key={`rel-${i}`} title="Relevo" onClick={() => openVote("relevo", r.name, r.oldCalling || "", o || undefined)}>{itemText(label)}</MiniCard>; })}
+              {sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); const label = `${s.name} — ${fmtCallingOrg(s.calling, o)}`; return <MiniCard key={`sus-${i}`} title="Sostenimiento" onClick={() => openVote("sostenimiento", s.name, s.calling, o || undefined)}>{itemText(label)}</MiniCard>; })}
+              {confirmations.length > 0 && <MiniCard title="Confirmaciones">{bul(confirmations)}</MiniCard>}
+              {newMembers.length > 0 && <MiniCard title="Nuevos miembros">{bul(newMembers)}</MiniCard>}
+              {aaronicOrderings.map((o: any, i: number) => { const office = OFFICE_LABEL[o.office] ?? o.office ?? ""; return <MiniCard key={`ord-${i}`} title="Ordenación Sacerdocio Aarónico" onClick={() => openVote("ordenacion", o.name, office)}>{itemText(fmtAaronic(o))}</MiniCard>; })}
+              {aaronicAdvancements.map((a: any, i: number) => { const office = OFFICE_LABEL[a.office] ?? a.office ?? ""; return <MiniCard key={`adv-${i}`} title="Avance Sacerdocio Aarónico" onClick={() => openVote("avance", a.name, office)}>{itemText(fmtAaronic(a))}</MiniCard>; })}
+              {childBlessings.length > 0 && <MiniCard title="Bendición de niños">{bul(childBlessings)}</MiniCard>}
             </div>
             <div>
               <Lbl accent={accent} small>Asuntos de estaca</Lbl>
