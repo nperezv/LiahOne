@@ -595,6 +595,7 @@ export const sacramentalMeetings = pgTable("sacramental_meetings", {
   newMembers: jsonb("new_members").$type<string[]>().default([]),
   aaronicOrderings: jsonb("aaronic_orderings").$type<{name: string, office: string}[]>().default([]),
   aaronicAdvancements: jsonb("aaronic_advancements").$type<{name: string, office: string}[]>().default([]),
+  voteResults: jsonb("vote_results").$type<Record<string, any>>().default({}),
   childBlessings: jsonb("child_blessings").$type<string[]>().default([]),
   confirmations: jsonb("confirmations").$type<string[]>().default([]),
   stakeBusiness: text("stake_business"),

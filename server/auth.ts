@@ -1551,11 +1551,10 @@ export async function sendVoteResultEmail(payload: {
   wardName?: string | null;
   meetingDate: string;
   type: "sostenimiento" | "relevo" | "ordenacion" | "avance";
-  name: string;
-  detail: string;
-  organization?: string;
+  items: { name: string; detail: string; organization?: string }[];
   result: "unanimous" | "opposed";
   opponentName?: string;
+  opposedTo?: string;
 }) {
   const smtp = createSmtpTransport(payload.wardName);
   if (!smtp) { console.warn("[sendVoteResultEmail] SMTP not configured"); return; }
@@ -1568,21 +1567,25 @@ export async function sendVoteResultEmail(payload: {
   };
   const typeLabel = TYPE_LABEL[payload.type] ?? payload.type;
   const ward = resolveWardName(payload.wardName);
-  const orgPart = payload.organization ? ` · ${payload.organization}` : "";
-  const detailLine = `${typeLabel}: ${payload.name} — ${payload.detail}${orgPart}`;
+  const itemLines = payload.items.map(it => {
+    const orgPart = it.organization ? ` (${it.organization})` : "";
+    return `  · ${it.name}${it.detail ? ` — ${it.detail}` : ""}${orgPart}`;
+  });
+  const subjectName = payload.items.length === 1 ? payload.items[0].name : `${payload.items.length} personas`;
 
   if (payload.result === "unanimous" && payload.secretaryEmail) {
     const lines = [
       `✅ Votación unánime — Reunión Sacramental ${payload.meetingDate}`,
       ``,
-      detailLine,
+      `${typeLabel}:`,
+      ...itemLines,
       ``,
       `Por favor regístralo en el sistema de la iglesia (LCR).`,
     ];
     await smtp.transporter.sendMail({
       from: smtp.from,
       to: payload.secretaryEmail,
-      subject: `[${ward}] Votación unánime — ${typeLabel} de ${payload.name}`,
+      subject: `[${ward}] Votación unánime — ${typeLabel} (${subjectName})`,
       text: lines.join("\n"),
       html: buildHtmlEmail(lines, payload.wardName),
     });
@@ -1590,25 +1593,28 @@ export async function sendVoteResultEmail(payload: {
 
   if (payload.result === "opposed") {
     const opponentPart = payload.opponentName ? ` por parte de ${payload.opponentName}` : "";
+    const opposedToPart = payload.opposedTo ? ` (se opuso a ${payload.opposedTo})` : "";
     const secretaryLines = [
       `⚠️ Oposición en votación — Reunión Sacramental ${payload.meetingDate}`,
       ``,
-      detailLine,
+      `${typeLabel}:`,
+      ...itemLines,
       ``,
-      `Hubo oposición${opponentPart}. El obispo revisará la situación.`,
+      `Hubo oposición${opponentPart}${opposedToPart}. El obispo revisará la situación.`,
     ];
     const bishopLines = [
       `⚠️ Oposición en votación — Reunión Sacramental ${payload.meetingDate}`,
       ``,
-      detailLine,
+      `${typeLabel}:`,
+      ...itemLines,
       ``,
-      `Hubo oposición${opponentPart}. Por favor coordina una entrevista a través del secretario ejecutivo con la persona que se opuso.`,
+      `Hubo oposición${opponentPart}${opposedToPart}. Por favor coordina una entrevista a través del secretario ejecutivo con la persona que se opuso.`,
     ];
     if (payload.secretaryEmail) {
       await smtp.transporter.sendMail({
         from: smtp.from,
         to: payload.secretaryEmail,
-        subject: `[${ward}] Oposición en votación — ${typeLabel} de ${payload.name}`,
+        subject: `[${ward}] Oposición en votación — ${typeLabel} (${subjectName})`,
         text: secretaryLines.join("\n"),
         html: buildHtmlEmail(secretaryLines, payload.wardName),
       });
@@ -1618,7 +1624,7 @@ export async function sendVoteResultEmail(payload: {
       await smtp.transporter.sendMail({
         from: smtp.from,
         to: opposedRecipients,
-        subject: `[${ward}] Oposición en votación — ${typeLabel} de ${payload.name}`,
+        subject: `[${ward}] Oposición en votación — ${typeLabel} (${subjectName})`,
         text: bishopLines.join("\n"),
         html: buildHtmlEmail(bishopLines, payload.wardName),
       });

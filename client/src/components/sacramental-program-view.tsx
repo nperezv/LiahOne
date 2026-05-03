@@ -5,9 +5,18 @@ import { useQuery } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 
 type VoteType = "sostenimiento" | "relevo" | "ordenacion" | "avance";
-type VotePhase = "vote" | "opposed";
-interface VoteItem { type: VoteType; phrase: string; name: string; detail: string; organization?: string; }
-interface VoteDialog { item: VoteItem; phase: VotePhase; opponentName: string; sending: boolean; done: boolean; }
+interface VoteGroupItem { name: string; detail: string; organization?: string; }
+interface VoteResultRecord { result: "unanimous" | "opposed"; opponentName?: string; opposedTo?: string; votedAt: string; }
+type VoteResults = Partial<Record<VoteType, VoteResultRecord>>;
+interface VoteDialog {
+  type: VoteType;
+  phrase: string;
+  items: VoteGroupItem[];
+  phase: "vote" | "opposed" | "done";
+  opponentName: string;
+  opposedTo: string;
+  sending: boolean;
+}
 
 interface RecognitionMember { name: string; role: string; calling: string; }
 interface Props {
@@ -66,17 +75,26 @@ function BlueBar({ accent, children }: { accent: string; children: React.ReactNo
   return <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12, marginTop: 4 }}>{children}</div>;
 }
 
-function MiniCard({ title, onClick, children }: { title: string; color?: string; onClick?: () => void; children: React.ReactNode }) {
+function MiniCard({ title, onClick, resolved, children }: { title: string; color?: string; onClick?: () => void; resolved?: VoteResultRecord; children: React.ReactNode }) {
+  const clickable = !!onClick && !resolved;
   return (
     <div
-      className={onClick ? "spv-clickable" : undefined}
-      style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", marginBottom: 6, cursor: onClick ? "pointer" : undefined, transition: "background .15s" }}
-      onClick={onClick}
-      onMouseEnter={onClick ? e => { (e.currentTarget as HTMLElement).style.background = "#e8f0fb"; } : undefined}
-      onMouseLeave={onClick ? e => { (e.currentTarget as HTMLElement).style.background = ""; } : undefined}
+      className={clickable ? "spv-clickable" : undefined}
+      style={{ border: "1px solid #ececec", borderRadius: 8, padding: "7px 10px", marginBottom: 6, cursor: clickable ? "pointer" : undefined, transition: "background .15s" }}
+      onClick={clickable ? onClick : undefined}
+      onMouseEnter={clickable ? e => { (e.currentTarget as HTMLElement).style.background = "#e8f0fb"; } : undefined}
+      onMouseLeave={clickable ? e => { (e.currentTarget as HTMLElement).style.background = ""; } : undefined}
     >
-      <div style={{ fontSize: 9, fontWeight: 800, color: "#004481", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
-        {title}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+        <div style={{ fontSize: 9, fontWeight: 800, color: "#004481", textTransform: "uppercase", letterSpacing: "0.07em" }}>{title}</div>
+        {resolved && (
+          <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+            background: resolved.result === "unanimous" ? "#dcfce7" : "#fee2e2",
+            color: resolved.result === "unanimous" ? "#16a34a" : "#dc2626",
+          }}>
+            {resolved.result === "unanimous" ? "✅ Unánime" : "⚠️ Con oposición"}
+          </span>
+        )}
       </div>
       {children}
     </div>
@@ -103,12 +121,24 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   curPageRef.current = curPage;
 
   const [voteDialog, setVoteDialog] = useState<VoteDialog | null>(null);
+  const [voteResults, setVoteResults] = useState<VoteResults>(() => {
+    const vr = (meeting as any).voteResults;
+    return (vr && typeof vr === "object" && !Array.isArray(vr)) ? vr as VoteResults : {};
+  });
 
-  const VOTE_PHRASE: Record<VoteType, (name: string, detail: string, org?: string) => string> = {
-    sostenimiento: (n, d, o) => `Proponemos que ${n} sea sostenido(a) como ${d}${o ? ` en ${o}` : ""}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
-    relevo:        (n, d, o) => `Proponemos relevar a ${n} como ${d}${o ? ` en ${o}` : ""} y agradecemos su servicio. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
-    ordenacion:    (n, d)    => `Proponemos que ${n} reciba el Sacerdocio Aarónico y sea ordenado al oficio de ${d}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
-    avance:        (n, d)    => `Proponemos que ${n} avance en el Sacerdocio Aarónico al oficio de ${d}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+  const GROUP_PHRASE: Record<VoteType, (items: VoteGroupItem[]) => string> = {
+    sostenimiento: (items) => items.length === 1
+      ? `Proponemos que ${items[0].name} sea sostenido(a) como ${items[0].detail}${items[0].organization ? ` en ${items[0].organization}` : ""}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
+      : `Proponemos que las siguientes personas sean sostenidas en los llamamientos mencionados. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+    relevo: (items) => items.length === 1
+      ? `Proponemos relevar a ${items[0].name} como ${items[0].detail}${items[0].organization ? ` en ${items[0].organization}` : ""} y agradecemos su servicio. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
+      : `Proponemos relevar a las siguientes personas de los llamamientos mencionados, y les agradecemos su servicio. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+    ordenacion: (items) => items.length === 1
+      ? `Proponemos que ${items[0].name} reciba el Sacerdocio Aarónico y sea ordenado al oficio de ${items[0].detail}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
+      : `Proponemos que las siguientes personas reciban el Sacerdocio Aarónico en los oficios mencionados. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
+    avance: (items) => items.length === 1
+      ? `Proponemos que ${items[0].name} avance en el Sacerdocio Aarónico al oficio de ${items[0].detail}. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`
+      : `Proponemos que las siguientes personas avancen en el Sacerdocio Aarónico a los oficios mencionados. Los que estén a favor, sírvanse indicarlo levantando la mano. Opuestos si los hay, también pueden manifestarlo.`,
   };
 
   const meetingDate = new Date(meeting.date);
@@ -117,29 +147,32 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const monthYear = meetingDate.toLocaleDateString("es-ES", { month: "long", year: "numeric", timeZone: "Europe/Madrid" }).toUpperCase();
   const longDate = meetingDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Madrid" });
 
-  const openVote = useCallback((type: VoteType, name: string, detail: string, organization?: string) => {
-    const phrase = VOTE_PHRASE[type](name, detail, organization);
-    setVoteDialog({ item: { type, phrase, name, detail, organization }, phase: "vote", opponentName: "", sending: false, done: false });
+  const openGroupVote = useCallback((type: VoteType, items: VoteGroupItem[]) => {
+    setVoteDialog({ type, phrase: GROUP_PHRASE[type](items), items, phase: "vote", opponentName: "", opposedTo: "", sending: false });
   }, []);
 
   const submitVote = useCallback(async (result: "unanimous" | "opposed") => {
     if (!voteDialog) return;
+    const mid = (meeting as any).id;
     setVoteDialog(d => d ? { ...d, sending: true } : null);
     try {
-      await fetch("/api/sacramental-meetings/vote-result", {
-        method: "POST",
+      await fetch(`/api/sacramental-meetings/${mid}/vote-result`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           meetingDate: longDate,
-          type: voteDialog.item.type,
-          name: voteDialog.item.name,
-          detail: voteDialog.item.detail,
-          organization: voteDialog.item.organization,
+          type: voteDialog.type,
+          items: voteDialog.items,
           result,
           opponentName: voteDialog.opponentName || undefined,
+          opposedTo: voteDialog.opposedTo || undefined,
         }),
       });
-      setVoteDialog(d => d ? { ...d, sending: false, done: true } : null);
+      const record: VoteResultRecord = { result, votedAt: new Date().toISOString() };
+      if (voteDialog.opponentName) record.opponentName = voteDialog.opponentName;
+      if (voteDialog.opposedTo) record.opposedTo = voteDialog.opposedTo;
+      setVoteResults(prev => ({ ...prev, [voteDialog.type]: record }));
+      setVoteDialog(d => d ? { ...d, sending: false, phase: "done" } : null);
       setTimeout(() => setVoteDialog(null), 1800);
     } catch {
       setVoteDialog(d => d ? { ...d, sending: false } : null);
@@ -273,12 +306,44 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
             <div>
               <Lbl accent={accent} small>Asuntos de barrio</Lbl>
               {!hasWardBusiness && empty}
-              {releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); const label = `${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`; return <MiniCard key={`rel-${i}`} title="Relevo" onClick={() => openVote("relevo", r.name, r.oldCalling || "", o || undefined)}>{itemText(label)}</MiniCard>; })}
-              {sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); const label = `${s.name} — ${fmtCallingOrg(s.calling, o)}`; return <MiniCard key={`sus-${i}`} title="Sostenimiento" onClick={() => openVote("sostenimiento", s.name, s.calling, o || undefined)}>{itemText(label)}</MiniCard>; })}
+              {releases.length > 0 && (
+                <MiniCard
+                  title={`Relevos${releases.length > 1 ? ` (${releases.length})` : ""}`}
+                  onClick={() => openGroupVote("relevo", releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return { name: r.name, detail: r.oldCalling || "", organization: o || undefined }; }))}
+                  resolved={voteResults.relevo}
+                >
+                  {releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); return <div key={i}>{itemText(`${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`)}</div>; })}
+                </MiniCard>
+              )}
+              {sustainments.length > 0 && (
+                <MiniCard
+                  title={`Sostenimientos${sustainments.length > 1 ? ` (${sustainments.length})` : ""}`}
+                  onClick={() => openGroupVote("sostenimiento", sustainments.map((s: any) => { const o = orgName(organizations, s.organizationId); return { name: s.name, detail: s.calling, organization: o || undefined }; }))}
+                  resolved={voteResults.sostenimiento}
+                >
+                  {sustainments.map((s: any, i: number) => { const o = orgName(organizations, s.organizationId); return <div key={i}>{itemText(`${s.name} — ${fmtCallingOrg(s.calling, o)}`)}</div>; })}
+                </MiniCard>
+              )}
               {confirmations.length > 0 && <MiniCard title="Confirmaciones">{bul(confirmations)}</MiniCard>}
               {newMembers.length > 0 && <MiniCard title="Nuevos miembros">{bul(newMembers)}</MiniCard>}
-              {aaronicOrderings.map((o: any, i: number) => { const office = OFFICE_LABEL[o.office] ?? o.office ?? ""; return <MiniCard key={`ord-${i}`} title="Ordenación Sacerdocio Aarónico" onClick={() => openVote("ordenacion", o.name, office)}>{itemText(fmtAaronic(o))}</MiniCard>; })}
-              {aaronicAdvancements.map((a: any, i: number) => { const office = OFFICE_LABEL[a.office] ?? a.office ?? ""; return <MiniCard key={`adv-${i}`} title="Avance Sacerdocio Aarónico" onClick={() => openVote("avance", a.name, office)}>{itemText(fmtAaronic(a))}</MiniCard>; })}
+              {aaronicOrderings.length > 0 && (
+                <MiniCard
+                  title={`Ordenaciones Sacerdocio Aarónico${aaronicOrderings.length > 1 ? ` (${aaronicOrderings.length})` : ""}`}
+                  onClick={() => openGroupVote("ordenacion", aaronicOrderings.map((o: any) => ({ name: o.name, detail: OFFICE_LABEL[o.office] ?? o.office ?? "" })))}
+                  resolved={voteResults.ordenacion}
+                >
+                  {aaronicOrderings.map((o: any, i: number) => <div key={i}>{itemText(fmtAaronic(o))}</div>)}
+                </MiniCard>
+              )}
+              {aaronicAdvancements.length > 0 && (
+                <MiniCard
+                  title={`Avances Sacerdocio Aarónico${aaronicAdvancements.length > 1 ? ` (${aaronicAdvancements.length})` : ""}`}
+                  onClick={() => openGroupVote("avance", aaronicAdvancements.map((a: any) => ({ name: a.name, detail: OFFICE_LABEL[a.office] ?? a.office ?? "" })))}
+                  resolved={voteResults.avance}
+                >
+                  {aaronicAdvancements.map((a: any, i: number) => <div key={i}>{itemText(fmtAaronic(a))}</div>)}
+                </MiniCard>
+              )}
               {childBlessings.length > 0 && <MiniCard title="Bendición de niños">{bul(childBlessings)}</MiniCard>}
             </div>
             <div>
@@ -366,7 +431,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
 
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accent, meeting, recognitionMembers, organizations]);
+  }, [accent, meeting, recognitionMembers, organizations, openGroupVote, voteResults]);
 
   // ── Pagination ─────────────────────────────────────────────────
   useEffect(() => {
@@ -564,71 +629,89 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   );
 
   // ── Vote dialog ────────────────────────────────────────────────────────────
+  const TYPE_LABEL_DIALOG: Record<VoteType, string> = { sostenimiento: "Sostenimiento", relevo: "Relevo", ordenacion: "Ordenación", avance: "Avance en el Sacerdocio" };
   const votePortal = voteDialog ? createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
       onClick={() => !voteDialog.sending && setVoteDialog(null)}
     >
-      <div style={{ background: "#fff", borderRadius: 16, padding: 32, maxWidth: 540, width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,0.35)", position: "relative" }}
+      <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 520, width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,0.35)" }}
         onClick={e => e.stopPropagation()}
       >
-        {voteDialog.done ? (
+        {voteDialog.phase === "done" ? (
           <div style={{ textAlign: "center", padding: "16px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
             <p style={{ fontSize: 15, fontWeight: 600, color: "#166534" }}>Notificación enviada</p>
           </div>
         ) : voteDialog.phase === "vote" ? (
           <>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#6366f1", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
-              {{ sostenimiento: "Sostenimiento", relevo: "Relevo", ordenacion: "Ordenación", avance: "Avance" }[voteDialog.item.type]}
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#004481", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+              {TYPE_LABEL_DIALOG[voteDialog.type]}
             </p>
-            <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1a1a2e", fontStyle: "italic", background: "#f8f9fe", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-              "{voteDialog.item.phrase}"
+            {/* Collective phrase */}
+            <p style={{ fontSize: 13.5, lineHeight: 1.65, color: "#1a1a2e", fontStyle: "italic", background: "#f0f6ff", borderRadius: 10, padding: "12px 14px", marginBottom: voteDialog.items.length > 1 ? 14 : 18, borderLeft: "3px solid #004481" }}>
+              "{voteDialog.phrase}"
             </p>
-            <p style={{ fontSize: 12, color: "#555", marginBottom: 16, fontWeight: 600 }}>Resultado de la votación:</p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                disabled={voteDialog.sending}
-                onClick={() => submitVote("unanimous")}
-                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-              >
+            {/* List of people when multiple */}
+            {voteDialog.items.length > 1 && (
+              <div style={{ marginBottom: 18 }}>
+                {voteDialog.items.map((it, i) => (
+                  <div key={i} style={{ display: "flex", gap: 6, fontSize: 12, color: "#3c4043", marginBottom: 4 }}>
+                    <span style={{ color: "#004481", flexShrink: 0 }}>·</span>
+                    <span><strong>{it.name}</strong>{it.detail ? ` — ${it.detail}` : ""}{it.organization ? ` (${it.organization})` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p style={{ fontSize: 12, color: "#555", marginBottom: 10, fontWeight: 600 }}>Resultado de la votación:</p>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <button disabled={voteDialog.sending} onClick={() => submitVote("unanimous")}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                 ✅ Unánime
               </button>
-              <button
-                disabled={voteDialog.sending}
-                onClick={() => setVoteDialog(d => d ? { ...d, phase: "opposed" } : null)}
-                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#f59e0b", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-              >
+              <button disabled={voteDialog.sending} onClick={() => setVoteDialog(d => d ? { ...d, phase: "opposed" } : null)}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: "#b45309", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                 ⚠️ Con oposición
               </button>
             </div>
-            <button onClick={() => setVoteDialog(null)} style={{ marginTop: 12, width: "100%", padding: "8px 0", borderRadius: 8, border: "1px solid #e5e7eb", background: "transparent", fontSize: 13, color: "#888", cursor: "pointer" }}>
+            <button onClick={() => setVoteDialog(null)}
+              style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "1px solid #e5e7eb", background: "transparent", fontSize: 13, color: "#888", cursor: "pointer" }}>
               Cancelar
             </button>
           </>
         ) : (
           <>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#b45309", marginBottom: 16 }}>⚠️ Registrar oposición</p>
-            <p style={{ fontSize: 12, color: "#555", marginBottom: 10 }}>Nombre de quien se opuso <span style={{ color: "#aaa" }}>(opcional)</span></p>
-            <input
-              type="text"
-              placeholder="Nombre completo..."
-              value={voteDialog.opponentName}
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: 1, marginBottom: 18 }}>Con oposición</p>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+              Nombre de quien se opuso <span style={{ color: "#aaa", fontWeight: 400 }}>(opcional)</span>
+            </label>
+            <input type="text" value={voteDialog.opponentName} autoFocus
               onChange={e => setVoteDialog(d => d ? { ...d, opponentName: e.target.value } : null)}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, marginBottom: 16, boxSizing: "border-box" }}
-              autoFocus
+              placeholder="Nombre completo"
+              style={{ width: "100%", boxSizing: "border-box", border: "1px solid #d1d5db", borderRadius: 8, padding: "9px 12px", fontSize: 13, marginBottom: 14, outline: "none" }}
             />
+            {voteDialog.items.length > 1 && (
+              <>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                  ¿A quién se opuso? <span style={{ color: "#aaa", fontWeight: 400 }}>(opcional)</span>
+                </label>
+                <select value={voteDialog.opposedTo}
+                  onChange={e => setVoteDialog(d => d ? { ...d, opposedTo: e.target.value } : null)}
+                  style={{ width: "100%", boxSizing: "border-box", border: "1px solid #d1d5db", borderRadius: 8, padding: "9px 12px", fontSize: 13, marginBottom: 14, background: "#fff", outline: "none" }}
+                >
+                  <option value="">Seleccionar persona...</option>
+                  {voteDialog.items.map((it, i) => (
+                    <option key={i} value={it.name}>{it.name}{it.detail ? ` — ${it.detail}` : ""}</option>
+                  ))}
+                </select>
+              </>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setVoteDialog(d => d ? { ...d, phase: "vote" } : null)}
-                style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1px solid #e5e7eb", background: "transparent", fontSize: 13, color: "#555", cursor: "pointer" }}
-              >
+              <button onClick={() => setVoteDialog(d => d ? { ...d, phase: "vote" } : null)}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1px solid #e5e7eb", background: "transparent", fontSize: 13, color: "#555", cursor: "pointer" }}>
                 ← Atrás
               </button>
-              <button
-                disabled={voteDialog.sending}
-                onClick={() => submitVote("opposed")}
-                style={{ flex: 2, padding: "11px 0", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-              >
+              <button disabled={voteDialog.sending} onClick={() => submitVote("opposed")}
+                style={{ flex: 2, padding: "11px 0", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                 {voteDialog.sending ? "Enviando..." : "Confirmar y notificar"}
               </button>
             </div>
