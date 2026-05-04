@@ -434,6 +434,7 @@ export default function InterviewsPage() {
   const [editInterviewerSheetOpen, setEditInterviewerSheetOpen] = useState(false);
   const [editDateDraft, setEditDateDraft] = useState({ date: "", time: "" });
   const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
+  const [filterInterviewerId, setFilterInterviewerId] = useState<string>("all");
 
   const { user } = useAuth();
   const { data: interviews = [], isLoading } = useInterviews();
@@ -557,13 +558,16 @@ export default function InterviewsPage() {
     setMessageText(nextMessage);
   }, [messageContact, messageTemplateId]);
 
-  // ✅ Filtrado por rol (si es org member)
-  const filteredInterviewsRaw = useMemo(
-    () => isOrgMember
-      ? interviews.filter((i: any) => i.assignedBy === user?.id || i.assignedToId === user?.id)
-      : interviews,
-    [isOrgMember, interviews, user?.id],
-  );
+  // ✅ Filtrado por rol y por entrevistador seleccionado
+  const filteredInterviewsRaw = useMemo(() => {
+    let base = isOrgMember
+      ? (interviews as any[]).filter((i: any) => i.assignedBy === user?.id || i.assignedToId === user?.id)
+      : (interviews as any[]);
+    if (isObispado && filterInterviewerId !== "all") {
+      base = base.filter((i: any) => i.interviewerId === filterInterviewerId);
+    }
+    return base;
+  }, [isOrgMember, isObispado, interviews, user?.id, filterInterviewerId]);
 
   // ✅ Ocultar archivadas por defecto (archivadas = completadas/canceladas/archivadas legacy)
   const filteredInterviews = useMemo(() => {
@@ -742,6 +746,21 @@ export default function InterviewsPage() {
       window.clearTimeout(retryTimer);
     };
   }, [highlightInterviewId]);
+
+  // Consejeros y secretarios: su propio filtro por defecto
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === "consejero_obispo" || user.role === "secretario_ejecutivo") {
+      setFilterInterviewerId(user.id);
+    }
+  }, [user?.id, user?.role]);
+
+  // Cuando viene desde agenda con highlight → seleccionar automáticamente el entrevistador
+  useEffect(() => {
+    if (!highlightInterviewId || !(interviews as any[]).length) return;
+    const target = (interviews as any[]).find((i: any) => i.id === highlightInterviewId);
+    if (target?.interviewerId) setFilterInterviewerId(target.interviewerId);
+  }, [highlightInterviewId, interviews]);
 
   const onSubmit = (data: InterviewFormValues) => {
     createMutation.mutate(
@@ -1812,6 +1831,26 @@ export default function InterviewsPage() {
           <CardDescription>
             {isOrgMember ? "Tus solicitudes de entrevista con el Obispado" : "Entrevistas del barrio"}
           </CardDescription>
+          {isObispado && interviewers.length > 1 && (
+            <div className="flex flex-wrap gap-2 pt-2">
+              <button
+                onClick={() => setFilterInterviewerId("all")}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${filterInterviewerId === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
+              >
+                Todas
+              </button>
+              {(interviewers as any[]).map((iv: any) => (
+                <button
+                  key={iv.id}
+                  onClick={() => setFilterInterviewerId(iv.id)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${filterInterviewerId === iv.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
+                >
+                  {iv.id === user?.id ? `Yo · ${shortUserName(iv)}` : shortUserName(iv)}
+                  {iv.role === "obispo" && iv.id !== user?.id && " (Obispo)"}
+                </button>
+              ))}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
