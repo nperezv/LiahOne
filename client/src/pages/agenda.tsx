@@ -354,12 +354,11 @@ export default function AgendaPage() {
                               onClick={() => setLocation(taskUrl(t))}
                             >
                               <p className="font-medium leading-tight">{t.title}</p>
-                              {(t.areaLabel || t.priority) && (
-                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
-                                  {t.areaLabel && <span className="rounded bg-primary/10 px-1 py-px text-primary">{t.areaLabel}</span>}
-                                  {t.priority && <span className="font-semibold text-amber-600">{t.priority}</span>}
-                                </div>
-                              )}
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
+                                {t.areaLabel && <span className="rounded bg-primary/10 px-1 py-px text-primary">{t.areaLabel}</span>}
+                                {t.priority && <span className="font-semibold text-amber-600">{t.priority}</span>}
+                                {t.dueDate && <span>Vence {new Date(t.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>}
+                              </div>
                             </div>
                           ))}
                           {items.length > 5 && <p className="text-[10px] text-muted-foreground">+{items.length - 5} más</p>}

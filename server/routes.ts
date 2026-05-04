@@ -13,7 +13,7 @@ import { sendPushToMultipleUsers } from "./push-service";
 import { generateWelfareRequestPdf } from "./pdf/welfare-pdf";
 import { storage, getDefaultChecklistItems } from "./storage";
 import { db, pool } from "./db";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql, inArray } from "drizzle-orm";
 import {
   insertUserSchema,
   insertSacramentalMeetingSchema,
@@ -9920,6 +9920,32 @@ Devuelve SOLO un JSON con esta estructura exacta:
         areaLabel: null,
         createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
       }));
+
+      // ── Enriquecer títulos de entrevistas con nombre del entrevistado ───────
+      const interviewIds = normalizedAssignments.filter(a => a.source === "interview" && a.sourceId).map(a => a.sourceId as string);
+      const orgInterviewIds = normalizedAssignments.filter(a => a.source === "organization_interview" && a.sourceId).map(a => a.sourceId as string);
+      const nameMap = new Map<string, string>();
+      if (interviewIds.length > 0) {
+        const rows = await db.select({ id: interviews.id, personName: interviews.personName }).from(interviews).where(inArray(interviews.id, interviewIds));
+        rows.forEach(r => nameMap.set(r.id, r.personName ?? ""));
+      }
+      if (orgInterviewIds.length > 0) {
+        const rows = await db.select({ id: organizationInterviews.id, personName: organizationInterviews.personName }).from(organizationInterviews).where(inArray(organizationInterviews.id, orgInterviewIds));
+        rows.forEach(r => nameMap.set(r.id, r.personName ?? ""));
+      }
+      for (const a of normalizedAssignments) {
+        if ((a.source === "interview" || a.source === "organization_interview") && a.sourceId) {
+          const personName = nameMap.get(a.sourceId);
+          if (personName) {
+            const shortPerson = personName.split(" ").slice(0, 2).join(" ");
+            // Reemplazar título viejo sin nombre por uno con nombre
+            if (!a.title.toLowerCase().includes(shortPerson.split(" ")[0].toLowerCase())) {
+              const datePart = a.title.replace(/^Entrevista.*?-\s*/i, "").trim();
+              a.title = `Entrevista con ${shortPerson}${datePart ? ` — ${datePart}` : ""}`;
+            }
+          }
+        }
+      }
 
       // ── Combinar y ordenar por fecha ──────────────────────────────────────
       const all = [...normalizedAssignments, ...normalizedAgendaTasks].sort((a, b) => {
