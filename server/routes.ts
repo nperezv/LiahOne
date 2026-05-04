@@ -3252,6 +3252,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper: genera asignaciones desde agreements de una reunión de presidencia
+  const syncPresidencyMeetingAssignments = async (meetingId: string, agreements: { description: string; responsible: string }[], actorUserId: string) => {
+    if (!Array.isArray(agreements) || agreements.length === 0) return;
+    const allUsers = await storage.getAllUsers();
+    const existing = await db
+      .select({ assignedTo: assignmentsTable.assignedTo, title: assignmentsTable.title })
+      .from(assignmentsTable)
+      .where(eq(assignmentsTable.relatedTo, `presidency-meeting:${meetingId}`));
+
+    for (const agreement of agreements) {
+      if (!agreement.description?.trim() || !agreement.responsible?.trim()) continue;
+      const normResp = normalizeComparableName(agreement.responsible);
+      const matched = (allUsers as any[]).find((u: any) => normalizeComparableName(u.name) === normResp);
+      if (!matched) continue;
+
+      const title = agreement.description.trim();
+      const alreadyExists = existing.some(a => a.assignedTo === matched.id && a.title === title);
+      if (alreadyExists) continue;
+
+      const assignment = await storage.createAssignment({
+        title,
+        description: `Acuerdo de reunión de presidencia`,
+        assignedTo: matched.id,
+        assignedBy: actorUserId,
+        relatedTo: `presidency-meeting:${meetingId}`,
+      });
+
+      const notif = await storage.createNotification({
+        userId: matched.id,
+        type: "assignment_created",
+        title: "Nueva asignación de Reunión de Presidencia",
+        description: title,
+        relatedId: assignment.id,
+        isRead: false,
+      });
+
+      if (isPushConfigured()) {
+        await sendPushNotification(matched.id, {
+          title: "Nueva asignación de Reunión de Presidencia",
+          body: title,
+          url: "/assignments",
+          notificationId: notif.id,
+        });
+      }
+    }
+  };
+
   app.post("/api/presidency-meetings", requireAuth, async (req: Request, res: Response) => {
     try {
       const meetingData = insertPresidencyMeetingSchema.parse({
@@ -3259,6 +3306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: req.session.userId,
       });
       const meeting = await storage.createPresidencyMeeting(meetingData);
+      await syncPresidencyMeetingAssignments(meeting.id, (meeting.agreements ?? []) as any[], req.session.userId!);
       res.status(201).json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -3278,6 +3326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Meeting not found" });
       }
 
+      await syncPresidencyMeetingAssignments(meeting.id, (meeting.agreements ?? []) as any[], req.session.userId!);
       res.json(meeting);
     } catch (error) {
       if (error instanceof z.ZodError) {
