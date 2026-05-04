@@ -52,6 +52,7 @@ import {
   members as membersTable,
   accessRequests,
   assignments as assignmentsTable,
+  agendaTasks as agendaTasksTable,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -9831,6 +9832,104 @@ Devuelve SOLO un JSON con esta estructura exacta:
       }
     }
   );
+
+  // ========================================
+  // MY-TASKS — vista unificada assignments + agendaTasks
+  // ========================================
+
+  app.get("/api/my-tasks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const userId: string = user.id;
+
+      const SOURCE_INFO: Record<string, { emoji: string; label: string }> = {
+        budget:                  { emoji: "💰", label: "Presupuesto" },
+        welfare:                 { emoji: "🏥", label: "Bienestar" },
+        interview:               { emoji: "📅", label: "Entrevista" },
+        organization_interview:  { emoji: "📅", label: "Entrevista de org." },
+        activity:                { emoji: "🎉", label: "Actividad" },
+        council:                 { emoji: "📋", label: "Consejo de Barrio" },
+        "presidency-meeting":    { emoji: "🤝", label: "Presidencia" },
+        manual:                  { emoji: "✏️", label: "Manual" },
+        agenda:                  { emoji: "📆", label: "Agenda" },
+      };
+
+      const AREA_LABEL: Record<string, string> = {
+        livingGospel:  "Vivir el Evangelio",
+        careForOthers: "Cuidar a los demás",
+        missionary:    "Misión",
+        familyHistory: "Historia familiar",
+        logistica:     "Logística",
+        programa:      "Programa",
+      };
+
+      const parseSource = (relatedTo?: string | null) => {
+        if (!relatedTo) return "manual";
+        return relatedTo.split(":")[0] || "manual";
+      };
+
+      // ── Assignments asignadas al usuario ─────────────────────────────────
+      const allAssignments = await storage.getAllAssignments();
+      const myAssignments = (allAssignments as any[]).filter(
+        (a) => a.assignedTo === userId && a.status !== "archivada",
+      );
+
+      const normalizedAssignments = myAssignments.map((a) => {
+        const source = parseSource(a.relatedTo);
+        const info = SOURCE_INFO[source] ?? { emoji: "📌", label: source };
+        return {
+          id: a.id,
+          type: "assignment",
+          title: a.title,
+          description: a.description ?? null,
+          dueDate: a.dueDate ? new Date(a.dueDate).toISOString() : null,
+          priority: null,
+          status: a.status,
+          source,
+          sourceEmoji: info.emoji,
+          sourceLabel: info.label,
+          area: a.area ?? null,
+          areaLabel: a.area ? (AREA_LABEL[a.area] ?? a.area) : null,
+          createdAt: a.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
+        };
+      });
+
+      // ── AgendaTasks del usuario ───────────────────────────────────────────
+      const myAgendaTasks = await db
+        .select()
+        .from(agendaTasksTable)
+        .where(and(eq(agendaTasksTable.userId, userId), eq(agendaTasksTable.status, "open")));
+
+      const normalizedAgendaTasks = myAgendaTasks.map((t) => ({
+        id: t.id,
+        type: "agenda",
+        title: t.title,
+        description: t.description ?? null,
+        dueDate: t.dueAt ? new Date(t.dueAt).toISOString() : null,
+        priority: t.priority ?? null,
+        status: t.status,
+        source: "agenda",
+        sourceEmoji: "📆",
+        sourceLabel: "Agenda",
+        area: null,
+        areaLabel: null,
+        createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+      }));
+
+      // ── Combinar y ordenar por fecha ──────────────────────────────────────
+      const all = [...normalizedAssignments, ...normalizedAgendaTasks].sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
+
+      res.json(all);
+    } catch (err) {
+      console.error("[my-tasks]", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
   // ========================================
   // ASSIGNMENTS

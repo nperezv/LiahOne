@@ -1576,6 +1576,13 @@ export function useAssignments() {
   });
 }
 
+export function useMyTasks() {
+  return useQuery<any[]>({
+    queryKey: ["/api/my-tasks"],
+    ...REALTIME_QUERY_OPTIONS,
+  });
+}
+
 export function useCreateAssignment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -24,6 +24,7 @@ import {
   useUpdateAgendaAvailability,
   useUpdateAgendaTaskStatus,
   useAssignments,
+  useMyTasks,
 } from "@/hooks/use-api";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -76,6 +77,7 @@ export default function AgendaPage() {
   const { data: availability } = useAgendaAvailability();
   const updateAvailability = useUpdateAgendaAvailability();
   const { data: assignments } = useAssignments();
+  const { data: myTasks = [] } = useMyTasks();
 
   const [dictatedText, setDictatedText] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -309,18 +311,42 @@ export default function AgendaPage() {
 
           <GlassCard className="order-4 xl:order-none">
             <div className="space-y-3 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Asignaciones pendientes</p>
-              <div className="space-y-2">
-                {pendingAssignments.slice(0, 6).map((assignment: any) => (
-                  <div key={assignment.id} className="rounded-lg border border-border/70 bg-background/20 p-2 text-xs">
-                    <p className="font-medium">{assignment.title}</p>
-                    <p className="text-muted-foreground">Estado: {assignment.status}</p>
-                    <p className="text-muted-foreground">Ref: {formatAssignmentReference(assignment.relatedTo)}</p>
-                    {assignment.dueDate && <p className="text-muted-foreground">Vence: {new Date(assignment.dueDate).toLocaleDateString("es-ES")}</p>}
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Mis pendientes ({myTasks.filter((t: any) => t.status !== "done" && t.status !== "canceled" && t.status !== "archivada").length})
+              </p>
+              {(() => {
+                const active = myTasks.filter((t: any) => t.status !== "done" && t.status !== "canceled" && t.status !== "archivada");
+                if (active.length === 0) return <p className="text-sm text-muted-foreground">Todo al día ✓</p>;
+                // Agrupar por fuente
+                const groups: Record<string, any[]> = {};
+                for (const t of active) {
+                  const key = `${t.sourceEmoji} ${t.sourceLabel}`;
+                  if (!groups[key]) groups[key] = [];
+                  groups[key].push(t);
+                }
+                return (
+                  <div className="space-y-3">
+                    {Object.entries(groups).map(([groupLabel, items]) => (
+                      <div key={groupLabel}>
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{groupLabel}</p>
+                        <div className="space-y-1">
+                          {items.slice(0, 5).map((t: any) => (
+                            <div key={t.id} className="rounded-lg border border-border/60 bg-background/20 px-2 py-1.5 text-xs">
+                              <p className="font-medium leading-tight">{t.title}</p>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
+                                {t.areaLabel && <span className="rounded bg-primary/10 px-1 py-px text-primary">{t.areaLabel}</span>}
+                                {t.priority && <span className="font-semibold text-amber-600">{t.priority}</span>}
+                                {t.dueDate && <span>Vence {new Date(t.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>}
+                              </div>
+                            </div>
+                          ))}
+                          {items.length > 5 && <p className="text-[10px] text-muted-foreground">+{items.length - 5} más</p>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {pendingAssignments.length === 0 && <p className="text-sm text-muted-foreground">Sin asignaciones pendientes.</p>}
-              </div>
+                );
+              })()}
             </div>
           </GlassCard>
         </div>
