@@ -268,8 +268,7 @@ function AppShell() {
   useEffect(() => {
     const raw = template?.wardName as string | undefined;
     if (!raw) return;
-    const name = raw.replace(/^[Bb]arrio\s+/i, "").trim() || raw;
-    document.title = name;
+    document.title = `Zendapp · ${raw}`;
   }, [template?.wardName]);
   const [pageReady, setPageReady] = useState(document.readyState === "complete");
   const [showSplash, setShowSplash] = useState(true);
