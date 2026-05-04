@@ -717,20 +717,28 @@ export default function InterviewsPage() {
 
     setActiveHighlightId(highlightInterviewId);
 
-    const rafId = window.requestAnimationFrame(() => {
+    // Data loads async — retry scroll until element is in DOM
+    let attempts = 0;
+    let retryTimer: ReturnType<typeof setTimeout>;
+    const tryScroll = () => {
       const element = document.querySelector<HTMLElement>(`[data-interview-id="${highlightInterviewId}"]`);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (attempts < 10) {
+        attempts++;
+        retryTimer = setTimeout(tryScroll, 200);
       }
-    });
+    };
+    const rafId = window.requestAnimationFrame(tryScroll);
 
-    const timeoutId = window.setTimeout(() => {
+    const clearTimer = window.setTimeout(() => {
       setActiveHighlightId((current) => (current === highlightInterviewId ? null : current));
-    }, 3800);
+    }, 5000);
 
     return () => {
       window.cancelAnimationFrame(rafId);
-      window.clearTimeout(timeoutId);
+      window.clearTimeout(clearTimer);
+      window.clearTimeout(retryTimer);
     };
   }, [highlightInterviewId]);
 

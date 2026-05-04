@@ -39,17 +39,19 @@ function sourceLabel(sourceType: string) {
 
 function taskUrl(task: any): string {
   const s = task.source as string;
-  const id = task.sourceId as string | null | undefined;
-  const hl = id ? `?highlight=${encodeURIComponent(id)}` : "";
+  const srcId = task.sourceId as string | null | undefined;
+  const hl = srcId ? `?highlight=${encodeURIComponent(srcId)}` : "";
+  const asgHl = `?highlight=${encodeURIComponent(task.id)}`;
   if (s === "budget")                 return `/budget${hl}`;
   if (s === "welfare")                return `/welfare${hl}`;
   if (s === "interview")              return `/interviews${hl}`;
   if (s === "organization_interview") return `/organization-interviews${hl}`;
-  if (s === "council")                return "/ward-council";
-  if (s === "presidency-meeting")     return "/presidency";
+  if (s === "council")                return `/ward-council${hl}`;
   if (s === "activity")               return `/activities${hl}`;
+  // Para presidencia y manual → resalta la propia asignación en /assignments
+  if (s === "presidency-meeting")     return `/assignments${asgHl}`;
   if (s === "agenda")                 return "/agenda";
-  return "/assignments";
+  return `/assignments${asgHl}`;
 }
 
 function normalizeComparableText(value: string) {
@@ -429,18 +431,21 @@ export default function AgendaPage() {
 
               {filteredDayEvents.map((event) => {
                 const isPast = parseISO(`${event.date}T${event.endTime ?? event.startTime ?? "23:59"}:00`).getTime() < Date.now();
+                const isInterview = event.sourceType === "interview";
                 return (
                   <div key={event.id} className="rounded-lg border border-border/70 bg-background/20 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium">{event.title}</p>
-                      <div className="flex items-center gap-2">
-                        {event.sourceType === "interview" ? <Badge variant={isPast ? "outline" : "secondary"}>{isPast ? "Entrevista completada" : "Entrevista programada"}</Badge> : isPast ? <Badge variant="outline">Pasada</Badge> : null}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium leading-tight">{event.title}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{event.startTime ? `${event.startTime}${event.endTime ? ` - ${event.endTime}` : ""}` : "Sin hora"}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {isInterview ? <Badge variant={isPast ? "outline" : "secondary"}>{isPast ? "Completada" : "Pendiente"}</Badge> : isPast ? <Badge variant="outline">Pasada</Badge> : null}
                         <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">{event.startTime ? `${event.startTime} - ${event.endTime ?? ""}` : "Sin hora"}</p>
                     {event.sourceType !== "manual" && (
-                      <Button size="sm" variant="link" className="px-0" onClick={() => setLocation(event.sourceType === "activity" ? "/activities" : "/interviews")}>Abrir módulo original</Button>
+                      <Button size="sm" variant="link" className="mt-1 h-auto px-0 py-0 text-xs" onClick={() => setLocation(isInterview ? `/interviews?highlight=${encodeURIComponent(event.sourceId ?? "")}` : "/activities")}>Abrir →</Button>
                     )}
                   </div>
                 );
