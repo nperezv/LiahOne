@@ -37,6 +37,19 @@ function sourceLabel(sourceType: string) {
   return "Manual";
 }
 
+function taskUrl(task: any): string {
+  const s = task.source as string;
+  if (s === "budget")                 return "/budget-requests";
+  if (s === "welfare")                return "/welfare";
+  if (s === "interview")              return "/interviews";
+  if (s === "organization_interview") return "/organization-interviews";
+  if (s === "council")                return "/ward-council";
+  if (s === "presidency-meeting")     return "/presidency";
+  if (s === "activity")               return "/activities";
+  if (s === "agenda")                 return "/agenda";
+  return "/assignments";
+}
+
 function normalizeComparableText(value: string) {
   return value
     .toLowerCase()
@@ -331,13 +344,18 @@ export default function AgendaPage() {
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{groupLabel}</p>
                         <div className="space-y-1">
                           {items.slice(0, 5).map((t: any) => (
-                            <div key={t.id} className="rounded-lg border border-border/60 bg-background/20 px-2 py-1.5 text-xs">
+                            <div
+                              key={t.id}
+                              className="cursor-pointer rounded-lg border border-border/60 bg-background/20 px-2 py-1.5 text-xs transition-colors hover:border-primary/40 hover:bg-primary/5"
+                              onClick={() => setLocation(taskUrl(t))}
+                            >
                               <p className="font-medium leading-tight">{t.title}</p>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
-                                {t.areaLabel && <span className="rounded bg-primary/10 px-1 py-px text-primary">{t.areaLabel}</span>}
-                                {t.priority && <span className="font-semibold text-amber-600">{t.priority}</span>}
-                                {t.dueDate && <span>Vence {new Date(t.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>}
-                              </div>
+                              {(t.areaLabel || t.priority) && (
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
+                                  {t.areaLabel && <span className="rounded bg-primary/10 px-1 py-px text-primary">{t.areaLabel}</span>}
+                                  {t.priority && <span className="font-semibold text-amber-600">{t.priority}</span>}
+                                </div>
+                              )}
                             </div>
                           ))}
                           {items.length > 5 && <p className="text-[10px] text-muted-foreground">+{items.length - 5} más</p>}
