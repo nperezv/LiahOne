@@ -275,9 +275,13 @@ export default function WelfarePage() {
   useEffect(() => {
     if (!highlightedRequestId) return;
     setActiveSection("solicitudes");
-    const row = document.querySelector(`[data-request-id="${highlightedRequestId}"]`);
-    if (!row) return;
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    let attempts = 0;
+    const tryScroll = () => {
+      const row = document.querySelector(`[data-request-id="${highlightedRequestId}"]`);
+      if (row) { row.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      else if (attempts++ < 10) { setTimeout(tryScroll, 150); }
+    };
+    setTimeout(tryScroll, 60);
   }, [highlightedRequestId, filteredRequests]);
 
   const visibleRequests = filteredRequests.filter((request) => {
