@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -256,7 +257,20 @@ function Router() {
 
 // Lives inside AuthProvider so it can gate the splash on auth resolution
 function AppShell() {
-  const { isLoading: isAuthLoading } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
+
+  // Dynamic document title from ward config
+  const { data: template } = useQuery<any>({
+    queryKey: ["/api/pdf-template"],
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+  });
+  useEffect(() => {
+    const raw = template?.wardName as string | undefined;
+    if (!raw) return;
+    const name = raw.replace(/^[Bb]arrio\s+/i, "").trim() || raw;
+    document.title = name;
+  }, [template?.wardName]);
   const [pageReady, setPageReady] = useState(document.readyState === "complete");
   const [showSplash, setShowSplash] = useState(true);
   const [isSplashClosing, setIsSplashClosing] = useState(false);
