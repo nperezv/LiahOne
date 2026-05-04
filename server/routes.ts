@@ -51,6 +51,7 @@ import {
   bajaRequests,
   members as membersTable,
   accessRequests,
+  assignments as assignmentsTable,
 } from "@shared/schema";
 import { z } from "zod";
 import { formatBirthdayMonthDay, getDaysUntilBirthday } from "@shared/birthday-utils";
@@ -3152,6 +3153,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
+
+      // ── Generar asignaciones desde personas discutidas (§29.2.5) ──────────
+      const AREA_PERSONS: Array<{
+        key: "livingGospelPersons" | "careForOthersPersons" | "missionaryPersons" | "familyHistoryPersons";
+        area: string;
+        label: string;
+      }> = [
+        { key: "livingGospelPersons",  area: "livingGospel",  label: "Vivir el Evangelio" },
+        { key: "careForOthersPersons", area: "careForOthers", label: "Cuidar a los demás" },
+        { key: "missionaryPersons",    area: "missionary",    label: "Misión de salvación" },
+        { key: "familyHistoryPersons", area: "familyHistory", label: "Historia familiar" },
+      ];
+
+      // Carga assignments ya creadas para este consejo (idempotencia)
+      const existingAssignments = await db
+        .select({ relatedTo: assignmentsTable.relatedTo, assignedTo: assignmentsTable.assignedTo, area: assignmentsTable.area })
+        .from(assignmentsTable)
+        .where(eq(assignmentsTable.relatedTo, `council:${council.id}`));
+
+      for (const { key, area, label } of AREA_PERSONS) {
+        const persons = (council as any)[key] as { name: string; situation: string; responsibleId: string; responsibleName: string; dueDate?: string }[] | undefined;
+        if (!Array.isArray(persons)) continue;
+
+        for (const person of persons) {
+          if (!person.responsibleId || !person.name) continue;
+
+          // Evitar duplicados: misma área + mismo responsable
+          const alreadyExists = existingAssignments.some(
+            a => a.area === area && a.assignedTo === person.responsibleId,
+          );
+          if (alreadyExists) continue;
+
+          const assignment = await storage.createAssignment({
+            title: `Seguimiento — ${person.name}`,
+            description: `[${label}] ${person.situation || ""}`.trim(),
+            assignedTo: person.responsibleId,
+            assignedBy: req.session.userId!,
+            dueDate: person.dueDate ? new Date(person.dueDate) : undefined,
+            relatedTo: `council:${council.id}`,
+            area,
+          });
+
+          const notif = await storage.createNotification({
+            userId: person.responsibleId,
+            type: "assignment_created",
+            title: "Nueva asignación del Consejo de Barrio",
+            description: `Seguimiento de ${person.name} (${label})`,
+            relatedId: assignment.id,
+            isRead: false,
+          });
+
+          if (isPushConfigured()) {
+            await sendPushNotification(person.responsibleId, {
+              title: "Nueva asignación del Consejo de Barrio",
+              body: `Seguimiento de ${person.name} (${label})`,
+              url: "/assignments",
+              notificationId: notif.id,
+            });
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       res.json(council);
     } catch (error) {
