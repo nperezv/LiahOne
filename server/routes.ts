@@ -4200,16 +4200,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const welfareRequest = await storage.createWelfareRequest(requestData);
 
-      // Notify bishop about new welfare request
+      // Notify bishop + create assignment to sign
       const allUsers = await storage.getAllUsers();
       const bishop = allUsers.find((u: any) => u.role === "obispo");
       if (bishop && bishop.id !== user.id) {
+        const bishopAssignment = await storage.createAssignment({
+          title: "Revisar y firmar solicitud de bienestar",
+          description: `${shortName(user) || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
+          assignedTo: bishop.id,
+          assignedBy: user.id,
+          dueDate: welfareRequest.activityDate ? new Date(welfareRequest.activityDate) : undefined,
+          relatedTo: `welfare:${welfareRequest.id}`,
+        });
+
         const notification = await storage.createNotification({
           userId: bishop.id,
-          type: "reminder",
+          type: "assignment_created",
           title: "Nueva Solicitud de Bienestar",
           description: `${shortName(user) || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
-          relatedId: welfareRequest.id,
+          relatedId: bishopAssignment.id,
           isRead: false,
         });
 
@@ -4252,6 +4261,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const welfareRequest = await storage.updateWelfareRequest(id, requestData);
       if (!welfareRequest) {
         return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      // Auto-complete "Adjuntar comprobantes" assignment when receipts are attached
+      if (requestData.receipts && (requestData.receipts as any[]).length > 0) {
+        const allAssignments = await storage.getAllAssignments();
+        const receiptsAssignment = allAssignments.find(
+          (a: any) => a.relatedTo === `welfare:${id}` && a.title === "Adjuntar comprobantes de bienestar" && a.status !== "completada"
+        );
+        if (receiptsAssignment) {
+          await storage.updateAssignment(receiptsAssignment.id, {
+            status: "archivada",
+            resolution: "completada",
+            archivedAt: new Date(),
+          });
+        }
       }
 
       res.json(welfareRequest);
@@ -4327,6 +4351,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!welfareRequest) {
         return res.status(404).json({ error: "Welfare request not found" });
+      }
+
+      // Auto-complete bishop's "Revisar y firmar" assignment
+      const allAssignments = await storage.getAllAssignments();
+      const bishopSignAssignment = allAssignments.find(
+        (a: any) => a.relatedTo === `welfare:${id}` && a.title === "Revisar y firmar solicitud de bienestar" && a.status !== "completada"
+      );
+      if (bishopSignAssignment) {
+        await storage.updateAssignment(bishopSignAssignment.id, {
+          status: "archivada",
+          resolution: "completada",
+          archivedAt: new Date(),
+        });
       }
 
       // Create task to attach expense receipts (reembolso already has receipts attached)
