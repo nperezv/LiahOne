@@ -35,6 +35,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
 
@@ -691,6 +692,7 @@ export default function WelfarePage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <BackToAgendaButton />
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setWelfareUploadState({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" }); setIsSubmitting(false); } }}>
               <DialogTrigger asChild>

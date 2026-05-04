@@ -71,6 +71,7 @@ import { useAuth } from "@/lib/auth";
 import { getApiErrorMessage } from "@/lib/error-utils";
 import { exportInterviews } from "@/lib/export";
 import { normalizeMemberName, shortMemberName, shortUserName } from "@/lib/utils";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 /* =========================
    Schema
@@ -581,6 +582,7 @@ export default function OrganizationInterviewsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <BackToAgendaButton />
           {canGoBackToManagement ? (
             <Button
               variant="outline"

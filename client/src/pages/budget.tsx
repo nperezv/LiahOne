@@ -40,6 +40,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
 
@@ -1076,6 +1077,7 @@ export default function BudgetPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <BackToAgendaButton />
           {isObispado && (
             <Dialog open={isBudgetDialogOpen} onOpenChange={setIsBudgetDialogOpen}>
               <DialogTrigger asChild>

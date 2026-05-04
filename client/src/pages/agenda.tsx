@@ -40,15 +40,15 @@ function sourceLabel(sourceType: string) {
 function taskUrl(task: any): string {
   const s = task.source as string;
   const srcId = task.sourceId as string | null | undefined;
-  const hl = srcId ? `?highlight=${encodeURIComponent(srcId)}` : "";
-  const asgHl = `?highlight=${encodeURIComponent(task.id)}`;
-  if (s === "budget")                 return `/budget${hl}`;
-  if (s === "welfare")                return `/welfare${hl}`;
-  if (s === "interview")              return `/interviews${hl}`;
-  if (s === "organization_interview") return `/organization-interviews${hl}`;
-  if (s === "council")                return `/ward-council${hl}`;
-  if (s === "activity")               return `/activities${hl}`;
-  // Para presidencia y manual → resalta la propia asignación en /assignments
+  const fa = "&from=agenda";
+  const hl = (id: string) => `?highlight=${encodeURIComponent(id)}${fa}`;
+  const asgHl = hl(task.id);
+  if (s === "budget")                 return `/budget${srcId ? hl(srcId) : `?${fa.slice(1)}`}`;
+  if (s === "welfare")                return `/welfare${srcId ? hl(srcId) : `?${fa.slice(1)}`}`;
+  if (s === "interview")              return `/interviews${srcId ? hl(srcId) : `?${fa.slice(1)}`}`;
+  if (s === "organization_interview") return `/organization-interviews${srcId ? hl(srcId) : `?${fa.slice(1)}`}`;
+  if (s === "council")                return `/ward-council${srcId ? hl(srcId) : `?${fa.slice(1)}`}`;
+  if (s === "activity")               return `/activities${srcId ? hl(srcId) : `?${fa.slice(1)}`}`;
   if (s === "presidency-meeting")     return `/assignments${asgHl}`;
   if (s === "agenda")                 return "/agenda";
   return `/assignments${asgHl}`;

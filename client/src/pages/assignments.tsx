@@ -37,6 +37,7 @@ import { useAuth } from "@/lib/auth";
 import { exportAssignments } from "@/lib/export";
 import { shortUserName, shortMemberName } from "@/lib/utils";
 import { useLocation, useSearch } from "wouter";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 const assignmentSchema = z.object({
   title: z.string().min(1, "El título es requerido"),
@@ -508,6 +509,7 @@ export default function Assignments() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <BackToAgendaButton />
           {isPresidencyOrigin ? (
             <Button
               variant="outline"

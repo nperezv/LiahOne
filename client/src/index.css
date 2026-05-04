@@ -706,15 +706,15 @@
   }
 
 
-  /* ── Notification highlight (neon pulse then fade) ── */
+  /* ── Notification highlight (pulse then fade, primary color) ── */
   @keyframes notif-highlight {
-    0%   { box-shadow: 0 0 0 0 rgba(99,255,180,0); outline-color: rgba(99,255,180,0); }
-    15%  { box-shadow: 0 0 0 4px rgba(99,255,180,0.7); outline-color: rgba(99,255,180,0.9); }
-    60%  { box-shadow: 0 0 0 4px rgba(99,255,180,0.4); outline-color: rgba(99,255,180,0.5); }
-    100% { box-shadow: 0 0 0 0 rgba(99,255,180,0); outline-color: rgba(99,255,180,0); }
+    0%   { box-shadow: 0 0 0 0 hsl(var(--primary) / 0);    outline-color: hsl(var(--primary) / 0); }
+    15%  { box-shadow: 0 0 0 4px hsl(var(--primary) / 0.6); outline-color: hsl(var(--primary) / 0.85); }
+    60%  { box-shadow: 0 0 0 4px hsl(var(--primary) / 0.3); outline-color: hsl(var(--primary) / 0.4); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0);    outline-color: hsl(var(--primary) / 0); }
   }
   .notif-highlight {
-    animation: notif-highlight 2.8s ease-out forwards;
+    animation: notif-highlight 3.5s ease-out forwards;
     outline: 2px solid transparent;
     outline-offset: 2px;
     border-radius: 0.5rem;

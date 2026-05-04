@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   servicio_bautismal: "Servicio Bautismal",
@@ -1770,6 +1771,7 @@ export default function ActivitiesPage() {
           <p className="text-sm text-muted-foreground">Gestiona las actividades del barrio</p>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <BackToAgendaButton />
           <div className="flex rounded-full border border-border/70 bg-muted/40 p-0.5 text-xs shrink-0">
             <button type="button" onClick={() => setShowArchive(false)}
               className={`rounded-full px-3 py-1 transition-colors ${!showArchive ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>

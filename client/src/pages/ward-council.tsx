@@ -47,6 +47,7 @@ import { useAuth } from "@/lib/auth";
 import { generateWardCouncilPDF } from "@/lib/pdf-utils";
 import { exportWardCouncils } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 /* =========================
    MemberAutocomplete
@@ -1302,6 +1303,7 @@ export default function WardCouncilPage() {
         </div>
 
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <BackToAgendaButton />
           <Button variant="outline" onClick={() => exportWardCouncils(councils)}>
             <Download className="h-4 w-4 lg:mr-2" />
             <span className="sr-only lg:not-sr-only">Exportar</span>

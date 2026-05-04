@@ -69,6 +69,7 @@ import { getApiErrorMessage } from "@/lib/error-utils";
 import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
 import { normalizeMemberName, shortMemberName, shortUserName } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
+import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
 /**
  * Estado (backend):
@@ -1078,6 +1079,7 @@ export default function InterviewsPage() {
         </div>
 
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
+          <BackToAgendaButton />
           {fromDashboardOrg ? (
             <Button
               variant="outline"
@@ -1831,9 +1833,7 @@ export default function InterviewsPage() {
                     data-interview-id={interview.id}
                     onClick={() => handleOpenDetails(interview)}
                     className={`cursor-pointer rounded-2xl border bg-card/95 backdrop-blur transition-all duration-500 ${
-                      isHighlighted
-                        ? "border-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.55),0_0_28px_hsl(var(--primary)/0.38)]"
-                        : "border-border/70"
+                      isHighlighted ? "notif-highlight border-primary" : "border-border/70"
                     }`}
                   >
                     <CardContent className="p-4">
