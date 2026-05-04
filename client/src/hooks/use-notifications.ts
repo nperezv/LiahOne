@@ -85,9 +85,8 @@ export function useNotifications() {
         queryClient.setQueryData(["/api/notifications/count"], context.previousCount);
       }
     },
-    // No invalidate on success — optimistic update is already accurate.
-    // Only refetch count to stay in sync.
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/count"] });
     },
   });

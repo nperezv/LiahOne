@@ -9843,15 +9843,15 @@ Devuelve SOLO un JSON con esta estructura exacta:
       const userId: string = user.id;
 
       const SOURCE_INFO: Record<string, { emoji: string; label: string }> = {
-        budget:                  { emoji: "💰", label: "Presupuesto" },
-        welfare:                 { emoji: "🏥", label: "Bienestar" },
-        interview:               { emoji: "📅", label: "Entrevista" },
-        organization_interview:  { emoji: "📅", label: "Entrevista de org." },
-        activity:                { emoji: "🎉", label: "Actividad" },
+        budget:                  { emoji: "💰", label: "Presupuestos" },
+        welfare:                 { emoji: "🏥", label: "Solicitudes de Bienestar" },
+        interview:               { emoji: "📅", label: "Entrevistas" },
+        organization_interview:  { emoji: "📅", label: "Entrevistas de organización" },
+        activity:                { emoji: "🎉", label: "Actividades" },
         council:                 { emoji: "📋", label: "Consejo de Barrio" },
-        "presidency-meeting":    { emoji: "🤝", label: "Presidencia" },
-        manual:                  { emoji: "✏️", label: "Manual" },
-        agenda:                  { emoji: "📆", label: "Agenda" },
+        "presidency-meeting":    { emoji: "🤝", label: "Reuniones de Presidencia" },
+        manual:                  { emoji: "✏️", label: "Asignaciones manuales" },
+        agenda:                  { emoji: "📆", label: "Agenda personal" },
       };
 
       const AREA_LABEL: Record<string, string> = {
