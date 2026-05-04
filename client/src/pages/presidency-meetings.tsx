@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRoute, useLocation } from "wouter";
@@ -138,7 +138,7 @@ const meetingSchema = z.object({
   closingPrayerBy: z.string().optional(),
   agenda: z.string().optional(),
   notes: z.string().optional(),
-  agreementsText: z.string().optional(),
+  agreements: z.array(z.object({ description: z.string(), responsible: z.string() })).optional().default([]),
 });
 
 const FEMALE_ORG_TYPES = new Set(["sociedad_socorro", "primaria", "mujeres_jovenes"]);
@@ -941,9 +941,19 @@ export default function PresidencyMeetingsPage() {
       closingPrayerBy: "",
       agenda: "",
       notes: "",
-      agreementsText: "",
+      agreements: [],
     },
   });
+
+  const { fields: agreementFields, append: appendAgreement, remove: removeAgreement } = useFieldArray({
+    control: form.control,
+    name: "agreements",
+  });
+
+  const presidencyOptions = useMemo(() => {
+    const presidencyRoles = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion"];
+    return (users as any[]).filter(u => u.organizationId === organizationId && presidencyRoles.includes(u.role));
+  }, [users, organizationId]);
 
   const reportForm = useForm<MeetingReportFormValues>({
     defaultValues: {
@@ -1068,12 +1078,6 @@ export default function PresidencyMeetingsPage() {
   const onSubmit = (data: MeetingFormValues) => {
     if (!organizationId) return;
 
-    const agreements = (data.agreementsText || "")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((description) => ({ description, responsible: "Por definir" }));
-
     const structuredAgenda = buildStructuredAgenda(data);
 
     createMutation.mutate(
@@ -1081,7 +1085,7 @@ export default function PresidencyMeetingsPage() {
         date: data.date,
         organizationId,
         agenda: structuredAgenda,
-        agreements,
+        agreements: (data.agreements ?? []).filter(a => a.description.trim()),
         notes: data.notes || "",
       },
       {
@@ -1443,13 +1447,50 @@ export default function PresidencyMeetingsPage() {
                 </FormItem>
               )} />
 
-              <FormField control={form.control} name="agreementsText" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Acuerdos (uno por línea)</FormLabel>
-                  <FormControl><Textarea placeholder="Acuerdo 1\nAcuerdo 2" {...field} data-testid="textarea-agreements" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <div className="space-y-2">
+                <FormLabel>Acuerdos</FormLabel>
+                {agreementFields.map((field, index) => (
+                  <div key={field.id} className="flex gap-2 items-start">
+                    <Input
+                      placeholder="Descripción del acuerdo"
+                      className="flex-1"
+                      {...form.register(`agreements.${index}.description`)}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`agreements.${index}.responsible`}
+                      render={({ field: f }) => (
+                        <Select onValueChange={f.onChange} value={f.value}>
+                          <FormControl>
+                            <SelectTrigger className="w-44">
+                              <SelectValue placeholder="Responsable" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {presidencyOptions.map((leader: any) => (
+                              <SelectItem key={leader.id} value={leader.name}>
+                                {leader.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeAgreement(index)}>
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => appendAgreement({ description: "", responsible: "" })}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Añadir acuerdo
+                </Button>
+              </div>
 
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem>
