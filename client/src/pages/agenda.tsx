@@ -39,13 +39,15 @@ function sourceLabel(sourceType: string) {
 
 function taskUrl(task: any): string {
   const s = task.source as string;
-  if (s === "budget")                 return "/budget-requests";
-  if (s === "welfare")                return "/welfare";
-  if (s === "interview")              return "/interviews";
-  if (s === "organization_interview") return "/organization-interviews";
+  const id = task.sourceId as string | null | undefined;
+  const hl = id ? `?highlight=${encodeURIComponent(id)}` : "";
+  if (s === "budget")                 return `/budget${hl}`;
+  if (s === "welfare")                return `/welfare${hl}`;
+  if (s === "interview")              return `/interviews${hl}`;
+  if (s === "organization_interview") return `/organization-interviews${hl}`;
   if (s === "council")                return "/ward-council";
   if (s === "presidency-meeting")     return "/presidency";
-  if (s === "activity")               return "/activities";
+  if (s === "activity")               return `/activities${hl}`;
   if (s === "agenda")                 return "/agenda";
   return "/assignments";
 }

@@ -4785,7 +4785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           minute: "2-digit",
           hour12: false,
         });
-        const assignmentTitle = `Entrevista programada - ${interviewDateTitle}, ${interviewTime} hrs.`;
+        const assignmentTitle = `Entrevista con ${shortNameFromString(interview.personName)} - ${interviewDateTitle}, ${interviewTime} hrs.`;
         const descriptionParts = [
           `Entrevista con ${shortNameFromString(interview.personName)} programada para el ${interviewDate}.`,
           `Entrevistador: ${interviewerShortName || "Obispado"}.`,
@@ -5430,7 +5430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (interview.interviewerId) {
-        const assignmentTitle = `Entrevista de organización - ${interviewDateTitle}, ${interviewTime} hrs.`;
+        const assignmentTitle = `Entrevista con ${shortNameFromString(interview.personName)} - ${interviewDateTitle}, ${interviewTime} hrs.`;
         const descriptionParts = [
           `Entrevista con ${shortNameFromString(interview.personName)} programada para el ${interviewDate}.`,
           `Tipo: ${interview.type}.`,
@@ -9867,6 +9867,10 @@ Devuelve SOLO un JSON con esta estructura exacta:
         if (!relatedTo) return "manual";
         return relatedTo.split(":")[0] || "manual";
       };
+      const parseSourceId = (relatedTo?: string | null) => {
+        if (!relatedTo || !relatedTo.includes(":")) return null;
+        return relatedTo.split(":").slice(1).join(":") || null;
+      };
 
       // ── Assignments asignadas al usuario ─────────────────────────────────
       const allAssignments = await storage.getAllAssignments();
@@ -9886,6 +9890,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
           priority: null,
           status: a.status,
           source,
+          sourceId: parseSourceId(a.relatedTo),
           sourceEmoji: info.emoji,
           sourceLabel: info.label,
           area: a.area ?? null,
