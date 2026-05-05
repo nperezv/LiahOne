@@ -224,6 +224,16 @@
   /* Fallback for older browsers */
   --destructive-border: hsl(var(--destructive));
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Form-style plain buttons: white tint in dark mode */
+  button.bg-background\/80,
+  button[class*="bg-background"] {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+  button.bg-background\/80:hover,
+  button[class*="bg-background"]:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+  }
 }
 
 /* DARK VARIANTS */

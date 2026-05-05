@@ -70,6 +70,7 @@ import { generateInterviewAgendaPDF } from "@/lib/pdf-utils";
 import { normalizeMemberName, shortMemberName, shortUserName } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { BackToAgendaButton } from "@/components/back-to-agenda-button";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /**
  * Estado (backend):
@@ -437,6 +438,7 @@ export default function InterviewsPage() {
   const [filterInterviewerId, setFilterInterviewerId] = useState<string>("all");
 
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const { data: interviews = [], isLoading } = useInterviews();
   const { data: users = [] } = useUsers();
   const { data: template } = useQuery({
@@ -762,11 +764,17 @@ export default function InterviewsPage() {
     if (target?.interviewerId) setFilterInterviewerId(target.interviewerId);
   }, [highlightInterviewId, interviews]);
 
+  const toTitleCase = (s: string) =>
+    s.trim().toLowerCase().replace(/\b(\w)/g, c => c.toUpperCase());
+
   const onSubmit = (data: InterviewFormValues) => {
+    const resolvedName = personSource === "manual"
+      ? toTitleCase(data.personName)
+      : normalizeMemberName(data.personName);
     createMutation.mutate(
       {
         ...data,
-        personName: normalizeMemberName(data.personName),
+        personName: resolvedName,
         date: formatDateTimeForApi(data.date),
         status: "programada", // ✅ en UI la llamamos Pendiente
         notes: data.notes || "",
@@ -1430,72 +1438,54 @@ export default function InterviewsPage() {
                               <FormItem className="space-y-3">
                                 <FormLabel className="text-xs uppercase tracking-wide text-muted-foreground">Fecha y hora</FormLabel>
                                 <FormControl>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setDateDraft(splitDateTimeValue(field.value));
-                                      setDateSheetOpen(true);
-                                    }}
-                                    className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
-                                    data-testid="input-date"
-                                  >
-                                    <div>
-                                      <div className="text-sm text-muted-foreground">Fecha y hora</div>
-                                      <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>
-                                        {formatDateTimeLabel(field.value)}
+                                  {isMobile ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setDateDraft(splitDateTimeValue(field.value)); setDateSheetOpen(true); }}
+                                      className="flex w-full items-center justify-between rounded-3xl bg-background/80 px-4 py-4 text-left shadow-sm"
+                                      data-testid="input-date"
+                                    >
+                                      <div>
+                                        <div className="text-sm text-muted-foreground">Fecha y hora</div>
+                                        <div className={`text-base ${field.value ? "text-foreground" : "text-muted-foreground"}`}>{formatDateTimeLabel(field.value)}</div>
                                       </div>
+                                      <span className="text-xs text-muted-foreground">›</span>
+                                    </button>
+                                  ) : (
+                                    <div className="flex gap-2" data-testid="input-date">
+                                      <Input type="date" className="flex-1 rounded-2xl bg-background/80"
+                                        value={field.value ? field.value.split("T")[0] : ""}
+                                        onChange={e => { const t = field.value?.split("T")[1] ?? ""; field.onChange(e.target.value ? `${e.target.value}T${t || "00:00"}` : ""); }}
+                                      />
+                                      <Input type="time" className="w-32 rounded-2xl bg-background/80"
+                                        value={field.value ? (field.value.split("T")[1] ?? "") : ""}
+                                        onChange={e => { const d = field.value?.split("T")[0] ?? ""; field.onChange(d ? `${d}T${e.target.value}` : ""); }}
+                                      />
                                     </div>
-                                    <span className="text-xs text-muted-foreground">›</span>
-                                  </button>
+                                  )}
                                 </FormControl>
                                 <FormMessage />
-                                <Drawer open={dateSheetOpen} onOpenChange={setDateSheetOpen}>
-                                  <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
-                                    <DrawerHeader>
-                                      <DrawerTitle>Seleccionar fecha y hora</DrawerTitle>
-                                    </DrawerHeader>
-                                    <div className="space-y-4 px-4 pb-6">
-                                      <div className="space-y-2">
-                                        <Label>Fecha</Label>
-                                        <Input
-                                          type="date"
-                                          value={dateDraft.date}
-                                          onChange={(event) =>
-                                            setDateDraft((prev) => ({ ...prev, date: event.target.value }))
-                                          }
-                                          className="rounded-2xl bg-background/80"
-                                        />
+                                {isMobile && (
+                                  <Drawer open={dateSheetOpen} onOpenChange={setDateSheetOpen} shouldScaleBackground={false}>
+                                    <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                                      <DrawerHeader><DrawerTitle>Seleccionar fecha y hora</DrawerTitle></DrawerHeader>
+                                      <div className="space-y-4 px-4 pb-6">
+                                        <div className="space-y-2">
+                                          <Label>Fecha</Label>
+                                          <Input type="date" value={dateDraft.date} onChange={e => setDateDraft(p => ({ ...p, date: e.target.value }))} className="rounded-2xl bg-background/80" />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label>Hora (24h)</Label>
+                                          <Input type="time" value={dateDraft.time} onChange={e => setDateDraft(p => ({ ...p, time: e.target.value }))} className="rounded-2xl bg-background/80" />
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                          <Button type="button" variant="ghost" onClick={() => setDateSheetOpen(false)}>Cancelar</Button>
+                                          <Button type="button" onClick={() => { if (dateDraft.date && dateDraft.time) field.onChange(`${dateDraft.date}T${dateDraft.time}`); setDateSheetOpen(false); }}>Aceptar</Button>
+                                        </div>
                                       </div>
-                                      <div className="space-y-2">
-                                        <Label>Hora (24h)</Label>
-                                        <Input
-                                          type="time"
-                                          value={dateDraft.time}
-                                          onChange={(event) =>
-                                            setDateDraft((prev) => ({ ...prev, time: event.target.value }))
-                                          }
-                                          className="rounded-2xl bg-background/80"
-                                        />
-                                      </div>
-                                      <div className="flex justify-end gap-2">
-                                        <Button type="button" variant="ghost" onClick={() => setDateSheetOpen(false)}>
-                                          Cancelar
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          onClick={() => {
-                                            if (dateDraft.date && dateDraft.time) {
-                                              field.onChange(`${dateDraft.date}T${dateDraft.time}`);
-                                            }
-                                            setDateSheetOpen(false);
-                                          }}
-                                        >
-                                          Aceptar
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </DrawerContent>
-                                </Drawer>
+                                    </DrawerContent>
+                                  </Drawer>
+                                )}
                               </FormItem>
                             )}
                           />
@@ -1972,66 +1962,60 @@ export default function InterviewsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Detalles de la entrevista</DialogTitle>
-            <DialogDescription>Información en modo lectura.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 text-sm">
-            <div>
-              <span className="font-medium">Persona:</span>{" "}
+            <DialogTitle className="text-lg font-bold leading-tight">
               {shortMemberName({ nameSurename: detailsInterview?.personName }) || "Sin nombre"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              {detailsInterview?.type && (
+                <span className="rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs font-medium">
+                  {formatInterviewType(detailsInterview.type)}
+                </span>
+              )}
+              {detailsInterview ? getStatusBadge(detailsInterview) : null}
+              {detailsInterview ? getPriorityBadge(!!detailsInterview.urgent) : null}
             </div>
-            <div>
-              <span className="font-medium">Tipo:</span>{" "}
-              {detailsInterview?.type ? formatInterviewType(detailsInterview.type) : "Sin tipo"}
+            {/* Info grid */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Entrevistador</p>
+                <p className="mt-0.5 font-medium">
+                  {detailsInterview?.interviewerId
+                    ? (() => { const u = userById.get(detailsInterview.interviewerId); return u ? shortUserName(u) : "—"; })()
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Fecha y hora</p>
+                <p className="mt-0.5 font-medium">
+                  {detailsInterview?.date
+                    ? new Date(detailsInterview.date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                    : "—"}
+                </p>
+              </div>
             </div>
-            <div>
-              <span className="font-medium">Entrevistador:</span>{" "}
-              {detailsInterview?.interviewerId
-                ? (() => { const u = userById.get(detailsInterview.interviewerId); return u ? shortUserName(u) : "Sin entrevistador"; })()
-                : "Sin entrevistador"}
-            </div>
-            <div>
-              <span className="font-medium">Fecha:</span>{" "}
-              {detailsInterview?.date
-                ? new Date(detailsInterview.date).toLocaleDateString("es-ES", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "Sin fecha"}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Prioridad:</span>
-              {detailsInterview ? getPriorityBadge(!!detailsInterview.urgent) : "Normal"}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Estado:</span>
-              {detailsInterview?.status ? getStatusBadge(detailsInterview) : "Pendiente"}
-            </div>
-            <div>
-              <span className="font-medium">Resolución:</span>{" "}
-              {getResolutionLabel(detailsInterview) !== "-" ? getResolutionLabel(detailsInterview) : "Sin resolución"}
-            </div>
-            <div>
-              <span className="font-medium">Motivo de cancelación:</span>{" "}
-              {detailsInterview?.cancellationReason || "N/A"}
-            </div>
-            <div>
-              <span className="font-medium">Archivada:</span>{" "}
-              {detailsInterview?.archivedAt
-                ? new Date(detailsInterview.archivedAt).toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                : "N/A"}
-            </div>
-            <div>
-              <span className="font-medium">Notas:</span>{" "}
-              {detailsInterview?.notes?.trim() || "Sin notas"}
-            </div>
+            {/* Notes */}
+            {detailsInterview?.notes?.trim() && (
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Notas</p>
+                <p className="rounded-xl bg-muted/40 px-3 py-2.5 text-sm leading-relaxed">
+                  {detailsInterview.notes}
+                </p>
+              </div>
+            )}
+            {/* Cancellation reason — only if present */}
+            {detailsInterview?.cancellationReason && (
+              <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm">
+                <span className="font-semibold text-destructive">Motivo de cancelación: </span>
+                {detailsInterview.cancellationReason}
+              </div>
+            )}
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-2">
             <Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>
               Cerrar
             </Button>
@@ -2109,68 +2093,50 @@ export default function InterviewsPage() {
                     <FormItem>
                       <FormLabel>Fecha y Hora</FormLabel>
                       <FormControl>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditDateDraft(splitDateTimeValue(field.value));
-                            setEditDateSheetOpen(true);
-                          }}
-                          className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
-                          data-testid="input-edit-date"
-                        >
-                          <span className={field.value ? "text-foreground" : "text-muted-foreground"}>
-                            {formatDateTimeLabel(field.value)}
-                          </span>
-                          <CalendarIcon className="h-4 w-4" />
-                        </button>
-                      </FormControl>
-                      <Drawer open={editDateSheetOpen} onOpenChange={setEditDateSheetOpen}>
-                        <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
-                          <DrawerHeader>
-                            <DrawerTitle>Seleccionar fecha y hora</DrawerTitle>
-                          </DrawerHeader>
-                          <div className="space-y-4 px-4 pb-6">
-                            <div className="space-y-2">
-                              <Label>Fecha</Label>
-                              <Input
-                                type="date"
-                                value={editDateDraft.date}
-                                onChange={(event) =>
-                                  setEditDateDraft((prev) => ({ ...prev, date: event.target.value }))
-                                }
-                                className="rounded-2xl bg-background/80"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Hora (24h)</Label>
-                              <Input
-                                type="time"
-                                value={editDateDraft.time}
-                                onChange={(event) =>
-                                  setEditDateDraft((prev) => ({ ...prev, time: event.target.value }))
-                                }
-                                className="rounded-2xl bg-background/80"
-                              />
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <Button type="button" variant="ghost" onClick={() => setEditDateSheetOpen(false)}>
-                                Cancelar
-                              </Button>
-                              <Button
-                                type="button"
-                                onClick={() => {
-                                  if (editDateDraft.date && editDateDraft.time) {
-                                    field.onChange(`${editDateDraft.date}T${editDateDraft.time}`);
-                                  }
-                                  setEditDateSheetOpen(false);
-                                }}
-                              >
-                                Aceptar
-                              </Button>
-                            </div>
+                        {isMobile ? (
+                          <button
+                            type="button"
+                            onClick={() => { setEditDateDraft(splitDateTimeValue(field.value)); setEditDateSheetOpen(true); }}
+                            className="flex w-full items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-left text-sm"
+                            data-testid="input-edit-date"
+                          >
+                            <span className={field.value ? "text-foreground" : "text-muted-foreground"}>{formatDateTimeLabel(field.value)}</span>
+                            <CalendarIcon className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <div className="flex gap-2" data-testid="input-edit-date">
+                            <Input type="date" className="flex-1 rounded-2xl bg-background/80"
+                              value={field.value ? field.value.split("T")[0] : ""}
+                              onChange={e => { const t = field.value?.split("T")[1] ?? ""; field.onChange(e.target.value ? `${e.target.value}T${t || "00:00"}` : ""); }}
+                            />
+                            <Input type="time" className="w-32 rounded-2xl bg-background/80"
+                              value={field.value ? (field.value.split("T")[1] ?? "") : ""}
+                              onChange={e => { const d = field.value?.split("T")[0] ?? ""; field.onChange(d ? `${d}T${e.target.value}` : ""); }}
+                            />
                           </div>
-                        </DrawerContent>
-                      </Drawer>
+                        )}
+                      </FormControl>
+                      {isMobile && (
+                        <Drawer open={editDateSheetOpen} onOpenChange={setEditDateSheetOpen} shouldScaleBackground={false}>
+                          <DrawerContent className="rounded-t-2xl bg-background/95 backdrop-blur">
+                            <DrawerHeader><DrawerTitle>Seleccionar fecha y hora</DrawerTitle></DrawerHeader>
+                            <div className="space-y-4 px-4 pb-6">
+                              <div className="space-y-2">
+                                <Label>Fecha</Label>
+                                <Input type="date" value={editDateDraft.date} onChange={e => setEditDateDraft(p => ({ ...p, date: e.target.value }))} className="rounded-2xl bg-background/80" />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Hora (24h)</Label>
+                                <Input type="time" value={editDateDraft.time} onChange={e => setEditDateDraft(p => ({ ...p, time: e.target.value }))} className="rounded-2xl bg-background/80" />
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button type="button" variant="ghost" onClick={() => setEditDateSheetOpen(false)}>Cancelar</Button>
+                                <Button type="button" onClick={() => { if (editDateDraft.date && editDateDraft.time) field.onChange(`${editDateDraft.date}T${editDateDraft.time}`); setEditDateSheetOpen(false); }}>Aceptar</Button>
+                              </div>
+                            </div>
+                          </DrawerContent>
+                        </Drawer>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
