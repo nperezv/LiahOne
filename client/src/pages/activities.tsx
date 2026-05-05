@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Plus, CalendarDays, MapPin, Users, Download, Trash2, ChevronDown, ChevronRight, CheckSquare, Square, Globe, Send, CheckCircle2, XCircle, Image, LayoutList, RefreshCw, Pencil, ClipboardList, CheckCheck, Eye, Music, Sparkles, Utensils, Tv2, X, Loader2, ExternalLink, Upload, FileCheck, Shirt } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getAccessToken } from "@/lib/auth-tokens";
-import { normalizeMemberName } from "@/lib/utils";
+import { cn, normalizeMemberName } from "@/lib/utils";
 import { shortNameFromString } from "@shared/name-utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
