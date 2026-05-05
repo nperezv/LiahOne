@@ -2,6 +2,8 @@
  * Public baptism program routes — no auth required.
  * All queries use raw SQL (baptism tables have no Drizzle schema objects).
  */
+import fs from "node:fs";
+import path from "node:path";
 import type { Express, Request } from "express";
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -79,9 +81,203 @@ const publicPostSchema = z.object({
   recipientPersonaId: z.string().optional().nullable(),
 });
 
+// ── Theme → image mapping (must match client THEME_CONFIG) ───────────────────
+
+const THEME_IMAGES: Record<BaptismTheme, string> = {
+  nino:         "/covenantspathboy.png",
+  nina:         "/covenantspathgirl.png",
+  joven_varon:  "/covenanthspathhim.png",
+  joven_mujer:  "/covenantspathher.png",
+  adulto:       "/covenantspath.png",
+  adulta:       "/theshepherd.png",
+  multi_kids:   "/covenantspathkids.png",
+  multi_family: "/covenantspathfamily.png",
+  multi_adults: "/covenantspath.png",
+  fallback:     "/theshepherd.png",
+};
+
+// ── OG helpers ────────────────────────────────────────────────────────────────
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function getIndexHtml(): string | null {
+  const p = path.resolve(process.cwd(), "dist/public/index.html");
+  if (!fs.existsSync(p)) return null;
+  return fs.readFileSync(p, "utf-8");
+}
+
+function absoluteUrl(req: Request, rel: string): string {
+  if (/^https?:\/\//i.test(rel)) return rel;
+  return `${req.protocol}://${req.get("host")}${rel}`;
+}
+
+function buildOgHtml(baseHtml: string, opts: { title: string; description: string; url: string; imageUrl?: string }): string {
+  const { title, description, url, imageUrl } = opts;
+  const tags = [
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="Zendapp" />`,
+    `<meta property="og:title" content="${escapeHtml(title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(description)}" />`,
+    `<meta property="og:url" content="${escapeHtml(url)}" />`,
+    imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
+    imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
+    imageUrl ? `<meta property="og:image:height" content="1080" />` : "",
+    `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
+    `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
+    `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
+    imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
+  ].filter(Boolean).map(t => `    ${t}`).join("\n");
+
+  let html = baseHtml.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace("</head>", `${tags}\n  </head>`);
+  return html;
+}
+
+function baptismDateStr(serviceAt: string | Date | null): string {
+  if (!serviceAt) return "";
+  return new Date(serviceAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 // ── Route registration ────────────────────────────────────────────────────────
 
 export function registerBaptismPublicRoutes(app: Express) {
+
+  // ── GET /bautismo — OG inject for lobby (today's service) ─────────────────
+  app.get("/bautismo", async (req: Request, res, next) => {
+    try {
+      const baseHtml = getIndexHtml();
+      if (!baseHtml) return next();
+
+      const now = new Date();
+      const todayStart = new Date(now); todayStart.setUTCHours(0, 0, 0, 0);
+      const todayEnd   = new Date(now); todayEnd.setUTCHours(23, 59, 59, 999);
+
+      const svcResult = await db.execute(sql`
+        SELECT bs.id, bs.service_at, bs.candidate_meta, bpl.slug, t.ward_name
+        FROM baptism_services bs
+        JOIN baptism_public_links bpl ON bpl.service_id = bs.id
+        LEFT JOIN pdf_templates t ON true
+        WHERE bs.approval_status = 'approved'
+          AND bs.service_at >= ${todayStart.toISOString()}
+          AND bs.service_at <= ${todayEnd.toISOString()}
+          AND bpl.revoked_at IS NULL
+          AND bpl.expires_at > ${now.toISOString()}
+        ORDER BY bpl.published_at DESC, bs.service_at ASC
+        LIMIT 1
+      `);
+
+      const svc = svcResult.rows[0] as any;
+      const wardName: string = svc?.ward_name ?? "Zendapp";
+
+      let title = "Programa Bautismal";
+      let description = wardName;
+      let imageUrl = absoluteUrl(req, THEME_IMAGES.multi_family);
+
+      if (svc) {
+        const candResult = await db.execute(sql`
+          SELECT mp.nombre FROM baptism_service_candidates bsc
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${svc.id}
+        `);
+        const nameItems = await db.execute(sql`
+          SELECT participant_display_name FROM baptism_program_items
+          WHERE service_id = ${svc.id} AND type = 'candidato_nombre'
+        `);
+        const names = (candResult.rows as any[]).map(r => r.nombre as string);
+        if (names.length === 0) {
+          (nameItems.rows as any[]).forEach(r => { if (r.participant_display_name) names.push(r.participant_display_name); });
+        }
+
+        const candidateMeta: any[] = Array.isArray(svc.candidate_meta) ? svc.candidate_meta : [];
+        const missionCandRows = (await db.execute(sql`
+          SELECT mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
+          FROM baptism_service_candidates bsc
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${svc.id}
+        `)).rows as any[];
+        let themeCandidates = missionCandRows.map(r => ({ sexo: r.sexo ?? null, fechaNacimiento: r.fechaNacimiento ?? null }));
+        if (themeCandidates.length === 0 && candidateMeta.length > 0)
+          themeCandidates = candidateMeta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
+        const theme = computeTheme(themeCandidates);
+
+        const dateStr = baptismDateStr(svc.service_at);
+        title = names.length > 0 ? `Bautismo de ${names.join(" y ")}` : "Programa Bautismal";
+        description = [dateStr, wardName].filter(Boolean).join(" · ");
+        imageUrl = absoluteUrl(req, THEME_IMAGES[theme]);
+      }
+
+      const url = `${req.protocol}://${req.get("host")}/bautismo`;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl }));
+    } catch (err) {
+      console.error("[og-inject /bautismo]", err);
+      next();
+    }
+  });
+
+  // ── GET /bautismo/:slug — OG inject for individual baptism program ─────────
+  app.get("/bautismo/:slug", async (req: Request, res, next) => {
+    try {
+      const baseHtml = getIndexHtml();
+      if (!baseHtml) return next();
+
+      const linkResult = await db.execute(sql`
+        SELECT id, service_id FROM baptism_public_links
+        WHERE slug = ${req.params.slug} AND revoked_at IS NULL
+        ORDER BY published_at DESC LIMIT 1
+      `);
+      const link = linkResult.rows[0] as any;
+      if (!link) return next();
+
+      const svcRow = await db.execute(sql`
+        SELECT approval_status, service_at, candidate_meta FROM baptism_services WHERE id = ${link.service_id}
+      `);
+      const svc = svcRow.rows[0] as any;
+      if (!svc || svc.approval_status !== "approved") return next();
+
+      const [candResult, nameItemsResult, tplResult] = await Promise.all([
+        db.execute(sql`
+          SELECT mp.nombre, mp.sexo, mp.fecha_nacimiento AS "fechaNacimiento"
+          FROM baptism_service_candidates bsc
+          JOIN mission_personas mp ON mp.id = bsc.persona_id
+          WHERE bsc.service_id = ${link.service_id}
+        `),
+        db.execute(sql`
+          SELECT participant_display_name FROM baptism_program_items
+          WHERE service_id = ${link.service_id} AND type = 'candidato_nombre'
+        `),
+        db.execute(sql`SELECT ward_name FROM pdf_templates LIMIT 1`),
+      ]);
+
+      const missionCands = candResult.rows as any[];
+      const names = missionCands.map(r => r.nombre as string);
+      if (names.length === 0)
+        (nameItemsResult.rows as any[]).forEach(r => { if (r.participant_display_name) names.push(r.participant_display_name); });
+
+      let themeCandidates = missionCands.map(r => ({ sexo: r.sexo ?? null, fechaNacimiento: r.fechaNacimiento ?? null }));
+      if (themeCandidates.length === 0) {
+        const meta: any[] = Array.isArray(svc.candidate_meta) ? svc.candidate_meta : [];
+        if (meta.length > 0)
+          themeCandidates = meta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
+      }
+      const theme = computeTheme(themeCandidates);
+      const wardName: string = (tplResult.rows[0] as any)?.ward_name ?? "Zendapp";
+      const dateStr = baptismDateStr(svc.service_at);
+
+      const title = names.length > 0 ? `Bautismo de ${names.join(" y ")}` : "Programa Bautismal";
+      const description = [dateStr, wardName].filter(Boolean).join(" · ");
+      const imageUrl = absoluteUrl(req, THEME_IMAGES[theme]);
+      const url = `${req.protocol}://${req.get("host")}/bautismo/${req.params.slug}`;
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl }));
+    } catch (err) {
+      console.error("[og-inject /bautismo/:slug]", err);
+      next();
+    }
+  });
 
   // ── Startup cleanup: remove stale/duplicate public links ──────────────────
   // Runs once at boot. Deletes:
