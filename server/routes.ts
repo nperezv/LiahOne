@@ -8977,16 +8977,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const location = (activity as any).location || "Capilla";
           const prepDeadline = new Date(serviceAt.getTime() - 14 * 24 * 60 * 60 * 1000);
 
+          const names = (sd["prog_candidatos"] ?? "").split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
+          const sexoAuto = sd["prog_candidato_sexo"] || null;
+          const childDate = new Date(); childDate.setFullYear(childDate.getFullYear() - 10);
+          const childFecha = childDate.toISOString().split("T")[0];
+          const candidateMetaAuto = JSON.stringify(
+            Array.from({ length: Math.max(names.length, 1) }, () => ({ sexo: sexoAuto, fechaNacimiento: childFecha }))
+          );
+
           const svcResult = await db.execute(sql`
-            INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
-            VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, ${prepDeadline.toISOString()}, 'approved', ${user.id})
+            INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, candidate_meta, created_by)
+            VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, ${prepDeadline.toISOString()}, 'approved', ${candidateMetaAuto}::jsonb, ${user.id})
             RETURNING id
           `);
           const serviceId = (svcResult.rows[0] as any)?.id as string;
           // Store ref in section_data only — do NOT set baptism_service_id (reserved for converso)
-
-          // Candidate names as program items (type='candidato_nombre', public_visibility=false)
-          const names = (sd["prog_candidatos"] ?? "").split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
           for (let i = 0; i < names.length; i++) {
             await db.execute(sql`
               INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, public_visibility, updated_by, updated_at)
@@ -9227,10 +9232,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const location = (activity as any).location || "Capilla";
       const prepDeadline = new Date(serviceAt.getTime() - 14 * 24 * 60 * 60 * 1000);
 
+      // Build candidate_meta for theme computation on public pages
+      const candidatosRaw = (sectionData["prog_candidatos"] ?? "").split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
+      const sexoExplicito = sectionData["prog_candidato_sexo"] || null;
+      const metaChildDate = new Date(); metaChildDate.setFullYear(metaChildDate.getFullYear() - 10);
+      const metaFecha = metaChildDate.toISOString().split("T")[0];
+      const candidateMetaJson = JSON.stringify(
+        Array.from({ length: Math.max(candidatosRaw.length, 1) }, () => ({ sexo: sexoExplicito, fechaNacimiento: metaFecha }))
+      );
+
       if (!serviceId) {
         const svcResult = await db.execute(sql`
-          INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, created_by)
-          VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, ${prepDeadline.toISOString()}, 'approved', ${user.id})
+          INSERT INTO baptism_services (unit_id, service_at, location_name, prep_deadline_at, approval_status, candidate_meta, created_by)
+          VALUES (${unitId}, ${serviceAt.toISOString()}, ${location}, ${prepDeadline.toISOString()}, 'approved', ${candidateMetaJson}::jsonb, ${user.id})
           RETURNING id
         `);
         serviceId = (svcResult.rows[0] as any)?.id as string;
@@ -9244,7 +9258,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.execute(sql`
           UPDATE baptism_services
           SET approval_status = 'approved', service_at = ${serviceAt.toISOString()},
-              location_name = ${location}, prep_deadline_at = ${prepDeadline.toISOString()}, updated_at = NOW()
+              location_name = ${location}, prep_deadline_at = ${prepDeadline.toISOString()},
+              candidate_meta = ${candidateMetaJson}::jsonb, updated_at = NOW()
           WHERE id = ${serviceId}
         `);
         await db.execute(sql`DELETE FROM baptism_program_items WHERE service_id = ${serviceId}`);
@@ -9258,8 +9273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Candidate names: stored as program items (type='candidato_nombre') at order 0.
       // We do NOT use baptism_service_candidates here because persona_id is NOT NULL PK.
-      const candidatosText = (sectionData["prog_candidatos"] ?? "").trim();
-      const names = candidatosText.split(/[,\n]+/).map((n: string) => n.trim()).filter(Boolean);
+      const names = candidatosRaw;
       for (let i = 0; i < names.length; i++) {
         await db.execute(sql`
           INSERT INTO baptism_program_items (service_id, type, "order", participant_display_name, public_visibility, updated_by, updated_at)

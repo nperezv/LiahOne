@@ -156,7 +156,15 @@ export function registerBaptismPublicRoutes(app: Express) {
       ]);
 
       const candRows = candResult.rows as any[];
-      const theme = computeTheme(candRows.map((r) => ({ sexo: r.sexo, fechaNacimiento: r.fechaNacimiento })));
+      let themeCandidates = candRows.map((r) => ({ sexo: r.sexo as string | null, fechaNacimiento: r.fechaNacimiento as string | null }));
+      if (themeCandidates.length === 0) {
+        // niño inscrito: no mission_personas — use candidate_meta stored on the service
+        const metaRow = await db.execute(sql`SELECT candidate_meta FROM baptism_services WHERE id = ${svc.id}`);
+        const meta = (metaRow.rows[0] as any)?.candidate_meta;
+        if (Array.isArray(meta) && meta.length > 0)
+          themeCandidates = meta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
+      }
+      const theme = computeTheme(themeCandidates);
       const candidateNames = candRows.map((r) => r.nombre as string);
       const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
 
@@ -186,7 +194,7 @@ export function registerBaptismPublicRoutes(app: Express) {
       const link = linkResult.rows[0] as any;
       if (!link) return res.status(404).json({ message: "Enlace no encontrado" });
 
-      const svcRow = await db.execute(sql`SELECT approval_status, service_at FROM baptism_services WHERE id = ${link.service_id}`);
+      const svcRow = await db.execute(sql`SELECT approval_status, service_at, candidate_meta FROM baptism_services WHERE id = ${link.service_id}`);
       const svc = svcRow.rows[0] as any;
       if (svc?.approval_status !== "approved") return res.json({ unavailable: "not_approved" });
 
@@ -232,10 +240,17 @@ export function registerBaptismPublicRoutes(app: Express) {
         const nameItems = (itemsResult.rows as any[]).filter((r) => r.type === "candidato_nombre");
         candidates = nameItems.map((r) => ({ nombre: r.title as string, personaId: "" }));
       }
-      const theme = computeTheme((candThemeResult.rows as any[]).map((r) => ({
+      let slugThemeCandidates = (candThemeResult.rows as any[]).map((r) => ({
         sexo: r.sexo as string | null,
         fechaNacimiento: r.fechaNacimiento as string | null,
-      })));
+      }));
+      if (slugThemeCandidates.length === 0) {
+        // niño inscrito: use candidate_meta stored on the service
+        const meta = svc?.candidate_meta;
+        if (Array.isArray(meta) && meta.length > 0)
+          slugThemeCandidates = meta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
+      }
+      const theme = computeTheme(slugThemeCandidates);
       const expiresAt = link.expires_at ? new Date(link.expires_at) : null;
       const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
 

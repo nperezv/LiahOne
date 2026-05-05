@@ -859,6 +859,7 @@ function SectionEditDialog({
       if ((k.startsWith("prog_mensaje_") || k.startsWith("prog_pensamiento_")) && !(k in init))
         init[k] = sectionData[k];
     }
+    init["prog_candidato_sexo"] = sectionData["prog_candidato_sexo"] ?? "";
     return init;
   });
 
@@ -923,6 +924,40 @@ function SectionEditDialog({
         )}
         {section !== "coordinacion" && <div className="space-y-4 py-1">
           {displayItems.map((item) => {
+            if (item.itemKey === "prog_candidatos") {
+              const sexo = fields["prog_candidato_sexo"] ?? "";
+              return (
+                <div key="candidatos" className="space-y-3 rounded-lg border px-3 py-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Candidato(s)</p>
+                  <SectionField
+                    itemKey={item.itemKey}
+                    label={item.label}
+                    completed={item.completed}
+                    value={fields[item.itemKey] ?? ""}
+                    onChange={v => setField(item.itemKey, v)}
+                    memberOptions={[]}
+                    hymnOptions={[]}
+                  />
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Sexo del candidato</label>
+                    <div className="flex gap-2">
+                      {(["M", "F"] as const).map(v => (
+                        <button type="button" key={v}
+                          onClick={() => setField("prog_candidato_sexo", sexo === v ? "" : v)}
+                          className={cn(
+                            "flex-1 rounded-lg border py-2 text-sm transition-colors",
+                            sexo === v
+                              ? "border-primary bg-primary/10 text-primary font-medium"
+                              : "border-border bg-background text-muted-foreground hover:text-foreground"
+                          )}>
+                          {v === "M" ? "Varón" : "Niña"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             if (item.itemKey === "prog_mensaje_1" && hasMessages) {
               return (
                 <div key="mensajes" className="space-y-3 rounded-lg border px-3 py-3">
