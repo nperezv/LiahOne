@@ -53,7 +53,9 @@ async function generateActivityOgImage(act: {
 }): Promise<Buffer> {
   const flyerBuf = resolveUpload(act.flyerUrl);
 
-  // With flyer: flyer fills entire card, event details overlaid at bottom
+  const W = 1200, H = 630;
+
+  // With flyer: flyer fills card, date/location overlaid at bottom
   if (flyerBuf) {
     const dateStr = act.date
       ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
@@ -62,28 +64,26 @@ async function generateActivityOgImage(act: {
       ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
       : "";
     const dateLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
-    const locLine  = act.location ? truncate(act.location, 42) : "";
+    const locLine  = act.location ? truncate(act.location, 50) : "";
+    const hasLoc   = !!locLine;
+    const dateY    = hasLoc ? 558 : 590;
+    const locY     = dateY + 52;
 
-    const hasDate = !!dateLine;
-    const hasLoc  = !!locLine;
-    const dateY   = hasLoc ? 1240 : 1275;
-    const locY    = dateY + 56;
-
-    const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350">
+    const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <defs>
     <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#000000" stop-opacity="0"/>
-      <stop offset="55%"  stop-color="#000000" stop-opacity="0.72"/>
+      <stop offset="55%"  stop-color="#000000" stop-opacity="0.70"/>
       <stop offset="100%" stop-color="#000000" stop-opacity="0.88"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="920" width="1080" height="430" fill="url(#fade)"/>
-  ${hasDate ? `<text x="540" y="${dateY}" font-family="Arial,sans-serif" font-size="34" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
-  ${hasLoc  ? `<text x="540" y="${locY}"  font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.70)" text-anchor="middle">${escapeHtml(locLine)}</text>` : ""}
+  <rect x="0" y="380" width="${W}" height="250" fill="url(#fade)"/>
+  ${dateLine ? `<text x="${W / 2}" y="${dateY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
+  ${hasLoc   ? `<text x="${W / 2}" y="${locY}"  font-family="Arial,sans-serif" font-size="22" fill="rgba(255,255,255,0.72)" text-anchor="middle">${escapeHtml(locLine)}</text>` : ""}
 </svg>`;
 
-    const resized = await sharp(flyerBuf).resize(1080, 1350, { fit: "cover", position: "centre" }).png().toBuffer();
-    return sharp({ create: { width: 1080, height: 1350, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } })
+    const resized = await sharp(flyerBuf).resize(W, H, { fit: "cover", position: "centre" }).png().toBuffer();
+    return sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } })
       .composite([
         { input: resized, top: 0, left: 0 },
         { input: Buffer.from(overlaySvg), top: 0, left: 0 },
@@ -92,8 +92,7 @@ async function generateActivityOgImage(act: {
       .toBuffer();
   }
 
-  // No flyer: portrait dark card with centered text
-  const W = 1080, H = 1350;
+  // No flyer: landscape dark card with centered text
   const dateStr = act.date
     ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     : "";
@@ -101,13 +100,13 @@ async function generateActivityOgImage(act: {
     ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
     : "";
   const dateLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
-  const [t1, t2] = splitTitle(act.title || "Actividad", 24);
+  const [t1, t2] = splitTitle(act.title || "Actividad", 30);
 
-  const t1Y  = t2 ? 580 : 620;
-  const t2Y  = t1Y + 72;
-  const dateY = (t2 ? t2Y : t1Y) + 90;
-  const locY  = dateY + 58;
-  const orgY  = locY + 48;
+  const t1Y  = t2 ? 232 : 268;
+  const t2Y  = t1Y + 62;
+  const dateY = (t2 ? t2Y : t1Y) + 74;
+  const locY  = dateY + 52;
+  const orgY  = locY + 42;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <defs>
@@ -117,11 +116,11 @@ async function generateActivityOgImage(act: {
     </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
-  <text x="${W / 2}" y="${t1Y}" font-family="Georgia,serif" font-size="58" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(t1)}</text>
-  ${t2 ? `<text x="${W / 2}" y="${t2Y}" font-family="Georgia,serif" font-size="58" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(t2)}</text>` : ""}
-  ${dateLine ? `<text x="${W / 2}" y="${dateY}" font-family="Arial,sans-serif" font-size="32" fill="rgba(255,255,255,0.85)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
-  ${act.location ? `<text x="${W / 2}" y="${locY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.68)" text-anchor="middle">${escapeHtml(truncate(act.location, 40))}</text>` : ""}
-  ${act.organizationName ? `<text x="${W / 2}" y="${orgY}" font-family="Arial,sans-serif" font-size="24" fill="rgba(200,170,255,0.6)" text-anchor="middle">${escapeHtml(act.organizationName)}</text>` : ""}
+  <text x="${W / 2}" y="${t1Y}" font-family="Georgia,serif" font-size="52" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(t1)}</text>
+  ${t2 ? `<text x="${W / 2}" y="${t2Y}" font-family="Georgia,serif" font-size="52" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(t2)}</text>` : ""}
+  ${dateLine ? `<text x="${W / 2}" y="${dateY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.85)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
+  ${act.location ? `<text x="${W / 2}" y="${locY}" font-family="Arial,sans-serif" font-size="24" fill="rgba(255,255,255,0.68)" text-anchor="middle">${escapeHtml(truncate(act.location, 50))}</text>` : ""}
+  ${act.organizationName ? `<text x="${W / 2}" y="${orgY}" font-family="Arial,sans-serif" font-size="20" fill="rgba(200,170,255,0.6)" text-anchor="middle">${escapeHtml(act.organizationName)}</text>` : ""}
 </svg>`;
 
   return sharp(Buffer.from(svg)).png().toBuffer();
@@ -155,8 +154,8 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,
       imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="1350" />` : "",
+      imageUrl ? `<meta property="og:image:width" content="1200" />` : "",
+      imageUrl ? `<meta property="og:image:height" content="630" />` : "",
       `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
       `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
@@ -248,14 +247,18 @@ export function registerActivityPublicRoutes(app: Express) {
 
       const act = rows.rows[0] as any;
       const title = act.title ?? "Actividad";
-      const orgName = act.organization_name ? ` · ${act.organization_name}` : "";
       const dateStr = act.date
         ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
         : "";
-      const rawDesc = act.description
-        ? act.description.slice(0, 200)
-        : `${dateStr}${orgName}`.trim();
-      const description = rawDesc || title;
+      const timeStr = act.date
+        ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
+        : "";
+      const parts = [
+        dateStr,
+        timeStr ? `${timeStr} hrs` : "",
+        act.location ?? "",
+      ].filter(Boolean);
+      const description = parts.length > 0 ? parts.join(" · ") : title;
       const imageUrl = `${req.protocol}://${req.get("host")}/og/actividades/${act.slug}`;
       const url = `${req.protocol}://${req.get("host")}/actividades/${act.slug}`;
 
