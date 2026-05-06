@@ -107,14 +107,19 @@ function resolvePublicImage(filename: string): Buffer | null {
   return null;
 }
 
-async function generateBaptismOgImage(theme: BaptismTheme): Promise<Buffer> {
-  const imageFile = THEME_IMAGES[theme].replace(/^\//, "");
-  const imageBuf = resolvePublicImage(imageFile);
+async function generateBaptismOgImage(theme: BaptismTheme, flyerUrl?: string | null): Promise<Buffer> {
+  // Activity flyer takes priority over theme image
+  const uploadBuf = flyerUrl ? resolveUpload(flyerUrl) : null;
+  const imageBuf = uploadBuf ?? resolvePublicImage(THEME_IMAGES[theme].replace(/^\//, ""));
   if (imageBuf) {
     return sharp(imageBuf).resize(1080, 1350, { fit: "cover", position: "centre" }).png().toBuffer();
   }
-  // Fallback: solid dark background
   return sharp({ create: { width: 1080, height: 1350, channels: 3, background: { r: 10, g: 16, b: 36 } } }).png().toBuffer();
+}
+
+function resolveUpload(urlPath: string): Buffer | null {
+  const p = path.resolve(process.cwd(), urlPath.replace(/^\//, ""));
+  return fs.existsSync(p) ? fs.readFileSync(p) : null;
 }
 
 // ── OG helpers ────────────────────────────────────────────────────────────────
@@ -208,7 +213,17 @@ export function registerBaptismPublicRoutes(app: Express) {
           themeCandidates = meta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
       }
       const theme = computeTheme(themeCandidates);
-      const png = await generateBaptismOgImage(theme);
+
+      // Prefer the activity flyer if one exists for this service
+      const actRow = await db.execute(sql`
+        SELECT flyer_url FROM activities
+        WHERE baptism_service_id = ${link.service_id}
+           OR (section_data->>'baptism_service_ref') = ${link.service_id}
+        LIMIT 1
+      `);
+      const flyerUrl: string | null = (actRow.rows[0] as any)?.flyer_url ?? null;
+
+      const png = await generateBaptismOgImage(theme, flyerUrl);
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(png);
