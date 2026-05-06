@@ -53,9 +53,43 @@ async function generateActivityOgImage(act: {
 }): Promise<Buffer> {
   const flyerBuf = resolveUpload(act.flyerUrl);
 
-  // With flyer: serve portrait 1080×1350 (flyer fills card, title/desc already in OG text)
+  // With flyer: flyer fills entire card, event details overlaid at bottom
   if (flyerBuf) {
-    return sharp(flyerBuf).resize(1080, 1350, { fit: "cover", position: "centre" }).png().toBuffer();
+    const dateStr = act.date
+      ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+      : "";
+    const timeStr = act.date
+      ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
+      : "";
+    const dateLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
+    const locLine  = act.location ? truncate(act.location, 42) : "";
+
+    const hasDate = !!dateLine;
+    const hasLoc  = !!locLine;
+    const dateY   = hasLoc ? 1240 : 1275;
+    const locY    = dateY + 56;
+
+    const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#000000" stop-opacity="0"/>
+      <stop offset="55%"  stop-color="#000000" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.88"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="920" width="1080" height="430" fill="url(#fade)"/>
+  ${hasDate ? `<text x="540" y="${dateY}" font-family="Arial,sans-serif" font-size="34" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
+  ${hasLoc  ? `<text x="540" y="${locY}"  font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.70)" text-anchor="middle">${escapeHtml(locLine)}</text>` : ""}
+</svg>`;
+
+    const resized = await sharp(flyerBuf).resize(1080, 1350, { fit: "cover", position: "centre" }).png().toBuffer();
+    return sharp({ create: { width: 1080, height: 1350, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } })
+      .composite([
+        { input: resized, top: 0, left: 0 },
+        { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+      ])
+      .png()
+      .toBuffer();
   }
 
   // No flyer: portrait dark card with centered text
