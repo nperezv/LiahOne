@@ -97,22 +97,7 @@ const THEME_IMAGES: Record<BaptismTheme, string> = {
   fallback:     "/theshepherd.png",
 };
 
-// ── Theme gradient colors ─────────────────────────────────────────────────────
-
-const THEME_GRADIENTS: Record<BaptismTheme, [string, string]> = {
-  nino:         ["#071020", "#0d2248"],
-  nina:         ["#120818", "#38105a"],
-  joven_varon:  ["#071020", "#0d2248"],
-  joven_mujer:  ["#120818", "#38105a"],
-  adulto:       ["#0a1018", "#152638"],
-  adulta:       ["#0d0a18", "#221040"],
-  multi_kids:   ["#071020", "#0d2248"],
-  multi_family: ["#071020", "#0d2248"],
-  multi_adults: ["#0a1018", "#152638"],
-  fallback:     ["#0B1120", "#060A14"],
-};
-
-// ── OG image generator (1200×630) ────────────────────────────────────────────
+// ── OG image generator (1080×1350 portrait) ──────────────────────────────────
 
 function resolvePublicImage(filename: string): Buffer | null {
   for (const base of ["dist/public", "client/public"]) {
@@ -122,69 +107,14 @@ function resolvePublicImage(filename: string): Buffer | null {
   return null;
 }
 
-async function generateBaptismOgImage(opts: {
-  theme: BaptismTheme;
-  names: string[];
-  serviceAt: Date | null;
-  wardName: string;
-}): Promise<Buffer> {
-  const W = 1200, H = 630;
-  const PW = 260, PH = 390;
-  const PX = Math.floor((W - PW) / 2);
-  const PY = 20;
-
-  const [c1, c2] = THEME_GRADIENTS[opts.theme];
-  const imageFile = THEME_IMAGES[opts.theme].replace(/^\//, "");
+async function generateBaptismOgImage(theme: BaptismTheme): Promise<Buffer> {
+  const imageFile = THEME_IMAGES[theme].replace(/^\//, "");
   const imageBuf = resolvePublicImage(imageFile);
-
-  const dateStr = opts.serviceAt
-    ? opts.serviceAt.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
-    : "";
-  const timeStr = opts.serviceAt
-    ? opts.serviceAt.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
-    : "";
-  const dateTimeLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
-
-  const titleLine = opts.names.length > 0
-    ? `Bautismo de ${opts.names.join(" y ")}`
-    : "Programa Bautismal";
-
-  const textY = PY + PH + 20;
-  const nameY  = textY + 58;
-  const dateY  = nameY + 52;
-  const wardY  = dateY + 40;
-
-  // Portrait image embedded as base64 if available
-  let portraitTag = "";
   if (imageBuf) {
-    const resizedBuf = await sharp(imageBuf)
-      .resize(PW, PH, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toBuffer();
-    const b64 = resizedBuf.toString("base64");
-    portraitTag = `<image href="data:image/png;base64,${b64}" x="${PX}" y="${PY}" width="${PW}" height="${PH}" preserveAspectRatio="xMidYMid meet" opacity="0.95"/>`;
+    return sharp(imageBuf).resize(1080, 1350, { fit: "cover", position: "centre" }).png().toBuffer();
   }
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="60%" y2="100%">
-      <stop offset="0%" stop-color="${c1}"/>
-      <stop offset="100%" stop-color="${c2}"/>
-    </linearGradient>
-    <linearGradient id="textFade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.45"/>
-    </linearGradient>
-  </defs>
-  <rect width="${W}" height="${H}" fill="url(#bg)"/>
-  <rect x="0" y="${textY}" width="${W}" height="${H - textY}" fill="url(#textFade)"/>
-  ${portraitTag}
-  <text x="${W / 2}" y="${nameY}" font-family="Georgia,serif" font-size="42" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(titleLine)}</text>
-  <text x="${W / 2}" y="${dateY}" font-family="Arial,sans-serif" font-size="26" fill="rgba(255,255,255,0.85)" text-anchor="middle">${escapeHtml(dateTimeLine)}</text>
-  ${opts.wardName ? `<text x="${W / 2}" y="${wardY}" font-family="Arial,sans-serif" font-size="20" fill="rgba(255,255,255,0.6)" text-anchor="middle">${escapeHtml(opts.wardName)}</text>` : ""}
-</svg>`;
-
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  // Fallback: solid dark background
+  return sharp({ create: { width: 1080, height: 1350, channels: 3, background: { r: 10, g: 16, b: 36 } } }).png().toBuffer();
 }
 
 // ── OG helpers ────────────────────────────────────────────────────────────────
@@ -213,8 +143,8 @@ function buildOgHtml(baseHtml: string, opts: { title: string; description: strin
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
     `<meta property="og:url" content="${escapeHtml(url)}" />`,
     imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-    imageUrl ? `<meta property="og:image:width" content="1200" />` : "",
-    imageUrl ? `<meta property="og:image:height" content="630" />` : "",
+    imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
+    imageUrl ? `<meta property="og:image:height" content="1350" />` : "",
     `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
     `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
@@ -278,10 +208,7 @@ export function registerBaptismPublicRoutes(app: Express) {
           themeCandidates = meta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
       }
       const theme = computeTheme(themeCandidates);
-      const wardName: string = (tplResult.rows[0] as any)?.ward_name ?? "";
-      const serviceAt = svc.service_at ? new Date(svc.service_at) : null;
-
-      const png = await generateBaptismOgImage({ theme, names, serviceAt, wardName });
+      const png = await generateBaptismOgImage(theme);
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(png);
