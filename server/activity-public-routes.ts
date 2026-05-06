@@ -55,7 +55,7 @@ async function generateActivityOgImage(act: {
 
   const W = 1200, H = 630;
 
-  // With flyer: flyer fills card, date/location overlaid at bottom
+  // With flyer: blurred background + full flyer centered + date overlay
   if (flyerBuf) {
     const dateStr = act.date
       ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
@@ -69,24 +69,40 @@ async function generateActivityOgImage(act: {
     const dateY    = hasLoc ? 558 : 590;
     const locY     = dateY + 52;
 
+    // 1. Blurred background: flyer stretched + blurred + darkened
+    const bgBuf = await sharp(flyerBuf)
+      .resize(W, H, { fit: "cover", position: "centre" })
+      .blur(22)
+      .modulate({ brightness: 0.45 })
+      .png()
+      .toBuffer();
+
+    // 2. Foreground: flyer scaled to full height, preserving ratio
+    const meta = await sharp(flyerBuf).metadata();
+    const fgH = H;
+    const fgW = Math.min(W, Math.round(fgH * ((meta.width ?? H) / (meta.height ?? W))));
+    const fgX = Math.floor((W - fgW) / 2);
+    const fgBuf = await sharp(flyerBuf).resize(fgW, fgH, { fit: "fill" }).png().toBuffer();
+
+    // 3. Gradient + text overlay
     const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <defs>
     <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#000000" stop-opacity="0"/>
-      <stop offset="55%"  stop-color="#000000" stop-opacity="0.70"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.88"/>
+      <stop offset="55%"  stop-color="#000000" stop-opacity="0.68"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.85"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="380" width="${W}" height="250" fill="url(#fade)"/>
+  <rect x="0" y="370" width="${W}" height="260" fill="url(#fade)"/>
   ${dateLine ? `<text x="${W / 2}" y="${dateY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
   ${hasLoc   ? `<text x="${W / 2}" y="${locY}"  font-family="Arial,sans-serif" font-size="22" fill="rgba(255,255,255,0.72)" text-anchor="middle">${escapeHtml(locLine)}</text>` : ""}
 </svg>`;
 
-    const resized = await sharp(flyerBuf).resize(W, H, { fit: "cover", position: "centre" }).png().toBuffer();
     return sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } })
       .composite([
-        { input: resized, top: 0, left: 0 },
-        { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+        { input: bgBuf,                  top: 0,   left: 0    },
+        { input: fgBuf,                  top: 0,   left: fgX  },
+        { input: Buffer.from(overlaySvg), top: 0,  left: 0    },
       ])
       .png()
       .toBuffer();
