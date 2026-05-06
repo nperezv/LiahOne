@@ -51,12 +51,15 @@ async function generateActivityOgImage(act: {
   organizationName: string | null;
   flyerUrl: string | null;
 }): Promise<Buffer> {
-  const W = 1200, H = 630;
-  const FLYER_W = 420;
-
   const flyerBuf = resolveUpload(act.flyerUrl);
-  const hasFlyer = !!flyerBuf;
 
+  // With flyer: serve portrait 1080×1350 (flyer fills card, title/desc already in OG text)
+  if (flyerBuf) {
+    return sharp(flyerBuf).resize(1080, 1350, { fit: "cover", position: "centre" }).png().toBuffer();
+  }
+
+  // No flyer: portrait dark card with centered text
+  const W = 1080, H = 1350;
   const dateStr = act.date
     ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     : "";
@@ -64,38 +67,15 @@ async function generateActivityOgImage(act: {
     ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
     : "";
   const dateLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
+  const [t1, t2] = splitTitle(act.title || "Actividad", 24);
 
-  const maxChars = hasFlyer ? 26 : 30;
-  const [t1, t2] = splitTitle(act.title || "Actividad", maxChars);
-  const textX  = hasFlyer ? FLYER_W + 55 : W / 2;
-  const anchor = hasFlyer ? "start" : "middle";
+  const t1Y  = t2 ? 580 : 620;
+  const t2Y  = t1Y + 72;
+  const dateY = (t2 ? t2Y : t1Y) + 90;
+  const locY  = dateY + 58;
+  const orgY  = locY + 48;
 
-  const t1Y   = hasFlyer ? 220 : (t2 ? 225 : 268);
-  const t2Y   = t1Y + 62;
-  const dateY = (t2 ? t2Y : t1Y) + 74;
-  const locY  = dateY + 52;
-  const orgY  = locY + 42;
-
-  // Overlay SVG (no background rect — composited over the flyer)
-  const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
-  <defs>
-    <linearGradient id="ov" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#0c1020" stop-opacity="0"/>
-      <stop offset="35%" stop-color="#0c1020" stop-opacity="0.92"/>
-      <stop offset="100%" stop-color="#0c1020" stop-opacity="1"/>
-    </linearGradient>
-  </defs>
-  <rect x="${FLYER_W - 100}" y="0" width="${W - FLYER_W + 100}" height="${H}" fill="url(#ov)"/>
-  <rect x="${FLYER_W + 48}" y="${t1Y - 52}" width="3" height="${t2 ? 130 : 68}" fill="rgba(180,140,255,0.55)" rx="1.5"/>
-  <text x="${textX}" y="${t1Y}" font-family="Georgia,serif" font-size="44" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t1)}</text>
-  ${t2 ? `<text x="${textX}" y="${t2Y}" font-family="Georgia,serif" font-size="44" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t2)}</text>` : ""}
-  ${dateLine ? `<text x="${textX}" y="${dateY}" font-family="Arial,sans-serif" font-size="26" fill="rgba(255,255,255,0.85)" text-anchor="${anchor}">${escapeHtml(dateLine)}</text>` : ""}
-  ${act.location ? `<text x="${textX}" y="${locY}" font-family="Arial,sans-serif" font-size="22" fill="rgba(255,255,255,0.68)" text-anchor="${anchor}">${escapeHtml(truncate(act.location, 46))}</text>` : ""}
-  ${act.organizationName ? `<text x="${textX}" y="${orgY}" font-family="Arial,sans-serif" font-size="18" fill="rgba(200,170,255,0.6)" text-anchor="${anchor}">${escapeHtml(act.organizationName)}</text>` : ""}
-</svg>`;
-
-  // No-flyer SVG (full background + centered text)
-  const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0c1020"/>
@@ -103,29 +83,14 @@ async function generateActivityOgImage(act: {
     </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
-  <text x="${textX}" y="${t1Y}" font-family="Georgia,serif" font-size="52" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t1)}</text>
-  ${t2 ? `<text x="${textX}" y="${t2Y}" font-family="Georgia,serif" font-size="52" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t2)}</text>` : ""}
-  ${dateLine ? `<text x="${textX}" y="${dateY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.85)" text-anchor="${anchor}">${escapeHtml(dateLine)}</text>` : ""}
-  ${act.location ? `<text x="${textX}" y="${locY}" font-family="Arial,sans-serif" font-size="24" fill="rgba(255,255,255,0.68)" text-anchor="${anchor}">${escapeHtml(truncate(act.location, 50))}</text>` : ""}
-  ${act.organizationName ? `<text x="${textX}" y="${orgY}" font-family="Arial,sans-serif" font-size="20" fill="rgba(200,170,255,0.6)" text-anchor="${anchor}">${escapeHtml(act.organizationName)}</text>` : ""}
+  <text x="${W / 2}" y="${t1Y}" font-family="Georgia,serif" font-size="58" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(t1)}</text>
+  ${t2 ? `<text x="${W / 2}" y="${t2Y}" font-family="Georgia,serif" font-size="58" font-weight="bold" fill="white" text-anchor="middle">${escapeHtml(t2)}</text>` : ""}
+  ${dateLine ? `<text x="${W / 2}" y="${dateY}" font-family="Arial,sans-serif" font-size="32" fill="rgba(255,255,255,0.85)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
+  ${act.location ? `<text x="${W / 2}" y="${locY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.68)" text-anchor="middle">${escapeHtml(truncate(act.location, 40))}</text>` : ""}
+  ${act.organizationName ? `<text x="${W / 2}" y="${orgY}" font-family="Arial,sans-serif" font-size="24" fill="rgba(200,170,255,0.6)" text-anchor="middle">${escapeHtml(act.organizationName)}</text>` : ""}
 </svg>`;
 
-  if (!hasFlyer) {
-    return sharp(Buffer.from(fullSvg)).png().toBuffer();
-  }
-
-  const resizedFlyer = await sharp(flyerBuf!)
-    .resize(FLYER_W, H, { fit: "cover", position: "centre" })
-    .png()
-    .toBuffer();
-
-  return sharp({ create: { width: W, height: H, channels: 4, background: { r: 12, g: 16, b: 32, alpha: 255 } } })
-    .composite([
-      { input: resizedFlyer, top: 0, left: 0 },
-      { input: Buffer.from(overlaySvg), top: 0, left: 0 },
-    ])
-    .png()
-    .toBuffer();
+  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 export function registerActivityPublicRoutes(app: Express) {
@@ -156,8 +121,8 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,
       imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1200" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="630" />` : "",
+      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
+      imageUrl ? `<meta property="og:image:height" content="1350" />` : "",
       `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
       `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
