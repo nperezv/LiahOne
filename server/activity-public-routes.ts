@@ -6,6 +6,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import sharp from "sharp";
 import type { Express } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
@@ -16,6 +17,115 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + "…";
+}
+
+function splitTitle(title: string, maxChars: number): [string, string] {
+  if (title.length <= maxChars) return [title, ""];
+  const words = title.split(" ");
+  let line1 = "";
+  for (let i = 0; i < words.length; i++) {
+    const candidate = line1 ? `${line1} ${words[i]}` : words[i];
+    if (candidate.length <= maxChars) { line1 = candidate; }
+    else {
+      const rest = words.slice(i).join(" ");
+      return [line1 || truncate(words[i], maxChars), truncate(rest, maxChars)];
+    }
+  }
+  return [line1, ""];
+}
+
+function resolveUpload(urlPath: string | null): Buffer | null {
+  if (!urlPath) return null;
+  const p = path.resolve(process.cwd(), urlPath.replace(/^\//, ""));
+  return fs.existsSync(p) ? fs.readFileSync(p) : null;
+}
+
+async function generateActivityOgImage(act: {
+  title: string;
+  date: string | null;
+  location: string | null;
+  organizationName: string | null;
+  flyerUrl: string | null;
+}): Promise<Buffer> {
+  const W = 1200, H = 630;
+  const FLYER_W = 420;
+
+  const flyerBuf = resolveUpload(act.flyerUrl);
+  const hasFlyer = !!flyerBuf;
+
+  const dateStr = act.date
+    ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+    : "";
+  const timeStr = act.date
+    ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
+    : "";
+  const dateLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
+
+  const maxChars = hasFlyer ? 26 : 30;
+  const [t1, t2] = splitTitle(act.title || "Actividad", maxChars);
+  const textX  = hasFlyer ? FLYER_W + 55 : W / 2;
+  const anchor = hasFlyer ? "start" : "middle";
+
+  const t1Y   = hasFlyer ? 220 : (t2 ? 225 : 268);
+  const t2Y   = t1Y + 62;
+  const dateY = (t2 ? t2Y : t1Y) + 74;
+  const locY  = dateY + 52;
+  const orgY  = locY + 42;
+
+  // Overlay SVG (no background rect — composited over the flyer)
+  const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <defs>
+    <linearGradient id="ov" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0c1020" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#0c1020" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#0c1020" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+  <rect x="${FLYER_W - 100}" y="0" width="${W - FLYER_W + 100}" height="${H}" fill="url(#ov)"/>
+  <rect x="${FLYER_W + 48}" y="${t1Y - 52}" width="3" height="${t2 ? 130 : 68}" fill="rgba(180,140,255,0.55)" rx="1.5"/>
+  <text x="${textX}" y="${t1Y}" font-family="Georgia,serif" font-size="44" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t1)}</text>
+  ${t2 ? `<text x="${textX}" y="${t2Y}" font-family="Georgia,serif" font-size="44" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t2)}</text>` : ""}
+  ${dateLine ? `<text x="${textX}" y="${dateY}" font-family="Arial,sans-serif" font-size="26" fill="rgba(255,255,255,0.85)" text-anchor="${anchor}">${escapeHtml(dateLine)}</text>` : ""}
+  ${act.location ? `<text x="${textX}" y="${locY}" font-family="Arial,sans-serif" font-size="22" fill="rgba(255,255,255,0.68)" text-anchor="${anchor}">${escapeHtml(truncate(act.location, 46))}</text>` : ""}
+  ${act.organizationName ? `<text x="${textX}" y="${orgY}" font-family="Arial,sans-serif" font-size="18" fill="rgba(200,170,255,0.6)" text-anchor="${anchor}">${escapeHtml(act.organizationName)}</text>` : ""}
+</svg>`;
+
+  // No-flyer SVG (full background + centered text)
+  const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c1020"/>
+      <stop offset="100%" stop-color="#1a1538"/>
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  <text x="${textX}" y="${t1Y}" font-family="Georgia,serif" font-size="52" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t1)}</text>
+  ${t2 ? `<text x="${textX}" y="${t2Y}" font-family="Georgia,serif" font-size="52" font-weight="bold" fill="white" text-anchor="${anchor}">${escapeHtml(t2)}</text>` : ""}
+  ${dateLine ? `<text x="${textX}" y="${dateY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.85)" text-anchor="${anchor}">${escapeHtml(dateLine)}</text>` : ""}
+  ${act.location ? `<text x="${textX}" y="${locY}" font-family="Arial,sans-serif" font-size="24" fill="rgba(255,255,255,0.68)" text-anchor="${anchor}">${escapeHtml(truncate(act.location, 50))}</text>` : ""}
+  ${act.organizationName ? `<text x="${textX}" y="${orgY}" font-family="Arial,sans-serif" font-size="20" fill="rgba(200,170,255,0.6)" text-anchor="${anchor}">${escapeHtml(act.organizationName)}</text>` : ""}
+</svg>`;
+
+  if (!hasFlyer) {
+    return sharp(Buffer.from(fullSvg)).png().toBuffer();
+  }
+
+  const resizedFlyer = await sharp(flyerBuf!)
+    .resize(FLYER_W, H, { fit: "cover", position: "centre" })
+    .png()
+    .toBuffer();
+
+  return sharp({ create: { width: W, height: H, channels: 4, background: { r: 12, g: 16, b: 32, alpha: 255 } } })
+    .composite([
+      { input: resizedFlyer, top: 0, left: 0 },
+      { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+    ])
+    .png()
+    .toBuffer();
 }
 
 export function registerActivityPublicRoutes(app: Express) {
@@ -46,8 +156,8 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,
       imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="1080" />` : "",
+      imageUrl ? `<meta property="og:image:width" content="1200" />` : "",
+      imageUrl ? `<meta property="og:image:height" content="630" />` : "",
       `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
       `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
@@ -58,6 +168,35 @@ export function registerActivityPublicRoutes(app: Express) {
     html = html.replace("</head>", `${tags}\n  </head>`);
     return html;
   }
+
+  // ── GET /og/actividades/:slug — dynamic OG image (1200×630 PNG) ─────────────
+  app.get("/og/actividades/:slug", async (req, res) => {
+    try {
+      const rows = await db.execute(sql`
+        SELECT a.title, a.date, a.location, a.flyer_url, o.name AS organization_name
+        FROM activities a
+        LEFT JOIN organizations o ON o.id = a.organization_id
+        WHERE a.slug = ${req.params.slug} AND a.is_public = true
+      `);
+      if (!rows.rows.length) return res.status(404).end();
+
+      const act = rows.rows[0] as any;
+      const png = await generateActivityOgImage({
+        title: act.title ?? "Actividad",
+        date: act.date ?? null,
+        location: act.location ?? null,
+        organizationName: act.organization_name ?? null,
+        flyerUrl: act.flyer_url ?? null,
+      });
+
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(png);
+    } catch (err) {
+      console.error("[og-image /og/actividades/:slug]", err);
+      res.status(500).end();
+    }
+  });
 
   // ── GET /actividades — OG for the listing page (next upcoming activity) ──────
   app.get("/actividades", async (req, res, next) => {
@@ -118,11 +257,11 @@ export function registerActivityPublicRoutes(app: Express) {
         ? act.description.slice(0, 200)
         : `${dateStr}${orgName}`.trim();
       const description = rawDesc || title;
-      const imageUrl = absoluteUrl(req, act.flyer_url);
+      const imageUrl = `${req.protocol}://${req.get("host")}/og/actividades/${act.slug}`;
       const url = `${req.protocol}://${req.get("host")}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl || undefined }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
