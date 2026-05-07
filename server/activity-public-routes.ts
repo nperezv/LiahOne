@@ -200,7 +200,7 @@ export function registerActivityPublicRoutes(app: Express) {
       imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}">` : "",
       imageUrl ? `<meta property="og:image:width" content="${imageWidth}">` : "",
       imageUrl ? `<meta property="og:image:height" content="${imageHeight}">` : "",
-      imageUrl ? `<meta property="og:image:type" content="image/png">` : "",
+      imageUrl ? `<meta property="og:image:type" content="${imageUrl.match(/\.png/i) ? "image/png" : "image/jpeg"}">` : "",
       `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}">`,
       `<meta name="twitter:title" content="${escapeHtml(title)}">`,
       `<meta name="twitter:description" content="${escapeHtml(description)}">`,
@@ -304,11 +304,16 @@ export function registerActivityPublicRoutes(app: Express) {
         : "";
       const parts = [dateStr, timeStr ? `${timeStr} hrs` : "", act.location ?? ""].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
-      const imageUrl = `${getProto(req)}://${req.get("host")}/og/actividades/${act.slug}`;
-      const url = `${getProto(req)}://${req.get("host")}/actividades/${act.slug}`;
+      const proto = getProto(req);
+      const host = req.get("host");
+      // Use the actual uploaded flyer as og:image — same approach as /f/:activityId which works
+      const imageUrl = act.flyer_url
+        ? (act.flyer_url.startsWith("http") ? act.flyer_url : `${proto}://${host}${act.flyer_url}`)
+        : null;
+      const url = `${proto}://${host}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl ?? undefined }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
