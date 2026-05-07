@@ -188,28 +188,31 @@ export function registerActivityPublicRoutes(app: Express) {
   }
 
   function buildOgHtml(baseHtml: string, opts: {
-    title: string; description: string; url: string; imageUrl?: string;
+    title: string; description: string; url: string; imageUrl?: string; imageWidth?: string; imageHeight?: string;
   }): string {
-    const { title, description, url, imageUrl } = opts;
+    const { title, description, url, imageUrl, imageWidth = "1200", imageHeight = "630" } = opts;
     const tags = [
-      `<meta property="og:type" content="website" />`,
-      `<meta property="og:site_name" content="Zendapp" />`,
-      `<meta property="og:title" content="${escapeHtml(title)}" />`,
-      `<meta property="og:description" content="${escapeHtml(description)}" />`,
-      `<meta property="og:url" content="${escapeHtml(url)}" />`,
-      imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1200" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="630" />` : "",
-      `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
-      `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
-      `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
-      imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
-    ].filter(Boolean).map(t => `    ${t}`).join("\n");
+      `<meta property="og:type" content="website">`,
+      `<meta property="og:site_name" content="Zendapp">`,
+      `<meta property="og:title" content="${escapeHtml(title)}">`,
+      `<meta property="og:description" content="${escapeHtml(description)}">`,
+      `<meta property="og:url" content="${escapeHtml(url)}">`,
+      imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}">` : "",
+      imageUrl ? `<meta property="og:image:width" content="${imageWidth}">` : "",
+      imageUrl ? `<meta property="og:image:height" content="${imageHeight}">` : "",
+      imageUrl ? `<meta property="og:image:type" content="image/png">` : "",
+      `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}">`,
+      `<meta name="twitter:title" content="${escapeHtml(title)}">`,
+      `<meta name="twitter:description" content="${escapeHtml(description)}">`,
+      imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}">` : "",
+    ].filter(Boolean).join("\n");
+    // Strip ALL existing og:/twitter: meta tags regardless of attribute order
     let html = baseHtml
-      .replace(/<meta\s+property="og:[^"]*"[^>]*\/?>/gi, "")
-      .replace(/<meta\s+name="twitter:[^"]*"[^>]*\/?>/gi, "");
+      .replace(/<meta[^>]+property="og:[^>]+">/gi, "")
+      .replace(/<meta[^>]+name="twitter:[^>]+">/gi, "");
+    // Inject at the very START of <head> — first tags WhatsApp will read
+    html = html.replace(/(<head[^>]*>)/, `$1\n${tags}`);
     html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
-    html = html.replace("</head>", `${tags}\n  </head>`);
     return html;
   }
 
@@ -278,8 +281,8 @@ export function registerActivityPublicRoutes(app: Express) {
   // ── GET /actividades/:slug — OG for individual activity page ─────────────────
   app.get("/actividades/:slug", async (req, res, next) => {
     try {
-      // Real users get the SPA; only crawlers need OG HTML
-      if (!isSocialCrawler(req.get("user-agent") ?? "")) return next();
+      const baseHtml = getIndexHtml();
+      if (!baseHtml) return next();
 
       const rows = await db.execute(sql`
         SELECT a.title, a.date, a.location, a.flyer_url, a.slug,
@@ -301,12 +304,11 @@ export function registerActivityPublicRoutes(app: Express) {
         : "";
       const parts = [dateStr, timeStr ? `${timeStr} hrs` : "", act.location ?? ""].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
-      // Always use the generated 1200×630 composite — WhatsApp requires landscape for large card
       const imageUrl = `${getProto(req)}://${req.get("host")}/og/actividades/${act.slug}`;
       const url = `${getProto(req)}://${req.get("host")}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
