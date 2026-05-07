@@ -53,7 +53,7 @@ async function generateActivityOgImage(act: {
 }): Promise<Buffer> {
   const flyerBuf = resolveUpload(act.flyerUrl);
 
-  const W = 1200, H = 630;
+  const W = 800, H = 1000;
 
   // With flyer: landscape 1200×630 (required for WhatsApp large card)
   // — blurred flyer fills background, actual flyer centered at full height
@@ -61,7 +61,7 @@ async function generateActivityOgImage(act: {
     // Center-crop the flyer to fill 1200×630 — no bars, no blur, no text
     return sharp(flyerBuf)
       .resize(W, H, { fit: "cover", position: "centre" })
-      .png().toBuffer();
+      .jpeg({ quality: 80 }).toBuffer();
   }
 
   // No flyer: landscape dark card with centered text
@@ -95,7 +95,7 @@ async function generateActivityOgImage(act: {
   ${act.organizationName ? `<text x="${W / 2}" y="${orgY}" font-family="Arial,sans-serif" font-size="20" fill="rgba(200,170,255,0.6)" text-anchor="middle">${escapeHtml(act.organizationName)}</text>` : ""}
 </svg>`;
 
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  return sharp(Buffer.from(svg)).jpeg({ quality: 80 }).toBuffer();
 }
 
 function isSocialCrawler(ua: string): boolean {
@@ -197,7 +197,7 @@ export function registerActivityPublicRoutes(app: Express) {
         flyerUrl: act.flyer_url ?? null,
       });
 
-      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Type", "image/jpeg");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(png);
     } catch (err) {
@@ -270,7 +270,7 @@ export function registerActivityPublicRoutes(app: Express) {
       const url = `${base}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "1080", imageHeight: "1350" }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "800", imageHeight: "1000" }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
