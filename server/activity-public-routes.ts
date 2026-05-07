@@ -206,10 +206,10 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta name="twitter:description" content="${escapeHtml(description)}">`,
       imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}">` : "",
     ].filter(Boolean).join("\n");
-    // Strip ALL existing og:/twitter: meta tags regardless of attribute order
+    // Strip ALL existing og:/twitter: meta tags (handles both > and />)
     let html = baseHtml
-      .replace(/<meta[^>]+property="og:[^>]+">/gi, "")
-      .replace(/<meta[^>]+name="twitter:[^>]+">/gi, "");
+      .replace(/<meta\s[^>]*\bproperty="og:[^"]*"[^>]*\/?>/gi, "")
+      .replace(/<meta\s[^>]*\bname="twitter:[^"]*"[^>]*\/?>/gi, "");
     // Inject at the very START of <head> — first tags WhatsApp will read
     html = html.replace(/(<head[^>]*>)/, `$1\n${tags}`);
     html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
