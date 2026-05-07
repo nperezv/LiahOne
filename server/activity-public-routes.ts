@@ -281,8 +281,11 @@ export function registerActivityPublicRoutes(app: Express) {
   // ── GET /actividades/:slug — OG for individual activity page ─────────────────
   app.get("/actividades/:slug", async (req, res, next) => {
     try {
+      // Real browser navigations send Sec-Fetch-Mode: navigate — serve the SPA directly
+      // Crawlers (WhatsApp, Telegram, etc.) don't send this header — serve minimal OG HTML
+      if (req.get("Sec-Fetch-Mode") === "navigate") return next();
+
       const baseHtml = getIndexHtml();
-      if (!baseHtml) return next();
 
       const rows = await db.execute(sql`
         SELECT a.title, a.date, a.location, a.flyer_url, a.slug,
@@ -312,8 +315,9 @@ export function registerActivityPublicRoutes(app: Express) {
         : null;
       const url = `${proto}://${host}/actividades/${act.slug}`;
 
+      // Minimal HTML (no scripts/preloads) — same structure as /f/:activityId which works
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl ?? undefined }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl: imageUrl ?? undefined }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
