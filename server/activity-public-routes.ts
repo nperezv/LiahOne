@@ -142,25 +142,57 @@ async function generateActivityOgImage(act: {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-export function registerActivityPublicRoutes(app: Express) {
-  // ── OG helpers ───────────────────────────────────────────────────────────────
-  function getIndexHtml(): string | null {
-    const indexPath = path.resolve(process.cwd(), "dist/public/index.html");
-    if (!fs.existsSync(indexPath)) return null;
-    return fs.readFileSync(indexPath, "utf-8");
-  }
+function isSocialCrawler(ua: string): boolean {
+  const l = ua.toLowerCase();
+  return ["whatsapp", "facebookexternalhit", "twitterbot", "linkedinbot",
+          "slackbot", "telegrambot", "discordbot", "applebot", "ia_archiver"].some(s => l.includes(s));
+}
 
+function buildCrawlerHtml(opts: {
+  title: string; description: string; url: string;
+  imageUrl?: string; imageWidth?: string; imageHeight?: string;
+}): string {
+  const { title, description, url, imageUrl, imageWidth = "1080", imageHeight = "1350" } = opts;
+  const e = escapeHtml;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Zendapp">
+<meta property="og:title" content="${e(title)}">
+<meta property="og:description" content="${e(description)}">
+<meta property="og:url" content="${e(url)}">
+${imageUrl ? `<meta property="og:image" content="${e(imageUrl)}">
+<meta property="og:image:width" content="${imageWidth}">
+<meta property="og:image:height" content="${imageHeight}">` : ""}
+<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}">
+<meta name="twitter:title" content="${e(title)}">
+<meta name="twitter:description" content="${e(description)}">
+${imageUrl ? `<meta name="twitter:image" content="${e(imageUrl)}">` : ""}
+<title>${e(title)}</title>
+</head>
+<body></body>
+</html>`;
+}
+
+export function registerActivityPublicRoutes(app: Express) {
   function absoluteUrl(req: any, maybeRelative: string | null | undefined): string {
     if (!maybeRelative) return "";
     if (/^https?:\/\//i.test(maybeRelative)) return maybeRelative;
     return `${req.protocol}://${req.get("host")}${maybeRelative}`;
   }
 
+  // kept for the lobby route (no-flyer fallback)
+  function getIndexHtml(): string | null {
+    const p = path.resolve(process.cwd(), "dist/public/index.html");
+    if (!fs.existsSync(p)) return null;
+    return fs.readFileSync(p, "utf-8");
+  }
+
   function buildOgHtml(baseHtml: string, opts: {
-    title: string;
-    description: string;
-    url: string;
-    imageUrl?: string;
+    title: string; description: string; url: string; imageUrl?: string;
   }): string {
     const { title, description, url, imageUrl } = opts;
     const tags = [
@@ -177,8 +209,6 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
       imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
     ].filter(Boolean).map(t => `    ${t}`).join("\n");
-
-    // Strip default OG/Twitter tags from index.html so ours take priority
     let html = baseHtml
       .replace(/<meta\s+property="og:[^"]*"[^>]*\/?>/gi, "")
       .replace(/<meta\s+name="twitter:[^"]*"[^>]*\/?>/gi, "");
@@ -252,11 +282,11 @@ export function registerActivityPublicRoutes(app: Express) {
   // ── GET /actividades/:slug — OG for individual activity page ─────────────────
   app.get("/actividades/:slug", async (req, res, next) => {
     try {
-      const baseHtml = getIndexHtml();
-      if (!baseHtml) return next();
+      // Real users get the SPA; only crawlers need OG HTML
+      if (!isSocialCrawler(req.get("user-agent") ?? "")) return next();
 
       const rows = await db.execute(sql`
-        SELECT a.title, a.description, a.date, a.location, a.flyer_url, a.slug,
+        SELECT a.title, a.date, a.location, a.flyer_url, a.slug,
                o.name AS organization_name
         FROM activities a
         LEFT JOIN organizations o ON o.id = a.organization_id
@@ -273,21 +303,15 @@ export function registerActivityPublicRoutes(app: Express) {
       const timeStr = act.date
         ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
         : "";
-      const parts = [
-        dateStr,
-        timeStr ? `${timeStr} hrs` : "",
-        act.location ?? "",
-      ].filter(Boolean);
+      const parts = [dateStr, timeStr ? `${timeStr} hrs` : "", act.location ?? ""].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
-      // Use the real uploaded flyer when available — WhatsApp renders it as a large card.
-      // Fall back to the generated composite only when there is no flyer.
       const imageUrl = act.flyer_url
         ? absoluteUrl(req, act.flyer_url)
         : `${req.protocol}://${req.get("host")}/og/actividades/${act.slug}`;
       const url = `${req.protocol}://${req.get("host")}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();

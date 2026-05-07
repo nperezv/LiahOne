@@ -128,10 +128,10 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function getIndexHtml(): string | null {
-  const p = path.resolve(process.cwd(), "dist/public/index.html");
-  if (!fs.existsSync(p)) return null;
-  return fs.readFileSync(p, "utf-8");
+function isSocialCrawler(ua: string): boolean {
+  const l = ua.toLowerCase();
+  return ["whatsapp", "facebookexternalhit", "twitterbot", "linkedinbot",
+          "slackbot", "telegrambot", "discordbot", "applebot", "ia_archiver"].some(s => l.includes(s));
 }
 
 function absoluteUrl(req: Request, rel: string): string {
@@ -139,30 +139,33 @@ function absoluteUrl(req: Request, rel: string): string {
   return `${req.protocol}://${req.get("host")}${rel}`;
 }
 
-function buildOgHtml(baseHtml: string, opts: { title: string; description: string; url: string; imageUrl?: string }): string {
-  const { title, description, url, imageUrl } = opts;
-  const tags = [
-    `<meta property="og:type" content="website" />`,
-    `<meta property="og:site_name" content="Zendapp" />`,
-    `<meta property="og:title" content="${escapeHtml(title)}" />`,
-    `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    `<meta property="og:url" content="${escapeHtml(url)}" />`,
-    imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-    imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
-    imageUrl ? `<meta property="og:image:height" content="1350" />` : "",
-    `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
-    `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
-    `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
-    imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
-  ].filter(Boolean).map(t => `    ${t}`).join("\n");
-
-  // Strip default OG/Twitter tags from index.html so ours take priority
-  let html = baseHtml
-    .replace(/<meta\s+property="og:[^"]*"[^>]*\/?>/gi, "")
-    .replace(/<meta\s+name="twitter:[^"]*"[^>]*\/?>/gi, "");
-  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
-  html = html.replace("</head>", `${tags}\n  </head>`);
-  return html;
+function buildCrawlerHtml(opts: {
+  title: string; description: string; url: string;
+  imageUrl?: string; imageWidth?: string; imageHeight?: string;
+}): string {
+  const { title, description, url, imageUrl, imageWidth = "1080", imageHeight = "1350" } = opts;
+  const e = escapeHtml;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Zendapp">
+<meta property="og:title" content="${e(title)}">
+<meta property="og:description" content="${e(description)}">
+<meta property="og:url" content="${e(url)}">
+${imageUrl ? `<meta property="og:image" content="${e(imageUrl)}">
+<meta property="og:image:width" content="${imageWidth}">
+<meta property="og:image:height" content="${imageHeight}">` : ""}
+<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}">
+<meta name="twitter:title" content="${e(title)}">
+<meta name="twitter:description" content="${e(description)}">
+${imageUrl ? `<meta name="twitter:image" content="${e(imageUrl)}">` : ""}
+<title>${e(title)}</title>
+</head>
+<body></body>
+</html>`;
 }
 
 function baptismDateStr(serviceAt: string | Date | null): string {
@@ -240,8 +243,7 @@ export function registerBaptismPublicRoutes(app: Express) {
   // ── GET /bautismo — OG inject for lobby (today's service) ─────────────────
   app.get("/bautismo", async (req: Request, res, next) => {
     try {
-      const baseHtml = getIndexHtml();
-      if (!baseHtml) return next();
+      if (!isSocialCrawler(req.get("user-agent") ?? "")) return next();
 
       const now = new Date();
       const todayStart = new Date(now); todayStart.setUTCHours(0, 0, 0, 0);
@@ -303,7 +305,7 @@ export function registerBaptismPublicRoutes(app: Express) {
 
       const url = `${req.protocol}://${req.get("host")}/bautismo`;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl }));
     } catch (err) {
       console.error("[og-inject /bautismo]", err);
       next();
@@ -313,8 +315,7 @@ export function registerBaptismPublicRoutes(app: Express) {
   // ── GET /bautismo/:slug — OG inject for individual baptism program ─────────
   app.get("/bautismo/:slug", async (req: Request, res, next) => {
     try {
-      const baseHtml = getIndexHtml();
-      if (!baseHtml) return next();
+      if (!isSocialCrawler(req.get("user-agent") ?? "")) return next();
 
       const linkResult = await db.execute(sql`
         SELECT id, service_id FROM baptism_public_links
@@ -365,7 +366,7 @@ export function registerBaptismPublicRoutes(app: Express) {
       const url = `${req.protocol}://${req.get("host")}/bautismo/${req.params.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl }));
     } catch (err) {
       console.error("[og-inject /bautismo/:slug]", err);
       next();
