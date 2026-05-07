@@ -266,11 +266,11 @@ export function registerActivityPublicRoutes(app: Express) {
       const parts = [dateStr, timeStr ? `${timeStr} hrs` : "", act.location ?? ""].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
       const base = `${getProto(req)}://${req.get("host")}`;
-      const imageUrl = act.flyer_url ? `${base}/og/actividades/${act.slug}` : undefined;
+      const imageUrl = act.flyer_url ? absoluteUrl(req, act.flyer_url) : undefined;
       const url = `${base}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth: "1080", imageHeight: "1350" }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
