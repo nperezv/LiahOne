@@ -178,10 +178,13 @@ ${imageUrl ? `<meta name="twitter:image" content="${e(imageUrl)}">` : ""}
 }
 
 export function registerActivityPublicRoutes(app: Express) {
+  function getProto(req: any): string {
+    return (req.get("x-forwarded-proto") as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+  }
   function absoluteUrl(req: any, maybeRelative: string | null | undefined): string {
     if (!maybeRelative) return "";
     if (/^https?:\/\//i.test(maybeRelative)) return maybeRelative;
-    return `${req.protocol}://${req.get("host")}${maybeRelative}`;
+    return `${getProto(req)}://${req.get("host")}${maybeRelative}`;
   }
 
   // kept for the lobby route (no-flyer fallback)
@@ -307,8 +310,8 @@ export function registerActivityPublicRoutes(app: Express) {
       const description = parts.length > 0 ? parts.join(" · ") : title;
       const imageUrl = act.flyer_url
         ? absoluteUrl(req, act.flyer_url)
-        : `${req.protocol}://${req.get("host")}/og/actividades/${act.slug}`;
-      const url = `${req.protocol}://${req.get("host")}/actividades/${act.slug}`;
+        : `${getProto(req)}://${req.get("host")}/og/actividades/${act.slug}`;
+      const url = `${getProto(req)}://${req.get("host")}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(buildCrawlerHtml({ title, description, url, imageUrl }));

@@ -134,9 +134,12 @@ function isSocialCrawler(ua: string): boolean {
           "slackbot", "telegrambot", "discordbot", "applebot", "ia_archiver"].some(s => l.includes(s));
 }
 
+function getProto(req: Request): string {
+  return ((req as any).get("x-forwarded-proto") as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+}
 function absoluteUrl(req: Request, rel: string): string {
   if (/^https?:\/\//i.test(rel)) return rel;
-  return `${req.protocol}://${req.get("host")}${rel}`;
+  return `${getProto(req)}://${req.get("host")}${rel}`;
 }
 
 function buildCrawlerHtml(opts: {
@@ -303,7 +306,7 @@ export function registerBaptismPublicRoutes(app: Express) {
         imageUrl = absoluteUrl(req, THEME_IMAGES[theme]);
       }
 
-      const url = `${req.protocol}://${req.get("host")}/bautismo`;
+      const url = `${getProto(req)}://${req.get("host")}/bautismo`;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(buildCrawlerHtml({ title, description, url, imageUrl }));
     } catch (err) {
@@ -362,8 +365,8 @@ export function registerBaptismPublicRoutes(app: Express) {
 
       const title = names.length > 0 ? `Bautismo de ${names.join(" y ")}` : "Programa Bautismal";
       const description = [dateStr, wardName].filter(Boolean).join(" · ");
-      const imageUrl = `${req.protocol}://${req.get("host")}/og/bautismo/${req.params.slug}`;
-      const url = `${req.protocol}://${req.get("host")}/bautismo/${req.params.slug}`;
+      const imageUrl = `${getProto(req)}://${req.get("host")}/og/bautismo/${req.params.slug}`;
+      const url = `${getProto(req)}://${req.get("host")}/bautismo/${req.params.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(buildCrawlerHtml({ title, description, url, imageUrl }));
