@@ -10548,7 +10548,8 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
   app.patch("/api/notifications/mark-all-read", requireAuth, async (req: Request, res: Response) => {
     try {
-      const notifications = await storage.getNotificationsByUser(req.session.userId!);
+      const user = (req as any).user;
+      const notifications = await storage.getNotificationsByUser(user.id);
       const unreadNotifications = notifications.filter(n => !n.isRead);
       
       for (const notification of unreadNotifications) {

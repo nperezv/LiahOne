@@ -18,10 +18,8 @@ export function useNotifications() {
   });
 
   const markAsReadMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("PATCH", `/api/notifications/${id}/read`);
-      return res.json();
-    },
+    mutationFn: (id: string) =>
+      apiRequest("PATCH", `/api/notifications/${id}/read`),
     onMutate: async (id: string) => {
       await queryClient.cancelQueries({ queryKey: ["/api/notifications"] });
       await queryClient.cancelQueries({ queryKey: ["/api/notifications/count"] });
@@ -59,10 +57,8 @@ export function useNotifications() {
   });
 
   const markAllAsReadMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("PATCH", "/api/notifications/mark-all-read");
-      return res.json();
-    },
+    mutationFn: () =>
+      apiRequest("PATCH", "/api/notifications/mark-all-read"),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["/api/notifications"] });
       await queryClient.cancelQueries({ queryKey: ["/api/notifications/count"] });
