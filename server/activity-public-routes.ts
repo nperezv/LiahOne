@@ -270,7 +270,7 @@ export function registerActivityPublicRoutes(app: Express) {
       const url = `${base}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "1080", imageHeight: "1350" }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "1080", imageHeight: "1080" }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
