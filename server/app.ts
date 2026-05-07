@@ -23,6 +23,7 @@ export function log(message: string, source = "express") {
 }
 
 export const app = express();
+app.set("trust proxy", 1); // Trust x-forwarded-proto/x-forwarded-for from reverse proxy
 const uploadsPath = path.resolve(process.cwd(), "uploads");
 fs.mkdirSync(uploadsPath, { recursive: true });
 
