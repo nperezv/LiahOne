@@ -188,31 +188,26 @@ export function registerActivityPublicRoutes(app: Express) {
   }
 
   function buildOgHtml(baseHtml: string, opts: {
-    title: string; description: string; url: string; imageUrl?: string; imageWidth?: string; imageHeight?: string;
+    title: string; description: string; url: string; imageUrl?: string;
   }): string {
-    const { title, description, url, imageUrl, imageWidth = "1200", imageHeight = "630" } = opts;
+    const { title, description, url, imageUrl } = opts;
     const tags = [
-      `<meta property="og:type" content="website">`,
-      `<meta property="og:site_name" content="Zendapp">`,
-      `<meta property="og:title" content="${escapeHtml(title)}">`,
-      `<meta property="og:description" content="${escapeHtml(description)}">`,
-      `<meta property="og:url" content="${escapeHtml(url)}">`,
-      imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}">` : "",
-      imageUrl ? `<meta property="og:image:width" content="${imageWidth}">` : "",
-      imageUrl ? `<meta property="og:image:height" content="${imageHeight}">` : "",
-      imageUrl ? `<meta property="og:image:type" content="${imageUrl.match(/\.png/i) ? "image/png" : "image/jpeg"}">` : "",
-      `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}">`,
-      `<meta name="twitter:title" content="${escapeHtml(title)}">`,
-      `<meta name="twitter:description" content="${escapeHtml(description)}">`,
-      imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}">` : "",
-    ].filter(Boolean).join("\n");
-    // Strip ALL existing og:/twitter: meta tags (handles both > and />)
-    let html = baseHtml
-      .replace(/<meta\s[^>]*\bproperty="og:[^"]*"[^>]*\/?>/gi, "")
-      .replace(/<meta\s[^>]*\bname="twitter:[^"]*"[^>]*\/?>/gi, "");
-    // Inject at the very START of <head> — first tags WhatsApp will read
-    html = html.replace(/(<head[^>]*>)/, `$1\n${tags}`);
-    html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+      `<meta property="og:type" content="website" />`,
+      `<meta property="og:site_name" content="Zendapp" />`,
+      `<meta property="og:title" content="${escapeHtml(title)}" />`,
+      `<meta property="og:description" content="${escapeHtml(description)}" />`,
+      `<meta property="og:url" content="${escapeHtml(url)}" />`,
+      imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
+      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
+      imageUrl ? `<meta property="og:image:height" content="1080" />` : "",
+      `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
+      `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
+      `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
+      imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
+    ].filter(Boolean).map(t => `    ${t}`).join("\n");
+    // Inject at end of </head> — WhatsApp reads the last og:image when duplicates exist
+    let html = baseHtml.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+    html = html.replace("</head>", `${tags}\n  </head>`);
     return html;
   }
 
@@ -281,14 +276,11 @@ export function registerActivityPublicRoutes(app: Express) {
   // ── GET /actividades/:slug — OG for individual activity page ─────────────────
   app.get("/actividades/:slug", async (req, res, next) => {
     try {
-      // Real browser navigations send Sec-Fetch-Mode: navigate — serve the SPA directly
-      // Crawlers (WhatsApp, Telegram, etc.) don't send this header — serve minimal OG HTML
-      if (req.get("Sec-Fetch-Mode") === "navigate") return next();
-
       const baseHtml = getIndexHtml();
+      if (!baseHtml) return next();
 
       const rows = await db.execute(sql`
-        SELECT a.title, a.date, a.location, a.flyer_url, a.slug,
+        SELECT a.title, a.description, a.date, a.location, a.flyer_url, a.slug,
                o.name AS organization_name
         FROM activities a
         LEFT JOIN organizations o ON o.id = a.organization_id
@@ -307,15 +299,11 @@ export function registerActivityPublicRoutes(app: Express) {
         : "";
       const parts = [dateStr, timeStr ? `${timeStr} hrs` : "", act.location ?? ""].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
-      const proto = getProto(req);
-      const host = req.get("host");
-      // 1200×630 landscape composite — this is what showed the large card before commit 78f49b94 broke it
-      const imageUrl = `${proto}://${host}/og/actividades/${act.slug}`;
-      const url = `${proto}://${host}/actividades/${act.slug}`;
+      const imageUrl = absoluteUrl(req, act.flyer_url);
+      const url = `${getProto(req)}://${req.get("host")}/actividades/${act.slug}`;
 
-      // Minimal HTML (no scripts/preloads) so WhatsApp parser doesn't get confused
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl || undefined }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
