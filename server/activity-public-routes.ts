@@ -58,15 +58,6 @@ async function generateActivityOgImage(act: {
   // With flyer: landscape 1200×630 (required for WhatsApp large card)
   // — blurred flyer fills background, actual flyer centered at full height
   if (flyerBuf) {
-    const dateStr = act.date
-      ? new Date(act.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
-      : "";
-    const timeStr = act.date
-      ? new Date(act.date).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
-      : "";
-    const dateLine = [dateStr, timeStr ? `${timeStr} hrs` : ""].filter(Boolean).join(" · ");
-    const locLine  = act.location ? truncate(act.location, 50) : "";
-
     const bgBuf = await sharp(flyerBuf)
       .resize(W, H, { fit: "cover", position: "centre" })
       .blur(22).modulate({ brightness: 0.45 })
@@ -78,25 +69,10 @@ async function generateActivityOgImage(act: {
     const fgX = Math.floor((W - fgW) / 2);
     const fgBuf = await sharp(flyerBuf).resize(fgW, fgH, { fit: "fill" }).png().toBuffer();
 
-    const hasLoc = !!locLine;
-    const dateY  = hasLoc ? 558 : 590;
-    const locY   = dateY + 52;
-    const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
-  <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#000" stop-opacity="0"/>
-    <stop offset="55%" stop-color="#000" stop-opacity="0.65"/>
-    <stop offset="100%" stop-color="#000" stop-opacity="0.82"/>
-  </linearGradient></defs>
-  <rect x="0" y="370" width="${W}" height="260" fill="url(#fade)"/>
-  ${dateLine ? `<text x="${W/2}" y="${dateY}" font-family="Arial,sans-serif" font-size="28" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeHtml(dateLine)}</text>` : ""}
-  ${hasLoc   ? `<text x="${W/2}" y="${locY}"  font-family="Arial,sans-serif" font-size="22" fill="rgba(255,255,255,0.72)" text-anchor="middle">${escapeHtml(locLine)}</text>` : ""}
-</svg>`;
-
     return sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } })
       .composite([
         { input: bgBuf, top: 0, left: 0 },
         { input: fgBuf, top: 0, left: fgX },
-        { input: Buffer.from(overlaySvg), top: 0, left: 0 },
       ])
       .png().toBuffer();
   }
