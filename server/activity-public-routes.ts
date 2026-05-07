@@ -58,22 +58,9 @@ async function generateActivityOgImage(act: {
   // With flyer: landscape 1200×630 (required for WhatsApp large card)
   // — blurred flyer fills background, actual flyer centered at full height
   if (flyerBuf) {
-    const bgBuf = await sharp(flyerBuf)
-      .resize(W, H, { fit: "cover", position: "centre" })
-      .blur(22).modulate({ brightness: 0.45 })
-      .png().toBuffer();
-
-    const meta = await sharp(flyerBuf).metadata();
-    const fgH = H;
-    const fgW = Math.min(W, Math.round(fgH * ((meta.width ?? H) / (meta.height ?? W))));
-    const fgX = Math.floor((W - fgW) / 2);
-    const fgBuf = await sharp(flyerBuf).resize(fgW, fgH, { fit: "fill" }).png().toBuffer();
-
+    // Letterbox: flyer centered on black background, no cropping, no text
     return sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } })
-      .composite([
-        { input: bgBuf, top: 0, left: 0 },
-        { input: fgBuf, top: 0, left: fgX },
-      ])
+      .composite([{ input: await sharp(flyerBuf).resize(W, H, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 255 }, position: "centre" }).png().toBuffer(), top: 0, left: 0 }])
       .png().toBuffer();
   }
 
