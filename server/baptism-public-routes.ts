@@ -156,7 +156,11 @@ function buildOgHtml(baseHtml: string, opts: { title: string; description: strin
     imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
   ].filter(Boolean).map(t => `    ${t}`).join("\n");
 
-  let html = baseHtml.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  // Strip default OG/Twitter tags from index.html so ours take priority
+  let html = baseHtml
+    .replace(/<meta\s+property="og:[^"]*"[^>]*\/?>/gi, "")
+    .replace(/<meta\s+name="twitter:[^"]*"[^>]*\/?>/gi, "");
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
   html = html.replace("</head>", `${tags}\n  </head>`);
   return html;
 }
