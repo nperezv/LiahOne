@@ -170,8 +170,8 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,
       imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1200" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="630" />` : "",
+      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
+      imageUrl ? `<meta property="og:image:height" content="1350" />` : "",
       `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
       `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
@@ -275,7 +275,11 @@ export function registerActivityPublicRoutes(app: Express) {
         act.location ?? "",
       ].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
-      const imageUrl = `${req.protocol}://${req.get("host")}/og/actividades/${act.slug}`;
+      // Use the real uploaded flyer when available — WhatsApp renders it as a large card.
+      // Fall back to the generated composite only when there is no flyer.
+      const imageUrl = act.flyer_url
+        ? absoluteUrl(req, act.flyer_url)
+        : `${req.protocol}://${req.get("host")}/og/actividades/${act.slug}`;
       const url = `${req.protocol}://${req.get("host")}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
