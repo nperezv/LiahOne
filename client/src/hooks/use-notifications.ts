@@ -133,7 +133,9 @@ export function useNotifications() {
 
   return {
     notifications: notificationsQuery.data || [],
-    unreadCount: unreadCountQuery.data?.count || 0,
+    unreadCount: notificationsQuery.data
+      ? notificationsQuery.data.filter((n) => !n.isRead).length
+      : (unreadCountQuery.data?.count ?? 0),
     isLoading: notificationsQuery.isLoading || unreadCountQuery.isLoading,
     markAsRead: markAsReadMutation.mutate,
     markAllAsRead: markAllAsReadMutation.mutate,

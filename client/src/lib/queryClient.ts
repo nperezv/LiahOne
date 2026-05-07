@@ -7,11 +7,13 @@ async function throwIfResNotOk(res: Response) {
     const rawBody = (await res.text()).trim();
 
     let reason = res.statusText || "Request failed";
+    let payload: unknown = null;
 
     if (contentType.includes("application/json")) {
       try {
-        const parsed = JSON.parse(rawBody) as { message?: string; error?: string };
-        reason = parsed.message || parsed.error || reason;
+        payload = JSON.parse(rawBody);
+        const p = payload as { message?: string; error?: string };
+        reason = p.message || p.error || reason;
       } catch {
         reason = rawBody || reason;
       }
@@ -21,7 +23,10 @@ async function throwIfResNotOk(res: Response) {
       reason = rawBody;
     }
 
-    throw new Error(`${res.status}: ${reason}`);
+    const err = new Error(`${res.status}: ${reason}`) as Error & { payload: unknown; status: number };
+    err.payload = payload;
+    err.status = res.status;
+    throw err;
   }
 }
 
