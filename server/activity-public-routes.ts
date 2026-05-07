@@ -309,15 +309,13 @@ export function registerActivityPublicRoutes(app: Express) {
       const description = parts.length > 0 ? parts.join(" · ") : title;
       const proto = getProto(req);
       const host = req.get("host");
-      // Use the actual uploaded flyer as og:image — same approach as /f/:activityId which works
-      const imageUrl = act.flyer_url
-        ? (act.flyer_url.startsWith("http") ? act.flyer_url : `${proto}://${host}${act.flyer_url}`)
-        : null;
+      // 1200×630 landscape composite — this is what showed the large card before commit 78f49b94 broke it
+      const imageUrl = `${proto}://${host}/og/actividades/${act.slug}`;
       const url = `${proto}://${host}/actividades/${act.slug}`;
 
-      // Minimal HTML (no scripts/preloads) — same structure as /f/:activityId which works
+      // Minimal HTML (no scripts/preloads) so WhatsApp parser doesn't get confused
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildCrawlerHtml({ title, description, url, imageUrl: imageUrl ?? undefined }));
+      res.send(buildCrawlerHtml({ title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
