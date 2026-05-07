@@ -189,8 +189,9 @@ export function registerActivityPublicRoutes(app: Express) {
 
   function buildOgHtml(baseHtml: string, opts: {
     title: string; description: string; url: string; imageUrl?: string;
+    imageWidth?: string; imageHeight?: string;
   }): string {
-    const { title, description, url, imageUrl } = opts;
+    const { title, description, url, imageUrl, imageWidth = "1200", imageHeight = "630" } = opts;
     const tags = [
       `<meta property="og:type" content="website" />`,
       `<meta property="og:site_name" content="Zendapp" />`,
@@ -198,15 +199,17 @@ export function registerActivityPublicRoutes(app: Express) {
       `<meta property="og:description" content="${escapeHtml(description)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,
       imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : "",
-      imageUrl ? `<meta property="og:image:width" content="1080" />` : "",
-      imageUrl ? `<meta property="og:image:height" content="1080" />` : "",
+      imageUrl ? `<meta property="og:image:width" content="${imageWidth}" />` : "",
+      imageUrl ? `<meta property="og:image:height" content="${imageHeight}" />` : "",
       `<meta name="twitter:card" content="${imageUrl ? "summary_large_image" : "summary"}" />`,
       `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
       imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : "",
     ].filter(Boolean).map(t => `    ${t}`).join("\n");
-    // Inject at end of </head> — WhatsApp reads the last og:image when duplicates exist
-    let html = baseHtml.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+    // Strip existing og:/twitter: tags so ours are the only ones
+    let html = baseHtml.replace(/<meta\s+property="og:[^"]*"[^>]*\/?>/gi, "");
+    html = html.replace(/<meta\s+name="twitter:[^"]*"[^>]*\/?>/gi, "");
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
     html = html.replace("</head>", `${tags}\n  </head>`);
     return html;
   }
@@ -299,11 +302,12 @@ export function registerActivityPublicRoutes(app: Express) {
         : "";
       const parts = [dateStr, timeStr ? `${timeStr} hrs` : "", act.location ?? ""].filter(Boolean);
       const description = parts.length > 0 ? parts.join(" · ") : title;
-      const imageUrl = absoluteUrl(req, act.flyer_url);
-      const url = `${getProto(req)}://${req.get("host")}/actividades/${act.slug}`;
+      const base = `${getProto(req)}://${req.get("host")}`;
+      const imageUrl = act.flyer_url ? `${base}/og/actividades/${act.slug}` : undefined;
+      const url = `${base}/actividades/${act.slug}`;
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl: imageUrl || undefined }));
+      res.send(buildOgHtml(baseHtml, { title, description, url, imageUrl, imageWidth: "1200", imageHeight: "630" }));
     } catch (err) {
       console.error("[og-inject /actividades/:slug] error:", err);
       next();
