@@ -30,7 +30,7 @@ type ProgramItem = {
 type Post = { id: string; displayName: string; message: string };
 type ServiceData = {
   program: ProgramItem[]; posts: Post[]; expiresAtMadrid: string;
-  candidates: Candidate[]; serviceAt: string | null; wardName: string | null;
+  candidates: Candidate[]; serviceAt: string | null; wardName: string | null; locationName: string | null;
   theme?: BaptismTheme;
   unavailable?: "not_approved" | "outside_window" | "pending_logistics";
 };
@@ -472,7 +472,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
         </p>
         {names.length > 0 && dateStr && (
           <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
-            De {joinNames(names)}, realizado en {data.wardName ?? "la congregación"}, {dateStr}
+            De {joinNames(names)}, realizado en {data.locationName ?? data.wardName ?? "la congregación"}, {dateStr}
           </p>
         )}
       </div>

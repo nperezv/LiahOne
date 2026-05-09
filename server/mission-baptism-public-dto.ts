@@ -41,6 +41,7 @@ export function toPublicServiceDTO(input: {
   candidates?: PublicCandidate[];
   serviceAt?: Date | null;
   wardName?: string | null;
+  locationName?: string | null;
 }) {
   return {
     program: input.items
@@ -70,6 +71,7 @@ export function toPublicServiceDTO(input: {
     })),
     serviceAt: input.serviceAt ? input.serviceAt.toISOString() : null,
     wardName: input.wardName ?? null,
+    locationName: input.locationName ?? null,
     expiresAt: input.expiresAt,
     expiresAtMadrid: formatMadrid(input.expiresAt),
   };

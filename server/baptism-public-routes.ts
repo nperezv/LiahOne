@@ -489,7 +489,7 @@ export function registerBaptismPublicRoutes(app: Express) {
       const link = linkResult.rows[0] as any;
       if (!link) return res.status(404).json({ message: "Enlace no encontrado" });
 
-      const svcRow = await db.execute(sql`SELECT approval_status, service_at, candidate_meta FROM baptism_services WHERE id = ${link.service_id}`);
+      const svcRow = await db.execute(sql`SELECT approval_status, service_at, candidate_meta, location_name FROM baptism_services WHERE id = ${link.service_id}`);
       const svc = svcRow.rows[0] as any;
       if (svc?.approval_status !== "approved") return res.json({ unavailable: "not_approved" });
 
@@ -548,8 +548,9 @@ export function registerBaptismPublicRoutes(app: Express) {
       const theme = computeTheme(slugThemeCandidates);
       const expiresAt = link.expires_at ? new Date(link.expires_at) : null;
       const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
+      const locationName = (svc?.location_name as string | null) ?? null;
 
-      const dto = toPublicServiceDTO({ items: itemsResult.rows as any[], approvedPosts: postsResult.rows as any[], expiresAt, candidates, serviceAt, wardName });
+      const dto = toPublicServiceDTO({ items: itemsResult.rows as any[], approvedPosts: postsResult.rows as any[], expiresAt, candidates, serviceAt, wardName, locationName });
       res.json({ ...dto, theme });
     } catch (err) {
       console.error("[GET /bautismo/:slug]", err);
