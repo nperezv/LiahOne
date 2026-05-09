@@ -461,7 +461,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
     >
       {/* Header */}
       <div
-        className="px-6 pt-10 pb-5 text-center border-b"
+        className="px-6 pt-16 pb-5 text-center border-b"
         style={{ borderColor: C.creamDark }}
       >
         <p
@@ -473,11 +473,6 @@ function ProgramPage({ data }: { data: ServiceData }) {
         {names.length > 0 && dateStr && (
           <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
             De {joinNames(names)}, realizado en {data.wardName ?? "la congregación"}, {dateStr}
-          </p>
-        )}
-        {data.wardName && (
-          <p className="mt-0.5 text-xs" style={{ color: C.inkLight }}>
-            {data.wardName}
           </p>
         )}
       </div>
@@ -508,7 +503,7 @@ function HymnsPage({ data }: { data: ServiceData }) {
     >
       {/* Header */}
       <div
-        className="px-6 pt-10 pb-6 text-center border-b"
+        className="px-6 pt-16 pb-6 text-center border-b"
         style={{ borderColor: C.creamDark }}
       >
         <p
