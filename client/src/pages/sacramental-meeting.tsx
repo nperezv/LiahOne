@@ -156,6 +156,49 @@ const MemberAutocomplete = ({
   );
 };
 
+// ─── CallingAutocomplete ──────────────────────────────────────────────────────
+const CallingAutocomplete = ({
+  value, suggestions, placeholder, onChange, testId, className,
+}: {
+  value: string; suggestions: string[]; placeholder?: string;
+  onChange: (v: string) => void; testId?: string; className?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    if (!q) return suggestions;
+    return suggestions.filter((s) => s.toLowerCase().includes(q));
+  }, [suggestions, value]);
+
+  return (
+    <div className="relative flex-1">
+      <Input
+        value={value}
+        placeholder={placeholder ?? "Llamamiento"}
+        autoComplete="off"
+        data-testid={testId}
+        className={className ?? "h-8 text-xs"}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg text-sm">
+          {filtered.slice(0, 15).map((s) => (
+            <li
+              key={s}
+              className="px-3 py-2 cursor-pointer hover:bg-accent truncate"
+              onMouseDown={(e) => { e.preventDefault(); onChange(s); setOpen(false); }}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 // ─── Schema (unchanged) ───────────────────────────────────────────────────────
 const meetingSchema = z.object({
   date: z.string().optional(),
@@ -1567,10 +1610,11 @@ function SacramentalMeetingPageInner() {
                               {release.organizationId && <button type="button" onClick={() => addReleaseToOrg(release.organizationId!)} data-testid={`button-add-release-org-${release.organizationId}`} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"><Plus className="w-3.5 h-3.5" /></button>}
                             </div>
                             <div className="flex gap-2">
-                              <Select value={release.oldCalling || ""} onValueChange={(c) => updateReleaseCalling(i, c)}>
-                                <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Llamamiento" /></SelectTrigger>
-                                <SelectContent>{getCallingsForOrgRelease(release.organizationId, release.oldCalling).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                              </Select>
+                              <CallingAutocomplete
+                                value={release.oldCalling || ""}
+                                suggestions={getCallingsForOrgRelease(release.organizationId, release.oldCalling)}
+                                onChange={(c) => updateReleaseCalling(i, c)}
+                              />
                               <MemberAutocomplete value={release.name} options={uniqueMemberOptions} placeholder="Nombre" onChange={(v) => updateReleaseName(i, v)} testId={`input-release-name-${i}`} className="text-xs" />
                               {releases.length > 1 && <button type="button" onClick={() => removeRelease(i)} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>}
                             </div>
@@ -1591,10 +1635,11 @@ function SacramentalMeetingPageInner() {
                               {s.organizationId && <button type="button" onClick={() => addSustainmentToOrg(s.organizationId!)} data-testid={`button-add-sustainment-org-${s.organizationId}`} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"><Plus className="w-3.5 h-3.5" /></button>}
                             </div>
                             <div className="flex gap-2">
-                              <Select value={s.calling || ""} onValueChange={(c) => updateSustainment(i, "calling", c)}>
-                                <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Llamamiento" /></SelectTrigger>
-                                <SelectContent>{getVacantCallingsForOrgWithCurrent(s.organizationId, s.calling).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                              </Select>
+                              <CallingAutocomplete
+                                value={s.calling || ""}
+                                suggestions={getVacantCallingsForOrgWithCurrent(s.organizationId, s.calling)}
+                                onChange={(c) => updateSustainment(i, "calling", c)}
+                              />
                               <MemberAutocomplete value={s.name} options={uniqueMemberOptions} placeholder="Nombre" onChange={(v) => updateSustainment(i, "name", v)} testId={`input-sustainment-name-${i}`} className="text-xs" />
                               {sustainments.length > 1 && <button type="button" onClick={() => removeSustainment(i)} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>}
                             </div>
