@@ -1,22 +1,19 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { ChevronRight } from "lucide-react";
 import type { BaptismTheme } from "../../../server/baptism-public-routes";
 
-// ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
-  cream:     "#ffffff",
-  creamDark: "#ede9df",
   teal:      "#4a7c7e",
   tealDark:  "#2d5e60",
-  gold:      "#b8955a",
-  goldLight: "#d4aa72",
   ink:       "#2c3e35",
   inkLight:  "#5a6e65",
+  gold:      "#b8955a",
   sage:      "#7a9e8c",
+  creamDark: "#ede9df",
 };
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type LobbyService = {
   slug: string;
   serviceAt: string;
@@ -24,10 +21,8 @@ type LobbyService = {
   wardName: string | null;
   theme: BaptismTheme;
 };
-
 type LobbyData = { service: LobbyService | null };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function joinNames(names: string[]): string {
   if (!names.length) return "";
   if (names.length === 1) return names[0];
@@ -35,50 +30,33 @@ function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
 }
 
-function formatDateLong(iso: string): string {
-  return new Intl.DateTimeFormat("es-ES", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-  }).format(new Date(iso));
+function parseDateParts(iso: string) {
+  const d = new Date(iso);
+  const month = new Intl.DateTimeFormat("es-ES", { month: "long", timeZone: "UTC" }).format(d).toUpperCase();
+  const day   = String(d.getUTCDate()).padStart(2, "0");
+  const year  = String(d.getUTCFullYear());
+  return { month, day, year };
 }
 
-// ── Botanical SVG ─────────────────────────────────────────────────────────────
-function BotanicalCorner({ pos = "tl", size = 130 }: { pos?: "tl" | "tr" | "bl" | "br"; size?: number }) {
-  const sx = pos === "tr" || pos === "br" ? -1 : 1;
-  const sy = pos === "bl" || pos === "br" ? -1 : 1;
-  return (
-    <svg width={size} height={size} viewBox="0 0 130 130" fill="none"
-      style={{ opacity: 0.7, transform: `scale(${sx},${sy})`, transformOrigin: "center" }}>
-      <path d="M8,122 Q35,85 70,50 Q88,32 108,18" stroke={C.sage} strokeWidth="1.2" strokeOpacity="0.5" fill="none" />
-      <path d="M16,110 Q38,88 50,98 Q34,82 16,110Z" fill={C.sage} fillOpacity="0.28" />
-      <path d="M32,93 Q52,72 62,83 Q48,68 32,93Z" fill={C.sage} fillOpacity="0.26" />
-      <path d="M50,74 Q68,55 76,66 Q64,52 50,74Z" fill={C.sage} fillOpacity="0.30" />
-      <path d="M68,56 Q84,40 90,50 Q78,36 68,56Z" fill={C.sage} fillOpacity="0.24" />
-      <path d="M86,40 Q98,28 103,36 Q94,25 86,40Z" fill={C.sage} fillOpacity="0.22" />
-      <circle cx="54" cy="104" r="2.2" fill={C.gold} fillOpacity="0.4" />
-      <circle cx="62" cy="110" r="1.5" fill={C.gold} fillOpacity="0.35" />
-    </svg>
-  );
-}
+const THEME_CONFIG: Record<BaptismTheme, { image: string; accent: string; accentDark: string; titleColor: string }> = {
+  nino:         { image: "/covenantspathboy.png",    accent: "#6ba3c8", accentDark: "#3d7aa8", titleColor: "#3d6080" },
+  nina:         { image: "/covenantspathgirl.png",   accent: "#c47a8a", accentDark: "#9a4e62", titleColor: "#8a3e55" },
+  joven_varon:  { image: "/covenanthspathhim.png",   accent: "#6a9c7e", accentDark: "#3d7060", titleColor: "#2d5e60" },
+  joven_mujer:  { image: "/covenantspathher.png",    accent: "#9b7ec8", accentDark: "#7358a8", titleColor: "#5a3a90" },
+  adulto:       { image: "/covenantspath.png",       accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60" },
+  adulta:       { image: "/theshepherd.png",         accent: "#b8955a", accentDark: "#8a6e3a", titleColor: "#4a7c7e" },
+  multi_kids:   { image: "/covenantspathkids.png",   accent: "#6a9c7e", accentDark: "#3d7060", titleColor: "#2d5e60" },
+  multi_family: { image: "/covenantspathfamily.png", accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60" },
+  multi_adults: { image: "/covenantspath.png",       accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60" },
+  fallback:     { image: "/theshepherd.png",         accent: "#4a7c7e", accentDark: "#2d5e60", titleColor: "#2d5e60" },
+};
 
-// ── Divider ───────────────────────────────────────────────────────────────────
-function GoldDivider() {
-  return (
-    <div className="flex items-center gap-3 w-full max-w-[200px]">
-      <div className="h-px flex-1" style={{ background: C.gold, opacity: 0.45 }} />
-      <div className="w-1.5 h-1.5 rounded-full" style={{ background: C.gold, opacity: 0.5 }} />
-      <div className="h-px flex-1" style={{ background: C.gold, opacity: 0.45 }} />
-    </div>
-  );
-}
-
-// ── Main lobby page ───────────────────────────────────────────────────────────
 export default function BaptismLobbyPage() {
   const [, navigate] = useLocation();
 
   useEffect(() => {
     const meta = document.createElement("meta");
-    meta.name = "robots";
-    meta.content = "noindex, nofollow";
+    meta.name = "robots"; meta.content = "noindex, nofollow";
     document.head.appendChild(meta);
     return () => { document.head.removeChild(meta); };
   }, []);
@@ -89,125 +67,120 @@ export default function BaptismLobbyPage() {
   });
 
   const svc = data?.service ?? null;
+  const tc = THEME_CONFIG[svc?.theme ?? "fallback"];
+  const names = svc?.candidateNames ?? [];
+  const dateParts = svc ? parseDateParts(svc.serviceAt) : null;
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "#ffffff" }}>
+        <img src="/thelambofgod.png" alt="" className="w-24 opacity-20" />
+      </main>
+    );
+  }
+
+  if (!svc) {
+    return (
+      <main
+        className="min-h-screen flex flex-col items-center justify-center gap-5 px-8 text-center"
+        style={{ background: "#ffffff", fontFamily: "'EB Garamond', Georgia, serif" }}
+      >
+        <img src="/thelambofgod.png" alt="" className="w-36 opacity-50" />
+        <div>
+          <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.85rem", letterSpacing: "0.08em", color: C.tealDark }} className="font-semibold mb-1">
+            Sin servicios hoy
+          </p>
+          <p className="text-sm leading-relaxed" style={{ color: C.inkLight }}>
+            No hay servicios bautismales<br />programados para hoy.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main
-      className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
-      style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
+      className="relative overflow-hidden select-none"
+      style={{ minHeight: "100dvh", background: "#ffffff", fontFamily: "'EB Garamond', Georgia, serif" }}
+      onClick={() => navigate(`/bautismo/${svc.slug}`)}
     >
-      {/* Botanical corners */}
-      <div className="absolute top-0 left-0 pointer-events-none"><BotanicalCorner pos="tl" size={140} /></div>
-      <div className="absolute top-0 right-0 pointer-events-none"><BotanicalCorner pos="tr" size={140} /></div>
-      <div className="absolute bottom-0 left-0 pointer-events-none"><BotanicalCorner pos="bl" size={110} /></div>
-      <div className="absolute bottom-0 right-0 pointer-events-none"><BotanicalCorner pos="br" size={110} /></div>
+      {/* Ghost watermark image */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center" style={{ zIndex: 1 }}>
+        <img
+          src={tc.image}
+          alt=""
+          style={{ width: "82%", maxWidth: 340, objectFit: "contain", opacity: 0.18, mixBlendMode: "multiply" }}
+        />
+      </div>
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center w-full px-6 py-10 max-w-sm mx-auto gap-6">
-
-        {/* Eyebrow */}
-        <div className="flex flex-col items-center gap-2">
-          <p
-            className="uppercase tracking-[0.25em] text-xs font-semibold"
-            style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
-          >
-            {svc?.wardName ?? "Servicio Bautismal"}
+      {/* Content — vertically centered */}
+      <div
+        className="relative flex flex-col justify-center px-7"
+        style={{ zIndex: 2, minHeight: "100dvh" }}
+      >
+        {/* Ward name */}
+        {svc.wardName && (
+          <p className="text-center mb-6" style={{
+            fontFamily: "'Cinzel', serif", fontSize: "0.6rem",
+            letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase",
+          }}>
+            {svc.wardName}
           </p>
-          <GoldDivider />
-        </div>
-        {isLoading ? (
-          <div className="flex flex-col items-center gap-4 py-16">
-            <img src="/thelambofgod.png" alt="" className="w-28 opacity-30" />
-            <p className="text-sm" style={{ color: C.inkLight }}>Buscando programa...</p>
-          </div>
-        ) : svc ? (
-          <>
-            {/* Hero: candidate name(s) */}
-            <div className="flex flex-col items-center gap-3 text-center">
-              <p
-                className="leading-tight px-2"
-                style={{
-                  fontFamily: "'Dancing Script', cursive",
-                  fontSize: svc.candidateNames.length >= 3
-                    ? "clamp(1.5rem, 7vw, 2rem)"
-                    : svc.candidateNames.length === 2
-                    ? "clamp(1.9rem, 9vw, 2.6rem)"
-                    : "clamp(2.4rem, 11vw, 3.4rem)",
-                  color: C.ink,
-                  lineHeight: 1.15,
-                }}
-              >
-                {joinNames(svc.candidateNames)}
-              </p>
-              <p
-                className="text-base italic"
-                style={{ color: C.inkLight }}
-              >
-                Servicio Bautismal
-              </p>
-              <p
-                className="text-sm capitalize tracking-wide"
-                style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
-              >
-                {formatDateLong(svc.serviceAt)}
-              </p>
-            </div>
+        )}
 
-            {/* Theme image — decorative */}
-            <div className="relative w-64 h-64 flex items-center justify-center">
-              <img
-                src={`/${themeImage(svc.theme)}`}
-                alt=""
-                className="w-full h-full object-contain"
-                style={{ opacity: 0.88 }}
-              />
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={() => navigate(`/bautismo/${svc.slug}`)}
-              className="w-full py-3 rounded-xl font-semibold text-sm tracking-wide text-white transition-opacity hover:opacity-90 active:opacity-80"
-              style={{
-                background: `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDark} 100%)`,
-                fontFamily: "'Cinzel', serif",
-                letterSpacing: "0.1em",
-              }}
-            >
-              Ver programa
-            </button>
-          </>
-        ) : (
-          /* ── Empty state ── */
-          <div className="flex flex-col items-center gap-5 py-10 text-center">
-            <img src="/thelambofgod.png" alt="" className="w-40 opacity-60" />
-            <div>
-              <p className="font-semibold mb-1" style={{ color: C.tealDark, fontFamily: "'Cinzel', serif", fontSize: "0.85rem", letterSpacing: "0.08em" }}>
-                Sin servicios hoy
-              </p>
-              <p className="text-sm leading-relaxed" style={{ color: C.inkLight }}>
-                No hay servicios bautismales<br />programados para hoy.
-              </p>
-            </div>
+        {/* Date pill */}
+        {dateParts && (
+          <div className="flex items-center justify-center mb-4">
+            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.58rem", letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase" }}>
+              {dateParts.month}
+            </span>
+            <span style={{
+              borderLeft: `1px solid ${tc.accentDark}`, borderRight: `1px solid ${tc.accentDark}`,
+              margin: "0 9px", padding: "0 9px",
+              fontFamily: "'Cinzel', serif", fontSize: "1.35rem",
+              fontWeight: 700, lineHeight: 1, color: tc.accent,
+            }}>
+              {dateParts.day}
+            </span>
+            <span style={{ fontFamily: "'Cinzel', serif", fontSize: "0.58rem", letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase" }}>
+              {dateParts.year}
+            </span>
           </div>
         )}
-        {/* Footer divider */}
-        <GoldDivider />
+
+        {/* Mi Bautismo */}
+        <div className="flex justify-center mb-5">
+          <div className="flex flex-col items-start">
+            <h1 style={{ fontFamily: "'Cinzel', Georgia, serif", fontSize: "clamp(2rem, 10vw, 2.8rem)", fontWeight: 700, lineHeight: 0.88, color: tc.titleColor, margin: 0 }}>
+              Mi
+            </h1>
+            <h1 style={{ fontFamily: "'Cinzel', Georgia, serif", fontSize: "clamp(1.7rem, 8.5vw, 2.4rem)", fontWeight: 700, lineHeight: 0.92, color: tc.titleColor, margin: 0 }}>
+              Bautismo
+            </h1>
+          </div>
+        </div>
+
+        {/* Names */}
+        <div className="flex flex-col items-center">
+          {names.map((name, i) => (
+            <p key={i} style={{
+              fontFamily: "'Dancing Script', cursive",
+              fontSize: names.length >= 3 ? "clamp(1.5rem, 7vw, 2rem)" : names.length === 2 ? "clamp(1.9rem, 9vw, 2.6rem)" : "clamp(1.9rem, 9vw, 2.6rem)",
+              color: C.ink, lineHeight: 1.3, margin: 0,
+            }}>
+              {name}
+            </p>
+          ))}
+        </div>
+      </div>
+
+      {/* Tap hint */}
+      <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-1 pointer-events-none" style={{ zIndex: 3 }}>
+        <p style={{ fontFamily: "'Cinzel', serif", fontSize: "0.72rem", letterSpacing: "0.18em", textTransform: "uppercase", color: tc.accent, opacity: 0.85 }}>
+          Ver programa
+        </p>
+        <ChevronRight size={16} style={{ color: tc.accent, opacity: 0.75 }} />
       </div>
     </main>
   );
-}
-
-function themeImage(theme: BaptismTheme): string {
-  const map: Record<BaptismTheme, string> = {
-    nino:          "covenantspathboy.png",
-    nina:          "covenantspathgirl.png",
-    joven_varon:   "covenanthspathhim.png",
-    joven_mujer:   "covenantspathher.png",
-    adulto:        "covenantspath.png",
-    adulta:        "theshepherd.png",
-    multi_kids:    "covenantspathkids.png",
-    multi_family:  "covenantspathfamily.png",
-    multi_adults:  "covenantspath.png",
-    fallback:      "theshepherd.png",
-  };
-  return map[theme] ?? "theshepherd.png";
 }

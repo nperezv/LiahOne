@@ -733,7 +733,7 @@ type PageId = typeof PAGES[number];
 
 function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slug: string; code: string; isCatalog: boolean }) {
   const hasHymns = data.program.some((i) => i.hymn);
-  const visiblePages: PageId[] = ["cover", "program", ...(hasHymns ? ["hymns" as PageId] : []), "greetings"];
+  const visiblePages: PageId[] = ["program", ...(hasHymns ? ["hymns" as PageId] : []), "greetings"];
 
   const [pageIdx, setPageIdx] = useState(0);
   const [anim, setAnim] = useState<"" | "out" | "in" | "out-back" | "in-back">("");
@@ -788,7 +788,7 @@ function DiptychViewer({ data, slug, code, isCatalog }: { data: ServiceData; slu
           willChange: "transform, opacity",
           boxShadow: anim ? "4px 0 24px rgba(0,0,0,0.12), -4px 0 24px rgba(0,0,0,0.08)" : undefined,
         }}
-        onClick={() => { if (currentPage === "cover") navigate("next"); }}
+        onClick={() => {}}
       >
         {currentPage === "cover"     && <CoverPage data={data} />}
         {currentPage === "program"   && <ProgramPage data={data} />}
