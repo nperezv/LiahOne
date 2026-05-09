@@ -472,7 +472,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
         </p>
         {names.length > 0 && dateStr && (
           <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
-            De {joinNames(names)}, realizado en {data.locationName ?? data.wardName ?? "la congregación"}, {dateStr}
+            De {joinNames(names)}, realizado en {data.locationName ?? "Madrid"}, {dateStr}
           </p>
         )}
       </div>
