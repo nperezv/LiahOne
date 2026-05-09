@@ -456,36 +456,35 @@ function ProgramPage({ data }: { data: ServiceData }) {
 
   return (
     <div
-      className="min-h-screen overflow-y-auto"
+      className="min-h-screen flex flex-col justify-center overflow-y-auto py-24 px-6"
       style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
-      {/* Header */}
-      <div
-        className="px-6 pt-20 pb-5 text-center border-b"
-        style={{ borderColor: C.creamDark }}
-      >
-        <p
-          className="uppercase font-semibold"
-          style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em" }}
-        >
-          Programa de Servicio Bautismal
-        </p>
-        {names.length > 0 && dateStr && (
-          <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
-            De {joinNames(names)}, realizado en Madrid, {dateStr}
+      <div className="max-w-sm mx-auto w-full space-y-4">
+        {/* Header */}
+        <div className="text-center space-y-1 pb-4 border-b" style={{ borderColor: C.creamDark }}>
+          <p
+            className="uppercase font-semibold"
+            style={{ color: C.teal, fontFamily: "'Cinzel', serif", fontSize: "0.65rem", letterSpacing: "0.2em" }}
+          >
+            Programa de Servicio Bautismal
           </p>
-        )}
-      </div>
+          {names.length > 0 && dateStr && (
+            <p className="text-xs italic" style={{ color: C.inkLight }}>
+              De {joinNames(names)}, realizado en Madrid, {dateStr}
+            </p>
+          )}
+        </div>
 
-      {/* Items */}
-      <div className="px-6 pt-4 max-w-sm mx-auto">
-        {items.length === 0 ? (
-          <p className="text-sm text-center py-10" style={{ color: C.inkLight }}>
-            El programa no está disponible aún.
-          </p>
-        ) : (
-          items.map((item, i) => renderItem(item, i))
-        )}
+        {/* Items */}
+        <div>
+          {items.length === 0 ? (
+            <p className="text-sm text-center py-10" style={{ color: C.inkLight }}>
+              El programa no está disponible aún.
+            </p>
+          ) : (
+            items.map((item, i) => renderItem(item, i))
+          )}
+        </div>
       </div>
     </div>
   );
