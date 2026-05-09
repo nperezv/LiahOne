@@ -8982,7 +8982,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const childDate = new Date(); childDate.setFullYear(childDate.getFullYear() - 10);
           const childFecha = childDate.toISOString().split("T")[0];
           const candidateMetaAuto = JSON.stringify(
-            Array.from({ length: Math.max(names.length, 1) }, () => ({ sexo: sexoAuto, fechaNacimiento: childFecha }))
+            names.length > 0
+              ? names.map((nombre: string) => ({ nombre, sexo: sexoAuto, fechaNacimiento: childFecha }))
+              : [{ sexo: sexoAuto, fechaNacimiento: childFecha }]
           );
 
           const svcResult = await db.execute(sql`
@@ -9238,7 +9240,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const metaChildDate = new Date(); metaChildDate.setFullYear(metaChildDate.getFullYear() - 10);
       const metaFecha = metaChildDate.toISOString().split("T")[0];
       const candidateMetaJson = JSON.stringify(
-        Array.from({ length: Math.max(candidatosRaw.length, 1) }, () => ({ sexo: sexoExplicito, fechaNacimiento: metaFecha }))
+        candidatosRaw.length > 0
+          ? candidatosRaw.map((nombre: string) => ({ nombre, sexo: sexoExplicito, fechaNacimiento: metaFecha }))
+          : [{ sexo: sexoExplicito, fechaNacimiento: metaFecha }]
       );
 
       if (!serviceId) {

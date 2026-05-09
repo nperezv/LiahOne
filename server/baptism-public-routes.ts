@@ -450,15 +450,17 @@ export function registerBaptismPublicRoutes(app: Express) {
 
       const candRows = candResult.rows as any[];
       let themeCandidates = candRows.map((r) => ({ sexo: r.sexo as string | null, fechaNacimiento: r.fechaNacimiento as string | null }));
+      let candidateNames: string[] = candRows.map((r) => r.nombre as string);
       if (themeCandidates.length === 0) {
         // niño inscrito: no mission_personas — use candidate_meta stored on the service
         const metaRow = await db.execute(sql`SELECT candidate_meta FROM baptism_services WHERE id = ${svc.id}`);
         const meta = (metaRow.rows[0] as any)?.candidate_meta;
-        if (Array.isArray(meta) && meta.length > 0)
+        if (Array.isArray(meta) && meta.length > 0) {
           themeCandidates = meta.map((m: any) => ({ sexo: m.sexo ?? null, fechaNacimiento: m.fechaNacimiento ?? null }));
+          candidateNames = meta.map((m: any) => m.nombre as string).filter(Boolean);
+        }
       }
       const theme = computeTheme(themeCandidates);
-      const candidateNames = candRows.map((r) => r.nombre as string);
       const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
 
       res.json({

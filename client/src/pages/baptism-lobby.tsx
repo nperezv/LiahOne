@@ -123,12 +123,12 @@ export default function BaptismLobbyPage() {
         ) : svc ? (
           <>
             {/* Hero: candidate name(s) */}
-            <div className="flex flex-col items-center gap-2 text-center">
+            <div className="flex flex-col items-center gap-3 text-center">
               <p
-                className="leading-tight"
+                className="leading-tight px-2"
                 style={{
                   fontFamily: "'Dancing Script', cursive",
-                  fontSize: "clamp(2rem, 9vw, 2.8rem)",
+                  fontSize: "clamp(2.4rem, 11vw, 3.4rem)",
                   color: C.ink,
                   lineHeight: 1.15,
                 }}
@@ -136,13 +136,13 @@ export default function BaptismLobbyPage() {
                 {joinNames(svc.candidateNames)}
               </p>
               <p
-                className="text-sm italic"
+                className="text-base italic"
                 style={{ color: C.inkLight }}
               >
                 {plural ? "se bautizan hoy" : "se bautiza hoy"}
               </p>
               <p
-                className="text-xs capitalize tracking-wide mt-1"
+                className="text-sm capitalize tracking-wide"
                 style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
               >
                 {formatDateLong(svc.serviceAt)}
@@ -150,9 +150,7 @@ export default function BaptismLobbyPage() {
             </div>
 
             {/* Theme image — decorative */}
-            <div
-              className="relative w-40 h-40 flex items-center justify-center"
-            >
+            <div className="relative w-56 h-56 flex items-center justify-center">
               <img
                 src={`/${themeImage(svc.theme)}`}
                 alt=""
