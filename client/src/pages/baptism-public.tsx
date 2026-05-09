@@ -456,12 +456,12 @@ function ProgramPage({ data }: { data: ServiceData }) {
 
   return (
     <div
-      className="min-h-screen overflow-y-auto pb-24"
+      className="min-h-screen overflow-y-auto"
       style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
       {/* Header */}
       <div
-        className="px-6 pt-16 pb-5 text-center border-b"
+        className="px-6 pt-20 pb-5 text-center border-b"
         style={{ borderColor: C.creamDark }}
       >
         <p
@@ -472,7 +472,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
         </p>
         {names.length > 0 && dateStr && (
           <p className="mt-1.5 text-xs italic" style={{ color: C.inkLight }}>
-            De {joinNames(names)}, realizado en {data.locationName ?? "Madrid"}, {dateStr}
+            De {joinNames(names)}, realizado en Madrid, {dateStr}
           </p>
         )}
       </div>
@@ -498,12 +498,12 @@ function HymnsPage({ data }: { data: ServiceData }) {
 
   return (
     <div
-      className="min-h-screen overflow-y-auto pb-24"
+      className="min-h-screen overflow-y-auto"
       style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
       {/* Header */}
       <div
-        className="px-6 pt-16 pb-6 text-center border-b"
+        className="px-6 pt-20 pb-6 text-center border-b"
         style={{ borderColor: C.creamDark }}
       >
         <p
@@ -606,12 +606,12 @@ function GreetingsPage({
 
   return (
     <div
-      className="min-h-screen overflow-y-auto pb-24"
+      className="min-h-screen overflow-y-auto"
       style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
       {/* Header */}
       <div
-        className="px-6 pt-10 pb-6 text-center border-b"
+        className="px-6 pt-20 pb-6 text-center border-b"
         style={{ borderColor: C.creamDark }}
       >
         <p
