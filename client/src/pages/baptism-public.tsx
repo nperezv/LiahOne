@@ -498,58 +498,58 @@ function HymnsPage({ data }: { data: ServiceData }) {
 
   return (
     <div
-      className="min-h-screen overflow-y-auto"
+      className="min-h-screen flex flex-col justify-center overflow-y-auto py-24 px-6"
       style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
-      {/* Header */}
-      <div
-        className="px-6 pt-20 pb-6 text-center border-b"
-        style={{ borderColor: C.creamDark }}
-      >
+      <div className="max-w-sm mx-auto w-full space-y-6">
         <p
-          className="text-xs tracking-[0.22em] uppercase font-semibold"
+          className="text-xs tracking-[0.22em] uppercase font-semibold text-center"
           style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
         >
           Himnos del Servicio Bautismal
         </p>
-      </div>
+        <div className="border-t" style={{ borderColor: C.creamDark }} />
 
-      <div className="px-6 pt-6 max-w-sm mx-auto space-y-5">
         {hymnItems.length === 0 ? (
-          <p className="text-sm text-center py-10" style={{ color: C.inkLight }}>
+          <p className="text-sm text-center" style={{ color: C.inkLight }}>
             No hay himnos en el programa.
           </p>
         ) : (
-          hymnItems.map((item, i) => (
-            <div key={i} className="border-b pb-5" style={{ borderColor: C.creamDark }}>
-              <p
-                className="text-xs tracking-[0.12em] uppercase font-semibold mb-1"
-                style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
-              >
-                {PROGRAM_LABELS[item.type] ?? item.type}
-              </p>
-              <p className="font-semibold text-base" style={{ color: C.ink }}>
-                #{item.hymn!.number}{item.hymn!.title ? ` · ${item.hymn!.title}` : ""}
-              </p>
-              {item.hymn!.externalUrl && (
-                <a
-                  href={item.hymn!.externalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium px-3 py-1.5 rounded-lg"
-                  style={{ background: C.teal, color: "#fff" }}
+          <div className="space-y-6">
+            {hymnItems.map((item, i) => (
+              <div key={i}>
+                <p
+                  className="text-xs tracking-[0.12em] uppercase font-semibold mb-1"
+                  style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
                 >
-                  <Music size={12} />
-                  Abrir himno
-                  <ExternalLink size={10} />
-                </a>
-              )}
-            </div>
-          ))
+                  {PROGRAM_LABELS[item.type] ?? item.type}
+                </p>
+                <p className="font-semibold text-base" style={{ color: C.ink }}>
+                  #{item.hymn!.numberDisplay ?? item.hymn!.number}{item.hymn!.title ? ` · ${item.hymn!.title}` : ""}
+                </p>
+                {item.hymn!.externalUrl && (
+                  <a
+                    href={item.hymn!.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium px-3 py-1.5 rounded-lg"
+                    style={{ background: C.teal, color: "#fff" }}
+                  >
+                    <Music size={12} />
+                    Abrir himno
+                    <ExternalLink size={10} />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
         )}
-        <p className="text-xs text-center pt-2 leading-relaxed" style={{ color: C.inkLight }}>
-          Los himnos enlazan a la página oficial de La Iglesia de Jesucristo.
-        </p>
+
+        <div className="border-t pt-4" style={{ borderColor: C.creamDark }}>
+          <p className="text-xs text-center leading-relaxed" style={{ color: C.inkLight }}>
+            Los himnos enlazan a la página oficial de La Iglesia de Jesucristo.
+          </p>
+        </div>
       </div>
     </div>
   );
