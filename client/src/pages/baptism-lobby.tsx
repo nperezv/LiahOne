@@ -92,7 +92,7 @@ export default function BaptismLobbyPage() {
 
   return (
     <main
-      className="relative min-h-screen flex flex-col items-center justify-between overflow-hidden"
+      className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
       style={{ background: C.cream, fontFamily: "'EB Garamond', Georgia, serif" }}
     >
       {/* Botanical corners */}
@@ -101,19 +101,19 @@ export default function BaptismLobbyPage() {
       <div className="absolute bottom-0 left-0 pointer-events-none"><BotanicalCorner pos="bl" size={110} /></div>
       <div className="absolute bottom-0 right-0 pointer-events-none"><BotanicalCorner pos="br" size={110} /></div>
 
-      {/* Header eyebrow */}
-      <div className="relative z-10 flex flex-col items-center pt-14 gap-2 px-6 text-center">
-        <p
-          className="uppercase tracking-[0.25em] text-xs font-semibold"
-          style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
-        >
-          {svc?.wardName ?? "Servicio Bautismal"}
-        </p>
-        <GoldDivider />
-      </div>
-
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center w-full px-6 py-6 max-w-sm mx-auto gap-8">
+      <div className="relative z-10 flex flex-col items-center w-full px-6 py-10 max-w-sm mx-auto gap-6">
+
+        {/* Eyebrow */}
+        <div className="flex flex-col items-center gap-2">
+          <p
+            className="uppercase tracking-[0.25em] text-xs font-semibold"
+            style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
+          >
+            {svc?.wardName ?? "Servicio Bautismal"}
+          </p>
+          <GoldDivider />
+        </div>
         {isLoading ? (
           <div className="flex flex-col items-center gap-4 py-16">
             <img src="/thelambofgod.png" alt="" className="w-28 opacity-30" />
@@ -189,10 +189,7 @@ export default function BaptismLobbyPage() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="relative z-10 mb-8">
+        {/* Footer divider */}
         <GoldDivider />
       </div>
     </main>
