@@ -25,7 +25,7 @@ type BaptismTheme = "nino" | "nina" | "joven_varon" | "joven_mujer" | "adulto" |
 type Candidate = { nombre: string; personaId?: string };
 type ProgramItem = {
   type: string; title: string | null; order: number;
-  hymn: { number: number | null; title: string | null; externalUrl: string | null } | null;
+  hymn: { number: number | null; numberDisplay: string | null; title: string | null; externalUrl: string | null } | null;
 };
 type Post = { id: string; displayName: string; message: string };
 type ServiceData = {
@@ -443,7 +443,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
           </span>
           <span className="text-sm" style={{ color: C.ink, fontFamily: "'EB Garamond', serif" }}>
             {item.hymn
-              ? `#${item.hymn.number}${item.hymn.title ? `, ${item.hymn.title}` : ""}`
+              ? `#${item.hymn.numberDisplay ?? item.hymn.number}${item.hymn.title ? `, ${item.hymn.title}` : ""}`
               : (item.title || "—")}
           </span>
         </div>

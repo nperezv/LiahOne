@@ -5,6 +5,7 @@ export type PublicProgramInputItem = {
   publicVisibility: boolean;
   hymnId: string | null;
   hymnNumber: number | null;
+  hymnNumberDisplay: string | null;
   hymnTitle: string | null;
   hymnExternalUrl: string | null;
   participantUserId?: string | null;
@@ -52,6 +53,7 @@ export function toPublicServiceDTO(input: {
         hymn: item.hymnId
           ? {
               number: item.hymnNumber,
+              numberDisplay: item.hymnNumberDisplay,
               title: item.hymnTitle,
               externalUrl: item.hymnExternalUrl,
             }

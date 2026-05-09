@@ -570,6 +570,7 @@ export const hymns = pgTable("hymns", {
   hymnbook: text("hymnbook").notNull().default("default"),
   lang: text("lang").notNull().default("es"),
   number: integer("number").notNull(),
+  numberDisplay: text("number_display"),
   title: text("title").notNull(),
   externalUrl: text("external_url"),
 });

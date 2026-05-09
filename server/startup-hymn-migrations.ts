@@ -10,23 +10,32 @@ export async function applyHymnStartupMigrations(_db?: unknown) {
   await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS hymnbook text NOT NULL DEFAULT 'default'`);
   await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS lang text NOT NULL DEFAULT 'es'`);
   await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS external_url text`);
+  await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS number_display text`);
+
+  // Fix unique index: (number) → (number, hymnbook) to allow primaria to share numbers with himnario
+  await db.execute(sql`DROP INDEX IF EXISTS hymns_number_unique`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS hymns_number_hymnbook_unique ON hymns (number, hymnbook)`);
+
+  // Classify existing hymns by hymnbook
+  await db.execute(sql`UPDATE hymns SET hymnbook = 'himnario'      WHERE number BETWEEN 1 AND 209   AND hymnbook = 'default'`);
+  await db.execute(sql`UPDATE hymns SET hymnbook = 'hogar_iglesia' WHERE number >= 1001              AND hymnbook = 'default'`);
 
   // Insert missing new-hymnbook entries (migration 0084)
   await db.execute(sql`
-    INSERT INTO hymns (number, title) VALUES
-      (1052, '¡Oh, qué gozo nos da!'),
-      (1053, 'Mis convenios'),
-      (1054, 'Al bautizarme a Cristo seguiré'),
-      (1055, 'El poder del Santo Espíritu'),
-      (1056, 'Elías y la suave voz'),
-      (1057, 'Mi pastor es Cristo'),
-      (1058, 'Mi canto en la noche'),
-      (1059, 'El mundo es de Dios'),
-      (1060, 'Un arca construiré'),
-      (1061, 'Cuán dulce hogar de amor'),
-      (1062, 'Nuestro ayuno, oh, Señor'),
-      (1210, 'Tiempo atrás, en un jardín')
-    ON CONFLICT (number) DO NOTHING
+    INSERT INTO hymns (number, hymnbook, title) VALUES
+      (1052, 'hogar_iglesia', '¡Oh, qué gozo nos da!'),
+      (1053, 'hogar_iglesia', 'Mis convenios'),
+      (1054, 'hogar_iglesia', 'Al bautizarme a Cristo seguiré'),
+      (1055, 'hogar_iglesia', 'El poder del Santo Espíritu'),
+      (1056, 'hogar_iglesia', 'Elías y la suave voz'),
+      (1057, 'hogar_iglesia', 'Mi pastor es Cristo'),
+      (1058, 'hogar_iglesia', 'Mi canto en la noche'),
+      (1059, 'hogar_iglesia', 'El mundo es de Dios'),
+      (1060, 'hogar_iglesia', 'Un arca construiré'),
+      (1061, 'hogar_iglesia', 'Cuán dulce hogar de amor'),
+      (1062, 'hogar_iglesia', 'Nuestro ayuno, oh, Señor'),
+      (1210, 'hogar_iglesia', 'Tiempo atrás, en un jardín')
+    ON CONFLICT (number, hymnbook) DO NOTHING
   `);
 
   // Set external_url for all hymns (migrations 0083 + 0084 URL section)
@@ -318,5 +327,130 @@ export async function applyHymnStartupMigrations(_db?: unknown) {
     ) AS v(num, url)
     WHERE hymns.number = v.num
       AND (hymns.external_url IS NULL OR hymns.external_url = '')
+  `);
+
+  // Insert Canciones para los Niños (primaria) — hymnbook='primaria'
+  // Letter-variant numbers use X*1000+letter_index to avoid conflicts within hymnbook
+  await db.execute(sql`
+    INSERT INTO hymns (number, number_display, hymnbook, lang, title, external_url) VALUES
+      (2,      NULL,    'primaria', 'es', 'Soy un hijo de Dios',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-am-a-child-of-god?lang=spa'),
+      (4,      NULL,    'primaria', 'es', 'Niños de todo el mundo',                     'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/children-all-over-the-world?lang=spa'),
+      (6,      NULL,    'primaria', 'es', 'Oración de un niño',                         'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/a-childs-prayer?lang=spa'),
+      (8,      NULL,    'primaria', 'es', 'Dios vive',                                  'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-know-my-father-lives?lang=spa'),
+      (9,      NULL,    'primaria', 'es', 'Doy gracias, oh Padre',                      'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-thank-thee-dear-father?lang=spa'),
+      (10,     NULL,    'primaria', 'es', 'Con reverencia',                             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/father-i-will-reverent-be?lang=spa'),
+      (11,     NULL,    'primaria', 'es', 'Con quietud',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/reverently-quietly?lang=spa'),
+      (12,     NULL,    'primaria', 'es', 'La reverencia es amor',                      'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/reverence-is-love?lang=spa'),
+      (13,     NULL,    'primaria', 'es', 'Reverencia mostraré',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-will-try-to-be-reverent?lang=spa'),
+      (14,     NULL,    'primaria', 'es', '¿Puede un niño como yo?',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/can-a-little-child-like-me?lang=spa'),
+      (15,     NULL,    'primaria', 'es', 'Demos gracias al padre',                     'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/thanks-to-our-father?lang=spa'),
+      (16,     NULL,    'primaria', 'es', 'Mi Padre Celestial me ama',                  'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/my-heavenly-father-loves-me?lang=spa'),
+      (18001,  '18a',   'primaria', 'es', 'Rondó de gracias',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/for-health-and-strength-round?lang=spa'),
+      (18002,  '18b',   'primaria', 'es', 'Al orar',                                    'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/we-bow-our-heads?lang=spa'),
+      (20,     NULL,    'primaria', 'es', 'Mandó a Su Hijo',                            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/he-sent-his-son?lang=spa'),
+      (22,     NULL,    'primaria', 'es', 'Al irse a Belén José',                       'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/when-joseph-went-to-bethlehem?lang=spa'),
+      (24,     NULL,    'primaria', 'es', 'La Nochebuena',                              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/stars-were-gleaming?lang=spa'),
+      (25,     NULL,    'primaria', 'es', 'Dentro de un establo humilde',               'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/once-within-a-lowly-stable?lang=spa'),
+      (26,     NULL,    'primaria', 'es', 'Jesús en pesebre',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/away-in-a-manger?lang=spa'),
+      (28,     NULL,    'primaria', 'es', 'El arrullo de María',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/marys-lullaby?lang=spa'),
+      (30,     NULL,    'primaria', 'es', 'Duerme, mi nene',                            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/oh-hush-thee-my-baby?lang=spa'),
+      (32,     NULL,    'primaria', 'es', 'Canto de Navidad',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-nativity-song?lang=spa'),
+      (34,     NULL,    'primaria', 'es', 'Pequeño niño fue Jesús',                     'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/jesus-once-was-a-little-child?lang=spa'),
+      (35,     NULL,    'primaria', 'es', 'Me gusta pensar en el Señor',                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-think-when-i-read-that-sweet-story?lang=spa'),
+      (36,     NULL,    'primaria', 'es', 'Dime la historia de Cristo',                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/tell-me-the-stories-of-jesus?lang=spa'),
+      (37,     NULL,    'primaria', 'es', 'Fiel amigo es Jesús',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/jesus-is-our-loving-friend?lang=spa'),
+      (38,     NULL,    'primaria', 'es', 'Cristo me manda que brille',                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/jesus-wants-me-for-a-sunbeam?lang=spa'),
+      (39,     NULL,    'primaria', 'es', 'Ama a todos, dijo el Señor',                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/jesus-said-love-everyone?lang=spa'),
+      (40,     NULL,    'primaria', 'es', 'Yo trato de ser como Cristo',                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/im-trying-to-be-like-jesus?lang=spa'),
+      (42,     NULL,    'primaria', 'es', 'Siento el amor de mi Salvador',              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-feel-my-saviors-love?lang=spa'),
+      (44,     NULL,    'primaria', 'es', 'Resucitó Jesús',                             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/jesus-has-risen?lang=spa'),
+      (45,     NULL,    'primaria', 'es', '¿Vivió Jesús una vez más?',                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/did-jesus-really-live-again?lang=spa'),
+      (46,     NULL,    'primaria', 'es', 'Cuando venga Jesús',                         'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/when-he-comes-again?lang=spa'),
+      (48,     NULL,    'primaria', 'es', 'La Iglesia de Jesucristo',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-church-of-jesus-christ?lang=spa'),
+      (50,     NULL,    'primaria', 'es', 'La fe',                                      'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/faith?lang=spa'),
+      (52,     NULL,    'primaria', 'es', 'Saber perdonar',                             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/help-me-dear-father?lang=spa'),
+      (53,     NULL,    'primaria', 'es', 'Cuando me bautice',                          'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/when-i-am-baptized?lang=spa'),
+      (54,     NULL,    'primaria', 'es', 'El bautismo',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/baptism?lang=spa'),
+      (56,     NULL,    'primaria', 'es', 'El Espíritu Santo',                          'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-holy-ghost?lang=spa'),
+      (57,     NULL,    'primaria', 'es', 'En la primavera',                            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/on-a-golden-springtime?lang=spa'),
+      (58,     NULL,    'primaria', 'es', 'Sigue al Profeta',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/follow-the-prophet?lang=spa'),
+      (60,     NULL,    'primaria', 'es', 'El sacerdocio se restauró',                  'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-priesthood-is-restored?lang=spa'),
+      (61,     NULL,    'primaria', 'es', 'Las planchas de oro',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-golden-plates?lang=spa'),
+      (62,     NULL,    'primaria', 'es', 'Historias del Libro de Mormón',              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/book-of-mormon-stories?lang=spa'),
+      (63,     NULL,    'primaria', 'es', 'Los libros del Libro de Mormón',             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-books-in-the-book-of-mormon?lang=spa'),
+      (64,     NULL,    'primaria', 'es', 'El valor de Nefi',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/nephis-courage?lang=spa'),
+      (66,     NULL,    'primaria', 'es', 'Escudriñar, meditar y orar',                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/search-ponder-and-pray?lang=spa'),
+      (67,     NULL,    'primaria', 'es', 'Buscaré al Señor',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/seek-the-lord-early?lang=spa'),
+      (68,     NULL,    'primaria', 'es', 'Siempre obedece los mandamientos',           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/keep-the-commandments?lang=spa'),
+      (70,     NULL,    'primaria', 'es', 'Hazme andar en la luz',                      'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/teach-me-to-walk-in-the-light?lang=spa'),
+      (71,     NULL,    'primaria', 'es', 'Obediencia',                                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/quickly-ill-obey?lang=spa'),
+      (72,     NULL,    'primaria', 'es', 'Voy a vivir el Evangelio',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-want-to-live-the-gospel?lang=spa'),
+      (73,     NULL,    'primaria', 'es', 'El Señor me dio un templo',                  'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-lord-gave-me-a-temple?lang=spa'),
+      (74,     NULL,    'primaria', 'es', 'Amad a otros',                               'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/love-one-another?lang=spa'),
+      (75,     NULL,    'primaria', 'es', 'Dime, Señor',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/tell-me-dear-lord?lang=spa'),
+      (76,     NULL,    'primaria', 'es', 'Donde hay amor',                             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/where-love-is?lang=spa'),
+      (78,     NULL,    'primaria', 'es', 'Contigo iré',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/ill-walk-with-you?lang=spa'),
+      (80,     NULL,    'primaria', 'es', 'Muestra valor',                              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/dare-to-do-right?lang=spa'),
+      (81,     NULL,    'primaria', 'es', 'Defiende el bien',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/stand-for-the-right?lang=spa'),
+      (82,     NULL,    'primaria', 'es', 'Escojamos lo correcto',                      'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/choose-the-right-way?lang=spa'),
+      (83,     NULL,    'primaria', 'es', 'La bondad por mí empieza',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/kindness-begins-with-me?lang=spa'),
+      (84,     NULL,    'primaria', 'es', 'Yo soy como estrella',                       'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-am-like-a-star?lang=spa'),
+      (85,     NULL,    'primaria', 'es', 'Voy a ser valiente',                         'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-will-be-valiant?lang=spa'),
+      (86,     NULL,    'primaria', 'es', 'El plan de Dios puedo seguir',               'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-will-follow-gods-plan?lang=spa'),
+      (88,     NULL,    'primaria', 'es', 'Joven digno y hábil seré',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/a-young-man-prepared?lang=spa'),
+      (90,     NULL,    'primaria', 'es', 'Yo quiero ser un misionero ya',              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-want-to-be-a-missionary-now?lang=spa'),
+      (91,     NULL,    'primaria', 'es', 'Espero ser llamado a una misión',            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-hope-they-call-me-on-a-mission?lang=spa'),
+      (92,     NULL,    'primaria', 'es', 'Llevaremos Su verdad al mundo (El ejército de Helamán)', 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/well-bring-the-world-his-truth-army-of-helaman?lang=spa'),
+      (94,     NULL,    'primaria', 'es', 'Llamados a servir',                          'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/called-to-serve?lang=spa'),
+      (96,     NULL,    'primaria', 'es', 'Brilla',                                     'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/shine-on?lang=spa'),
+      (98,     NULL,    'primaria', 'es', 'Las familias pueden ser eternas',            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/families-can-be-together-forever?lang=spa'),
+      (99,     NULL,    'primaria', 'es', 'Me encanta ver el templo',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-love-to-see-the-temple?lang=spa'),
+      (100,    NULL,    'primaria', 'es', 'Estoy haciendo mi historia familiar',        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/family-history-i-am-doing-it?lang=spa'),
+      (101,    NULL,    'primaria', 'es', 'Oración familiar',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/family-prayer?lang=spa'),
+      (102,    NULL,    'primaria', 'es', 'Allí donde hay amor',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/love-is-spoken-here?lang=spa'),
+      (104,    NULL,    'primaria', 'es', 'Una familia feliz',                          'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/a-happy-family?lang=spa'),
+      (105,    NULL,    'primaria', 'es', 'El sábado',                                  'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/saturday?lang=spa'),
+      (106,    NULL,    'primaria', 'es', 'Los nombres más bellos',                     'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-dearest-names?lang=spa'),
+      (107,    NULL,    'primaria', 'es', 'Madre, te amo',                              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/mother-i-love-you?lang=spa'),
+      (108001, '108a',  'primaria', 'es', 'Madrecita de mi amor',                       'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/mother-dear?lang=spa'),
+      (108002, '108b',  'primaria', 'es', 'Cuando ayudamos',                            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/when-were-helping?lang=spa'),
+      (109,    NULL,    'primaria', 'es', 'Por campos de trébol paseo',                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-often-go-walking?lang=spa'),
+      (110,    NULL,    'primaria', 'es', 'Cuando papá vuelve',                         'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/daddys-homecoming?lang=spa'),
+      (111,    NULL,    'primaria', 'es', 'Mi papá',                                    'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/my-dad?lang=spa'),
+      (112,    NULL,    'primaria', 'es', 'La abuelita',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/grandmother?lang=spa'),
+      (113,    NULL,    'primaria', 'es', 'Cuando abuelito viene',                      'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/when-grandpa-comes?lang=spa'),
+      (114,    NULL,    'primaria', 'es', 'Con un cantar',                              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/sing-your-way-home?lang=spa'),
+      (116,    NULL,    'primaria', 'es', 'El arroyito da',                             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/give-said-the-little-stream?lang=spa'),
+      (117,    NULL,    'primaria', 'es', 'Cae la lluvia alrededor',                    'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/rain-is-falling-all-around?lang=spa'),
+      (118,    NULL,    'primaria', 'es', 'Palomitas de maíz',                          'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/popcorn-popping?lang=spa'),
+      (119,    NULL,    'primaria', 'es', 'Las semillas duermen',                       'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/little-seeds-lie-fast-asleep?lang=spa'),
+      (120,    NULL,    'primaria', 'es', '¿Qué haces en el verano?',                  'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/oh-what-do-you-do-in-the-summertime?lang=spa'),
+      (121,    NULL,    'primaria', 'es', 'Éste era un mono',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/once-there-was-a-snowman?lang=spa'),
+      (122,    NULL,    'primaria', 'es', 'El mundo es glorioso',                       'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-think-the-world-is-glorious?lang=spa'),
+      (123,    NULL,    'primaria', 'es', '¡El mundo es tan bello!',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-world-is-so-lovely?lang=spa'),
+      (124,    NULL,    'primaria', 'es', 'Alza al cielo el son',                       'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/lift-up-your-voice-and-sing?lang=spa'),
+      (125,    NULL,    'primaria', 'es', 'Si te sientes feliz',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/if-youre-happy?lang=spa'),
+      (126,    NULL,    'primaria', 'es', 'Mis manitas',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-have-two-little-hands?lang=spa'),
+      (127,    NULL,    'primaria', 'es', 'Me doblo',                                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/hinges?lang=spa'),
+      (128,    NULL,    'primaria', 'es', 'Sonrisas',                                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/smiles?lang=spa'),
+      (129001, '129a',  'primaria', 'es', 'Cabeza, cara, hombros, pies',                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/head-shoulders-knees-and-toes?lang=spa'),
+      (129002, '129b',  'primaria', 'es', 'Qué divertido es',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/fun-to-do?lang=spa'),
+      (130,    NULL,    'primaria', 'es', '¡Hola!',                                    'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/hello-song?lang=spa'),
+      (131,    NULL,    'primaria', 'es', 'Los colores de nuestra Primaria',            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/our-primary-colors?lang=spa'),
+      (132,    NULL,    'primaria', 'es', 'El sabio y el imprudente',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-wise-man-and-the-foolish-man?lang=spa'),
+      (133,    NULL,    'primaria', 'es', 'Cumpliste años (Rondó)',                     'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/youve-had-a-birthday-round?lang=spa'),
+      (134,    NULL,    'primaria', 'es', 'Feliz, feliz cumpleaños',                    'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/happy-happy-birthday?lang=spa'),
+      (136,    NULL,    'primaria', 'es', 'Pioneros fieles',                            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/the-handcart-song?lang=spa'),
+      (137,    NULL,    'primaria', 'es', 'Niños pioneros',                             'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/pioneer-children-sang-as-they-walked?lang=spa'),
+      (138,    NULL,    'primaria', 'es', 'Para ser pionero',                           'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/to-be-a-pioneer?lang=spa'),
+      (139,    NULL,    'primaria', 'es', 'Mi mamá nos da amor',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/loving-mother-kind-and-true?lang=spa'),
+      (140,    NULL,    'primaria', 'es', 'Belleza por doquier',                        'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/beauty-everywhere?lang=spa'),
+      (141,    NULL,    'primaria', 'es', 'Hazlo conmigo',                              'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/do-as-im-doing?lang=spa'),
+      (142,    NULL,    'primaria', 'es', 'En el prado',                                'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/in-the-meadow?lang=spa'),
+      (144,    NULL,    'primaria', 'es', 'A mi madre',                                 'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/my-mother?lang=spa'),
+      (145,    NULL,    'primaria', 'es', 'Como el sol en la mañana',                   'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/my-mother-dear?lang=spa'),
+      (146,    NULL,    'primaria', 'es', 'Estrella de luz',                            'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/star-bright?lang=spa'),
+      (148,    NULL,    'primaria', 'es', 'Viví en los cielos',                         'https://www.churchofjesuschrist.org/study/manual/childrens-songbook/i-lived-in-heaven?lang=spa')
+    ON CONFLICT (number, hymnbook) DO NOTHING
   `);
 }

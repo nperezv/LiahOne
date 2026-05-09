@@ -9020,7 +9020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (key === "prog_himno_apertura" || key === "prog_himno_cierre") {
               const m = value.match(/^(\d+)/);
               if (m) {
-                const hRow = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(m[1])} LIMIT 1`);
+                const hRow = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(m[1])} AND hymnbook = 'himnario' LIMIT 1`);
                 hymnId = (hRow.rows[0] as any)?.id ?? null;
               }
             }
@@ -9304,7 +9304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (key === "prog_himno_apertura" || key === "prog_himno_cierre") {
           const m = value.match(/^(\d+)/);
           if (m) {
-            const hymnResult = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(m[1])} LIMIT 1`);
+            const hymnResult = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(m[1])} AND hymnbook = 'himnario' LIMIT 1`);
             hymnId = (hymnResult.rows[0] as any)?.id ?? null;
           }
         }
@@ -10377,7 +10377,8 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
   app.get("/api/hymns", requireAuth, async (req: Request, res: Response) => {
     try {
-      const hymns = await storage.getAllHymns();
+      const hymnbook = req.query.hymnbook as string | undefined;
+      const hymns = await storage.getAllHymns(hymnbook);
       res.json(hymns);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });

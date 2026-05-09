@@ -202,7 +202,7 @@ export interface IStorage {
   createOrganization(org: InsertOrganization): Promise<Organization>;
 
   // Hymns
-  getAllHymns(): Promise<Hymn[]>;
+  getAllHymns(hymnbook?: string): Promise<Hymn[]>;
 
   // Sacramental Meetings
   getAllSacramentalMeetings(): Promise<SacramentalMeeting[]>;
@@ -862,7 +862,10 @@ export class DatabaseStorage implements IStorage {
   // HYMNS
   // ========================================
 
-  async getAllHymns(): Promise<Hymn[]> {
+  async getAllHymns(hymnbook?: string): Promise<Hymn[]> {
+    if (hymnbook) {
+      return await db.select().from(hymns).where(eq(hymns.hymnbook, hymnbook)).orderBy(asc(hymns.number));
+    }
     return await db.select().from(hymns).orderBy(asc(hymns.number));
   }
 
