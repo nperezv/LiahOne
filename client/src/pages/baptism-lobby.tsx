@@ -5,7 +5,7 @@ import type { BaptismTheme } from "../../../server/baptism-public-routes";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
-  cream:     "#f7f4ed",
+  cream:     "#ffffff",
   creamDark: "#ede9df",
   teal:      "#4a7c7e",
   tealDark:  "#2d5e60",
@@ -89,7 +89,6 @@ export default function BaptismLobbyPage() {
   });
 
   const svc = data?.service ?? null;
-  const plural = (svc?.candidateNames.length ?? 0) > 1;
 
   return (
     <main
@@ -139,7 +138,7 @@ export default function BaptismLobbyPage() {
                 className="text-base italic"
                 style={{ color: C.inkLight }}
               >
-                {plural ? "se bautizan hoy" : "se bautiza hoy"}
+                Servicio Bautismal
               </p>
               <p
                 className="text-sm capitalize tracking-wide"
@@ -150,7 +149,7 @@ export default function BaptismLobbyPage() {
             </div>
 
             {/* Theme image — decorative */}
-            <div className="relative w-56 h-56 flex items-center justify-center">
+            <div className="relative w-64 h-64 flex items-center justify-center">
               <img
                 src={`/${themeImage(svc.theme)}`}
                 alt=""
@@ -189,11 +188,8 @@ export default function BaptismLobbyPage() {
       </div>
 
       {/* Footer */}
-      <div className="relative z-10 mb-8 flex flex-col items-center gap-2">
+      <div className="relative z-10 mb-8">
         <GoldDivider />
-        <p className="text-xs tracking-[0.15em] mt-1" style={{ color: C.inkLight, fontFamily: "'Cinzel', serif" }}>
-          Programa Bautismal
-        </p>
       </div>
     </main>
   );
