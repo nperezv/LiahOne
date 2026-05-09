@@ -127,7 +127,11 @@ export default function BaptismLobbyPage() {
                 className="leading-tight px-2"
                 style={{
                   fontFamily: "'Dancing Script', cursive",
-                  fontSize: "clamp(2.4rem, 11vw, 3.4rem)",
+                  fontSize: svc.candidateNames.length >= 3
+                    ? "clamp(1.5rem, 7vw, 2rem)"
+                    : svc.candidateNames.length === 2
+                    ? "clamp(1.9rem, 9vw, 2.6rem)"
+                    : "clamp(2.4rem, 11vw, 3.4rem)",
                   color: C.ink,
                   lineHeight: 1.15,
                 }}
