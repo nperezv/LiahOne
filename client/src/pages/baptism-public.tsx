@@ -291,7 +291,7 @@ function CoverPage({ data }: { data: ServiceData }) {
       {/* Content — vertically centered */}
       <div
         className="relative flex flex-col justify-center px-7"
-        style={{ zIndex: 3, minHeight: "100dvh", paddingTop: "12%" }}
+        style={{ zIndex: 3, minHeight: "100dvh" }}
       >
         {/* Date: ENERO | 06 | 2024 — centered */}
         {dateParts && (
