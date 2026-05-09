@@ -36,10 +36,9 @@ function joinNames(names: string[]): string {
 }
 
 function formatDateLong(iso: string): string {
-  const d = new Date(iso);
   return new Intl.DateTimeFormat("es-ES", {
     weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-  }).format(d);
+  }).format(new Date(iso));
 }
 
 // ── Botanical SVG ─────────────────────────────────────────────────────────────
@@ -61,6 +60,17 @@ function BotanicalCorner({ pos = "tl", size = 130 }: { pos?: "tl" | "tr" | "bl" 
   );
 }
 
+// ── Divider ───────────────────────────────────────────────────────────────────
+function GoldDivider() {
+  return (
+    <div className="flex items-center gap-3 w-full max-w-[200px]">
+      <div className="h-px flex-1" style={{ background: C.gold, opacity: 0.45 }} />
+      <div className="w-1.5 h-1.5 rounded-full" style={{ background: C.gold, opacity: 0.5 }} />
+      <div className="h-px flex-1" style={{ background: C.gold, opacity: 0.45 }} />
+    </div>
+  );
+}
+
 // ── Main lobby page ───────────────────────────────────────────────────────────
 export default function BaptismLobbyPage() {
   const [, navigate] = useLocation();
@@ -75,10 +85,11 @@ export default function BaptismLobbyPage() {
 
   const { data, isLoading } = useQuery<LobbyData>({
     queryKey: ["/api/bautismo"],
-    refetchInterval: 60_000, // refresh every minute
+    refetchInterval: 60_000,
   });
 
   const svc = data?.service ?? null;
+  const plural = (svc?.candidateNames.length ?? 0) > 1;
 
   return (
     <main
@@ -91,102 +102,78 @@ export default function BaptismLobbyPage() {
       <div className="absolute bottom-0 left-0 pointer-events-none"><BotanicalCorner pos="bl" size={110} /></div>
       <div className="absolute bottom-0 right-0 pointer-events-none"><BotanicalCorner pos="br" size={110} /></div>
 
-      {/* Header */}
+      {/* Header eyebrow */}
       <div className="relative z-10 flex flex-col items-center pt-14 gap-2 px-6 text-center">
-        {/* Gold rule + title */}
-        <div className="flex items-center gap-3">
-          <div className="h-px w-10" style={{ background: C.gold, opacity: 0.6 }} />
-          <p
-            className="uppercase tracking-[0.25em] text-xs font-semibold"
-            style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
-          >
-            Programa Bautismal
-          </p>
-          <div className="h-px w-10" style={{ background: C.gold, opacity: 0.6 }} />
-        </div>
-        <h1
-          className="font-bold leading-none"
-          style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: "clamp(1.6rem, 7vw, 2.4rem)",
-            color: C.tealDark,
-            letterSpacing: "0.04em",
-          }}
+        <p
+          className="uppercase tracking-[0.25em] text-xs font-semibold"
+          style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
         >
-          Mí Bautismo
-        </h1>
-        <p className="text-xs tracking-wide" style={{ color: C.inkLight }}>
-          {new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}
+          {svc?.wardName ?? "Servicio Bautismal"}
         </p>
+        <GoldDivider />
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center w-full px-6 py-10 max-w-sm mx-auto">
+      <div className="relative z-10 flex flex-col items-center w-full px-6 py-6 max-w-sm mx-auto gap-8">
         {isLoading ? (
           <div className="flex flex-col items-center gap-4 py-16">
             <img src="/thelambofgod.png" alt="" className="w-28 opacity-30" />
             <p className="text-sm" style={{ color: C.inkLight }}>Buscando programa...</p>
           </div>
         ) : svc ? (
-          /* ── Service card ── */
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-lg"
-            style={{ border: `1px solid ${C.creamDark}` }}
-          >
-            {/* Card image strip */}
-            <div
-              className="relative w-full flex items-center justify-center"
-              style={{ background: C.cream, height: 220 }}
-            >
-              <img
-                src={`/${themeImage(svc.theme)}`}
-                alt=""
-                className="h-full w-full object-contain"
-                style={{ opacity: 0.92 }}
-              />
-              {/* Gradient overlay at bottom */}
-              <div
-                className="absolute bottom-0 left-0 right-0 h-16"
-                style={{ background: `linear-gradient(to bottom, transparent, ${C.cream})` }}
-              />
-            </div>
-
-            {/* Card body */}
-            <div className="px-6 pb-6 pt-2 text-center" style={{ background: C.cream }}>
-              {svc.wardName && (
-                <p className="text-xs uppercase tracking-[0.2em] mb-2"
-                  style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}>
-                  {svc.wardName}
-                </p>
-              )}
+          <>
+            {/* Hero: candidate name(s) */}
+            <div className="flex flex-col items-center gap-2 text-center">
               <p
-                className="leading-snug mb-1"
+                className="leading-tight"
                 style={{
                   fontFamily: "'Dancing Script', cursive",
-                  fontSize: "clamp(1.4rem, 5vw, 1.9rem)",
+                  fontSize: "clamp(2rem, 9vw, 2.8rem)",
                   color: C.ink,
+                  lineHeight: 1.15,
                 }}
               >
                 {joinNames(svc.candidateNames)}
               </p>
-              <p className="text-xs capitalize mb-5" style={{ color: C.inkLight }}>
+              <p
+                className="text-sm italic"
+                style={{ color: C.inkLight }}
+              >
+                {plural ? "se bautizan hoy" : "se bautiza hoy"}
+              </p>
+              <p
+                className="text-xs capitalize tracking-wide mt-1"
+                style={{ color: C.gold, fontFamily: "'Cinzel', serif" }}
+              >
                 {formatDateLong(svc.serviceAt)}
               </p>
-
-              {/* CTA button */}
-              <button
-                onClick={() => navigate(`/bautismo/${svc.slug}`)}
-                className="w-full py-3 rounded-xl font-semibold text-sm tracking-wide text-white transition-opacity hover:opacity-90 active:opacity-80"
-                style={{
-                  background: `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDark} 100%)`,
-                  fontFamily: "'Cinzel', serif",
-                  letterSpacing: "0.1em",
-                }}
-              >
-                Ver programa
-              </button>
             </div>
-          </div>
+
+            {/* Theme image — decorative */}
+            <div
+              className="relative w-40 h-40 flex items-center justify-center"
+            >
+              <img
+                src={`/${themeImage(svc.theme)}`}
+                alt=""
+                className="w-full h-full object-contain"
+                style={{ opacity: 0.88 }}
+              />
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={() => navigate(`/bautismo/${svc.slug}`)}
+              className="w-full py-3 rounded-xl font-semibold text-sm tracking-wide text-white transition-opacity hover:opacity-90 active:opacity-80"
+              style={{
+                background: `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDark} 100%)`,
+                fontFamily: "'Cinzel', serif",
+                letterSpacing: "0.1em",
+              }}
+            >
+              Ver programa
+            </button>
+          </>
         ) : (
           /* ── Empty state ── */
           <div className="flex flex-col items-center gap-5 py-10 text-center">
@@ -204,10 +191,10 @@ export default function BaptismLobbyPage() {
       </div>
 
       {/* Footer */}
-      <div className="relative z-10 mb-8 flex flex-col items-center gap-1">
-        <div className="h-px w-16" style={{ background: C.gold, opacity: 0.4 }} />
-        <p className="text-xs tracking-[0.12em] mt-2" style={{ color: C.inkLight, fontFamily: "'Cinzel', serif" }}>
-          {svc?.wardName ?? ""}
+      <div className="relative z-10 mb-8 flex flex-col items-center gap-2">
+        <GoldDivider />
+        <p className="text-xs tracking-[0.15em] mt-1" style={{ color: C.inkLight, fontFamily: "'Cinzel', serif" }}>
+          Programa Bautismal
         </p>
       </div>
     </main>
