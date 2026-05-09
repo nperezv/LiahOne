@@ -118,16 +118,6 @@ export default function BaptismLobbyPage() {
         className="relative flex flex-col justify-center px-7"
         style={{ zIndex: 2, minHeight: "100dvh" }}
       >
-        {/* Ward name */}
-        {svc.wardName && (
-          <p className="text-center mb-6" style={{
-            fontFamily: "'Cinzel', serif", fontSize: "0.6rem",
-            letterSpacing: "0.22em", color: tc.accentDark, textTransform: "uppercase",
-          }}>
-            {svc.wardName}
-          </p>
-        )}
-
         {/* Date pill */}
         {dateParts && (
           <div className="flex items-center justify-center mb-4">
