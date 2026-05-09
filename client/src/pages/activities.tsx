@@ -92,14 +92,39 @@ interface ChecklistItem {
 
 // ── Autocomplete types & components ───────────────────────────────────────────
 
-type HymnOption   = { value: string; number: number; title: string };
+type HymnOption   = { value: string; number: number; numberDisplay?: string; title: string };
 type MemberOption = { value: string };
+
+const HYMN_SOURCES = [
+  { key: "himnario",      label: "Himnario" },
+  { key: "hogar_iglesia", label: "Hogar e Iglesia" },
+  { key: "primaria",      label: "Primaria" },
+] as const;
+
+const getHymnSource = (val: string): string => {
+  if (val.startsWith("Prim. ")) return "primaria";
+  if (val.startsWith("HHI ")) return "hogar_iglesia";
+  return "himnario";
+};
+
+const stripHymnPrefix = (val: string) => val.replace(/^(?:Prim\.|HHI) /, "");
+
+const makeHymnValue = (h: any, source: string): string => {
+  const num = h.numberDisplay ?? h.number;
+  const text = `${num} - ${h.title}`;
+  if (source === "primaria") return `Prim. ${text}`;
+  if (source === "hogar_iglesia") return `HHI ${text}`;
+  return text;
+};
 
 const filterHymnOptions = (options: HymnOption[], query: string) => {
   const t = query.trim();
   if (!t) return options;
   const lo = t.toLowerCase();
-  return options.filter(o => String(o.number).startsWith(t) || o.value.toLowerCase().includes(lo));
+  return options.filter(o =>
+    String(o.numberDisplay ?? o.number).toLowerCase().startsWith(lo) ||
+    o.value.toLowerCase().includes(lo)
+  );
 };
 
 const filterMemberOptions = (options: MemberOption[], query: string) => {
@@ -132,7 +157,7 @@ function HymnAutocomplete({ value, options, placeholder, onChange }: {
           {filtered.slice(0, 20).map(o => (
             <li key={o.number} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent"
               onMouseDown={e => { e.preventDefault(); onChange(o.value); setOpen(false); }}>
-              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.number}</span>
+              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.numberDisplay ?? o.number}</span>
               <span className="truncate">{o.title}</span>
             </li>
           ))}
@@ -243,12 +268,13 @@ function sectionOfKey(key: string): "programa" | "coordinacion" {
 }
 
 function SectionField({
-  itemKey, label, completed, value, onChange, memberOptions, hymnOptions, optional,
+  itemKey, label, completed, value, onChange, memberOptions, hymnOptionsBySource, optional,
 }: {
   itemKey: string; label: string; completed: boolean; value: string; onChange: (v: string) => void;
-  memberOptions: MemberOption[]; hymnOptions: HymnOption[]; optional?: boolean;
+  memberOptions: MemberOption[]; hymnOptionsBySource: Record<string, HymnOption[]>; optional?: boolean;
 }) {
   const meta = FIELD_META[itemKey] ?? { type: "text" as FieldType };
+  const [hymnSource, setHymnSource] = useState(() => getHymnSource(value));
 
   const labelEl = (
     <div className="flex items-center gap-2">
@@ -291,7 +317,30 @@ function SectionField({
       {meta.inputKind === "member" ? (
         <MemberAutocomplete value={value} options={memberOptions} placeholder={meta.placeholder} onChange={onChange} />
       ) : meta.inputKind === "hymn" ? (
-        <HymnAutocomplete value={value} options={hymnOptions} placeholder={meta.placeholder} onChange={onChange} />
+        <div className="flex flex-col gap-1">
+          <div className="flex gap-1">
+            {HYMN_SOURCES.map(({ key, label: srcLabel }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setHymnSource(key); onChange(""); }}
+                className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                  hymnSource === key
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {srcLabel}
+              </button>
+            ))}
+          </div>
+          <HymnAutocomplete
+            value={value}
+            options={hymnOptionsBySource[hymnSource] ?? []}
+            placeholder={meta.placeholder}
+            onChange={onChange}
+          />
+        </div>
       ) : (
         <Input className="text-sm" placeholder={meta.placeholder} value={value} onChange={e => onChange(e.target.value)} />
       )}
@@ -791,7 +840,9 @@ function SectionEditDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: rawMembers = [] } = useMembers();
-  const { data: rawHymns = [] } = useHymns();
+  const { data: hymnsHimnario   = [] as any[] } = useHymns("himnario");
+  const { data: hymnsHogar      = [] as any[] } = useHymns("hogar_iglesia");
+  const { data: hymnsPrimaria   = [] as any[] } = useHymns("primaria");
   const { data: organizations = [] } = useOrganizations();
   const { data: users = [] } = useUsers();
   const { user } = useAuth();
@@ -840,10 +891,11 @@ function SectionEditDialog({
     [memberCallings, rawMembers, activityOrgId]
   );
 
-  const hymnOptions = useMemo<HymnOption[]>(
-    () => (rawHymns as any[]).map(h => ({ value: `${h.number} - ${h.title}`, number: h.number, title: h.title })),
-    [rawHymns]
-  );
+  const hymnOptionsBySource = useMemo<Record<string, HymnOption[]>>(() => ({
+    himnario:      (hymnsHimnario   as any[]).map(h => ({ value: makeHymnValue(h, "himnario"),      number: h.number, numberDisplay: h.numberDisplay ?? undefined, title: h.title })),
+    hogar_iglesia: (hymnsHogar      as any[]).map(h => ({ value: makeHymnValue(h, "hogar_iglesia"), number: h.number, numberDisplay: h.numberDisplay ?? undefined, title: h.title })),
+    primaria:      (hymnsPrimaria   as any[]).map(h => ({ value: makeHymnValue(h, "primaria"),      number: h.number, numberDisplay: h.numberDisplay ?? undefined, title: h.title })),
+  }), [hymnsHimnario, hymnsHogar, hymnsPrimaria]);
 
   // Select appropriate member options per field key
   const memberOptionsForKey = (key: string): MemberOption[] => {
@@ -936,7 +988,7 @@ function SectionEditDialog({
                     value={fields[item.itemKey] ?? ""}
                     onChange={v => setField(item.itemKey, v)}
                     memberOptions={[]}
-                    hymnOptions={[]}
+                    hymnOptionsBySource={{}}
                   />
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Sexo del candidato</label>
@@ -1037,7 +1089,7 @@ function SectionEditDialog({
                   value={fields[item.itemKey] ?? ""}
                   onChange={v => setField(item.itemKey, v)}
                   memberOptions={memberOptionsForKey(item.itemKey)}
-                  hymnOptions={hymnOptions}
+                  hymnOptionsBySource={hymnOptionsBySource}
                   optional={isOptional}
                 />
               );

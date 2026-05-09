@@ -9302,10 +9302,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!value) continue;
         let hymnId: string | null = null;
         if (key === "prog_himno_apertura" || key === "prog_himno_cierre") {
-          const m = value.match(/^(\d+)/);
-          if (m) {
-            const hymnResult = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(m[1])} AND hymnbook = 'himnario' LIMIT 1`);
-            hymnId = (hymnResult.rows[0] as any)?.id ?? null;
+          const primMatch = value.match(/^Prim\. (\S+) - /);
+          const hogarMatch = value.match(/^HHI (\d+) - /);
+          const defMatch = value.match(/^(\d+) - /);
+          if (primMatch) {
+            const numPart = primMatch[1];
+            const numInt = parseInt(numPart, 10);
+            const found = await db.execute(sql`
+              SELECT id FROM hymns WHERE hymnbook = 'primaria'
+                AND (number_display = ${numPart} OR number = ${isNaN(numInt) ? -1 : numInt})
+              LIMIT 1
+            `);
+            hymnId = (found.rows[0] as any)?.id ?? null;
+          } else if (hogarMatch) {
+            const found = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(hogarMatch[1])} AND hymnbook = 'hogar_iglesia' LIMIT 1`);
+            hymnId = (found.rows[0] as any)?.id ?? null;
+          } else if (defMatch) {
+            const found = await db.execute(sql`SELECT id FROM hymns WHERE number = ${parseInt(defMatch[1])} AND hymnbook = 'himnario' LIMIT 1`);
+            hymnId = (found.rows[0] as any)?.id ?? null;
           }
         }
         await db.execute(sql`
