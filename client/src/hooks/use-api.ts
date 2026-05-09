@@ -339,9 +339,11 @@ export function useCreateSacramentalMeeting() {
 // HYMNS
 // ========================================
 
-export function useHymns() {
+export function useHymns(hymnbook?: string) {
+  const url = hymnbook ? `/api/hymns?hymnbook=${hymnbook}` : "/api/hymns";
   return useQuery<any>({
-    queryKey: ["/api/hymns"],
+    queryKey: ["/api/hymns", hymnbook ?? "all"],
+    queryFn: () => apiRequest("GET", url),
     staleTime: 1000 * 60 * 60,
     refetchOnWindowFocus: false,
   });

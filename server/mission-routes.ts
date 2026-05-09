@@ -1816,12 +1816,29 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       for (let i = 0; i < items.length; i++) {
         const { type, participantDisplayName } = items[i];
 
-        // Resolve hymn_id from display name (e.g. "49 - Señor, te necesito")
+        // Resolve hymn_id from display name
+        // Formats: "49 - Título" (himnario), "Prim. 53 - Título" (primaria), "HHI 1054 - Título" (hogar_iglesia)
         let hymnId: string | null = null;
         if (HYMN_ITEM_TYPES.has(type) && participantDisplayName) {
-          const num = parseInt(participantDisplayName.split(" - ")[0], 10);
-          if (!isNaN(num)) {
-            const found = await db.execute(sql`SELECT id FROM hymns WHERE number = ${num} LIMIT 1`);
+          const primMatch = participantDisplayName.match(/^Prim\. (\S+) - /);
+          const hogarMatch = participantDisplayName.match(/^HHI (\d+) - /);
+          const defMatch = participantDisplayName.match(/^(\d+) - /);
+          if (primMatch) {
+            const numPart = primMatch[1];
+            const numInt = parseInt(numPart, 10);
+            const found = await db.execute(sql`
+              SELECT id FROM hymns WHERE hymnbook = 'primaria'
+                AND (number_display = ${numPart} OR number = ${isNaN(numInt) ? -1 : numInt})
+              LIMIT 1
+            `);
+            hymnId = (found.rows[0] as any)?.id ?? null;
+          } else if (hogarMatch) {
+            const num = parseInt(hogarMatch[1], 10);
+            const found = await db.execute(sql`SELECT id FROM hymns WHERE number = ${num} AND hymnbook = 'hogar_iglesia' LIMIT 1`);
+            hymnId = (found.rows[0] as any)?.id ?? null;
+          } else if (defMatch) {
+            const num = parseInt(defMatch[1], 10);
+            const found = await db.execute(sql`SELECT id FROM hymns WHERE number = ${num} AND hymnbook = 'himnario' LIMIT 1`);
             hymnId = (found.rows[0] as any)?.id ?? null;
           }
         }

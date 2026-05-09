@@ -2148,14 +2148,40 @@ const TabContent = React.memo(function TabContent({
 
 // ── Baptism Sheet Helpers ─────────────────────────────────────────────────────
 
-type HymnOption = { value: string; number: number; title: string };
+type HymnOption = { value: string; number: number; numberDisplay?: string; title: string };
 type MemberOption = { value: string };
+
+const HYMN_SOURCES = [
+  { key: "himnario",      label: "Himnario" },
+  { key: "hogar_iglesia", label: "Hogar e Iglesia" },
+  { key: "primaria",      label: "Primaria" },
+] as const;
+
+const getHymnSource = (val: string): string => {
+  if (val.startsWith("Prim. ")) return "primaria";
+  if (val.startsWith("HHI ")) return "hogar_iglesia";
+  return "himnario";
+};
+
+const stripHymnPrefix = (val: string) =>
+  val.replace(/^(?:Prim\.|HHI) /, "");
+
+const makeHymnValue = (h: any, source: string): string => {
+  const num = h.numberDisplay ?? h.number;
+  const text = `${num} - ${h.title}`;
+  if (source === "primaria") return `Prim. ${text}`;
+  if (source === "hogar_iglesia") return `HHI ${text}`;
+  return text;
+};
 
 const filterHymnOptions = (options: HymnOption[], query: string) => {
   const trimmed = query.trim();
   if (!trimmed) return options;
   const lowerQuery = trimmed.toLowerCase();
-  return options.filter((o) => String(o.number).startsWith(trimmed) || o.value.toLowerCase().includes(lowerQuery));
+  return options.filter((o) =>
+    String(o.numberDisplay ?? o.number).toLowerCase().startsWith(lowerQuery) ||
+    o.value.toLowerCase().includes(lowerQuery)
+  );
 };
 
 const HymnAutocomplete = ({
@@ -2194,7 +2220,7 @@ const HymnAutocomplete = ({
               className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent"
               onMouseDown={(e) => { e.preventDefault(); handleSelect(o); }}
             >
-              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.number}</span>
+              <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{o.numberDisplay ?? o.number}</span>
               <span className="truncate">{o.title}</span>
             </li>
           ))}
@@ -2354,6 +2380,7 @@ function BaptismalServiceSheet({
   const [isPublicLocal, setIsPublicLocal] = useState(service?.is_public ?? false);
   React.useEffect(() => { setIsPublicLocal(service?.is_public ?? false); }, [service?.is_public]);
   const [programDraft, setProgramDraft] = React.useState<Record<string, string>>({});
+  const [hymnSources, setHymnSources] = React.useState<Record<string, string>>({ primer_himno: "himnario", ultimo_himno: "himnario" });
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
   const isLiderActividades = userRole === "lider_actividades";
@@ -2369,7 +2396,9 @@ function BaptismalServiceSheet({
   const { data: wardTemplate } = useQuery({ queryKey: ["/api/pdf-template"], queryFn: () => apiRequest("GET", "/api/pdf-template") });
   const { data: members = [] } = useMembers();
   const { data: usersData = [] as any[] } = useUsers();
-  const { data: hymns = [] as any[] } = useHymns();
+  const { data: hymnsHimnario   = [] as any[] } = useHymns("himnario");
+  const { data: hymnsHogar      = [] as any[] } = useHymns("hogar_iglesia");
+  const { data: hymnsPrimaria   = [] as any[] } = useHymns("primaria");
   const { data: memberCallings = [] } = useAllMemberCallings();
 
   const memberOptions = useMemo(
@@ -2379,10 +2408,11 @@ function BaptismalServiceSheet({
     [members]
   );
 
-  const hymnOptions = useMemo(
-    () => hymns.map((h: any) => ({ value: `${h.number} - ${h.title}`, number: h.number, title: h.title })),
-    [hymns]
-  );
+  const hymnOptionsBySource = useMemo(() => ({
+    himnario:      (hymnsHimnario   as any[]).map((h) => ({ value: makeHymnValue(h, "himnario"),      number: h.number, numberDisplay: h.numberDisplay ?? undefined, title: h.title })),
+    hogar_iglesia: (hymnsHogar      as any[]).map((h) => ({ value: makeHymnValue(h, "hogar_iglesia"), number: h.number, numberDisplay: h.numberDisplay ?? undefined, title: h.title })),
+    primaria:      (hymnsPrimaria   as any[]).map((h) => ({ value: makeHymnValue(h, "primaria"),      number: h.number, numberDisplay: h.numberDisplay ?? undefined, title: h.title })),
+  }), [hymnsHimnario, hymnsHogar, hymnsPrimaria]);
 
   const bishopricOptions = useMemo(
     () => (usersData as any[])
@@ -2471,10 +2501,15 @@ function BaptismalServiceSheet({
   React.useEffect(() => {
     if (detail?.program_items) {
       const values: Record<string, string> = {};
+      const sources: Record<string, string> = { primer_himno: "himnario", ultimo_himno: "himnario" };
       for (const item of detail.program_items) {
         values[item.type] = item.participant_display_name ?? "";
+        if (item.type === "primer_himno" || item.type === "ultimo_himno") {
+          sources[item.type] = getHymnSource(item.participant_display_name ?? "");
+        }
       }
       setProgramDraft(values);
+      setHymnSources(sources);
     }
   }, [detail?.program_items]);
 
@@ -3070,20 +3105,52 @@ function BaptismalServiceSheet({
               <div>
                 <BaptismSectionHead icon={<Music className="h-4 w-4" />} title="Himnos" />
                 <div>
-                  <ProgramRow type="primer_himno">
-                    {editMode ? (
-                      <HymnAutocomplete value={programDraft["primer_himno"] ?? ""} options={hymnOptions} placeholder="Número o nombre" onChange={(v) => setProgramField("primer_himno", v)} onBlur={() => {}} onNormalize={(v) => setProgramField("primer_himno", v)} className="h-8 text-sm" />
-                    ) : (
-                      <p className="text-sm">{programDraft["primer_himno"] || <span className="text-muted-foreground/60">—</span>}</p>
-                    )}
-                  </ProgramRow>
-                  <ProgramRow type="ultimo_himno">
-                    {editMode ? (
-                      <HymnAutocomplete value={programDraft["ultimo_himno"] ?? ""} options={hymnOptions} placeholder="Número o nombre" onChange={(v) => setProgramField("ultimo_himno", v)} onBlur={() => {}} onNormalize={(v) => setProgramField("ultimo_himno", v)} className="h-8 text-sm" />
-                    ) : (
-                      <p className="text-sm">{programDraft["ultimo_himno"] || <span className="text-muted-foreground/60">—</span>}</p>
-                    )}
-                  </ProgramRow>
+                  {(["primer_himno", "ultimo_himno"] as const).map((hymnType) => {
+                    const src = hymnSources[hymnType] ?? "himnario";
+                    const opts = hymnOptionsBySource[src as keyof typeof hymnOptionsBySource] ?? [];
+                    return (
+                      <ProgramRow key={hymnType} type={hymnType}>
+                        {editMode ? (
+                          <div className="flex flex-col gap-1 w-full">
+                            <div className="flex gap-1">
+                              {HYMN_SOURCES.map(({ key, label }) => (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => {
+                                    setHymnSources((s) => ({ ...s, [hymnType]: key }));
+                                    setProgramField(hymnType, "");
+                                  }}
+                                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                                    src === key
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "border-border text-muted-foreground hover:bg-accent"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <HymnAutocomplete
+                              value={programDraft[hymnType] ?? ""}
+                              options={opts}
+                              placeholder="Número o nombre"
+                              onChange={(v) => setProgramField(hymnType, v)}
+                              onBlur={() => {}}
+                              onNormalize={(v) => setProgramField(hymnType, v)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-sm">
+                            {programDraft[hymnType]
+                              ? stripHymnPrefix(programDraft[hymnType])
+                              : <span className="text-muted-foreground/60">—</span>}
+                          </p>
+                        )}
+                      </ProgramRow>
+                    );
+                  })}
                 </div>
               </div>
 
