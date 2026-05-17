@@ -667,7 +667,9 @@ function SacramentalMeetingPageInner() {
   const { data: meetings = [] as any[], isLoading = false } = useSacramentalMeetings();
   const { data: organizations = [] as any[] } = useOrganizations();
   const { data: users = [] as any[] } = useUsers();
-  const { data: hymns = [] as any[] } = useHymns();
+  const { data: hymnsHimnario = [] as any[] } = useHymns("himnario");
+  const { data: hymnsHogarIglesia = [] as any[] } = useHymns("hogar_iglesia");
+  const hymns = useMemo(() => [...hymnsHimnario, ...hymnsHogarIglesia], [hymnsHimnario, hymnsHogarIglesia]);
   const createMutation = useCreateSacramentalMeeting();
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
