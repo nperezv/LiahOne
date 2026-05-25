@@ -33,11 +33,11 @@ import {
   useUsers,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { getAuthHeaders } from "@/lib/auth-tokens";
+import { getAccessToken, getAuthHeaders, refreshAccessToken } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
 import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
-const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+const allowedDocumentExtensions = [".jpg", ".jpeg", ".png", ".heic", ".heif", ".pdf", ".doc", ".docx"];
 
 const MemberAutocomplete = ({
   value, options, placeholder, onChange, onBlur, testId,
@@ -109,6 +109,7 @@ const parseWelfareNumber = (value: string) => {
 };
 
 const isAllowedDocument = (file: File) => {
+  if (file.type.startsWith("image/")) return true;
   const fileName = file.name.toLowerCase();
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
 };
@@ -177,7 +178,17 @@ const welfareSchema = z.object({
 
 type WelfareFormValues = z.infer<typeof welfareSchema>;
 
-type ReceiptCategory = "autosuficiencia" | "receipt" | "bank_justificante";
+type ReceiptCategory = "autosuficiencia" | "receipt" | "bank_justificante" | "expense";
+
+const welfareExpenseReceiptsSchema = z.object({
+  expenseReceipts: z
+    .array(z.instanceof(File))
+    .min(1, "Adjunta al menos un comprobante de gasto.")
+    .refine((files) => files.every((file) => isAllowedDocument(file)), {
+      message: "Adjunta archivos de imagen o PDF válidos.",
+    }),
+});
+type WelfareExpenseReceiptsValues = z.infer<typeof welfareExpenseReceiptsSchema>;
 
 interface WelfareRequest {
   id: string;
@@ -213,6 +224,9 @@ export default function WelfarePage() {
     bankJustificante: "idle" | "uploading" | "done";
   }>({ selfSufficiency: "idle", receipt: "idle", bankJustificante: "idle" });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExpenseReceiptsDialogOpen, setIsExpenseReceiptsDialogOpen] = useState(false);
+  const [selectedWelfareRequestForReceipts, setSelectedWelfareRequestForReceipts] = useState<WelfareRequest | null>(null);
+  const [welfareExpenseUploadState, setWelfareExpenseUploadState] = useState<"idle" | "uploading" | "done">("idle");
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const requesterSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -299,6 +313,11 @@ export default function WelfarePage() {
   const totalApproved = filteredRequests.filter((r) => r.status === "aprobado").reduce((sum, r) => sum + Number(r.amount), 0);
   const totalRechazadas = filteredRequests.filter((r) => r.status === "rechazada").length;
 
+  const expenseReceiptsForm = useForm<WelfareExpenseReceiptsValues>({
+    resolver: zodResolver(welfareExpenseReceiptsSchema),
+    defaultValues: { expenseReceipts: [] },
+  });
+
   const welfareForm = useForm<WelfareFormValues>({
     resolver: zodResolver(welfareSchema),
     defaultValues: {
@@ -322,16 +341,61 @@ export default function WelfarePage() {
   const watchedCategories = welfareForm.watch("welfareCategories");
   const watchedBankInSystem = welfareForm.watch("bankInSystem");
 
+  const onSubmitWelfareExpenseReceipts = async (data: WelfareExpenseReceiptsValues) => {
+    if (!selectedWelfareRequestForReceipts) return;
+
+    let uploadedReceipts: { filename: string; url: string; category: ReceiptCategory }[] = [];
+    try {
+      setWelfareExpenseUploadState("uploading");
+      uploadedReceipts = await Promise.all(
+        data.expenseReceipts.map(async (file) => {
+          const uploaded = await uploadFile(file);
+          return { filename: uploaded.filename, url: uploaded.url, category: "expense" as ReceiptCategory };
+        }),
+      );
+      setWelfareExpenseUploadState("done");
+    } catch (error: any) {
+      setWelfareExpenseUploadState("idle");
+      console.error("[welfare-expense] upload error:", error);
+      alert(`No se pudo subir los comprobantes: ${error?.message || "error desconocido"}. Intenta nuevamente.`);
+      return;
+    }
+
+    const existingReceipts = selectedWelfareRequestForReceipts.receipts ?? [];
+    updateMutation.mutate(
+      { id: selectedWelfareRequestForReceipts.id, data: { receipts: [...existingReceipts, ...uploadedReceipts] } },
+      {
+        onSuccess: () => {
+          setIsExpenseReceiptsDialogOpen(false);
+          setSelectedWelfareRequestForReceipts(null);
+          expenseReceiptsForm.reset();
+          setWelfareExpenseUploadState("idle");
+        },
+      },
+    );
+  };
+
   const uploadFile = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/api/uploads", {
-      method: "POST",
-      headers: getAuthHeaders(),
-      credentials: "include",
-      body: formData,
-    });
-    if (!response.ok) throw new Error("No se pudo subir el archivo");
+    const doUpload = async (token: string | null) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return fetch("/api/uploads", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+        body: formData,
+      });
+    };
+    let response = await doUpload(getAccessToken());
+    if (response.status === 401) {
+      const refreshed = await refreshAccessToken();
+      response = await doUpload(refreshed);
+    }
+    if (!response.ok) {
+      let detail = "";
+      try { const d = await response.json(); detail = d.error || d.message || ""; } catch {}
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
     return response.json() as Promise<{ filename: string; url: string }>;
   };
 
@@ -655,6 +719,7 @@ export default function WelfarePage() {
     if (category === "autosuficiencia") return "Plan de Autosuficiencia";
     if (category === "receipt") return "Comprobante de compra";
     if (category === "bank_justificante") return "Justificante de titularidad bancaria";
+    if (category === "expense") return "Comprobante de gasto";
     return "Adjunto";
   };
 
@@ -1328,6 +1393,19 @@ export default function WelfarePage() {
                             </Button>
                           </>
                         )}
+                        {request.status === "aprobado" && (isObispo || isSecretarioFinanciero || request.requestedBy === user?.id) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedWelfareRequestForReceipts(request);
+                              setIsExpenseReceiptsDialogOpen(true);
+                            }}
+                          >
+                            <Paperclip className="mr-1.5 h-3.5 w-3.5" />
+                            Adjuntar comprobantes
+                          </Button>
+                        )}
                         {(isObispo || (isOrgPresident && isWelfareOrg && request.status === "solicitado" && request.organizationId === user?.organizationId)) && (
                           <Button
                             size="sm"
@@ -1387,6 +1465,84 @@ export default function WelfarePage() {
               <p className="text-sm text-muted-foreground">No hay adjuntos disponibles.</p>
             ) : null}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expense receipts dialog */}
+      <Dialog
+        open={isExpenseReceiptsDialogOpen}
+        onOpenChange={(open) => {
+          setIsExpenseReceiptsDialogOpen(open);
+          if (!open) {
+            setSelectedWelfareRequestForReceipts(null);
+            expenseReceiptsForm.reset();
+            setWelfareExpenseUploadState("idle");
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Adjuntar comprobantes de gasto</DialogTitle>
+            <DialogDescription>
+              Sube los comprobantes de gasto asociados a esta ayuda de bienestar aprobada.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...expenseReceiptsForm}>
+            <form onSubmit={expenseReceiptsForm.handleSubmit(onSubmitWelfareExpenseReceipts)} className="space-y-4">
+              <FormField
+                control={expenseReceiptsForm.control}
+                name="expenseReceipts"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Comprobantes de gasto</FormLabel>
+                    <FormControl>
+                      <div className="flex flex-col gap-2">
+                        <input
+                          id="welfare-expense-receipts"
+                          type="file"
+                          multiple
+                          accept="image/*,.pdf,.doc,.docx"
+                          className="hidden"
+                          onChange={(e) => field.onChange(Array.from(e.target.files ?? []))}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant={field.value?.length ? "default" : "outline"}
+                            className="w-fit"
+                            disabled={updateMutation.isPending}
+                            onClick={() => (document.getElementById("welfare-expense-receipts") as HTMLInputElement)?.click()}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            {field.value?.length
+                              ? `${field.value.length} archivo${field.value.length > 1 ? "s" : ""} adjunto${field.value.length > 1 ? "s" : ""}`
+                              : "Adjuntar comprobantes"}
+                          </Button>
+                          {welfareExpenseUploadState === "uploading" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                          {welfareExpenseUploadState === "done" && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {field.value?.length ? `Archivos seleccionados: ${field.value.length}` : "Ningún archivo seleccionado"}
+                        </span>
+                      </div>
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">Formatos permitidos: JPG, PNG, Word (DOC/DOCX) o PDF.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsExpenseReceiptsDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={updateMutation.isPending || welfareExpenseUploadState === "uploading"}>
+                  {updateMutation.isPending || welfareExpenseUploadState === "uploading" ? "Guardando..." : "Adjuntar"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
