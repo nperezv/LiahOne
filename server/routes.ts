@@ -1796,29 +1796,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // UPLOADS
   // ========================================
 
-  app.post("/api/uploads", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
-    try {
-      const uploadedFile = (req as any).file as { originalname: string; buffer: Buffer } | undefined;
-      if (!uploadedFile) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const extension = path.extname(uploadedFile.originalname || "");
-      const storedFilename = `${randomUUID()}${extension}`;
-      const storedPath = path.join(uploadsPath, storedFilename);
-      await fs.promises.writeFile(storedPath, uploadedFile.buffer);
-
-      res.status(201).json({
-        filename: uploadedFile.originalname,
-        url: `/uploads/${storedFilename}`,
+  app.post(
+    "/api/uploads",
+    requireAuth,
+    (req: Request, res: Response, next: NextFunction) => {
+      upload.single("file")(req as any, res, (err: any) => {
+        if (err) {
+          console.error("[upload] multer error:", err.code, err.message, "| content-type:", req.headers["content-type"]);
+          if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+            return res.status(413).json({ error: "El archivo es demasiado grande. Máximo 10 MB." });
+          }
+          return res.status(400).json({ error: "Error al procesar el archivo: " + err.message });
+        }
+        next();
       });
-    } catch (error: any) {
-      if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({ error: "File too large" });
+    },
+    async (req: Request, res: Response) => {
+      try {
+        const uploadedFile = (req as any).file as { originalname: string; buffer: Buffer; size: number; mimetype: string } | undefined;
+        if (!uploadedFile) {
+          console.warn("[upload] no file found after multer. content-type:", req.headers["content-type"]);
+          return res.status(400).json({ error: "No se recibió ningún archivo. Verifica que el archivo esté adjunto correctamente." });
+        }
+
+        console.log("[upload] OK:", uploadedFile.originalname, uploadedFile.mimetype, uploadedFile.size, "bytes");
+
+        const extension = path.extname(uploadedFile.originalname || "");
+        const storedFilename = `${randomUUID()}${extension}`;
+        const storedPath = path.join(uploadsPath, storedFilename);
+        await fs.promises.writeFile(storedPath, uploadedFile.buffer);
+
+        res.status(201).json({
+          filename: uploadedFile.originalname,
+          url: `/uploads/${storedFilename}`,
+        });
+      } catch (error: any) {
+        console.error("[upload] handler error:", error);
+        res.status(500).json({ error: "Error al guardar el archivo" });
       }
-      res.status(400).json({ error: "Invalid upload data" });
-    }
-  });
+    },
+  );
 
   app.get("/api/uploads/:storedFilename/download", requireAuth, async (req: Request, res: Response) => {
     try {

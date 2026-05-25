@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateBudgetRequest, useOrganizations } from "@/hooks/use-api";
 import { SecretarioFinancieroContact } from "@/components/secretario-financiero-contact";
 import { useAuth } from "@/lib/auth";
-import { fetchWithAuthRetry } from "@/lib/auth-tokens";
+import { getAccessToken, refreshAccessToken } from "@/lib/auth-tokens";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -315,13 +315,30 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, on
   // ── Upload helper ───────────────────────────────────────────────────────
 
   const uploadReceiptFile = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetchWithAuthRetry("/api/uploads", {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) throw new Error("No se pudo subir el archivo");
+    const doUpload = async (token: string | null) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return fetch("/api/uploads", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+        body: formData,
+      });
+    };
+
+    let response = await doUpload(getAccessToken());
+
+    if (response.status === 401) {
+      const refreshed = await refreshAccessToken();
+      response = await doUpload(refreshed);
+    }
+
+    if (!response.ok) {
+      let detail = "";
+      try { const d = await response.json(); detail = d.error || d.message || ""; } catch {}
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+
     return response.json() as Promise<{ filename: string; url: string }>;
   };
 

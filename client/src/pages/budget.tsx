@@ -38,7 +38,7 @@ import {
   useOrganizations,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { fetchWithAuthRetry, getAuthHeaders } from "@/lib/auth-tokens";
+import { getAccessToken, getAuthHeaders, refreshAccessToken } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
 import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
@@ -273,16 +273,28 @@ export default function BudgetPage() {
   const updateOrgBudgetMutation = useUpdateOrganizationBudget();
 
   const uploadReceiptFile = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
+    const doUpload = async (token: string | null) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return fetch("/api/uploads", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+        body: formData,
+      });
+    };
 
-    const response = await fetchWithAuthRetry("/api/uploads", {
-      method: "POST",
-      body: formData,
-    });
+    let response = await doUpload(getAccessToken());
+
+    if (response.status === 401) {
+      const refreshed = await refreshAccessToken();
+      response = await doUpload(refreshed);
+    }
 
     if (!response.ok) {
-      throw new Error("No se pudo subir el archivo");
+      let detail = "";
+      try { const d = await response.json(); detail = d.error || d.message || ""; } catch {}
+      throw new Error(detail || `HTTP ${response.status}`);
     }
 
     return response.json() as Promise<{ filename: string; url: string }>;
@@ -696,8 +708,8 @@ export default function BudgetPage() {
       setExpenseUploadState("done");
     } catch (error) {
       setExpenseUploadState("idle");
-      console.error(error);
-      alert("No se pudo subir los comprobantes. Intenta nuevamente.");
+      console.error("[upload] expense receipts error:", error);
+      alert(`No se pudo subir los comprobantes: ${error?.message || "error desconocido"}. Intenta nuevamente.`);
       return;
     }
 
