@@ -19,6 +19,7 @@ import { useCreateBudgetRequest, useOrganizations } from "@/hooks/use-api";
 import { SecretarioFinancieroContact } from "@/components/secretario-financiero-contact";
 import { useAuth } from "@/lib/auth";
 import { getAccessToken, refreshAccessToken } from "@/lib/auth-tokens";
+import { compressImageIfNeeded } from "@/lib/compress-image";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -315,9 +316,10 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, on
   // ── Upload helper ───────────────────────────────────────────────────────
 
   const uploadReceiptFile = async (file: File) => {
+    const fileToUpload = await compressImageIfNeeded(file);
     const doUpload = async (token: string | null) => {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
       return fetch("/api/uploads", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},

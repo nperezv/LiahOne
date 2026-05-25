@@ -34,6 +34,7 @@ import {
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAccessToken, getAuthHeaders, refreshAccessToken } from "@/lib/auth-tokens";
+import { compressImageIfNeeded } from "@/lib/compress-image";
 import { useSearch } from "wouter";
 import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
@@ -376,9 +377,10 @@ export default function WelfarePage() {
   };
 
   const uploadFile = async (file: File) => {
+    const fileToUpload = await compressImageIfNeeded(file);
     const doUpload = async (token: string | null) => {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
       return fetch("/api/uploads", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
