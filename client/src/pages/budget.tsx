@@ -38,11 +38,11 @@ import {
   useOrganizations,
 } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
-import { getAuthHeaders } from "@/lib/auth-tokens";
+import { fetchWithAuthRetry, getAuthHeaders } from "@/lib/auth-tokens";
 import { useSearch } from "wouter";
 import { BackToAgendaButton } from "@/components/back-to-agenda-button";
 
-const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+const allowedDocumentExtensions = [".jpg", ".jpeg", ".png", ".heic", ".heif", ".pdf", ".doc", ".docx"];
 
 const BudgetCurrencyInput = ({ className, ...props }: ComponentProps<typeof Input>) => (
   <div className="relative">
@@ -88,6 +88,7 @@ const toBudgetNumber = (value?: number | string | null) => {
 };
 
 const isAllowedDocument = (file: File) => {
+  if (file.type.startsWith("image/")) return true;
   const fileName = file.name.toLowerCase();
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
 };
@@ -275,9 +276,8 @@ export default function BudgetPage() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/uploads", {
+    const response = await fetchWithAuthRetry("/api/uploads", {
       method: "POST",
-      headers: getAuthHeaders(),
       body: formData,
     });
 
@@ -1569,7 +1569,7 @@ export default function BudgetPage() {
                               <Input
                                 id="budget-receipt-file"
                                 type="file"
-                                accept={allowedDocumentExtensions.join(",")}
+                                accept="image/*,.pdf,.doc,.docx"
                                 onChange={(event) => field.onChange(event.target.files?.[0] ?? undefined)}
                                 onBlur={field.onBlur}
                                 ref={field.ref}
@@ -1596,7 +1596,7 @@ export default function BudgetPage() {
                             </div>
                           </FormControl>
                           <p className="text-xs text-muted-foreground">
-                            Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para reembolso.
+                            Formatos permitidos: JPG, PNG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para reembolso.
                           </p>
                           <FormMessage />
                         </FormItem>
@@ -1689,7 +1689,7 @@ export default function BudgetPage() {
                               id="expense-receipts"
                               type="file"
                               multiple
-                              accept={allowedDocumentExtensions.join(",")}
+                              accept="image/*,.pdf,.doc,.docx"
                               onChange={(event) => field.onChange(Array.from(event.target.files ?? []))}
                               onBlur={field.onBlur}
                               ref={field.ref}
@@ -1718,7 +1718,7 @@ export default function BudgetPage() {
                           </div>
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
-                          Formatos permitidos: JPG, Word (DOC/DOCX) o PDF.
+                          Formatos permitidos: JPG, PNG, Word (DOC/DOCX) o PDF.
                         </p>
                         <FormMessage />
                       </FormItem>

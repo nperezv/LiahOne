@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateBudgetRequest, useOrganizations } from "@/hooks/use-api";
 import { SecretarioFinancieroContact } from "@/components/secretario-financiero-contact";
 import { useAuth } from "@/lib/auth";
-import { getAuthHeaders } from "@/lib/auth-tokens";
+import { fetchWithAuthRetry } from "@/lib/auth-tokens";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -34,9 +34,10 @@ interface Organization {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const allowedDocumentExtensions = [".jpg", ".jpeg", ".pdf", ".doc", ".docx"];
+const allowedDocumentExtensions = [".jpg", ".jpeg", ".png", ".heic", ".heif", ".pdf", ".doc", ".docx"];
 
 const isAllowedDocument = (file: File) => {
+  if (file.type.startsWith("image/")) return true;
   const fileName = file.name.toLowerCase();
   return allowedDocumentExtensions.some((ext) => fileName.endsWith(ext));
 };
@@ -316,9 +317,8 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, on
   const uploadReceiptFile = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch("/api/uploads", {
+    const response = await fetchWithAuthRetry("/api/uploads", {
       method: "POST",
-      headers: getAuthHeaders(),
       body: formData,
     });
     if (!response.ok) throw new Error("No se pudo subir el archivo");
@@ -744,7 +744,7 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, on
                         <Input
                           id="brd-receipt-file"
                           type="file"
-                          accept={allowedDocumentExtensions.join(",")}
+                          accept="image/*,.pdf,.doc,.docx"
                           onChange={(e) => field.onChange(e.target.files?.[0] ?? undefined)}
                           onBlur={field.onBlur}
                           ref={field.ref}
@@ -770,7 +770,7 @@ export function BudgetRequestDialog({ open, onOpenChange, defaultDescription, on
                       </div>
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      Formatos permitidos: JPG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para reembolso.
+                      Formatos permitidos: JPG, PNG, Word (DOC/DOCX) o PDF. Este documento es obligatorio para reembolso.
                     </p>
                     <FormMessage />
                   </FormItem>
