@@ -380,7 +380,7 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
 
     const payload = parsed.data;
     const code = payload.code || (await allocateLocationCode(payload.name));
-    const [created] = await db.insert(inventoryLocations).values({ ...payload, code }).returning();
+    const [created] = (await db.insert(inventoryLocations).values({ ...payload, code }).returning()) as any[];
     res.status(201).json(created);
   });
 

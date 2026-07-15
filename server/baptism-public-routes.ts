@@ -58,9 +58,8 @@ function computeTheme(candidates: Array<{ sexo: string | null; fechaNacimiento: 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function ipHash(req: Request) {
-  const value = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "")
-    .split(",")[0].trim();
-  return createHash("sha256").update(value || "unknown-ip").digest("hex");
+  const value = req.ip || "unknown-ip";
+  return createHash("sha256").update(value).digest("hex");
 }
 
 async function getLeaderUserIds(): Promise<string[]> {
@@ -118,7 +117,11 @@ async function generateBaptismOgImage(theme: BaptismTheme, flyerUrl?: string | n
 }
 
 function resolveUpload(urlPath: string): Buffer | null {
-  const p = path.resolve(process.cwd(), urlPath.replace(/^\//, ""));
+  const cleanPath = urlPath.replace(/^\//, "");
+  if (!cleanPath.startsWith("uploads/")) return null;
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const p = path.resolve(process.cwd(), cleanPath);
+  if (!p.startsWith(uploadsDir)) return null;
   return fs.existsSync(p) ? fs.readFileSync(p) : null;
 }
 
@@ -550,7 +553,7 @@ export function registerBaptismPublicRoutes(app: Express) {
       const wardName = (tplResult.rows[0] as any)?.ward_name ?? null;
       const locationName = (svc?.location_name as string | null) ?? null;
 
-      const dto = toPublicServiceDTO({ items: itemsResult.rows as any[], approvedPosts: postsResult.rows as any[], expiresAt, candidates, serviceAt, wardName, locationName });
+      const dto = toPublicServiceDTO({ items: itemsResult.rows as any[], approvedPosts: postsResult.rows as any[], expiresAt: expiresAt || new Date(), candidates, serviceAt, wardName, locationName });
       res.json({ ...dto, theme });
     } catch (err) {
       console.error("[GET /bautismo/:slug]", err);

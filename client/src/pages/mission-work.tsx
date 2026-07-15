@@ -2384,12 +2384,12 @@ function BaptismalServiceSheet({
   const isObispo = userRole === "obispo" || userRole === "consejero_obispo";
   const isMissionLeader = userRole === "mission_leader" || userRole === "ward_missionary" || userRole === "full_time_missionary";
   const isLiderActividades = userRole === "lider_actividades";
-  const showMisionSections = isObispo || isMissionLeader || isPresidenteOrg;
-  const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
   const ALLOWED_ORG_TYPES = ["cuorum_elderes", "sociedad_socorro"];
   const isPresidenteOrg =
     (userRole === "presidente_organizacion" || userRole === "consejero_organizacion") &&
     ALLOWED_ORG_TYPES.includes(currentUser?.organizationType ?? "");
+  const showMisionSections = isObispo || isMissionLeader || isPresidenteOrg;
+  const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
   const showLogisticsStatus = isObispo || isMissionLeader || isPresidenteOrg;
 
   // Data hooks
@@ -3333,7 +3333,7 @@ function BaptismalServiceSheet({
                       const logisticsItems = (visibleChecklistItems as any[]).filter((i) =>
                         LOGISTICS_CHECKLIST_KEYS.includes(i.itemKey ?? i.item_key)
                       );
-                      const task = serviceTaskQuery.data;
+                      const task = Array.isArray(serviceTaskQuery.data) ? (serviceTaskQuery.data as any[]).find(t => t.assigned_role === "lider_actividades") : undefined;
                       const logAllDone = logisticsItems.length > 0 && logisticsItems.every((i: any) => i.completed);
                       const logSomeDone = logisticsItems.some((i: any) => i.completed);
                       const logEffectiveStatus = logisticsItems.length > 0
@@ -3667,7 +3667,7 @@ function BaptismalServiceSheet({
               {/* Read-only summary for obispo — hidden, obispo now uses the editable form below */}
               {false && isObispo && (() => {
                 const bd = coordDraft.baptismDetails;
-                const task = serviceTaskQuery.data;
+                const task = Array.isArray(serviceTaskQuery.data) ? (serviceTaskQuery.data as any[]).find(t => t.assigned_role === "lider_actividades") : undefined;
                 const taskStatusLabel = task?.status === "completed" ? "Completado"
                   : task?.status === "in_progress" ? "En progreso"
                   : task ? "Pendiente" : "Sin asignar";
@@ -3698,7 +3698,7 @@ function BaptismalServiceSheet({
 
                     <BaptismSectionHead icon={<Shirt className="h-4 w-4" />} title="Ropa bautismal" />
                     <div className="rounded-lg border bg-muted/20 px-3 py-1">
-                      {row("Fecha de prueba", service?.service_at ? formatServiceDate(service.service_at) : null)}
+                      {row("Fecha de prueba", (service as any)?.service_at ? formatServiceDate((service as any).service_at) : null)}
                       {row("Responsable prueba", bd.prueba_responsable)}
                       {row("Responsable recojo", bd.ropa_responsable)}
                     </div>
@@ -3711,7 +3711,7 @@ function BaptismalServiceSheet({
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${taskStatusColor}`}>{taskStatusLabel}</span>
                       </div>
                       {task?.assignedUserName && (
-                        <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task.assignedUserName}</p>
+                        <p className="text-xs text-muted-foreground mt-1 pl-4">Asignado a: {task?.assignedUserName}</p>
                       )}
                       {!task && (
                         <p className="text-xs text-muted-foreground mt-1 pl-4">Se generará al aprobar el servicio</p>

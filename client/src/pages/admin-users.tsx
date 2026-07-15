@@ -38,7 +38,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useMemberCallings, useMembers } from "@/hooks/use-api";
+import { useMemberCallings, useMembers, type DirectoryMember } from "@/hooks/use-api";
 import { useAuth } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth-tokens";
 import { formatCallingLabel } from "@/lib/callings";
@@ -96,16 +96,7 @@ interface Organization {
   type: string;
 }
 
-interface DirectoryMember {
-  id: string;
-  nameSurename: string;
-  nombre?: string | null;
-  apellidos?: string | null;
-  organizationName?: string | null;
-  organizationType?: string | null;
-  email?: string | null;
-  phone?: string | null;
-}
+
 
 interface AdminSession {
   id: string;
@@ -593,7 +584,7 @@ export default function AdminUsersPage() {
         {
           id: currentMemberId,
           nameSurename: "Miembro no disponible",
-        },
+        } as DirectoryMember,
         ...availableMembers,
       ];
     }
@@ -854,7 +845,7 @@ export default function AdminUsersPage() {
       return;
     }
     if (selectedRole && !roleOptions.some((option) => option.value === selectedRole)) {
-      createForm.setValue("role", roleOptions[0]?.value ?? "secretario");
+      createForm.setValue("role", (roleOptions[0]?.value ?? "secretario") as any);
     }
     if (selectedCallingName && !orgCallings.includes(selectedCallingName)) {
       createForm.setValue("callingName", "");
@@ -865,7 +856,7 @@ export default function AdminUsersPage() {
     if (!selectedCallingName) return;
     const inferredRole = inferRoleFromCalling(selectedCallingName, selectedOrganizationType);
     if (inferredRole && inferredRole !== selectedRole) {
-      createForm.setValue("role", inferredRole);
+      createForm.setValue("role", inferredRole as any);
     }
   }, [selectedCallingName, selectedOrganizationType, selectedRole, createForm]);
 
@@ -873,7 +864,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (!selectedEditCallingName || !selectedEditOrgType) return;
     const inferredRole = inferRoleFromCalling(selectedEditCallingName, selectedEditOrgType);
-    if (inferredRole) editUserForm.setValue("role", inferredRole as EditUserFormValues["role"]);
+    if (inferredRole) editUserForm.setValue("role", inferredRole as any);
   }, [selectedEditCallingName, selectedEditOrgType]);
 
   // Clear calling when edit org changes
@@ -1962,7 +1953,7 @@ export default function AdminUsersPage() {
                                     username: u.username,
                                     email: linkedMember?.email || u.email || "",
                                     phone: linkedMember?.phone || u.phone || "",
-                                    role: u.role as EditUserFormValues["role"],
+                                    role: u.role as any,
                                     organizationId: u.organizationId || "",
                                     memberId: u.memberId || "",
                                     callingName: "",

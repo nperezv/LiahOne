@@ -1440,12 +1440,14 @@ export default function DirectoryPage() {
                         }
                         handleOpenSheet(member);
                       }}
-                      onPointerDown={(event) => handlePointerDown(event, member.id, member)}
+                      onPointerDown={(event) => {
+                        handlePointerDown(event, member.id, member);
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                      }}
                       onPointerMove={handlePointerMove}
                       onPointerUp={handlePointerEnd}
                       onPointerCancel={handlePointerEnd}
                       onPointerLeave={handlePointerEnd}
-                      onPointerCapture={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
                     >
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background text-sm font-semibold text-foreground">
                         {initials}

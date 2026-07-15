@@ -326,6 +326,7 @@ export interface IStorage {
 
   // Agenda
   getAgendaEventsByUser(userId: string): Promise<AgendaEvent[]>;
+  getAgendaEvent(id: string): Promise<AgendaEvent | undefined>;
   upsertAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent>;
   createAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent>;
   updateAgendaEvent(id: string, data: Partial<InsertAgendaEvent>): Promise<AgendaEvent | undefined>;
@@ -1335,6 +1336,8 @@ export class DatabaseStorage implements IStorage {
         organizationId: members.organizationId,
         memberStatus: members.memberStatus,
         emailConsentGranted: members.emailConsentGranted,
+        emailConsentDate: members.emailConsentDate,
+        maritalStatus: members.maritalStatus,
         createdAt: members.createdAt,
         organizationName: organizations.name,
         organizationType: organizations.type,
@@ -1359,6 +1362,8 @@ export class DatabaseStorage implements IStorage {
         organizationId: members.organizationId,
         memberStatus: members.memberStatus,
         emailConsentGranted: members.emailConsentGranted,
+        emailConsentDate: members.emailConsentDate,
+        maritalStatus: members.maritalStatus,
         createdAt: members.createdAt,
         organizationName: organizations.name,
         organizationType: organizations.type,
@@ -1383,11 +1388,17 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: members.id,
         nameSurename: members.nameSurename,
+        nombre: members.nombre,
+        apellidos: members.apellidos,
         sex: members.sex,
         birthday: members.birthday,
         phone: members.phone,
         email: members.email,
         organizationId: members.organizationId,
+        memberStatus: members.memberStatus,
+        emailConsentGranted: members.emailConsentGranted,
+        emailConsentDate: members.emailConsentDate,
+        maritalStatus: members.maritalStatus,
         createdAt: members.createdAt,
         organizationName: organizations.name,
         organizationType: organizations.type,
@@ -1961,7 +1972,7 @@ export class DatabaseStorage implements IStorage {
       const [existing] = await db
         .select()
         .from(agendaEvents)
-        .where(and(eq(agendaEvents.userId, data.userId), eq(agendaEvents.sourceType, data.sourceType), eq(agendaEvents.sourceId, data.sourceId)))
+        .where(and(eq(agendaEvents.userId, data.userId), eq(agendaEvents.sourceType, data.sourceType as any), eq(agendaEvents.sourceId, data.sourceId)))
         .limit(1);
       if (existing) {
         const [updated] = await db
@@ -1979,6 +1990,11 @@ export class DatabaseStorage implements IStorage {
   async createAgendaEvent(data: InsertAgendaEvent): Promise<AgendaEvent> {
     const [event] = await db.insert(agendaEvents).values(data).returning();
     return event;
+  }
+
+  async getAgendaEvent(id: string): Promise<AgendaEvent | undefined> {
+    const [event] = await db.select().from(agendaEvents).where(eq(agendaEvents.id, id)).limit(1);
+    return event || undefined;
   }
 
   async updateAgendaEvent(id: string, data: Partial<InsertAgendaEvent>): Promise<AgendaEvent | undefined> {

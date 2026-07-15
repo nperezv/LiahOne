@@ -413,7 +413,7 @@ export default function LeadershipPage() {
             const isLeaderPair = LEADER_PAIR_ORG_TYPES.has(org.type);
 
             const president =
-              getOrganizationPresident(org.presidentId) ??
+              getOrganizationPresident(org.presidentId || undefined) ??
               typedUsers.find(
                 (user) => user.role === "presidente_organizacion" && user.organizationId === org.id
               );

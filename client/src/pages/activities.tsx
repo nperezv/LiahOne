@@ -167,15 +167,15 @@ function HymnAutocomplete({ value, options, placeholder, onChange }: {
   );
 }
 
-function MemberAutocomplete({ value, options, placeholder, onChange }: {
-  value: string; options: MemberOption[]; placeholder?: string; onChange: (v: string) => void;
+function MemberAutocomplete({ value, options, placeholder, className, onChange }: {
+  value: string; options: MemberOption[]; placeholder?: string; className?: string; onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const filtered = useMemo(() => filterMemberOptions(options, value), [options, value]);
   return (
     <div className="relative">
       <Input
-        className="text-sm"
+        className={`text-sm ${className || ""}`}
         value={value}
         placeholder={placeholder ?? "Nombre del miembro"}
         autoComplete="off"

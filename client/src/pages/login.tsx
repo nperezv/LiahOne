@@ -252,7 +252,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                   {!showRecoveryForm ? (
                     <Button
                       type="button"
-                      variant="link"
+                      variant={"link" as any}
                       className="h-auto w-full p-0 text-sm"
                       onClick={() => setShowRecoveryForm(true)}
                       data-testid="toggle-recovery-form"

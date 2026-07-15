@@ -44,7 +44,7 @@ function checkRateLimit(ip: string, max = 10): boolean {
 }
 
 function getIp(req: Request): string {
-  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+  return req.ip || "unknown";
 }
 
 const LEADER_ROLES = ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"];

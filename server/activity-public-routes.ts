@@ -40,7 +40,11 @@ function splitTitle(title: string, maxChars: number): [string, string] {
 
 function resolveUpload(urlPath: string | null): Buffer | null {
   if (!urlPath) return null;
-  const p = path.resolve(process.cwd(), urlPath.replace(/^\//, ""));
+  const cleanPath = urlPath.replace(/^\//, "");
+  if (!cleanPath.startsWith("uploads/")) return null;
+  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const p = path.resolve(process.cwd(), cleanPath);
+  if (!p.startsWith(uploadsDir)) return null;
   return fs.existsSync(p) ? fs.readFileSync(p) : null;
 }
 

@@ -4,9 +4,7 @@ import { MessageCircle, X, Send, CheckCircle, ArrowLeft } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ChioMsg  = { id: number; from: "chio"; content: React.ReactNode };
-type UserMsg  = { id: number; from: "user"; text: string };
-type Msg = ChioMsg | UserMsg;
+type Msg = { id: number; from: "chio" | "user"; text?: string; content?: React.ReactNode };
 
 type QR = { label: string; onPress: () => void };
 type FormPhase = "misioneros_miembro" | "misioneros_no" | "entrevista" | "lider" | null;
@@ -600,8 +598,8 @@ export function ChioChat() {
           <div className="flex-1 overflow-y-auto px-4 pt-4" style={{ scrollbarWidth:"none" }}>
             {messages.map(m =>
               m.from === "chio"
-                ? <CMsg key={m.id} content={(m as ChioMsg).content} />
-                : <UMsg key={m.id} text={(m as UserMsg).text} />
+                ? <CMsg key={m.id} content={m.content} />
+                : <UMsg key={m.id} text={m.text || ""} />
             )}
             {isTyping && <TypingIndicator />}
 

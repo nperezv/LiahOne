@@ -711,7 +711,7 @@ export default function BudgetPage() {
     } catch (error) {
       setExpenseUploadState("idle");
       console.error("[upload] expense receipts error:", error);
-      alert(`No se pudo subir los comprobantes: ${error?.message || "error desconocido"}. Intenta nuevamente.`);
+      alert(`No se pudo subir los comprobantes: ${(error as any)?.message || "error desconocido"}. Intenta nuevamente.`);
       return;
     }
 

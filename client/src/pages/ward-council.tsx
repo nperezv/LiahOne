@@ -247,7 +247,7 @@ function CouncilDetailsForm({
   onAutoSave: (data: CouncilDetailsFormValues) => void;
   onFinalize: (data: CouncilDetailsFormValues) => void;
   isUpdating: boolean;
-  leaderGroups: { name: string; members: any[] }[];
+  leaderGroups: { id: string; name: string; members: any[] }[];
   leaderLookup: Map<string, any>;
 }) {
   const { data: members = [] } = useMembers();
@@ -346,7 +346,7 @@ function CouncilDetailsForm({
 
     const timeout = window.setTimeout(() => {
       lastSavedRef.current = payload;
-      onAutoSave(watchedValues ?? {});
+      onAutoSave((watchedValues as any) ?? {});
     }, 30000); // 30 seconds
 
     return () => window.clearTimeout(timeout);

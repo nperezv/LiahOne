@@ -444,7 +444,7 @@ export default function AgendaPage() {
                       </div>
                     </div>
                     {event.sourceType !== "manual" && (
-                      <Button size="sm" variant="link" className="mt-1 h-auto px-0 py-0 text-xs" onClick={() => setLocation(isInterview ? `/interviews?highlight=${encodeURIComponent(event.sourceId ?? "")}` : "/activities")}>Abrir →</Button>
+                      <Button size="sm" variant={"link" as any} className="mt-1 h-auto px-0 py-0 text-xs" onClick={() => setLocation(isInterview ? `/interviews?highlight=${encodeURIComponent(event.sourceId ?? "")}` : "/activities")}>Abrir →</Button>
                     )}
                   </div>
                 );

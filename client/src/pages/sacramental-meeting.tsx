@@ -1021,7 +1021,7 @@ function SacramentalMeetingPageInner() {
   const updateReleaseName = (i: number, value: string) => {
     const u = [...releases]; const nn = normalizeMemberIfComma(value); u[i].name = nn;
     const matches = getMemberCallingsByName(nn);
-    if (matches.length === 1) { u[i].organizationId = matches[0]?.organizationId; u[i].oldCalling = matches[0]?.callingName || ""; setReleases(u); return; }
+    if (matches.length === 1) { u[i].organizationId = matches[0]?.organizationId || undefined; u[i].oldCalling = matches[0]?.callingName || ""; setReleases(u); return; }
     if (matches.length > 1) {
       const cOrgId = u[i].organizationId;
       if (cOrgId) { const om = getCallingsForMemberAndOrg(value, cOrgId); if (om.length === 1) { u[i].oldCalling = om[0]?.callingName || ""; setReleases(u); return; } }
@@ -1218,7 +1218,7 @@ function SacramentalMeetingPageInner() {
               <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 shrink-0">
                 <div>
                   <h2 className="text-sm font-bold">{editingId ? "Editar reunión" : "Nueva reunión"}</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">{formatPanelDate(form.watch("date"))}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatPanelDate(form.watch("date") || "")}</p>
                 </div>
                 <button type="button" onClick={closePanel} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
                   <X className="w-3.5 h-3.5" />
@@ -1327,7 +1327,7 @@ function SacramentalMeetingPageInner() {
                             }}>
                               <SelectTrigger><SelectValue placeholder="Selecciona al obispado o autoridad" /></SelectTrigger>
                               <SelectContent>
-                                {bishopricNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                                {bishopricNames.map((n: string) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                                 <SelectItem value={presiderAuthoritySelection}>Autoridad presidente</SelectItem>
                               </SelectContent>
                             </Select>
@@ -1358,7 +1358,7 @@ function SacramentalMeetingPageInner() {
                             }}>
                               <SelectTrigger><SelectValue placeholder="Selecciona al obispado o líder" /></SelectTrigger>
                               <SelectContent>
-                                {bishopricNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                                {bishopricNames.map((n: string) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                                 <SelectItem value={directorAssignedSelection}>Líder asignado</SelectItem>
                               </SelectContent>
                             </Select>

@@ -318,7 +318,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           await db.insert(notifications).values({
             userId: member.id,
             title: notifTitle,
-            message: notifMsg,
+            description: notifMsg,
             type: "reminder",
           });
           if (isPushConfigured()) {
@@ -1690,7 +1690,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const [notifRevoke] = await db.insert(notifications).values({
           userId: updatedService.created_by,
           title: "Aprobación de agenda revocada",
-          message: `El Obispo ha revocado la aprobación del servicio bautismal en ${locationName}. Por favor, revisa y vuelve a enviar para aprobación.`,
+          description: `El Obispo ha revocado la aprobación del servicio bautismal en ${locationName}. Por favor, revisa y vuelve a enviar para aprobación.`,
           type: "reminder",
           relatedId: req.params.id,
         }).returning();
@@ -2077,7 +2077,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const notifSubmit = await db.insert(notifications).values({
           userId: bishop.id,
           title: "Agenda bautismal pendiente de aprobación",
-          message: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
+          description: `El servicio en ${service.location_name} está listo y necesita tu aprobación.`,
           type: "reminder",
           relatedId: req.params.id,
         }).returning();
@@ -2436,7 +2436,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           const notifApprove = await db.insert(notifications).values({
             userId: service.created_by,
             title: "Agenda bautismal aprobada",
-            message: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
+            description: `El Obispo aprobó el servicio en ${service.location_name}. El enlace se activará el día del bautismo.`,
             type: "reminder",
             relatedId: service.id,
           }).returning();
@@ -2531,7 +2531,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
           const notifLogistics = await db.insert(notifications).values({
             userId: liderActividades.id,
             title: "Nueva tarea de logística bautismal",
-            message: `Se te ha asignado la coordinación logística del servicio bautismal de ${candidateName} (${serviceDateStr}).`,
+            description: `Se te ha asignado la coordinación logística del servicio bautismal de ${candidateName} (${serviceDateStr}).`,
             type: "reminder",
             relatedId: service.id,
           }).returning();
@@ -2618,7 +2618,7 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         const notifReject = await db.insert(notifications).values({
           userId: service.created_by,
           title: "Agenda bautismal requiere revisión",
-          message: `El Obispo solicitó cambios en el servicio de ${service.location_name}: ${comment}`,
+          description: `El Obispo solicitó cambios en el servicio de ${service.location_name}: ${comment}`,
           type: "reminder",
           relatedId: req.params.id,
         }).returning();

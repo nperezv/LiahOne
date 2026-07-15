@@ -357,10 +357,10 @@ export default function RecurringSeriesPage() {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {inst.notified_rotation && (
-                        <Bell className="h-3.5 w-3.5 text-green-500" title="Notificado" />
+                        <span title="Notificado"><Bell className="h-3.5 w-3.5 text-green-500" /></span>
                       )}
                       {inst.approval_status === "approved" && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" title="Aprobado" />
+                        <span title="Aprobado"><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /></span>
                       )}
                       {!isPast && (
                         <Button

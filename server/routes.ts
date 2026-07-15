@@ -844,6 +844,9 @@ async function hasInterviewCollision({
   return Boolean(organizationInterview);
 }
 
+// In-memory failed attempts tracker for OTPs: otpId -> number of failed attempts
+const otpFailedAttempts = new Map<string, number>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
   registerInventoryRoutes(app, requireAuth, getUserIdFromRequest);
   registerMissionRoutes(app, requireAuth);
@@ -1550,7 +1553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiresAt: getOtpExpiry(),
         });
 
-        await sendLoginOtpEmail(user.email, otpCode, wardName);
+        await sendLoginOtpEmail(user.email!, otpCode, wardName);
 
         await storage.createLoginEvent({
           userId: user.id,
@@ -1664,10 +1667,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (codeHash !== otp.codeHash) {
         const matchingOtp = await storage.getActiveEmailOtpByUserAndCodeHash(otp.userId, codeHash);
         if (!matchingOtp) {
+          const attempts = (otpFailedAttempts.get(otpId) ?? 0) + 1;
+          otpFailedAttempts.set(otpId, attempts);
+          if (attempts >= 5) {
+            otpFailedAttempts.delete(otpId);
+            await storage.consumeEmailOtp(otp.id);
+            return res.status(400).json({ error: "Demasiados intentos fallidos. El código ha sido invalidado." });
+          }
           return res.status(400).json({ error: "Invalid or expired code" });
         }
         otpToConsume = matchingOtp;
       }
+
+      otpFailedAttempts.delete(otpId);
 
       await storage.consumeEmailOtp(otpToConsume.id);
       const user = await storage.getUser(otpToConsume.userId);
@@ -2778,7 +2790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── PATCH /api/sacramental-meetings/:id/vote-result ──────────────────────
   app.patch("/api/sacramental-meetings/:id/vote-result", requireAuth, async (req: Request, res: Response) => {
     try {
-      const meetingId = parseInt(req.params.id, 10);
+      const meetingId = req.params.id;
       const { meetingDate, type, items, result, opponentName, opposedTo } = req.body;
 
       // Persist result to DB
@@ -2982,7 +2994,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (hasNewParticipants) {
           const fullDiscourseCount = [
             ...(meeting.discourses || []),
-            ...(meeting.messages || []),
           ].filter((d: any) => extractParticipantName(d?.speaker)).length;
           await notifySacramentalParticipants(diffMeeting, { totalDiscourseCount: fullDiscourseCount });
         }
@@ -3041,11 +3052,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!sustainment.organizationId || !sustainment.calling || !sustainment.name) continue;
 
           const [member] = await db
-            .select({ id: members.id })
-            .from(members)
+            .select({ id: membersTable.id })
+            .from(membersTable)
             .where(and(
-              eq(members.organizationId, sustainment.organizationId),
-              sql`lower(${members.nameSurename}) = lower(${sustainment.name})`,
+              eq(membersTable.organizationId, sustainment.organizationId),
+              sql`lower(${membersTable.nameSurename}) = lower(${sustainment.name})`,
             ));
           if (!member) {
             sustained.push({ name: sustainment.name, calling: sustainment.calling, memberFound: false, alreadyExisted: false });
@@ -3208,7 +3219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             description: `[${label}] ${person.situation || ""}`.trim(),
             assignedTo: person.responsibleId,
             assignedBy: req.session.userId!,
-            dueDate: person.dueDate ? new Date(person.dueDate) : undefined,
+            dueDate: person.dueDate ? new Date(person.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             relatedTo: `council:${council.id}`,
             area,
           });
@@ -3295,6 +3306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assignedTo: matched.id,
         assignedBy: actorUserId,
         relatedTo: `presidency-meeting:${meetingId}`,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       const notif = await storage.createNotification({
@@ -3988,7 +4000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await sendBudgetDisbursementRequestEmail({
             toEmail: financialSecretary.email,
             recipientName: shortName(financialSecretary),
-            recipientSex: financialSecretary.sex ?? null,
+            recipientSex: (financialSecretary as any).sex ?? null,
             bishopName: shortName(bishop) || "el obispo",
             budgetDescription: budgetRequest.description,
             budgetAmount: budgetRequest.amount,
@@ -4227,7 +4239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: `${shortName(user) || "Un usuario"} solicita €${welfareRequest.amount} — "${welfareRequest.description}"`,
           assignedTo: bishop.id,
           assignedBy: user.id,
-          dueDate: welfareRequest.activityDate ? new Date(welfareRequest.activityDate) : undefined,
+          dueDate: welfareRequest.activityDate ? new Date(welfareRequest.activityDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           relatedTo: `welfare:${welfareRequest.id}`,
         });
 
@@ -4598,9 +4610,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           memberOrganizationType = organization?.type;
         }
         if (memberEmail) {
+          const emailVal = memberEmail;
           const users = await storage.getAllUsers();
           const matchedUser = users.find(
-            (u) => u.email && u.email.toLowerCase() === memberEmail.toLowerCase()
+            (u) => u.email && u.email.toLowerCase() === emailVal.toLowerCase()
           );
           if (matchedUser) {
             assignedToId = matchedUser.id;
@@ -5896,6 +5909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user.role === "consejero_obispo" ||
         user.role === "secretario_ejecutivo";
       const isOrgMember = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role);
+      const isSecretary = ["secretario", "secretario_ejecutivo", "secretario_financiero"].includes(user.role);
       
       const goal = await storage.getGoal(id);
       if (!goal) {
@@ -8451,6 +8465,674 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/public/agent-context", async (_req: Request, res: Response) => {
+    try {
+      // 1. Ward Info
+      let wardInfo: any = null;
+      try {
+        const result = await db.execute(sql`
+          SELECT ward_name, stake_name, meeting_center_name, meeting_center_address, sacrament_meeting_time,
+                 instagram_url, facebook_url, whatsapp_phone, mission_office_email
+          FROM pdf_templates LIMIT 1
+        `);
+        const row = (result.rows as any[])[0];
+        if (row) {
+          wardInfo = {
+            wardName: row.ward_name ?? null,
+            stakeName: row.stake_name ?? null,
+            meetingCenterName: row.meeting_center_name ?? null,
+            meetingCenterAddress: row.meeting_center_address ?? null,
+            sacramentMeetingTime: row.sacrament_meeting_time ?? null,
+            instagramUrl: row.instagram_url ?? null,
+            facebookUrl: row.facebook_url ?? null,
+            whatsappPhone: row.whatsapp_phone ?? null,
+            missionOfficeEmail: row.mission_office_email ?? null,
+          };
+        }
+      } catch (err) {
+        console.error("Agent context ward-info error:", err);
+      }
+
+      // 2. Leaders
+      let leaders: any[] = [];
+      try {
+        const allUsers = await storage.getAllUsers();
+        const bishop = allUsers.find(u => u.role === "obispo");
+        const counselors = allUsers.filter(u => u.role === "consejero_obispo");
+        
+        if (bishop) {
+          leaders.push({
+            role: "obispo",
+            displayName: bishop.name || bishop.username,
+            email: bishop.email || null,
+          });
+        }
+        counselors.forEach((c, idx) => {
+          leaders.push({
+            role: `consejero_${idx + 1}`,
+            displayName: c.name || c.username,
+            email: c.email || null,
+          });
+        });
+      } catch (err) {
+        console.error("Agent context leaders error:", err);
+      }
+
+      // 3. Upcoming Activities
+      let upcomingActivities: any[] = [];
+      try {
+        const result = await db.execute(sql`
+          SELECT id, title, description, date, location, type
+          FROM activities
+          WHERE is_public = true AND date >= NOW()
+          ORDER BY date ASC
+          LIMIT 5
+        `);
+        upcomingActivities = "rows" in result ? result.rows : result as any[];
+      } catch (err) {
+        console.error("Agent context activities error:", err);
+      }
+
+      // 4. Available interview dates (Obispo, Consejero 1, Consejero 2)
+      const availabilities: Record<string, any[]> = {};
+      try {
+        const allUsers = await storage.getAllUsers();
+        const candidates = allUsers.filter(u => u.role === "obispo" || u.role === "consejero_obispo");
+        
+        const roles = ["obispo", "consejero_1", "consejero_2"];
+        for (const role of roles) {
+          const leader = role === "obispo" 
+            ? candidates.find(u => u.role === "obispo") 
+            : role === "consejero_1" 
+            ? candidates.find(u => u.role === "consejero_obispo")
+            : candidates.filter(u => u.role === "consejero_obispo")[1];
+
+          if (!leader) {
+            availabilities[role] = [];
+            continue;
+          }
+
+          const windowsResult = await db.execute(sql`
+            SELECT day_of_week, start_time, end_time, slot_minutes, max_per_day
+            FROM interview_windows WHERE user_id = ${leader.id} AND is_active = true
+          `);
+          const windows = windowsResult.rows as any[];
+          if (!windows.length) {
+            availabilities[role] = [];
+            continue;
+          }
+
+          const slots: Array<{ date: string; times: string[] }> = [];
+          const now = new Date();
+
+          for (let d = 1; d <= 21 && slots.length < 3; d++) {
+            const date = new Date(now);
+            date.setDate(now.getDate() + d);
+            const jsDay = date.getDay();
+            const monDay = jsDay === 0 ? 6 : jsDay - 1;
+            const win = windows.find((w: any) => w.day_of_week === monDay);
+            if (!win) continue;
+
+            const dateStr = date.toISOString().slice(0, 10);
+            const bookedResult = await db.execute(sql`
+              SELECT COUNT(*) AS cnt FROM interviews
+              WHERE DATE(date) = ${dateStr} AND interviewer_id = ${leader.id}
+                AND status NOT IN ('cancelada','archivada')
+            `);
+            const booked = parseInt((bookedResult.rows[0] as any)?.cnt ?? "0", 10);
+
+            const pendingResult = await db.execute(sql`
+              SELECT COUNT(*) AS cnt FROM interview_requests
+              WHERE preferred_date = ${dateStr} AND leader_role = ${role} AND status = 'pending'
+            `);
+            const pending = parseInt((pendingResult.rows[0] as any)?.cnt ?? "0", 10);
+
+            if (booked + pending < win.max_per_day) {
+              // Generate slots
+              const startTime = win.start_time; // HH:MM
+              const endTime = win.end_time;     // HH:MM
+              const slotMins = win.slot_minutes;
+
+              const [startH, startM] = startTime.split(":").map(Number);
+              const [endH, endM] = endTime.split(":").map(Number);
+
+              const dateStart = new Date(date);
+              dateStart.setHours(startH, startM, 0, 0);
+              const dateEnd = new Date(date);
+              dateEnd.setHours(endH, endM, 0, 0);
+
+              const times: string[] = [];
+              let current = dateStart.getTime();
+              while (current + slotMins * 60 * 1000 <= dateEnd.getTime()) {
+                const tDate = new Date(current);
+                times.push(tDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }));
+                current += slotMins * 60 * 1000;
+              }
+
+              slots.push({
+                date: dateStr,
+                times,
+              });
+            }
+          }
+          availabilities[role] = slots;
+        }
+      } catch (err) {
+        console.error("Agent context availability error:", err);
+      }
+
+      // 5. Next Sacramental Meeting
+      let nextSacramentalMeeting: any = null;
+      try {
+        const smResult = await db.execute(sql`
+          SELECT date, presider, director, opening_hymn, sacrament_hymn, intermediate_hymn, closing_hymn,
+                 opening_prayer, closing_prayer, music_director, pianist, discourses, assignments,
+                 releases, sustainments, new_members, aaronic_orderings, child_blessings, confirmations,
+                 is_testimony_meeting
+          FROM sacramental_meetings
+          WHERE date >= NOW() - INTERVAL '1 day'
+          ORDER BY date ASC
+          LIMIT 1
+        `);
+        const smRow = (smResult.rows as any[])[0];
+        if (smRow) {
+          nextSacramentalMeeting = {
+            date: smRow.date,
+            presider: smRow.presider ?? null,
+            director: smRow.director ?? null,
+            openingHymn: smRow.opening_hymn ?? null,
+            sacramentHymn: smRow.sacrament_hymn ?? null,
+            intermediateHymn: smRow.intermediate_hymn ?? null,
+            closingHymn: smRow.closing_hymn ?? null,
+            openingPrayer: smRow.opening_prayer ?? null,
+            closingPrayer: smRow.closing_prayer ?? null,
+            musicDirector: smRow.music_director ?? null,
+            pianist: smRow.pianist ?? null,
+            discourses: smRow.discourses ?? [],
+            assignments: smRow.assignments ?? [],
+            releases: smRow.releases ?? [],
+            sustainments: smRow.sustainments ?? [],
+            newMembers: smRow.new_members ?? [],
+            aaronicOrderings: smRow.aaronic_orderings ?? [],
+            childBlessings: smRow.child_blessings ?? [],
+            confirmations: smRow.confirmations ?? [],
+            isTestimonyMeeting: smRow.is_testimony_meeting ?? false,
+          };
+        }
+      } catch (err) {
+        console.error("Agent context next-sacramental-meeting error:", err);
+      }
+
+      return res.json({
+        wardInfo,
+        leaders,
+        upcomingActivities,
+        interviewAvailability: availabilities,
+        nextSacramentalMeeting,
+      });
+    } catch (err: any) {
+      console.error("[GET /api/public/agent-context] Error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/public/chat", async (req: Request, res: Response) => {
+    try {
+      const { message, history } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "El campo message es obligatorio." });
+      }
+
+      // Gather Context
+      // 1. Ward Info
+      let wardInfo: any = null;
+      try {
+        const result = await db.execute(sql`
+          SELECT ward_name, stake_name, meeting_center_name, meeting_center_address, sacrament_meeting_time,
+                 instagram_url, facebook_url, whatsapp_phone, mission_office_email
+          FROM pdf_templates LIMIT 1
+        `);
+        const row = (result.rows as any[])[0];
+        if (row) {
+          wardInfo = {
+            wardName: row.ward_name ?? null,
+            stakeName: row.stake_name ?? null,
+            meetingCenterName: row.meeting_center_name ?? null,
+            meetingCenterAddress: row.meeting_center_address ?? null,
+            sacramentMeetingTime: row.sacrament_meeting_time ?? null,
+            instagramUrl: row.instagram_url ?? null,
+            facebookUrl: row.facebook_url ?? null,
+            whatsappPhone: row.whatsapp_phone ?? null,
+            missionOfficeEmail: row.mission_office_email ?? null,
+          };
+        }
+      } catch (err) {
+        console.error("Chat context ward-info error:", err);
+      }
+
+      // 2. Upcoming Activities
+      let upcomingActivities: any[] = [];
+      try {
+        const result = await db.execute(sql`
+          SELECT title, description, date, location, type
+          FROM activities
+          WHERE is_public = true AND date >= NOW()
+          ORDER BY date ASC
+          LIMIT 5
+        `);
+        upcomingActivities = "rows" in result ? result.rows : result as any[];
+      } catch (err) {
+        console.error("Chat context activities error:", err);
+      }
+
+      // 3. Next Sacramental Meeting
+      let nextSacramentalMeeting: any = null;
+      try {
+        const smResult = await db.execute(sql`
+          SELECT date, presider, director, opening_hymn, sacrament_hymn, intermediate_hymn, closing_hymn,
+                 opening_prayer, closing_prayer, music_director, pianist, discourses, assignments,
+                 releases, sustainments, new_members, aaronic_orderings, child_blessings, confirmations,
+                 is_testimony_meeting
+          FROM sacramental_meetings
+          WHERE date >= NOW() - INTERVAL '1 day'
+          ORDER BY date ASC
+          LIMIT 1
+        `);
+        const smRow = (smResult.rows as any[])[0];
+        if (smRow) {
+          nextSacramentalMeeting = {
+            date: smRow.date,
+            presider: smRow.presider ?? null,
+            director: smRow.director ?? null,
+            openingHymn: smRow.opening_hymn ?? null,
+            sacramentHymn: smRow.sacrament_hymn ?? null,
+            intermediateHymn: smRow.intermediate_hymn ?? null,
+            closingHymn: smRow.closing_hymn ?? null,
+            openingPrayer: smRow.opening_prayer ?? null,
+            closingPrayer: smRow.closing_prayer ?? null,
+            musicDirector: smRow.music_director ?? null,
+            pianist: smRow.pianist ?? null,
+            discourses: smRow.discourses ?? [],
+            assignments: smRow.assignments ?? [],
+            releases: smRow.releases ?? [],
+            sustainments: smRow.sustainments ?? [],
+            newMembers: smRow.new_members ?? [],
+            aaronicOrderings: smRow.aaronic_orderings ?? [],
+            childBlessings: smRow.child_blessings ?? [],
+            confirmations: smRow.confirmations ?? [],
+            isTestimonyMeeting: smRow.is_testimony_meeting ?? false,
+          };
+        }
+      } catch (err) {
+        console.error("Chat context next-sacramental-meeting error:", err);
+      }
+
+      // 4. Leaders
+      let leaders: any[] = [];
+      try {
+        const allUsers = await storage.getAllUsers();
+        for (const u of allUsers) {
+          if (['obispo', 'consejero_obispo', 'secretario', 'secretario_ejecutivo', 'secretario_financiero', 'presidente_organizacion'].includes(u.role)) {
+            leaders.push({
+              name: u.name,
+              role: u.role,
+              email: u.email || null,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Chat context leaders error:", err);
+      }
+
+      // 5. Available interview dates (Obispo, Consejero 1, Consejero 2)
+      const availabilities: Record<string, any[]> = {};
+      try {
+        const allUsers = await storage.getAllUsers();
+        const candidates = allUsers.filter(u => u.role === "obispo" || u.role === "consejero_obispo");
+        
+        const roles = ["obispo", "consejero_1", "consejero_2"];
+        for (const role of roles) {
+          const leader = role === "obispo" 
+            ? candidates.find(u => u.role === "obispo") 
+            : role === "consejero_1" 
+            ? candidates.find(u => u.role === "consejero_obispo")
+            : candidates.filter(u => u.role === "consejero_obispo")[1];
+
+          if (!leader) {
+            availabilities[role] = [];
+            continue;
+          }
+
+          const windowsResult = await db.execute(sql`
+            SELECT day_of_week, start_time, end_time, slot_minutes, max_per_day
+            FROM interview_windows WHERE user_id = ${leader.id} AND is_active = true
+          `);
+          const windows = windowsResult.rows as any[];
+          if (!windows.length) {
+            availabilities[role] = [];
+            continue;
+          }
+
+          const slots: Array<{ date: string; times: string[] }> = [];
+          const now = new Date();
+
+          for (let d = 1; d <= 21 && slots.length < 3; d++) {
+            const date = new Date(now);
+            date.setDate(now.getDate() + d);
+            const jsDay = date.getDay();
+            const monDay = jsDay === 0 ? 6 : jsDay - 1;
+            const win = windows.find((w: any) => w.day_of_week === monDay);
+            if (!win) continue;
+
+            const dateStr = date.toISOString().slice(0, 10);
+            const bookedResult = await db.execute(sql`
+              SELECT COUNT(*) AS cnt FROM interviews
+              WHERE DATE(date) = ${dateStr} AND interviewer_id = ${leader.id}
+                AND status NOT IN ('cancelada','archivada')
+            `);
+            const booked = parseInt((bookedResult.rows[0] as any)?.cnt ?? "0", 10);
+
+            const pendingResult = await db.execute(sql`
+              SELECT COUNT(*) AS cnt FROM interview_requests
+              WHERE preferred_date = ${dateStr} AND leader_role = ${role} AND status = 'pending'
+            `);
+            const pending = parseInt((pendingResult.rows[0] as any)?.cnt ?? "0", 10);
+
+            if (booked + pending < win.max_per_day) {
+              const startTime = win.start_time;
+              const endTime = win.end_time;
+              const slotMins = win.slot_minutes;
+
+              const [startH, startM] = startTime.split(":").map(Number);
+              const [endH, endM] = endTime.split(":").map(Number);
+
+              const dateStart = new Date(date);
+              dateStart.setHours(startH, startM, 0, 0);
+              const dateEnd = new Date(date);
+              dateEnd.setHours(endH, endM, 0, 0);
+
+              const times: string[] = [];
+              let current = dateStart.getTime();
+              while (current + slotMins * 60 * 1000 <= dateEnd.getTime()) {
+                const tDate = new Date(current);
+                times.push(tDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }));
+                current += slotMins * 60 * 1000;
+              }
+
+              slots.push({
+                date: dateStr,
+                times,
+              });
+            }
+          }
+          availabilities[role] = slots;
+        }
+      } catch (err) {
+        console.error("Chat context availability error:", err);
+      }
+
+      let availabilitiesString = "";
+      for (const [role, slots] of Object.entries(availabilities)) {
+        availabilitiesString += `- ${role.toUpperCase()}:\n`;
+        if (slots.length === 0) {
+          availabilitiesString += "  * No hay horarios de entrevistas disponibles cargados para este líder.\n";
+        } else {
+          for (const slot of slots) {
+            availabilitiesString += `  * Fecha ${slot.date}: ${slot.times.join(", ")}\n`;
+          }
+        }
+      }
+
+      // Format context for prompt
+      const contextString = `
+[INFORMACIÓN DEL BARRIO]
+- Barrio: ${wardInfo?.wardName ?? "No disponible"}
+- Estaca: ${wardInfo?.stakeName ?? "No disponible"}
+- Centro de Reuniones: ${wardInfo?.meetingCenterName ?? "No disponible"}
+- Dirección: ${wardInfo?.meetingCenterAddress ?? "No disponible"}
+- Hora de Reunión Sacramental: ${wardInfo?.sacramentMeetingTime ?? "No disponible"}
+- Contacto WhatsApp: ${wardInfo?.whatsappPhone ?? "No disponible"}
+- Email de Misión: ${wardInfo?.missionOfficeEmail ?? "No disponible"}
+
+[PRÓXIMAS ACTIVIDADES PÚBLICAS]
+${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${a.date}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
+
+[PRÓXIMA REUNIÓN SACRAMENTAL DE DOMINGO]
+${nextSacramentalMeeting ? `
+- Fecha: ${nextSacramentalMeeting.date}
+- Preside: ${nextSacramentalMeeting.presider || "Obispo"}
+- Dirige: ${nextSacramentalMeeting.director || "Obispado"}
+- Himno de Apertura: ${nextSacramentalMeeting.openingHymn || "Por confirmar"}
+- Himno de la Santa Cena: ${nextSacramentalMeeting.sacramentHymn || "Por confirmar"}
+- Himno Intermedio: ${nextSacramentalMeeting.intermediateHymn || "No programado"}
+- Himno de Clausura: ${nextSacramentalMeeting.closingHymn || "Por confirmar"}
+- Primera Oración: ${nextSacramentalMeeting.openingPrayer || "Por asignar"}
+- Última Oración: ${nextSacramentalMeeting.closingPrayer || "Por asignar"}
+- Director de Música: ${nextSacramentalMeeting.musicDirector || "Por confirmar"}
+- Pianista: ${nextSacramentalMeeting.pianist || "Por confirmar"}
+- Discursantes (Oradores):
+${nextSacramentalMeeting.discourses.length > 0 ? nextSacramentalMeeting.discourses.map((d: any) => `  * Discursante: ${d.speaker}, Tema: ${d.topic}`).join("\n") : "  * Por confirmar discursantes."}
+- Asignaciones adicionales:
+${nextSacramentalMeeting.assignments.length > 0 ? nextSacramentalMeeting.assignments.map((a: any) => `  * Nombre: ${a.name}, Asignación: ${a.assignment}`).join("\n") : "  * Ninguna asignación adicional."}
+` : "No hay detalles cargados para la próxima reunión sacramental."}
+
+[CONSEJO DE BARRIO / LÍDERES]
+${leaders.length > 0 ? leaders.map(l => `- Nombre: ${l.name}, Rol: ${l.role}, Email: ${l.email || "No disponible"}`).join("\n") : "No disponible."}
+
+[DISPONIBILIDAD DE HORARIOS PARA AGENDAR ENTREVISTAS DIRECTAMENTE]
+${availabilitiesString}
+`;
+
+      const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+      if (!geminiKey && !anthropicKey) {
+        return res.status(500).json({ error: "Ninguna clave de API (GEMINI_API_KEY o ANTHROPIC_API_KEY) está configurada en el servidor." });
+      }
+
+      // Convert history to user/assistant roles
+      const formattedHistory = (history || []).map((h: any) => ({
+        role: h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user',
+        content: h.content || h.parts?.[0]?.text || ""
+      }));
+
+      const systemInstruction = `Eres un asistente de inteligencia artificial para el Barrio de la Iglesia de Jesucristo de los Santos de los Últimos Días (SUD). Respondes de forma natural, cálida y respetuosa, usando el tono característico de un miembro de la iglesia (llamando "hermano" o "hermana" a los usuarios, refiriéndote a la "reunión sacramental", "estaca", "obispado", etc.).
+
+Aquí tienes la información en tiempo real del Barrio para responder a las preguntas:
+${contextString}
+
+REGLAS DE COMPORTAMIENTO:
+1. Responde a las preguntas utilizando únicamente la información provista. Si no tienes la información (por ejemplo, si no hay actividades planificadas), dilo de forma amable y servicial.
+2. Si el usuario te pregunta sobre los himnos de la reunión sacramental, revisa los datos de [PRÓXIMA REUNIÓN SACRAMENTAL DE DOMINGO] y proporciónalos. Si no están cargados, infórmale amablemente.
+3. Si el usuario pregunta quién tiene discurso (discursantes), describe las personas y temas listados en [PRÓXIMA REUNIÓN SACRAMENTAL DE DOMINGO].
+4. Si el usuario quiere AGENDAR una entrevista directamente (sin esperar aprobaciones humanas):
+   - Muestra las opciones y fechas/horas disponibles según el bloque [DISPONIBILIDAD DE HORARIOS PARA AGENDAR ENTREVISTAS DIRECTAMENTE] para el líder que solicita (obispo, consejero_1, consejero_2).
+   - Para poder agendar formalmente, pídele e interactúa para obtener:
+     a) El líder con quien desea la entrevista (obispo, consejero_1 o consejero_2).
+     b) La fecha seleccionada (formato YYYY-MM-DD).
+     c) La hora seleccionada (formato HH:MM, de entre las horas disponibles).
+     d) El nombre completo de la persona para la que es la entrevista.
+     e) El motivo (por ejemplo, "Recomendación para el templo", "Entrevista regular", "Llamamiento", etc.).
+   - Cuando tengas estos datos confirmados, debes retornar la acción "schedule_interview" para que el backend la agende directamente en la base de datos de inmediato.
+5. Si el usuario quiere hablar o ponerse en contacto general con el obispo o miembro del consejo de barrio (y NO es para agendar un horario específico de entrevista):
+   - Recopila: nombre, teléfono y motivo.
+   - En cuanto los tengas, retorna la acción "contact_request".
+
+IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura exacta:
+{
+  "response": "Texto de tu respuesta en español...",
+  "action": null | {
+    "type": "schedule_interview",
+    "leader": "obispo" | "consejero_1" | "consejero_2",
+    "date": "YYYY-MM-DD",
+    "time": "HH:MM",
+    "name": "Nombre completo",
+    "reason": "Motivo de la entrevista"
+  } | {
+    "type": "contact_request",
+    "name": "Nombre completo",
+    "phone": "Teléfono",
+    "reason": "Motivo de contacto"
+  }
+}`;
+
+      let aiResponse: any = null;
+
+      if (geminiKey) {
+        // Build Gemini History
+        const geminiHistory = formattedHistory.map((h: any) => ({
+          role: h.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: h.content }]
+        }));
+        
+        geminiHistory.push({
+          role: 'user',
+          parts: [{ text: message }]
+        });
+
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: geminiHistory,
+            systemInstruction: {
+              parts: [{ text: systemInstruction }]
+            },
+            generationConfig: {
+              responseMimeType: 'application/json'
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Gemini API error: ${response.status} - ${errText}`);
+        }
+
+        const data: any = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error("No response text from Gemini");
+        aiResponse = JSON.parse(text);
+
+      } else if (anthropicKey) {
+        const client = new Anthropic({ apiKey: anthropicKey });
+        
+        const claudeMessages = formattedHistory.map((h: any) => ({
+          role: h.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+          content: h.content
+        }));
+        
+        claudeMessages.push({
+          role: 'user' as const,
+          content: message
+        });
+
+        const msgResult = await client.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1000,
+          system: systemInstruction,
+          messages: claudeMessages,
+        });
+
+        const content = msgResult.content[0];
+        if (content.type !== "text") throw new Error("Unexpected response type from Claude");
+        
+        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Could not parse JSON from Claude response");
+        aiResponse = JSON.parse(jsonMatch[0]);
+      }
+
+      // Check for action and create notification / schedule interview
+      if (aiResponse && aiResponse.action) {
+        if (aiResponse.action.type === "schedule_interview") {
+          const { leader: targetRole, date: targetDate, time: targetTime, name: targetName, reason: targetReason } = aiResponse.action;
+
+          // Find leader user ID
+          const allUsers = await storage.getAllUsers();
+          const candidates = allUsers.filter(u => u.role === "obispo" || u.role === "consejero_obispo");
+          
+          const leader = targetRole === "obispo"
+            ? candidates.find(u => u.role === "obispo")
+            : targetRole === "consejero_1"
+            ? candidates.find(u => u.role === "consejero_obispo")
+            : candidates.filter(u => u.role === "consejero_obispo")[1];
+
+          if (leader) {
+            const combinedDateTime = new Date(`${targetDate}T${targetTime}:00`);
+
+            await db.execute(sql`
+              INSERT INTO interviews (
+                date,
+                person_name,
+                interviewer_id,
+                type,
+                status,
+                assigned_by,
+                urgent,
+                notes,
+                created_at,
+                updated_at
+              ) VALUES (
+                ${combinedDateTime},
+                ${targetName},
+                ${leader.id},
+                ${targetReason || "Regular"},
+                'programada',
+                ${leader.id},
+                false,
+                'Agendada automáticamente por el Agente de WhatsApp',
+                NOW(),
+                NOW()
+              )
+            `);
+
+            // Add notification for the leader
+            await db.execute(sql`
+              INSERT INTO notifications (user_id, type, title, description, is_read, created_at)
+              VALUES (
+                ${leader.id},
+                'upcoming_interview',
+                'Nueva entrevista agendada',
+                ${`Nueva entrevista agendada automáticamente con ${targetName} el ${targetDate} a las ${targetTime}.`},
+                false,
+                NOW()
+              )
+            `);
+          }
+        } else if (aiResponse.action.type === "contact_request") {
+          const { name: contactName, phone: contactPhone, reason: contactReason } = aiResponse.action;
+          
+          // Find Bishop and Executive Secretary
+          const targetUsers = await db.execute(sql`
+            SELECT id FROM users
+            WHERE role IN ('obispo', 'secretario_ejecutivo')
+          `);
+          
+          for (const target of targetUsers.rows as any[]) {
+            await db.execute(sql`
+              INSERT INTO notifications (user_id, type, title, description, is_read, created_at)
+              VALUES (
+                ${target.id},
+                'reminder',
+                ${`Solicitud de Contacto: ${contactName}`},
+                ${`El miembro ${contactName} (Teléfono: ${contactPhone}) ha solicitado ponerse en contacto. Motivo: ${contactReason}`},
+                false,
+                NOW()
+              )
+            `);
+          }
+        }
+      }
+
+      return res.json(aiResponse);
+
+    } catch (err: any) {
+      console.error("[POST /api/public/chat] Error:", err);
+      return res.status(500).json({ error: err.message || "Internal server error" });
+    }
+  });
+
   // ── Interview Windows (leader availability config) ──────────────────────────
 
   app.get("/api/interview-windows", requireAuth, async (req: Request, res: Response) => {
@@ -8610,7 +9292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (leaderRole === "consejero_2") { leaders.reverse(); leaders.splice(1); }
 
       const recipients = leaders.map(u => u.email!).filter(Boolean);
-      const smtp = (await import("./auth")).createSmtpTransport ? null : null;
+      const smtp = (await import("./auth") as any).createSmtpTransport ? null : null;
 
       await Promise.all(recipients.map(to =>
         sendMissionaryContactEmail({
@@ -9403,7 +10085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Sin permiso" });
       }
 
-      const files = req.files as { [f: string]: Express.Multer.File[] } | undefined;
+      const files = (req as any).files as Record<string, any[]> | undefined;
       const flyerFile = files?.["flyer"]?.[0];
       if (!flyerFile) return res.status(400).json({ error: "No se recibió archivo" });
 
@@ -9642,10 +10324,10 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
         const isObispado = ["obispo", "consejero_obispo"].includes(user.role);
         const isOrgMember = ["presidente_organizacion", "consejero_organizacion", "secretario_organizacion", "lider_actividades"].includes(user.role);
         if (!isObispado && !isOrgMember) return res.status(403).json({ error: "Sin permiso" });
-        if (!req.file) return res.status(400).json({ error: "No se recibió archivo" });
+        if (!(req as any).file) return res.status(400).json({ error: "No se recibió archivo" });
 
-        const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
-        const baseName = req.file.originalname
+        const ext = (req as any).file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
+        const baseName = (req as any).file.originalname
           .replace(/\.[^.]+$/, "")
           .replace(/[^a-z0-9_-]/gi, "-")
           .toLowerCase();
@@ -9658,7 +10340,7 @@ Devuelve SOLO un objeto JSON válido con esta estructura exacta, sin texto adici
         if (visionApiKey) {
           try {
             const visionClient = new Anthropic({ apiKey: visionApiKey });
-            const base64 = req.file.buffer.toString("base64");
+            const base64 = (req as any).file.buffer.toString("base64");
             const mimeType = ext === "png" ? "image/png" as const : ext === "webp" ? "image/webp" as const : "image/jpeg" as const;
             const visionRes = await visionClient.messages.create({
               model: "claude-haiku-4-5-20251001",
@@ -9704,7 +10386,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
           while (existing.includes(`${baseName}${n}`)) n++;
           filename = `${baseName}${n}.${ext}`;
         }
-        fs.writeFileSync(path.join(photosDir, filename), req.file.buffer);
+        fs.writeFileSync(path.join(photosDir, filename), (req as any).file.buffer);
 
         // Store full URL path so generate-flyer-copy knows to use /uploads/ prefix
         const fileEntry = `uploads/flyer-assets/photos/${category}/${filename}`;
@@ -9860,14 +10542,14 @@ Devuelve SOLO un JSON con esta estructura exacta:
           return res.status(403).json({ error: "Sin permiso" });
         }
 
-        if (!req.file) return res.status(400).json({ error: "No se recibió archivo" });
+        if (!(req as any).file) return res.status(400).json({ error: "No se recibió archivo" });
 
-        const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
+        const ext = (req as any).file.originalname.split(".").pop()?.toLowerCase() ?? "jpg";
         const filename = `activity-receipt-${req.params.id}-${Date.now()}.${ext}`;
         const uploadDir = path.join(process.cwd(), "uploads", "receipts");
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
         const filePath = path.join(uploadDir, filename);
-        fs.writeFileSync(filePath, req.file.buffer);
+        fs.writeFileSync(filePath, (req as any).file.buffer);
 
         const receiptUrl = `/uploads/receipts/${filename}`;
         // Store the receipt URL in sectionData
@@ -10348,7 +11030,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
               await sendBudgetDisbursementCompletedEmail({
                 toEmail: bishop.email,
                 recipientName: shortName(bishop),
-                recipientSex: bishop.sex ?? null,
+                recipientSex: (bishop as any).sex ?? null,
                 secretaryName: shortName(secretary) || "el secretario financiero",
                 budgetDescription: budgetRequest.description,
                 budgetAmount: budgetRequest.amount,
@@ -10467,7 +11149,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
             org: orgTypeNames[org.type] || org.name,
             approved: orgBudgets.filter(b => b.status === "aprobado" || b.status === "completado").length,
             pending: orgBudgets.filter(b => b.status === "solicitado" || b.status === "en_proceso").length,
-            total: orgBudgets.reduce((sum, b) => sum + b.amount, 0),
+            total: orgBudgets.reduce((sum, b) => sum + Number(b.amount || 0), 0),
           };
         })
         .filter(org => org.approved > 0 || org.pending > 0 || org.total > 0);
@@ -10940,7 +11622,7 @@ Devuelve SOLO un JSON con esta estructura exacta:
               getUserById: (userId) => storage.getUser(userId),
               getEventById: (eventId) => storage.getAgendaEvent(eventId),
               getTaskById: (taskId) => storage.getAgendaTask(taskId),
-              sendPush: (userId, payload) => sendPushNotification(userId, payload),
+              sendPush: async (userId, payload) => { await sendPushNotification(userId, payload); },
               sendEmail: (payload) => sendAgendaReminderEmail({ ...payload, wardName }),
               isPushConfigured,
             },
@@ -11832,11 +12514,11 @@ Devuelve SOLO un JSON con esta estructura exacta:
 
           // Find member by name within the organization
           const [member] = await db
-            .select({ id: members.id })
-            .from(members)
+            .select({ id: membersTable.id })
+            .from(membersTable)
             .where(and(
-              eq(members.organizationId, sustainment.organizationId),
-              sql`lower(${members.nameSurename}) = lower(${sustainment.name})`,
+              eq(membersTable.organizationId, sustainment.organizationId),
+              sql`lower(${membersTable.nameSurename}) = lower(${sustainment.name})`,
             ));
           if (!member) {
             console.log(`[auto-sustain] Miembro no encontrado: ${sustainment.name}`);
