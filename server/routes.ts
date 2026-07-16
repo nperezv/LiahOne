@@ -8997,7 +8997,7 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
         });
 
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
-        const response = await fetch(geminiUrl, {
+        let response = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -9010,6 +9010,24 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
             }
           })
         });
+
+        if (!response.ok) {
+          console.warn(`Gemini 3.5 Flash failed with status ${response.status}. Attempting fallback to gemini-3.1-flash-lite...`);
+          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey}`;
+          response = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: geminiHistory,
+              systemInstruction: {
+                parts: [{ text: systemInstruction }]
+              },
+              generationConfig: {
+                responseMimeType: 'application/json'
+              }
+            })
+          });
+        }
 
         if (!response.ok) {
           const errText = await response.text();
