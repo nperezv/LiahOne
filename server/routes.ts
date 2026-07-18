@@ -8704,6 +8704,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }).format(d);
   }
 
+  function formatActivityDateUTC(date: Date | string | null): string {
+    if (!date) return "No disponible";
+    const d = typeof date === "string" ? new Date(date) : date;
+    if (Number.isNaN(d.getTime())) return "No disponible";
+    return new Intl.DateTimeFormat("es-ES", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC",
+      hour12: false
+    }).format(d);
+  }
+
   function cleanAndParseJSON(text: string): any {
     let cleaned = text.trim();
     if (cleaned.startsWith("```")) {
@@ -9053,7 +9069,7 @@ ${userInterviewsString}
 - Email de Misión: ${wardInfo?.missionOfficeEmail ?? "No disponible"}
 
 [PRÓXIMAS ACTIVIDADES PÚBLICAS]
-${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${formatActivityDateMadrid(a.date)}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
+${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${formatActivityDateUTC(a.date)}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
 
 [PRÓXIMA REUNIÓN SACRAMENTAL DE DOMINGO]
 ${nextSacramentalMeeting ? `
