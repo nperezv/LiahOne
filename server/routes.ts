@@ -8676,9 +8676,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // One-time fix: add requester_phone column to interviews table if not exists
+  (async () => {
+    try {
+      await db.execute(sql`ALTER TABLE interviews ADD COLUMN IF NOT EXISTS requester_phone varchar;`);
+      console.log("[startup] Checked/added requester_phone column to interviews table.");
+    } catch (err) {
+      console.error("[startup] Failed to add requester_phone column to interviews table:", err);
+    }
+  })().catch(() => {});
+
   const chatSessions = new Map<string, { lastActive: number; history: any[] }>();
 
-  function formatDateInUTC(date: Date | string | null): string {
+  function formatActivityDateMadrid(date: Date | string | null): string {
     if (!date) return "No disponible";
     const d = typeof date === "string" ? new Date(date) : date;
     if (Number.isNaN(d.getTime())) return "No disponible";
@@ -8689,7 +8699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "UTC",
+      timeZone: "Europe/Madrid",
       hour12: false
     }).format(d);
   }
@@ -8759,13 +8769,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const last9Digits = cleanPhone.slice(-9);
         try {
           const memberResult = await db.execute(sql`
-            SELECT name, surname FROM members 
+            SELECT nombre, apellidos FROM members 
             WHERE phone LIKE ${`%${last9Digits}`}
             LIMIT 1
           `);
           const memberRow = (memberResult.rows as any[])[0];
           if (memberRow) {
-            memberName = `${memberRow.name} ${memberRow.surname || ""}`.trim();
+            memberName = `${memberRow.nombre} ${memberRow.apellidos || ""}`.trim();
           } else {
             const userResult = await db.execute(sql`
               SELECT name FROM users 
@@ -8785,6 +8795,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fallback to contactName from WhatsApp if not found in database
       if (!memberName && contactName) {
         memberName = contactName;
+      }
+
+      // Look up scheduled interviews for the user's phone number
+      let userInterviews: any[] = [];
+      if (phone) {
+        const cleanPhone = phone.replace(/\D/g, "");
+        const last9Digits = cleanPhone.slice(-9);
+        const firstWord = memberName ? memberName.split(" ")[0].trim() : "XYZ123";
+        try {
+          const intResult = await db.execute(sql`
+            SELECT i.id, i.date, i.type, i.status, u.name AS interviewer_name, u.role AS interviewer_role
+            FROM interviews i
+            LEFT JOIN users u ON u.id = i.interviewer_id
+            WHERE i.status = 'programada'
+              AND (i.requester_phone LIKE ${`%${last9Digits}`}
+                   OR (i.person_name ILIKE ${`%${firstWord}%`})
+                   OR EXISTS (
+                     SELECT 1 FROM members m 
+                     WHERE m.id = i.member_id 
+                       AND m.phone LIKE ${`%${last9Digits}`}
+                   ))
+            ORDER BY i.date ASC
+            LIMIT 5
+          `);
+          userInterviews = intResult.rows as any[];
+        } catch (err) {
+          console.error("Error looking up user interviews:", err);
+        }
+      }
+
+      let userInterviewsString = "";
+      if (userInterviews.length > 0) {
+        userInterviewsString = userInterviews.map(i => {
+          return `- ID: ${i.id}, Líder: ${i.interviewer_name} (${i.interviewer_role === "obispo" ? "Obispo" : "Consejero"}), Tipo: ${i.type}, Fecha: ${formatActivityDateMadrid(i.date)}`;
+        }).join("\n");
+      } else {
+        userInterviewsString = "No tienes ninguna entrevista programada actualmente.";
       }
 
       // Gather Context
@@ -8822,7 +8869,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           FROM activities
           WHERE is_public = true AND date >= NOW()
           ORDER BY date ASC
-          LIMIT 5
+          LIMIT 50
         `);
         upcomingActivities = "rows" in result ? result.rows : result as any[];
       } catch (err) {
@@ -8878,9 +8925,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const u of allUsers) {
           if (['obispo', 'consejero_obispo', 'secretario', 'secretario_ejecutivo', 'secretario_financiero', 'presidente_organizacion'].includes(u.role)) {
             leaders.push({
-              name: u.name,
+              name: u.displayName || u.name,
               role: u.role,
-              email: u.email || null,
+              organizationId: u.organizationId || null,
             });
           }
         }
@@ -8993,6 +9040,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 - Nombre: ${memberName ? `${memberName} (Encontrado en la base de datos de miembros)` : "No identificado / Desconocido"}
 - Teléfono: ${phone ?? "No disponible"}
 
+[ENTREVISTAS PROGRAMADAS DEL USUARIO ACTUAL]
+${userInterviewsString}
+
 [INFORMACIÓN DEL BARRIO]
 - Barrio: ${wardInfo?.wardName ?? "No disponible"}
 - Estaca: ${wardInfo?.stakeName ?? "No disponible"}
@@ -9003,11 +9053,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 - Email de Misión: ${wardInfo?.missionOfficeEmail ?? "No disponible"}
 
 [PRÓXIMAS ACTIVIDADES PÚBLICAS]
-${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${formatDateInUTC(a.date)}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
+${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${formatActivityDateMadrid(a.date)}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
 
 [PRÓXIMA REUNIÓN SACRAMENTAL DE DOMINGO]
 ${nextSacramentalMeeting ? `
-- Fecha: ${formatDateInUTC(nextSacramentalMeeting.date)}
+- Fecha: ${formatActivityDateMadrid(nextSacramentalMeeting.date)}
 - Preside: ${nextSacramentalMeeting.presider || "Obispo"}
 - Dirige: ${nextSacramentalMeeting.director || "Obispado"}
 - Himno de Apertura: ${nextSacramentalMeeting.openingHymn || "Por confirmar"}
@@ -9025,7 +9075,7 @@ ${nextSacramentalMeeting.assignments.length > 0 ? nextSacramentalMeeting.assignm
 ` : "No hay detalles cargados para la próxima reunión sacramental."}
 
 [CONSEJO DE BARRIO / LÍDERES]
-${leaders.length > 0 ? leaders.map(l => `- Nombre: ${l.name}, Rol: ${l.role}, Email: ${l.email || "No disponible"}`).join("\n") : "No disponible."}
+${leaders.length > 0 ? leaders.map(l => `- Nombre: ${l.name}, Rol: ${l.role}`).join("\n") : "No disponible."}
 
 [DISPONIBILIDAD DE HORARIOS PARA AGENDAR ENTREVISTAS DIRECTAMENTE]
 ${availabilitiesString}
@@ -9071,6 +9121,11 @@ IMPORTANTE SOBRE LOS LÍDERES:
   * Al obispo llámalo "el obispo [Primer Apellido]" (ej. "el obispo Pérez") o simplemente "el obispo".
   * A los consejeros o secretarios llámalos "el hermano [Primer Apellido]" (ej. "el hermano Gómez") o por su nombre de forma cercana (ej. "el hermano Carlos").
 
+PRIVACIDAD:
+- Nunca compartas correos electrónicos, teléfonos, direcciones ni otros datos personales de líderes o miembros.
+- Puedes compartir únicamente el nombre público y el llamamiento (rol) del líder.
+- Para contactar con un líder, ofrece registrar una solicitud de contacto (contact_request) o enviar una solicitud interna mediante la app Zendapp.
+
 Aquí tienes la información en tiempo real del Barrio para responder a las preguntas:
 ${contextString}
 
@@ -9090,6 +9145,10 @@ REGLAS DE COMPORTAMIENTO:
 5. Si el usuario quiere hablar o ponerse en contacto general con el obispo o miembro del consejo de barrio (y NO es para agendar un horario específico de entrevista):
    - Recopila: nombre, teléfono y motivo.
    - En cuanto los tengas, retorna la acción "contact_request".
+6. Si el usuario quiere CANCELAR una entrevista programada:
+   - Revisa el bloque [ENTREVISTAS PROGRAMADAS DEL USUARIO ACTUAL] para ver qué entrevistas tiene.
+   - Pídele confirmación explícita indicando la entrevista encontrada (ej: "Tienes una entrevista con el obispo Pérez el 21 de julio a las 20:00. ¿Confirmas que deseas cancelarla?").
+   - Cuando el usuario responda confirmando de forma explícita que sí (ej. "sí", "correcto", "confirmo"), debes retornar la acción "cancel_interview" con el id de la entrevista.
 
 IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura exacta:
 {
@@ -9106,6 +9165,9 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
     "name": "Nombre completo",
     "phone": "Teléfono",
     "reason": "Motivo de contacto"
+  } | {
+    "type": "cancel_interview",
+    "interviewId": "ID de la entrevista"
   }
 }`;
 
@@ -9238,7 +9300,8 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
                 urgent,
                 notes,
                 created_at,
-                updated_at
+                updated_at,
+                requester_phone
               ) VALUES (
                 ${combinedDateTime},
                 ${targetName},
@@ -9249,7 +9312,8 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
                 false,
                 'Agendada automáticamente por el Agente de WhatsApp',
                 NOW(),
-                NOW()
+                NOW(),
+                ${phone || null}
               )
             `);
 
