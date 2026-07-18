@@ -9148,7 +9148,7 @@ REGLAS DE COMPORTAMIENTO:
 6. Si el usuario quiere CANCELAR una entrevista programada:
    - Revisa el bloque [ENTREVISTAS PROGRAMADAS DEL USUARIO ACTUAL] para ver qué entrevistas tiene.
    - Pídele confirmación explícita indicando la entrevista encontrada (ej: "Tienes una entrevista con el obispo Pérez el 21 de julio a las 20:00. ¿Confirmas que deseas cancelarla?").
-   - Cuando el usuario responda confirmando de forma explícita que sí (ej. "sí", "correcto", "confirmo"), debes retornar la acción "cancel_interview" con el id de la entrevista.
+   - Cuando el usuario responda confirmando de forma explícita que sí (ej. "sí", "correcto", "confirmo"), debes retornar la acción "cancel_interview" inmediatamente en esa misma respuesta con el id de la entrevista (o los IDs separados por comas si son varios). No digas "un momento" ni esperes a otro mensaje para ejecutar la acción.
 
 IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura exacta:
 {
@@ -9351,6 +9351,28 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
                 NOW()
               )
             `);
+          }
+        } else if (aiResponse.action.type === "cancel_interview") {
+          const { interviewId } = aiResponse.action;
+          if (interviewId) {
+            const ids = String(interviewId).split(",").map((s: string) => s.trim()).filter(Boolean);
+            for (const id of ids) {
+              try {
+                await db.execute(sql`
+                  UPDATE interviews
+                  SET status = 'archivada',
+                      resolution = 'cancelada',
+                      cancellation_reason = 'Cancelada mediante Zen',
+                      cancelled_at = NOW(),
+                      archived_at = NOW(),
+                      updated_at = NOW()
+                  WHERE id = ${id}
+                `);
+                console.log(`[POST /api/public/chat] Interview ${id} cancelled successfully via Zen.`);
+              } catch (err) {
+                console.error(`Error cancelling interview ${id} via Zen:`, err);
+              }
+            }
           }
         }
       }
