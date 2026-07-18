@@ -8676,6 +8676,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const chatSessions = new Map<string, { lastActive: number; history: any[] }>();
+
   function cleanAndParseJSON(text: string): any {
     let cleaned = text.trim();
     if (cleaned.startsWith("```")) {
@@ -8713,9 +8715,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/public/chat", async (req: Request, res: Response) => {
     try {
-      const { message, history } = req.body;
+      const { message, history: bodyHistory, phone } = req.body;
       if (!message) {
         return res.status(400).json({ error: "El campo message es obligatorio." });
+      }
+
+      // Manage Session History
+      let activeHistory = bodyHistory || [];
+      const sessionTimeoutMs = 20 * 60 * 1000; // 20 minutes
+      if (phone) {
+        const cleanPhone = phone.replace(/\D/g, "");
+        const nowMs = Date.now();
+        const session = chatSessions.get(cleanPhone);
+        if (session && (nowMs - session.lastActive < sessionTimeoutMs)) {
+          activeHistory = session.history;
+          console.log(`[POST /api/public/chat] Session reused for phone ${cleanPhone}. History length: ${activeHistory.length}`);
+        } else {
+          activeHistory = [];
+          console.log(`[POST /api/public/chat] New or expired session started for phone ${cleanPhone}`);
+        }
+      }
+
+      // Look up user/member name by phone
+      let memberName: string | null = null;
+      if (phone) {
+        const cleanPhone = phone.replace(/\D/g, "");
+        const last9Digits = cleanPhone.slice(-9);
+        try {
+          const memberResult = await db.execute(sql`
+            SELECT name, surname FROM members 
+            WHERE phone LIKE ${`%${last9Digits}`}
+            LIMIT 1
+          `);
+          const memberRow = (memberResult.rows as any[])[0];
+          if (memberRow) {
+            memberName = `${memberRow.name} ${memberRow.surname || ""}`.trim();
+          } else {
+            const userResult = await db.execute(sql`
+              SELECT name FROM users 
+              WHERE phone LIKE ${`%${last9Digits}`}
+              LIMIT 1
+            `);
+            const userRow = (userResult.rows as any[])[0];
+            if (userRow) {
+              memberName = userRow.name;
+            }
+          }
+        } catch (err) {
+          console.error("Error looking up member by phone:", err);
+        }
       }
 
       // Gather Context
@@ -8920,6 +8968,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Format context for prompt
       const contextString = `
+[INFORMACIÓN DEL USUARIO ACTUAL]
+- Nombre: ${memberName ? `${memberName} (Encontrado en la base de datos de miembros)` : "No identificado / Desconocido"}
+- Teléfono: ${phone ?? "No disponible"}
+
 [INFORMACIÓN DEL BARRIO]
 - Barrio: ${wardInfo?.wardName ?? "No disponible"}
 - Estaca: ${wardInfo?.stakeName ?? "No disponible"}
@@ -8965,19 +9017,38 @@ ${availabilitiesString}
         return res.status(500).json({ error: "Ninguna clave de API (GEMINI_API_KEY o ANTHROPIC_API_KEY) está configurada en el servidor." });
       }
 
-      // Convert history to user/assistant roles
-      const formattedHistory = (history || []).map((h: any) => ({
-        role: h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user',
-        content: h.content || h.parts?.[0]?.text || ""
-      }));
+      // Convert activeHistory to user/assistant roles
+      const formattedHistory = activeHistory.map((h: any) => {
+        let content = h.content || h.parts?.[0]?.text || "";
+        if (h.role === 'assistant' || h.role === 'model') {
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed && parsed.response) {
+              content = parsed.response;
+            }
+          } catch (_) {
+            // Keep original content
+          }
+        }
+        return {
+          role: h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user',
+          content: content
+        };
+      });
 
-      const systemInstruction = `Eres Zen, un asistente de inteligencia artificial para el Barrio de la Iglesia de Jesucristo de los Santos de los Últimos Días (SUD). Respondes de forma natural, cálida y respetuosa, usando el tono característico de un miembro de la iglesia (llamando "hermano" o "hermana" a los usuarios, refiriéndote a la "reunión sacramental", "estaca", "obispado", etc.).
+      const systemInstruction = `Eres Zen, un asistente de inteligencia artificial para el Barrio de la Iglesia de Jesucristo de los Santos de los Últimos Días (SUD). Respondes de forma natural, cálida y respetuosa, usando el tono característico de un miembro de la iglesia (refiriéndote a la "reunión sacramental", "estaca", "obispado", etc.).
 
-IMPORTANTE:
-- Tutea siempre al usuario (háblale de "tú", usa "hermano Juan, ¿cómo estás?", evita usar "usted" o tratarlo con excesiva formalidad).
+IMPORTANTE SOBRE EL TRATO AL USUARIO:
+- Tutea siempre al usuario (háblale de "tú").
+- Revisa el bloque [INFORMACIÓN DEL USUARIO ACTUAL] para saber quién te habla:
+  * Si el Nombre NO es "No identificado / Desconocido" (por ejemplo, "Nelson Pérez"), salúdale de manera muy cercana y natural por su nombre o como "Hermano Nelson" (ej. "¡Hola, Nelson! Qué gusto saludarte" o "Hola, hermano Nelson, ¿cómo estás?"). No repitas su nombre ni el trato de "hermano" en cada frase.
+  * Si el Nombre dice "No identificado / Desconocido", no asumas si es hermano o hermana. Salúdale de forma neutra y cálida (ej. "¡Hola! Qué gusto saludarte.") y, si es oportuno (especialmente si quiere agendar una entrevista o hacer una consulta de líderes), pídele amablemente su nombre de manera natural para saber con quién hablas (ej. "¿Con quién tengo el gusto de hablar para poder ayudarte mejor?").
+- Evita usar las palabras "hermano" o "hermana" de manera forzada y repetitiva en cada mensaje. Úsalas de forma natural, principalmente al inicio de la conversación. La charla debe ser fluida, cercana y no robótica.
+
+IMPORTANTE SOBRE LOS LÍDERES:
 - Al referirte al obispo o líderes del obispado, no uses sus nombres completos formales (por ejemplo, en lugar de "Nelson Miller Pérez Ventura", usa "obispo Pérez" o "hermano Pérez"). Usa un trato natural y familiar:
   * Al obispo llámalo "el obispo [Primer Apellido]" (ej. "el obispo Pérez") o simplemente "el obispo".
-  * A los consejeros o secretarios llámalos "el hermano [Primer Apellido]" (ej. "el hermano Gómez") o por su nombre y apellido de forma cercana (ej. "el hermano Carlos Gómez").
+  * A los consejeros o secretarios llámalos "el hermano [Primer Apellido]" (ej. "el hermano Gómez") o por su nombre de forma cercana (ej. "el hermano Carlos").
 
 Aquí tienes la información en tiempo real del Barrio para responder a las preguntas:
 ${contextString}
@@ -9098,6 +9169,23 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
         if (content.type !== "text") throw new Error("Unexpected response type from Claude");
         
         aiResponse = cleanAndParseJSON(content.text);
+      }
+
+      // Save response back to chat sessions for continuity
+      if (phone && aiResponse) {
+        const cleanPhone = phone.replace(/\D/g, "");
+        activeHistory.push({ role: 'user', content: message });
+        activeHistory.push({
+          role: 'assistant',
+          content: typeof aiResponse === 'object' ? JSON.stringify(aiResponse) : aiResponse
+        });
+        if (activeHistory.length > 20) {
+          activeHistory = activeHistory.slice(-20);
+        }
+        chatSessions.set(cleanPhone, {
+          lastActive: Date.now(),
+          history: activeHistory
+        });
       }
 
       // Check for action and create notification / schedule interview
