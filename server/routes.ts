@@ -8938,12 +8938,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let leaders: any[] = [];
       try {
         const allUsers = await storage.getAllUsers();
+        const allOrgs = await storage.getAllOrganizations();
+        const orgMap = new Map(allOrgs.map(o => [o.id, o.name]));
         for (const u of allUsers) {
           if (['obispo', 'consejero_obispo', 'secretario', 'secretario_ejecutivo', 'secretario_financiero', 'presidente_organizacion'].includes(u.role)) {
+            let roleLabel = "";
+            switch (u.role) {
+              case "obispo":
+                roleLabel = "Obispo";
+                break;
+              case "consejero_obispo":
+                roleLabel = "Consejero del Obispo";
+                break;
+              case "secretario":
+                roleLabel = "Secretario";
+                break;
+              case "secretario_ejecutivo":
+                roleLabel = "Secretario Ejecutivo";
+                break;
+              case "secretario_financiero":
+                roleLabel = "Secretario Financiero";
+                break;
+              case "presidente_organizacion":
+                const orgName = u.organizationId ? orgMap.get(u.organizationId) : "";
+                roleLabel = orgName ? `Presidente de la organización: ${orgName}` : "Presidente de Organización";
+                break;
+              default:
+                roleLabel = u.role;
+            }
             leaders.push({
               name: u.displayName || u.name,
-              role: u.role,
-              organizationId: u.organizationId || null,
+              role: roleLabel,
             });
           }
         }
