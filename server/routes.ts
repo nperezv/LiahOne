@@ -8678,6 +8678,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const chatSessions = new Map<string, { lastActive: number; history: any[] }>();
 
+  function formatDateInUTC(date: Date | string | null): string {
+    if (!date) return "No disponible";
+    const d = typeof date === "string" ? new Date(date) : date;
+    if (Number.isNaN(d.getTime())) return "No disponible";
+    return new Intl.DateTimeFormat("es-ES", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC",
+      hour12: false
+    }).format(d);
+  }
+
   function cleanAndParseJSON(text: string): any {
     let cleaned = text.trim();
     if (cleaned.startsWith("```")) {
@@ -8715,7 +8731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/public/chat", async (req: Request, res: Response) => {
     try {
-      const { message, history: bodyHistory, phone } = req.body;
+      const { message, history: bodyHistory, phone, contactName } = req.body;
       if (!message) {
         return res.status(400).json({ error: "El campo message es obligatorio." });
       }
@@ -8764,6 +8780,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (err) {
           console.error("Error looking up member by phone:", err);
         }
+      }
+
+      // Fallback to contactName from WhatsApp if not found in database
+      if (!memberName && contactName) {
+        memberName = contactName;
       }
 
       // Gather Context
@@ -8982,11 +9003,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 - Email de Misión: ${wardInfo?.missionOfficeEmail ?? "No disponible"}
 
 [PRÓXIMAS ACTIVIDADES PÚBLICAS]
-${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${a.date}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
+${upcomingActivities.length > 0 ? upcomingActivities.map(a => `- ${a.title} (${a.type}): Fecha: ${formatDateInUTC(a.date)}, Lugar: ${a.location || "En el centro de reuniones"}, Descripción: ${a.description || "Sin descripción"}`).join("\n") : "No hay actividades públicas próximas programadas."}
 
 [PRÓXIMA REUNIÓN SACRAMENTAL DE DOMINGO]
 ${nextSacramentalMeeting ? `
-- Fecha: ${nextSacramentalMeeting.date}
+- Fecha: ${formatDateInUTC(nextSacramentalMeeting.date)}
 - Preside: ${nextSacramentalMeeting.presider || "Obispo"}
 - Dirige: ${nextSacramentalMeeting.director || "Obispado"}
 - Himno de Apertura: ${nextSacramentalMeeting.openingHymn || "Por confirmar"}
@@ -9042,7 +9063,7 @@ IMPORTANTE SOBRE EL TRATO AL USUARIO:
 - Tutea siempre al usuario (háblale de "tú").
 - Revisa el bloque [INFORMACIÓN DEL USUARIO ACTUAL] para saber quién te habla:
   * Si el Nombre NO es "No identificado / Desconocido" (por ejemplo, "Nelson Pérez"), salúdale de manera muy cercana y natural por su nombre o como "Hermano Nelson" (ej. "¡Hola, Nelson! Qué gusto saludarte" o "Hola, hermano Nelson, ¿cómo estás?"). No repitas su nombre ni el trato de "hermano" en cada frase.
-  * Si el Nombre dice "No identificado / Desconocido", no asumas si es hermano o hermana. Salúdale de forma neutra y cálida (ej. "¡Hola! Qué gusto saludarte.") y, si es oportuno (especialmente si quiere agendar una entrevista o hacer una consulta de líderes), pídele amablemente su nombre de manera natural para saber con quién hablas (ej. "¿Con quién tengo el gusto de hablar para poder ayudarte mejor?").
+  * Si el Nombre dice "No identificado / Desconocido", no asumas si es hermano o hermana. Salúdale de forma neutra y cálida (ej. "¡Hola! Qué gusto saludarte."). Si el usuario ya te ha dicho su nombre en los mensajes anteriores de la conversación, dirígete a él usando ese nombre y NO se lo vuelvas a pedir. Si aún no te lo ha dicho, pídele amablemente su nombre de manera natural para saber con quién hablas (ej. "¿Con quién tengo el gusto de hablar?").
 - Evita usar las palabras "hermano" o "hermana" de manera forzada y repetitiva en cada mensaje. Úsalas de forma natural, principalmente al inicio de la conversación. La charla debe ser fluida, cercana y no robótica.
 
 IMPORTANTE SOBRE LOS LÍDERES:
