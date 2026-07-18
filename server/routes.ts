@@ -8676,6 +8676,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  function cleanAndParseJSON(text: string): any {
+    let cleaned = text.trim();
+    if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/, "").trim();
+    }
+    
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      cleaned = cleaned.substring(start, end + 1);
+    }
+    
+    try {
+      return JSON.parse(cleaned);
+    } catch (e) {
+      console.error("Failed to parse JSON text from AI:", text);
+      console.error("Error details:", e);
+      
+      const responseMatch = cleaned.match(/"response"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (responseMatch) {
+        let responseText = responseMatch[1];
+        try {
+          responseText = JSON.parse(`"${responseText}"`);
+        } catch (_) {
+          responseText = responseText.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+        }
+        return {
+          response: responseText,
+          action: null
+        };
+      }
+      throw e;
+    }
+  }
+
   app.post("/api/public/chat", async (req: Request, res: Response) => {
     try {
       const { message, history } = req.body;
@@ -9037,7 +9072,7 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
         const data: any = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error("No response text from Gemini");
-        aiResponse = JSON.parse(text);
+        aiResponse = cleanAndParseJSON(text);
 
       } else if (anthropicKey) {
         const client = new Anthropic({ apiKey: anthropicKey });
@@ -9062,9 +9097,7 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
         const content = msgResult.content[0];
         if (content.type !== "text") throw new Error("Unexpected response type from Claude");
         
-        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Could not parse JSON from Claude response");
-        aiResponse = JSON.parse(jsonMatch[0]);
+        aiResponse = cleanAndParseJSON(content.text);
       }
 
       // Check for action and create notification / schedule interview
@@ -9153,7 +9186,10 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
 
     } catch (err: any) {
       console.error("[POST /api/public/chat] Error:", err);
-      return res.status(500).json({ error: err.message || "Internal server error" });
+      return res.json({
+        response: "Lo siento, hermano/hermana. He tenido un inconveniente técnico al procesar tu mensaje. ¿Podrías volver a intentarlo?",
+        action: null
+      });
     }
   });
 
