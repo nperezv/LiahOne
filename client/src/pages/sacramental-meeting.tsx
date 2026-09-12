@@ -1007,8 +1007,8 @@ function SacramentalMeetingPageInner() {
     if (!isPanelOpen || editingId) return;
     // Use presiderValue (useWatch) instead of form.getValues to avoid stale closure
     // in React 18 concurrent mode — form.getValues() can return a stale value between renders.
-    if (!presiderValue?.trim() && bishopLabel) { const calling = getBishopricCalling(bishopLabel); form.setValue("presider", buildPersonValue(bishopLabel, calling)); setPresiderSelection(bishopLabel); }
-  }, [bishopLabel, editingId, form, isPanelOpen, presiderValue]);
+    if (!presiderValue?.trim() && !presiderSelection && bishopLabel) { const calling = getBishopricCalling(bishopLabel); form.setValue("presider", buildPersonValue(bishopLabel, calling)); setPresiderSelection(bishopLabel); }
+  }, [bishopLabel, editingId, form, isPanelOpen, presiderSelection, presiderValue]);
 
   useEffect(() => {
     if (!directorValue) return;
