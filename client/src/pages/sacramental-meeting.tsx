@@ -226,7 +226,8 @@ const meetingSchema = z.object({
   openingHymn: z.string().optional(),
   openingPrayer: z.string().optional(),
   intermediateHymn: z.string().optional(),
-  intermediateHymnType: z.enum(["congregation", "choir"]).optional(),
+  intermediateHymnType: z.enum(["congregation", "choir", "organization"]).optional(),
+  intermediateHymnOrg: z.string().optional(),
   sacramentHymn: z.string().optional(),
   closingHymn: z.string().optional(),
   closingPrayer: z.string().optional(),
@@ -557,7 +558,8 @@ function SacramentalMeetingPageInner() {
   const [childBlessings, setChildBlessings] = useState<string[]>([""]);
   const [confirmations, setConfirmations] = useState<string[]>([""]);
   const [showPastView, setShowPastView] = useState(false);
-  const [intermediateHymnType, setIntermediateHymnType] = useState<"congregation" | "choir" | "">("");
+  const [intermediateHymnType, setIntermediateHymnType] = useState<"congregation" | "choir" | "organization" | "">("");
+  const [intermediateHymnOrg, setIntermediateHymnOrg] = useState("");
   const [directorSelection, setDirectorSelection] = useState("");
   const [directorCustom, setDirectorCustom] = useState("");
   const [directorCustomCalling, setDirectorCustomCalling] = useState("");
@@ -852,6 +854,7 @@ function SacramentalMeetingPageInner() {
     setChildBlessings([""]);
     setConfirmations([""]);
     setIntermediateHymnType("");
+    setIntermediateHymnOrg("");
     setIsTestimonyMeeting(false);
     setHasReleasesAndSustainments(false);
     setHasNewMembers(false);
@@ -907,6 +910,8 @@ function SacramentalMeetingPageInner() {
     setConfirmations(meeting.confirmations || [""]);
     setHasReleasesAndSustainments((meeting.releases?.length || 0) > 0 || (meeting.sustainments?.length || 0) > 0);
     setHasNewMembers((meeting.newMembers?.length || 0) > 0);
+    setIntermediateHymnType(meeting.intermediateHymnType || "");
+    setIntermediateHymnOrg(meeting.intermediateHymnOrg || "");
     setHasOrderings((meeting.aaronicOrderings?.length || 0) > 0);
     setHasChildBlessings((meeting.childBlessings?.length || 0) > 0);
     setHasConfirmations((meeting.confirmations?.length || 0) > 0);
@@ -996,7 +1001,7 @@ function SacramentalMeetingPageInner() {
 
   const form = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
-    defaultValues: { date: "", presider: "", director: "", musicDirector: "", pianist: "", visitingAuthority: "", announcements: "", openingHymn: "", openingPrayer: "", intermediateHymn: "", intermediateHymnType: undefined, sacramentHymn: "", closingHymn: "", closingPrayer: "", stakeBusiness: "", isTestimonyMeeting: false },
+    defaultValues: { date: "", presider: "", director: "", musicDirector: "", pianist: "", visitingAuthority: "", announcements: "", openingHymn: "", openingPrayer: "", intermediateHymn: "", intermediateHymnType: undefined, intermediateHymnOrg: "", sacramentHymn: "", closingHymn: "", closingPrayer: "", stakeBusiness: "", isTestimonyMeeting: false },
   });
 
   const directorValue = useWatch({ control: form.control, name: "director" });
@@ -1081,7 +1086,7 @@ function SacramentalMeetingPageInner() {
       musicDirector: normalizeMemberField(data.musicDirector), pianist: normalizeMemberField(data.pianist),
       visitingAuthority: data.visitingAuthority || "", announcements: data.announcements || "",
       openingHymn: data.openingHymn || "", openingPrayer: data.openingPrayer || "",
-      intermediateHymn: data.intermediateHymn || "", intermediateHymnType: intermediateHymnType || "",
+      intermediateHymn: data.intermediateHymn || "", intermediateHymnType: intermediateHymnType || "", intermediateHymnOrg: intermediateHymnType === "organization" ? (intermediateHymnOrg || "") : "",
       sacramentHymn: data.sacramentHymn || "", closingHymn: data.closingHymn || "", closingPrayer: data.closingPrayer || "",
       isTestimonyMeeting, discourses: isTestimonyMeeting ? [] : discourses,
       assignments: assignments.filter((a) => a.name.trim() && a.assignment.trim()),
@@ -1507,27 +1512,61 @@ function SacramentalMeetingPageInner() {
                       <HymnConnector />
 
                       {/* Intermediate hymn — amber accent */}
-                      <div className="flex items-start gap-3 p-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-                        <div className="shrink-0 mt-1.5">
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Interm.</div>
-                          <div className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5">Opcional</div>
+                      <div className="flex flex-col p-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 gap-2">
+                        <div className="flex items-start gap-3">
+                          <div className="shrink-0 mt-1.5">
+                            <div className="text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Interm.</div>
+                            <div className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5">Opcional</div>
+                          </div>
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            <FormField control={form.control} name="intermediateHymn" render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <HymnAutocomplete value={field.value || ""} options={hymnOptions} placeholder="Nº o nombre" onChange={field.onChange} onBlur={field.onBlur} onNormalize={(v) => applyHymnNormalization("intermediateHymn", v)} testId="input-intermediate-hymn" />
+                                </FormControl>
+                              </FormItem>
+                            )} />
+                            <Select value={intermediateHymnType} onValueChange={(v: any) => setIntermediateHymnType(v)}>
+                              <SelectTrigger data-testid="select-intermediate-hymn-type"><SelectValue placeholder="Tipo..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="congregation">Congregación</SelectItem>
+                                <SelectItem value="choir">Coro</SelectItem>
+                                <SelectItem value="organization">Organización</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div className="flex-1 grid grid-cols-2 gap-2">
-                          <FormField control={form.control} name="intermediateHymn" render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <HymnAutocomplete value={field.value || ""} options={hymnOptions} placeholder="Nº o nombre" onChange={field.onChange} onBlur={field.onBlur} onNormalize={(v) => applyHymnNormalization("intermediateHymn", v)} testId="input-intermediate-hymn" />
-                              </FormControl>
-                            </FormItem>
-                          )} />
-                          <Select value={intermediateHymnType} onValueChange={(v: any) => setIntermediateHymnType(v)}>
-                            <SelectTrigger data-testid="select-intermediate-hymn-type"><SelectValue placeholder="Tipo..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="congregation">Congregación</SelectItem>
-                              <SelectItem value="choir">Coro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+
+                        {intermediateHymnType === "organization" && (
+                          <div className="pt-2 border-t border-amber-200/70 dark:border-amber-800/70 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                              Nombre de la Organización
+                            </div>
+                            <Input
+                              placeholder="Ej. Primaria, Mujeres Jóvenes, Sociedad de Socorro..."
+                              value={intermediateHymnOrg}
+                              onChange={(e) => setIntermediateHymnOrg(e.target.value)}
+                              className="h-8 text-xs bg-background/80"
+                              data-testid="input-intermediate-hymn-org"
+                            />
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {["Primaria", "Mujeres Jóvenes", "Sociedad de Socorro", "Hombres Jóvenes", "Coro de Jóvenes"].map((orgPreset) => (
+                                <button
+                                  key={orgPreset}
+                                  type="button"
+                                  onClick={() => setIntermediateHymnOrg(orgPreset)}
+                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full transition-all border ${
+                                    intermediateHymnOrg === orgPreset
+                                      ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                                      : "bg-amber-100/80 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 border-amber-300/70 dark:border-amber-700/70 hover:bg-amber-200/80"
+                                  }`}
+                                >
+                                  {orgPreset}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <HymnConnector />
@@ -1846,7 +1885,7 @@ function SacramentalMeetingPageInner() {
                           { label: "Oración inicial", val: form.watch("openingPrayer") },
                           { label: "Him. sacramental", val: form.watch("sacramentHymn") },
                           ...discourses.filter((d) => d.speaker).map((d, i) => ({ label: `Orador ${i + 1}`, val: d.speaker + (d.topic ? ` — ${d.topic}` : "") })),
-                          { label: "Him. intermedio", val: form.watch("intermediateHymn") },
+                          { label: "Him. intermedio", val: form.watch("intermediateHymn") ? `${form.watch("intermediateHymn")}${intermediateHymnType ? ` (${intermediateHymnType === "choir" ? "Coro" : intermediateHymnType === "organization" ? (intermediateHymnOrg || "Organización") : "Congregación"})` : ""}` : "" },
                           { label: "Him. final", val: form.watch("closingHymn") },
                           { label: "Oración final", val: form.watch("closingPrayer") },
                         ].map(({ label, val }, i) => (
@@ -1982,7 +2021,7 @@ function SacramentalMeetingPageInner() {
                 { label: "Him. apertura", val: detailsMeeting.openingHymn || "—" },
                 { label: "Oración inicial", val: detailsMeeting.openingPrayer || "—" },
                 { label: "Him. sacramental", val: detailsMeeting.sacramentHymn || "—" },
-                { label: "Him. intermedio", val: detailsMeeting.intermediateHymn ? `${detailsMeeting.intermediateHymn}${detailsMeeting.intermediateHymnType ? ` (${detailsMeeting.intermediateHymnType === "choir" ? "Coro" : "Congregación"})` : ""}` : "—" },
+                { label: "Him. intermedio", val: detailsMeeting.intermediateHymn ? `${detailsMeeting.intermediateHymn}${detailsMeeting.intermediateHymnType ? ` (${detailsMeeting.intermediateHymnType === "choir" ? "Coro" : detailsMeeting.intermediateHymnType === "organization" ? (detailsMeeting.intermediateHymnOrg || "Organización") : "Congregación"})` : ""}` : "—" },
                 { label: "Him. final", val: detailsMeeting.closingHymn || "—" },
                 { label: "Oración final", val: detailsMeeting.closingPrayer || "—" },
                 { label: "Anuncios", val: detailsMeeting.announcements?.trim() || "—" },

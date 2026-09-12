@@ -76,7 +76,7 @@ function BlueBar({ accent, children }: { accent: string; children: React.ReactNo
   return <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 12, marginTop: 4 }}>{children}</div>;
 }
 
-function MiniCard({ title, onClick, resolved, children }: { title: string; color?: string; onClick?: () => void; resolved?: VoteResultRecord; children: React.ReactNode }) {
+function MiniCard({ title, onClick, resolved, children, isRelease }: { title: string; color?: string; onClick?: () => void; resolved?: VoteResultRecord; children: React.ReactNode; isRelease?: boolean }) {
   const clickable = !!onClick && !resolved;
   return (
     <div
@@ -93,7 +93,7 @@ function MiniCard({ title, onClick, resolved, children }: { title: string; color
             background: resolved.result === "unanimous" ? "#dcfce7" : "#fee2e2",
             color: resolved.result === "unanimous" ? "#16a34a" : "#dc2626",
           }}>
-            {resolved.result === "unanimous" ? "✅ Unánime" : "⚠️ Con oposición"}
+            {resolved.result === "unanimous" ? (isRelease ? "✅ Relevo anunciado" : "✅ Unánime") : "⚠️ Con oposición"}
           </span>
         )}
       </div>
@@ -212,8 +212,14 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
   const aaronicOrderings = (Array.isArray(meeting.aaronicOrderings) ? meeting.aaronicOrderings : []).filter((o: any) => typeof o === "string" ? o : o?.name);
   const aaronicAdvancements = (Array.isArray(meeting.aaronicAdvancements) ? meeting.aaronicAdvancements : []).filter((o: any) => o?.name);
   const discourses = (Array.isArray(meeting.discourses) ? meeting.discourses : []).filter((d: any) => d?.speaker);
+  const formatIntermediateType = (type?: string, orgName?: string) => {
+    if (type === "choir") return " (Coro)";
+    if (type === "organization") return orgName ? ` (${orgName})` : " (Organización)";
+    if (type === "congregation") return " (Congregación)";
+    return "";
+  };
   const intermediateHymnLabel = meeting.intermediateHymn
-    ? `${meeting.intermediateHymn}${meeting.intermediateHymnType === "choir" ? " (Coro)" : meeting.intermediateHymnType === "congregation" ? " (Congregación)" : ""}`
+    ? `${meeting.intermediateHymn}${formatIntermediateType(meeting.intermediateHymnType, meeting.intermediateHymnOrg)}`
     : "";
   const hasWardBusiness = releases.length > 0 || sustainments.length > 0 || confirmations.length > 0 || newMembers.length > 0 || childBlessings.length > 0 || aaronicOrderings.length > 0 || aaronicAdvancements.length > 0;
 
@@ -326,6 +332,7 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
                   title={`Relevos${releases.length > 1 ? ` (${releases.length})` : ""}`}
                   onClick={() => openGroupVote("relevo", releases.map((r: any) => { const o = orgName(organizations, r.organizationId); return { name: r.name, detail: r.oldCalling || "", organization: o || undefined }; }))}
                   resolved={voteResults.relevo}
+                  isRelease={true}
                 >
                   {releases.map((r: any, i: number) => { const o = orgName(organizations, r.organizationId); return <div key={i}>{itemText(`${r.name}${r.oldCalling ? ` — ${fmtCallingOrg(r.oldCalling, o)}` : o ? ` (${o})` : ""}`)}</div>; })}
                 </MiniCard>
@@ -681,11 +688,13 @@ export function SacramentalProgramView({ meeting, organizations, recognitionMemb
                 "{voteDialog.close}"
               </p>
             </div>
-            <p style={{ fontSize: 12, color: "#555", marginBottom: 10, fontWeight: 600 }}>Resultado de la votación:</p>
+            <p style={{ fontSize: 12, color: "#555", marginBottom: 10, fontWeight: 600 }}>
+              {voteDialog.type === "relevo" ? "Estado del relevo:" : "Resultado de la votación:"}
+            </p>
             <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
               <button disabled={voteDialog.sending} onClick={() => submitVote("unanimous")}
                 style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: "#16a34a", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                ✅ Unánime
+                {voteDialog.type === "relevo" ? "✅ Relevo anunciado" : "✅ Unánime"}
               </button>
               <button disabled={voteDialog.sending} onClick={() => setVoteDialog(d => d ? { ...d, phase: "opposed" } : null)}
                 style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: "#b45309", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>

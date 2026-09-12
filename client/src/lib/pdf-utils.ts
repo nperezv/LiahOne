@@ -1069,7 +1069,11 @@ export async function generateSacramentalMeetingPDF(
       }
 
       if (normalizedMeeting.intermediateHymn) {
-        const type = normalizedMeeting.intermediateHymnType === "choir" ? "Coro" : "Congregación";
+        const type = normalizedMeeting.intermediateHymnType === "choir"
+          ? "Coro"
+          : normalizedMeeting.intermediateHymnType === "organization"
+          ? (normalizedMeeting.intermediateHymnOrg || "Organización")
+          : "Congregación";
         drawLabelLine(
           ctx,
           "Himno intermedio",

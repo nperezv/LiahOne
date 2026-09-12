@@ -602,7 +602,8 @@ export const sacramentalMeetings = pgTable("sacramental_meetings", {
   stakeBusiness: text("stake_business"),
   // Section 8: Intermediate hymn and sacrament hymn
   intermediateHymn: text("intermediate_hymn"),
-  intermediateHymnType: text("intermediate_hymn_type"), // 'congregation' or 'choir'
+  intermediateHymnType: text("intermediate_hymn_type"), // 'congregation', 'choir', 'organization'
+  intermediateHymnOrg: text("intermediate_hymn_org"),
   sacramentHymn: text("sacrament_hymn"),
   // Section 9: Discourses and music
   discourses: jsonb("discourses").$type<{speaker: string, topic: string}[]>().default([]),
