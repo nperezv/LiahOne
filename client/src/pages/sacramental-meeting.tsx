@@ -1630,7 +1630,7 @@ function SacramentalMeetingPageInner() {
                                 value={availableOrgs.includes(intermediateHymnOrg) ? intermediateHymnOrg : (intermediateHymnOrg ? "custom" : "")}
                                 onValueChange={(val) => {
                                   if (val === "custom") {
-                                    setIntermediateHymnOrg("");
+                                    setIntermediateHymnOrg(" ");
                                   } else {
                                     setIntermediateHymnOrg(val);
                                   }
@@ -1649,10 +1649,10 @@ function SacramentalMeetingPageInner() {
                                 </SelectContent>
                               </Select>
 
-                              {(!availableOrgs.includes(intermediateHymnOrg) || intermediateHymnOrg === "") && (
+                              {!availableOrgs.includes(intermediateHymnOrg) && intermediateHymnOrg !== "" && (
                                 <Input
                                   placeholder="Escribir nombre personalizado de la organización..."
-                                  value={intermediateHymnOrg}
+                                  value={intermediateHymnOrg.trim()}
                                   onChange={(e) => setIntermediateHymnOrg(e.target.value)}
                                   className="h-8 text-xs bg-background/80"
                                   data-testid="input-intermediate-hymn-org-custom"
