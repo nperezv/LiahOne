@@ -344,6 +344,46 @@ function getRenamedTitle(item: MenuItem, userRole?: string) {
   return item.title;
 }
 
+interface SectionConfig {
+  id: string;
+  label: string;
+  icon: any;
+  urls: string[];
+}
+
+const SECTION_CONFIGS: SectionConfig[] = [
+  {
+    id: "sunday",
+    label: "Dominical y Consejos",
+    icon: Calendar,
+    urls: ["/sacramental-meeting", "/ward-council", "/interviews", "/organization-interviews"],
+  },
+  {
+    id: "organizations",
+    label: "Organizaciones y Áreas",
+    icon: Folder,
+    urls: ["/presidency/hombres-jovenes", "/presidency/mujeres-jovenes", "/presidency/sociedad-socorro", "/presidency/primaria", "/presidency/escuela-dominical", "/presidency/jas", "/presidency/as", "/presidency/cuorum-elderes", "/leadership", "/mission-work", "/welfare"],
+  },
+  {
+    id: "management",
+    label: "Gestión y Secretaría",
+    icon: FileText,
+    urls: ["/secretary-dashboard", "/budget", "/activities", "/quarterly-plans", "/recurring-series", "/activity-logistics", "/goals"],
+  },
+  {
+    id: "community",
+    label: "Recursos y Comunidad",
+    icon: Library,
+    urls: ["/directory", "/resources-library", "/inventory", "/birthdays"],
+  },
+  {
+    id: "system",
+    label: "Sistema",
+    icon: Settings,
+    urls: ["/reports", "/settings", "/admin/users"],
+  },
+];
+
 function AppSidebarInner() {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
@@ -354,7 +394,6 @@ function AppSidebarInner() {
   const [, startTransition] = React.useTransition();
 
   const handleLinkClick = React.useCallback((path: string) => {
-    // Close sidebar immediately (feels responsive), defer content swap
     if (isMobile) setOpenMobile(false);
     startTransition(() => {
       setLocation(path);
@@ -366,10 +405,8 @@ function AppSidebarInner() {
     if (prefetcher) prefetcher();
   }, []);
 
-  // Fetch organizations to map organization ID to type
   const { data: organizations = [] } = useOrganizations();
 
-  // Get organization type from user's organization (for presidents/counselors/secretaries)
   const organizationType = React.useMemo(() => {
     if (!user?.organizationId || organizations.length === 0) return undefined;
     return organizations.find(org => org.id === user.organizationId)?.type;
@@ -392,7 +429,39 @@ function AppSidebarInner() {
     [menuItems, pinnedUrls],
   );
 
-  // Prefetch all visible route chunks when the sidebar opens (works on mobile too)
+  const sections = React.useMemo(() => {
+    const configuredSections = SECTION_CONFIGS.map((config) => {
+      const items = secondaryMenuItems.filter((item) => {
+        if (item.url && config.urls.includes(item.url)) return true;
+        if (item.subItems) {
+          return item.subItems.some((sub) => config.urls.includes(sub.url));
+        }
+        return false;
+      });
+      return { ...config, items };
+    }).filter((s) => s.items.length > 0);
+
+    // Fallback for any leftover items not in SECTION_CONFIGS
+    const categorizedUrls = SECTION_CONFIGS.flatMap((c) => c.urls);
+    const uncategorized = secondaryMenuItems.filter((item) => {
+      if (item.url) return !categorizedUrls.includes(item.url);
+      if (item.subItems) return !item.subItems.some((sub) => categorizedUrls.includes(sub.url));
+      return false;
+    });
+
+    if (uncategorized.length > 0) {
+      configuredSections.push({
+        id: "other",
+        label: "Otros módulos",
+        icon: Folder,
+        urls: [],
+        items: uncategorized,
+      });
+    }
+
+    return configuredSections;
+  }, [secondaryMenuItems]);
+
   const isOpen = isMobile ? openMobile : open;
   React.useEffect(() => {
     if (!isOpen) return;
@@ -416,30 +485,30 @@ function AppSidebarInner() {
     dashboardStats?.pendingServiceTasks,
     dashboardStats?.pendingBaptismDrafts,
   ]);
+
   return (
     <Sidebar>
-      <SidebarContent>
-        <div className="mx-2 mt-3 rounded-[22px] border border-sidebar-border/70 bg-sidebar-accent/20 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80">
-              <img src="/icons/compass.svg" alt="Zendapp" className="h-6 w-6 object-contain" />
+      <SidebarContent className="space-y-1 pb-4">
+        {/* App Branding Header */}
+        <div className="mx-2 mt-3 rounded-[20px] border border-sidebar-border/70 bg-sidebar-accent/20 px-3.5 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background/80 shrink-0">
+              <img src="/icons/compass.svg" alt="Zendapp" className="h-5 w-5 object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-none">Zendapp</p>
-              <p className="truncate pt-1 text-[11px] text-sidebar-foreground/65">Panel principal</p>
+              <p className="truncate text-sm font-bold leading-none tracking-tight">Zendapp</p>
+              <p className="truncate pt-0.5 text-[10.5px] text-sidebar-foreground/65">Panel principal</p>
             </div>
           </div>
         </div>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">
-            Navegación
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="mx-2 mb-3 rounded-[22px] border border-sidebar-border/70 bg-gradient-to-b from-sidebar-accent/50 via-sidebar-accent/30 to-transparent px-3 py-3 shadow-sm">
-              <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/60">
-                <Sparkles className="h-3.5 w-3.5" />
-                Accesos rápidos
+        <SidebarGroup className="pt-2 px-0">
+          <SidebarGroupContent className="space-y-2.5">
+            {/* Quick Access Card */}
+            <div className="mx-2 rounded-[20px] border border-sidebar-border/70 bg-gradient-to-b from-sidebar-accent/50 via-sidebar-accent/20 to-transparent px-2.5 py-2.5 shadow-2xs">
+              <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>Accesos rápidos</span>
               </div>
               <SidebarMenu>
                 {pinnedMenuItems.map((item) => {
@@ -450,16 +519,16 @@ function AppSidebarInner() {
                       <SidebarMenuButton
                         asChild
                         isActive={location === item.url}
-                        className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
+                        className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight"
                         data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
                         <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
-                          <item.icon className="h-5 w-5" />
-                          <span>{title}</span>
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate flex-1 min-w-0">{title}</span>
                         </Link>
                       </SidebarMenuButton>
                       {item.url && pendingByUrl[item.url] > 0 && (
-                        <SidebarMenuBadge className="bg-red-500 text-white">
+                        <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full">
                           {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
                         </SidebarMenuBadge>
                       )}
@@ -469,91 +538,96 @@ function AppSidebarInner() {
               </SidebarMenu>
             </div>
 
-            <div className="mx-2 rounded-[22px] border border-sidebar-border/70 bg-sidebar/40 px-3 py-3">
-              <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/60">
-                <Folder className="h-3.5 w-3.5" />
-                Más módulos
-              </div>
-              <SidebarMenu>
-              {secondaryMenuItems.map((item) => {
-                const title = getRenamedTitle(item, user?.role);
-                if (item.subItems) {
-                  const visibleSubItems = item.subItems.filter(sub =>
-                    !sub.roles || sub.roles.includes(user?.role ?? "")
-                  );
-                  if (visibleSubItems.length === 0) return null;
-                  const isActive = visibleSubItems.some(sub => location === sub.url);
-                  return (
-                    <Collapsible key={title} defaultOpen={isActive}>
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            className={`rounded-2xl px-3 py-2.5 text-[0.92rem] ${isActive ? "bg-sidebar-accent" : ""}`}
-                            data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
-                          >
-                            <item.icon className="h-5 w-5" />
-                            <span>{title}</span>
-                            <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {visibleSubItems.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.url}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={location === subItem.url}
-                                  data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
-                                >
-                                  <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
-                                    <span>{subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  );
-                }
+            {/* Categorized Section Cards */}
+            {sections.map((section) => (
+              <div key={section.id} className="mx-2 rounded-[20px] border border-sidebar-border/70 bg-sidebar/30 px-2.5 py-2.5 shadow-2xs">
+                <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+                  <section.icon className="h-3.5 w-3.5 text-primary/80" />
+                  <span>{section.label}</span>
+                </div>
+                <SidebarMenu>
+                  {section.items.map((item) => {
+                    const title = getRenamedTitle(item, user?.role);
+                    if (item.subItems) {
+                      const visibleSubItems = item.subItems.filter(sub =>
+                        !sub.roles || sub.roles.includes(user?.role ?? "")
+                      );
+                      if (visibleSubItems.length === 0) return null;
+                      const isActive = visibleSubItems.some(sub => location === sub.url);
+                      return (
+                        <Collapsible key={title} defaultOpen={isActive}>
+                          <SidebarMenuItem>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton
+                                className={`rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight ${isActive ? "bg-sidebar-accent font-semibold" : ""}`}
+                                data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
+                              >
+                                <item.icon className="h-4 w-4 shrink-0" />
+                                <span className="truncate flex-1 min-w-0">{title}</span>
+                                <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200" />
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/50 pl-2 space-y-0.5">
+                                {visibleSubItems.map((subItem) => (
+                                  <SidebarMenuSubItem key={subItem.url}>
+                                    <SidebarMenuSubButton
+                                      asChild
+                                      isActive={location === subItem.url}
+                                      className="rounded-lg px-2 py-1.5 text-[0.8rem]"
+                                      data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
+                                    >
+                                      <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
+                                        <span className="truncate">{subItem.title}</span>
+                                      </Link>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                ))}
+                              </SidebarMenuSub>
+                            </CollapsibleContent>
+                          </SidebarMenuItem>
+                        </Collapsible>
+                      );
+                    }
 
-                return (
-                  <SidebarMenuItem key={`${title}-${item.url}`}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location === item.url}
-                      className="rounded-2xl px-3 py-2.5 text-[0.92rem]"
-                      data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
-                        <item.icon className="h-5 w-5" />
-                        <span>{title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {item.url && pendingByUrl[item.url] > 0 && (
-                      <SidebarMenuBadge className="bg-red-500 text-white">
-                        {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
-                      </SidebarMenuBadge>
-                    )}
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-            
-            <div className="pt-4 mt-2 border-t border-sidebar-border px-1">
+                    return (
+                      <SidebarMenuItem key={`${title}-${item.url}`}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={location === item.url}
+                          className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight"
+                          data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            <span className="truncate flex-1 min-w-0">{title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                        {item.url && pendingByUrl[item.url] > 0 && (
+                          <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full">
+                            {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
+                          </SidebarMenuBadge>
+                        )}
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </div>
+            ))}
+
+            {/* PWA Mobile App Install Option */}
+            <div className="mx-2 mt-2 px-1">
               <SidebarMenuButton
                 onClick={() => setShowPwaGuide(true)}
-                className="rounded-2xl px-3 py-2.5 text-[0.88rem] text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                className="rounded-xl px-2.5 py-2 text-[0.82rem] text-sidebar-foreground/80 hover:text-sidebar-foreground flex items-center gap-2"
                 data-testid="nav-pwa-guide"
               >
-                <Smartphone className="h-5 w-5 text-primary" />
+                <Smartphone className="h-4 w-4 text-primary shrink-0" />
                 <span>Instalar App Móvil</span>
               </SidebarMenuButton>
             </div>
 
             <PwaInstallDialog open={showPwaGuide} onOpenChange={setShowPwaGuide} />
-            </div>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
