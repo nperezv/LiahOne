@@ -700,29 +700,66 @@ function SacramentalMeetingPageInner() {
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
 
+  const normalizeKey = (str: string) =>
+    str
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .trim();
+
+  const isSameMemberName = (nameA: string, nameB: string) => {
+    if (!nameA || !nameB) return false;
+    const ka = normalizeKey(nameA);
+    const kb = normalizeKey(nameB);
+    if (ka === kb) return true;
+    const tokensA = ka.split(/\s+/).filter((t) => t.length > 2);
+    const tokensB = kb.split(/\s+/).filter((t) => t.length > 2);
+    if (tokensA.length > 0 && tokensA.every((t) => kb.includes(t))) return true;
+    if (tokensB.length > 0 && tokensB.every((t) => ka.includes(t))) return true;
+    return false;
+  };
+
   const obispadoOrgId = useMemo(() => (organizations as any[]).find((o: any) => o.type === "obispado")?.id, [organizations]);
   const obispadoCallingNames = useMemo(() => callingsByOrgType.obispado.map((c) => normalizeText(c)), []);
   const normalizeMemberLabel = (value?: string) => normalizeMemberName(value || "") || value || "";
 
   const getMemberLabel = (m?: any) => m ? (typeof m === "string" ? m : (shortUserName(m) || m?.name || m?.email || "")) : "";
 
+  // Strictly Obispo & Counselors (Obispado) with robust deduplication
   const bishopricMembers = useMemo(() => {
-    const fromUsers = users.filter((m: any) => ["obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"].includes(m.role));
-    const namesFromUsers = new Set(fromUsers.map((m: any) => getMemberLabel(m)).filter(Boolean));
+    const list: Array<{ name: string; role: string; email?: string }> = [];
 
-    const obispadoCallings = memberCallings.filter((c) =>
-      (!obispadoOrgId || c.organizationId === obispadoOrgId) && c.memberName
-    );
-    const extraMembers: any[] = [];
+    const addUnique = (name: string, role: string, email?: string) => {
+      const cleanName = shortMemberName({ nameSurename: name }) || normalizeMemberName(name) || name.trim();
+      if (!cleanName) return;
+      const exists = list.some((item) => isSameMemberName(item.name, cleanName));
+      if (!exists) {
+        list.push({ name: cleanName, role, email });
+      }
+    };
+
+    // 1. Add users with role 'obispo' or 'consejero_obispo'
+    const obispadoUsers = users.filter((u: any) => ["obispo", "consejero_obispo"].includes(u.role));
+    obispadoUsers.forEach((u: any) => {
+      const label = shortUserName(u) || u.name || u.email || "";
+      addUnique(label, u.role, u.email);
+    });
+
+    // 2. Add from memberCallings for Obispado callings (Obispo, 1er/2do consejero)
+    const obispadoCallings = memberCallings.filter((c) => {
+      if (obispadoOrgId && c.organizationId !== obispadoOrgId) return false;
+      const cn = normalizeText(c.callingName || "");
+      return (cn.includes("obispo") || cn.includes("consejero")) && !cn.includes("secretario");
+    });
+
     obispadoCallings.forEach((c) => {
-      const name = normalizeMemberLabel(c.memberName || "");
-      if (name && !namesFromUsers.has(name)) {
-        namesFromUsers.add(name);
-        extraMembers.push({ name, role: "consejero_obispo" });
+      if (c.memberName) {
+        const role = normalizeText(c.callingName || "").includes("obispo") ? "obispo" : "consejero_obispo";
+        addUnique(c.memberName, role);
       }
     });
 
-    return [...fromUsers, ...extraMembers];
+    return list;
   }, [users, memberCallings, obispadoOrgId]);
 
   const parsePersonValue = (value?: string | null) => {
@@ -757,9 +794,13 @@ function SacramentalMeetingPageInner() {
     return role === "obispo" ? "Obispo" : "Consejero del Obispado";
   };
   const getBishopricCalling = (name: string) => {
-    const member = bishopricByName.get(name);
-    const nn = normalizeMemberLabel(name);
-    const match = memberCallingsWithMembers.find((c) => normalizeMemberLabel(c.memberName || "") === nn && (!obispadoOrgId || c.organizationId === obispadoOrgId) && obispadoCallingNames.includes(normalizeText(c.callingName || "")));
+    const member = bishopricMembers.find((m) => isSameMemberName(m.name, name));
+    const match = memberCallingsWithMembers.find(
+      (c) =>
+        isSameMemberName(c.memberName || "", name) &&
+        (!obispadoOrgId || c.organizationId === obispadoOrgId) &&
+        obispadoCallingNames.includes(normalizeText(c.callingName || ""))
+    );
     return formatBishopricCalling(match?.callingName, member?.role, match?.callingOrder);
   };
   const isTestimonyValue = (value: any) => typeof value === "string" ? value === "true" : Boolean(value);
