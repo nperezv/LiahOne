@@ -703,9 +703,7 @@ function SacramentalMeetingPageInner() {
     const dbOrgs = (organizations as any[])
       .filter((o: any) => o.type !== "barrio" && o.name)
       .map((o: any) => o.name);
-    const extraOrgs = ["Coro de Jóvenes", "Coro de Niños", "Grupo Musical / Instrumental"];
-    const set = new Set<string>([...dbOrgs, ...extraOrgs]);
-    return Array.from(set);
+    return Array.from(new Set<string>(dbOrgs));
   }, [organizations]);
   const createMutation = useCreateSacramentalMeeting();
   const updateMutation = useUpdateSacramentalMeeting();
