@@ -114,10 +114,7 @@ self.addEventListener('push', (event) => {
       url: data.url || '/',
       notificationId: data.notificationId
     },
-    actions: data.actions || [
-      { action: 'open', title: 'Abrir' },
-      { action: 'close', title: 'Cerrar' }
-    ]
+    ...(data.actions ? { actions: data.actions } : {})
   };
 
   event.waitUntil(

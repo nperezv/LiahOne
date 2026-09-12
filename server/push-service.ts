@@ -77,13 +77,20 @@ export async function sendPushToMultipleUsers(
   userIds: string[],
   payload: PushNotificationPayload
 ): Promise<{ success: number; failed: number }> {
+  const results = await Promise.allSettled(
+    userIds.map((userId) => sendPushNotification(userId, payload))
+  );
+
   let totalSuccess = 0;
   let totalFailed = 0;
 
-  for (const userId of userIds) {
-    const result = await sendPushNotification(userId, payload);
-    totalSuccess += result.success;
-    totalFailed += result.failed;
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      totalSuccess += result.value.success;
+      totalFailed += result.value.failed;
+    } else {
+      totalFailed++;
+    }
   }
 
   return { success: totalSuccess, failed: totalFailed };

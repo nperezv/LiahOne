@@ -1755,6 +1755,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/logout", async (req: Request, res: Response) => {
     try {
+      const userId = req.session.userId;
+
+      // Clean up push subscriptions to prevent cross-user notification leaks
+      if (userId) {
+        await storage.deletePushSubscriptionsByUser(userId);
+      }
+
       const refreshToken = getCookie(req, "refresh_token");
       if (refreshToken) {
         const refreshTokenHash = hashToken(refreshToken);

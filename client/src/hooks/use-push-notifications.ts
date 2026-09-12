@@ -66,6 +66,10 @@ export function usePushNotifications() {
     },
   });
 
+  // Use a ref for the mutation to avoid re-triggering the sync effect
+  const subscribeMutateRef = useRef(subscribeMutation.mutateAsync);
+  subscribeMutateRef.current = subscribeMutation.mutateAsync;
+
   const requestPermissionAndSubscribe = useCallback(async () => {
     if (!isSupported) {
       throw new Error("Push notifications not supported");
@@ -109,7 +113,11 @@ export function usePushNotifications() {
     }
   }, [unsubscribeMutation]);
 
+  // Auto-sync: reconcile browser push subscription with the server
+  // Uses refs to avoid dependency-loop issues with mutation objects
   useEffect(() => {
+    let cancelled = false;
+
     const syncBrowserSubscription = async () => {
       if (!isSupported || permission !== "granted") {
         return;
@@ -119,7 +127,7 @@ export function usePushNotifications() {
         return;
       }
 
-      if (!vapidKeyQuery.data?.publicKey || subscribeMutation.isPending || isSyncingSubscription) {
+      if (!vapidKeyQuery.data?.publicKey) {
         return;
       }
 
@@ -137,24 +145,30 @@ export function usePushNotifications() {
       lastSyncAttemptEndpointRef.current = subscription.endpoint;
       setIsSyncingSubscription(true);
       try {
-        await subscribeMutation.mutateAsync(subscription);
+        if (!cancelled) {
+          await subscribeMutateRef.current(subscription);
+        }
       } catch (error) {
         console.warn("Push subscription reconciliation failed:", error);
       } finally {
-        setIsSyncingSubscription(false);
+        if (!cancelled) {
+          setIsSyncingSubscription(false);
+        }
       }
     };
 
     void syncBrowserSubscription();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     isSupported,
     permission,
-    isSyncingSubscription,
     statusQuery.data?.configured,
     statusQuery.data?.subscribed,
     statusQuery.isLoading,
     vapidKeyQuery.data?.publicKey,
-    subscribeMutation,
   ]);
 
   return {
@@ -170,3 +184,4 @@ export function usePushNotifications() {
     error: subscribeMutation.error || unsubscribeMutation.error,
   };
 }
+

@@ -395,6 +395,7 @@ export interface IStorage {
   createPushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription>;
   deletePushSubscription(id: string): Promise<void>;
   deletePushSubscriptionByEndpoint(endpoint: string): Promise<void>;
+  deletePushSubscriptionsByUser(userId: string): Promise<void>;
   getAllPushSubscriptions(): Promise<PushSubscription[]>;
 
   // Devices
@@ -2480,6 +2481,15 @@ export class DatabaseStorage implements IStorage {
     const [subscription] = await db
       .insert(pushSubscriptions)
       .values(insertSubscription)
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          userId: insertSubscription.userId,
+          p256dh: insertSubscription.p256dh,
+          auth: insertSubscription.auth,
+          createdAt: sql`now()`,
+        },
+      })
       .returning();
     return subscription;
   }
@@ -2490,6 +2500,10 @@ export class DatabaseStorage implements IStorage {
 
   async deletePushSubscriptionByEndpoint(endpoint: string): Promise<void> {
     await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+  }
+
+  async deletePushSubscriptionsByUser(userId: string): Promise<void> {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
   }
 
   async getAllPushSubscriptions(): Promise<PushSubscription[]> {
