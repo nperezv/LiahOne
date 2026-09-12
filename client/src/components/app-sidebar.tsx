@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList, LayoutList } from "lucide-react";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList, LayoutList, Smartphone } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
 import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
+import { PwaInstallDialog } from "@/components/pwa-install-dialog";
 
 interface MenuItem {
   title: string;
@@ -348,6 +349,7 @@ function AppSidebarInner() {
   const { user } = useAuth();
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
+  const [showPwaGuide, setShowPwaGuide] = React.useState(false);
 
   const [, startTransition] = React.useTransition();
 
@@ -538,6 +540,19 @@ function AppSidebarInner() {
                 );
               })}
             </SidebarMenu>
+            
+            <div className="pt-4 mt-2 border-t border-sidebar-border px-1">
+              <SidebarMenuButton
+                onClick={() => setShowPwaGuide(true)}
+                className="rounded-2xl px-3 py-2.5 text-[0.88rem] text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                data-testid="nav-pwa-guide"
+              >
+                <Smartphone className="h-5 w-5 text-primary" />
+                <span>Instalar App Móvil</span>
+              </SidebarMenuButton>
+            </div>
+
+            <PwaInstallDialog open={showPwaGuide} onOpenChange={setShowPwaGuide} />
             </div>
           </SidebarGroupContent>
         </SidebarGroup>

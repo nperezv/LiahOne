@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
-import { LogIn } from "lucide-react";
+import { LogIn, KeyRound, Smartphone, HelpCircle, AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { PwaInstallDialog } from "@/components/pwa-install-dialog";
 
 const loginSchema = z.object({
   username: z.string().min(1, "El nombre de usuario es requerido"),
@@ -32,8 +33,11 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [showRecoveryForm, setShowRecoveryForm] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveredNotice, setRecoveredNotice] = useState(false);
+  const [showPwaGuide, setShowPwaGuide] = useState(false);
+
   const { toast } = useToast();
-  const { canPromptInstall, showIosInstallHint, promptInstall } = usePwaInstall();
+  const { canPromptInstall, promptInstall } = usePwaInstall();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -43,6 +47,21 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
       rememberDevice: false,
     },
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const usernameParam = params.get("username");
+      const isRecovered = params.get("recovered") === "true";
+
+      if (usernameParam) {
+        form.setValue("username", usernameParam);
+      }
+      if (isRecovered) {
+        setRecoveredNotice(true);
+      }
+    }
+  }, [form]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
@@ -93,8 +112,8 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     const trimmedEmail = recoveryEmail.trim();
     if (!trimmedEmail) {
       toast({
-        title: "Email requerido",
-        description: "Introduce el correo con el que te registraste.",
+        title: "Correo requerido",
+        description: "Introduce el correo electrónico con el que fuiste dado de alta.",
         variant: "destructive",
       });
       return;
@@ -104,14 +123,15 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     try {
       await apiRequest("POST", "/api/login/recover", { email: trimmedEmail });
       toast({
-        title: "Recuperación enviada",
-        description: "Si el correo existe, se han enviado a ese correo tus credenciales temporales.",
+        title: "✉️ Instrucciones enviadas",
+        description: "Si tu correo existe en el sistema, habrás recibido un mensaje con tu usuario y contraseña temporal.",
       });
       setRecoveryEmail("");
+      setShowRecoveryForm(false);
     } catch (error) {
       toast({
         title: "No se pudo procesar",
-        description: "Intenta nuevamente en unos minutos.",
+        description: "Intenta nuevamente en unos minutos o contacta a tu secretario.",
         variant: "destructive",
       });
     } finally {
@@ -120,21 +140,20 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   };
 
   const handleInstallClick = async () => {
-    if (!canPromptInstall) return;
-    try {
-      await promptInstall();
-    } catch (error) {
-      toast({
-        title: "No se pudo mostrar el instalador",
-        description: "Intenta nuevamente en unos segundos.",
-        variant: "destructive",
-      });
+    if (canPromptInstall) {
+      try {
+        await promptInstall();
+      } catch (error) {
+        setShowPwaGuide(true);
+      }
+    } else {
+      setShowPwaGuide(true);
     }
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-lg border-muted-foreground/10">
         <CardHeader className="space-y-1 text-center pt-4 pb-2">
           <div className="flex flex-col items-center gap-2 py-2">
             <img src="/icons/compass.svg" alt="Zendapp" className="h-16 w-16" />
@@ -148,6 +167,16 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {recoveredNotice && !otpState && (
+            <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2.5 text-amber-950 dark:text-amber-200 text-xs leading-relaxed">
+              <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-semibold text-amber-900 dark:text-amber-100">Contraseña temporal enviada</strong>
+                Hemos rellenado tu nombre de usuario. Por favor copia la contraseña temporal enviada a tu correo y pégala en el campo "Contraseña".
+              </div>
+            </div>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {!showRecoveryForm && !otpState && (
@@ -179,7 +208,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                         <FormControl>
                           <Input
                             type="password"
-                            placeholder="Ingresa tu contraseña"
+                            placeholder="Ingresa tu contraseña o contraseña temporal"
                             {...field}
                             data-testid="input-password"
                           />
@@ -197,7 +226,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                         <FormControl>
                           <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                         </FormControl>
-                        <FormLabel className="text-sm font-normal">Recuerda este dispositivo</FormLabel>
+                        <FormLabel className="text-sm font-normal text-muted-foreground">Recuerda este dispositivo</FormLabel>
                       </FormItem>
                     )}
                   />
@@ -231,7 +260,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
               {!otpState && !showRecoveryForm && (
                 <Button
                   type="button"
-                  className="w-full"
+                  className="w-full font-medium"
                   disabled={isLoading}
                   data-testid="button-login"
                   onClick={form.handleSubmit(onSubmit)}
@@ -248,71 +277,80 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
               )}
 
               {!otpState && (
-                <div className="space-y-3">
+                <div className="space-y-3 pt-1">
                   {!showRecoveryForm ? (
                     <Button
                       type="button"
-                      variant={"link" as any}
-                      className="h-auto w-full p-0 text-sm"
+                      variant="ghost"
+                      className="h-auto w-full p-0 text-sm text-muted-foreground hover:text-foreground"
                       onClick={() => setShowRecoveryForm(true)}
                       data-testid="toggle-recovery-form"
                     >
-                      ¿Has olvidado tu usuario o contraseña?
+                      ¿Olvidaste tu usuario o contraseña?
                     </Button>
                   ) : (
-                    <div className="rounded-lg border border-muted-foreground/20 bg-muted/20 p-4 space-y-3">
+                    <div className="rounded-xl border border-muted-foreground/20 bg-muted/30 p-4 space-y-3 text-left">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <HelpCircle className="h-4 w-4 text-primary" />
+                        Recuperación de Cuenta
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Ingresa el correo electrónico asociado a tu cuenta. Te enviaremos tu nombre de usuario y una contraseña temporal.
+                      </p>
                       <Input
                         type="email"
                         value={recoveryEmail}
                         onChange={(event) => setRecoveryEmail(event.target.value)}
-                        placeholder="Correo con el que te diste de alta"
+                        placeholder="tu-correo@ejemplo.com"
                         data-testid="input-recovery-email"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={onRecoverAccess}
-                        disabled={isRecovering}
-                        data-testid="button-recover-access"
-                      >
-                        {isRecovering ? "Enviando..." : "Recuperar acceso"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="w-full"
-                        onClick={() => setShowRecoveryForm(false)}
-                        data-testid="button-back-login"
-                      >
-                        Volver a iniciar sesión
-                      </Button>
+                      <div className="flex flex-col gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="default"
+                          className="w-full"
+                          onClick={onRecoverAccess}
+                          disabled={isRecovering}
+                          data-testid="button-recover-access"
+                        >
+                          {isRecovering ? "Enviando correo..." : "Enviar datos de acceso"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="w-full text-xs"
+                          onClick={() => setShowRecoveryForm(false)}
+                          data-testid="button-back-login"
+                        >
+                          Volver a Iniciar Sesión
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {canPromptInstall && !showRecoveryForm && !otpState && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="w-full"
-                  onClick={handleInstallClick}
-                  data-testid="button-install-app"
-                >
-                  Instalar aplicación
-                </Button>
-              )}
-
-              {showIosInstallHint && !showRecoveryForm && !otpState && (
-                <p className="text-xs text-muted-foreground text-center">
-                  En iPhone/iPad: toca <strong>Compartir</strong> y luego <strong>Agregar a pantalla de inicio</strong>.
-                </p>
+              {!showRecoveryForm && !otpState && (
+                <div className="pt-2 border-t border-muted/50">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full text-xs gap-2"
+                    onClick={handleInstallClick}
+                    data-testid="button-install-app"
+                  >
+                    <Smartphone className="h-4 w-4 text-primary" />
+                    ¿Cómo instalar Zendapp en mi móvil?
+                  </Button>
+                </div>
               )}
             </form>
           </Form>
+
+          <PwaInstallDialog open={showPwaGuide} onOpenChange={setShowPwaGuide} />
         </CardContent>
       </Card>
     </div>
   );
 }
+

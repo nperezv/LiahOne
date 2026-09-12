@@ -1621,7 +1621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.getPdfTemplate();
       const wardName = template?.wardName;
       const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
-      const loginUrl = `${baseUrl}/login`;
+      const loginUrl = `${baseUrl}/login?username=${encodeURIComponent(user.username)}&recovered=true`;
 
       const temporaryPassword = generateTemporaryPassword();
       const hashedTemporaryPassword = await bcrypt.hash(temporaryPassword, 10);

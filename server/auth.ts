@@ -212,13 +212,60 @@ export async function sendAccountRecoveryEmail(payload: {
     payload.loginUrl ? `Iniciar sesión: ${payload.loginUrl}` : null,
     "", "Por seguridad, cambia esta contraseña después de iniciar sesión.", "", wardSignature,
   ];
+
+  const html = `
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 550px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+    <div style="text-align: center; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9;">
+      <h2 style="color: #0f172a; font-size: 22px; font-weight: 700; margin: 0;">🔑 Recuperación de Acceso</h2>
+      <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Zendapp - Sistema de Gestión</p>
+    </div>
+    
+    <p style="color: #334155; font-size: 15px; line-height: 1.5; margin-top: 20px;">
+      Hola <strong>${payload.name}</strong>, hemos procesado tu solicitud para restablecer el acceso a tu cuenta. Aquí tienes tus datos de acceso temporales:
+    </p>
+    
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 20px 0;">
+      <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed #cbd5e1;">
+        <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">PASO 1: TU USUARIO</span>
+        <div style="font-size: 20px; font-weight: 700; color: #0f172a; margin-top: 4px; font-family: monospace;">${payload.username}</div>
+      </div>
+      <div>
+        <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">PASO 2: TU CONTRASEÑA TEMPORAL</span>
+        <div style="font-size: 22px; font-weight: 700; color: #d97706; margin-top: 4px; font-family: monospace; letter-spacing: 1px;">${payload.temporaryPassword}</div>
+      </div>
+    </div>
+
+    ${payload.loginUrl ? `
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${payload.loginUrl}" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 10px; display: inline-block; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">
+        👉 Iniciar Sesión en Zendapp
+      </a>
+    </div>
+    <p style="font-size: 13px; color: #64748b; text-align: center; margin-top: -16px; margin-bottom: 24px;">
+      (Al presionar el botón se rellenará tu usuario automáticamente)
+    </p>
+    ` : ""}
+
+    <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px;">
+      <p style="font-size: 13px; color: #92400e; margin: 0;">
+        💡 <strong>Consejo:</strong> Te recomendamos cambiar esta contraseña temporal por una propia la primera vez que ingreses.
+      </p>
+    </div>
+
+    <div style="border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center; font-size: 12px; color: #94a3b8;">
+      ${wardSignature ? `<div>${wardSignature}</div>` : ""}
+    </div>
+  </div>
+  `;
+
   await transporter.sendMail({
     from, to: payload.toEmail,
-    subject: "Recuperación de acceso",
+    subject: "🔑 Recuperación de acceso - Zendapp",
     text: recoveryLines.filter((l): l is string => Boolean(l)).join("\n"),
-    html: buildHtmlEmail(recoveryLines, payload.wardName),
+    html,
   });
 }
+
 
 export async function sendAccessRequestEmail(payload: {
   toEmail: string;
