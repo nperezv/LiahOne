@@ -490,21 +490,35 @@ export default function AgendaPage() {
                   <button
                     key={day.toISOString()}
                     onClick={() => setSelectedDate(day)}
-                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all h-[78px] w-full ${
                       isSel
-                        ? "border-primary bg-primary/15 shadow-sm text-primary font-bold"
+                        ? "border-primary bg-primary text-primary-foreground font-bold shadow-md"
                         : isTod
-                        ? "border-primary/40 bg-muted/30"
-                        : "border-border/40 hover:bg-muted/20"
+                        ? "border-primary/50 bg-primary/10 text-foreground font-semibold"
+                        : "border-border/40 bg-background/40 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
                     }`}
                   >
-                    <p className="text-[11px] uppercase tracking-wide opacity-80">{format(day, "EEE", { locale: es })}</p>
-                    <p className="text-base font-bold my-0.5">{format(day, "d", { locale: es })}</p>
-                    {count > 0 && (
-                      <span className="inline-block px-1.5 py-0.5 text-[10px] rounded-full bg-primary/20 font-semibold">
-                        {count} {count === 1 ? "evento" : "eventos"}
-                      </span>
-                    )}
+                    <span className="text-[10px] font-semibold uppercase tracking-wider opacity-85 leading-none">
+                      {format(day, "EEE", { locale: es })}
+                    </span>
+                    <span className="text-base font-extrabold leading-none my-1">
+                      {format(day, "d", { locale: es })}
+                    </span>
+                    <div className="h-3.5 flex items-center justify-center">
+                      {count > 0 ? (
+                        <span
+                          className={`inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-medium rounded-full ${
+                            isSel
+                              ? "bg-primary-foreground/20 text-primary-foreground"
+                              : "bg-primary/20 text-primary font-semibold"
+                          }`}
+                        >
+                          {count} {count === 1 ? "ev." : "ev."}
+                        </span>
+                      ) : (
+                        <span className="h-1 w-1 rounded-full bg-transparent"></span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
