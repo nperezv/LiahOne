@@ -120,8 +120,8 @@ export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDial
                 <MoreVertical className="h-5 w-5" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium">1. Abre el menú (3 puntos)</p>
-                <p className="text-xs text-muted-foreground">Toca los tres puntos arriba a la derecha en Chrome.</p>
+                <p className="text-sm font-medium">1. Toca el menú de 3 puntos (⋮)</p>
+                <p className="text-xs text-muted-foreground">Está ubicado en la esquina superior derecha del navegador Chrome.</p>
               </div>
             </div>
 
@@ -130,10 +130,24 @@ export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDial
                 <Download className="h-5 w-5" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium">2. Selecciona "Instalar aplicación"</p>
-                <p className="text-xs text-muted-foreground">O presiona "Agregar a la pantalla principal".</p>
+                <p className="text-sm font-medium">2. Selecciona la opción de Instalación</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Según la versión de tu móvil, busca una de estas 3 opciones:
+                </p>
+                <ul className="text-xs font-medium text-foreground list-disc list-inside pt-1 space-y-0.5">
+                  <li><strong>"Instalar aplicación"</strong></li>
+                  <li><strong>"Agregar a la pantalla principal"</strong></li>
+                  <li><strong>"Crear acceso directo"</strong></li>
+                </ul>
               </div>
             </div>
+
+            {canPromptInstall && (
+              <Button onClick={handleInstallClick} className="w-full mt-2 gap-2" variant="default">
+                <Download className="h-4 w-4" />
+                Presiona aquí para intentar instalación directa
+              </Button>
+            )}
           </TabsContent>
 
           <TabsContent value="desktop" className="space-y-3 pt-3">

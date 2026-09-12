@@ -108,6 +108,8 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     }
   };
 
+  const [recoverySentNotice, setRecoverySentNotice] = useState<string | null>(null);
+
   const onRecoverAccess = async () => {
     const trimmedEmail = recoveryEmail.trim();
     if (!trimmedEmail) {
@@ -122,12 +124,13 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
     setIsRecovering(true);
     try {
       await apiRequest("POST", "/api/login/recover", { email: trimmedEmail });
-      toast({
-        title: "✉️ Instrucciones enviadas",
-        description: "Si tu correo existe en el sistema, habrás recibido un mensaje con tu usuario y contraseña temporal.",
-      });
+      setRecoverySentNotice(trimmedEmail);
       setRecoveryEmail("");
       setShowRecoveryForm(false);
+      toast({
+        title: "✉️ Correo de acceso enviado",
+        description: "Revisa tu bandeja de entrada.",
+      });
     } catch (error) {
       toast({
         title: "No se pudo procesar",
@@ -167,6 +170,16 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {recoverySentNotice && !otpState && !showRecoveryForm && (
+            <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-start gap-2.5 text-green-950 dark:text-green-200 text-xs leading-relaxed">
+              <AlertCircle className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-semibold text-green-900 dark:text-green-100">✉️ ¡Correo enviado a {recoverySentNotice}!</strong>
+                Revisa tu bandeja de entrada. Te hemos enviado un correo con tu nombre de usuario y contraseña temporal. Abre el mensaje y haz clic en el botón para ingresar.
+              </div>
+            </div>
+          )}
+
           {recoveredNotice && !otpState && (
             <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2.5 text-amber-950 dark:text-amber-200 text-xs leading-relaxed">
               <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -308,21 +321,21 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                         <Button
                           type="button"
                           variant="default"
-                          className="w-full"
+                          className="w-full font-medium"
                           onClick={onRecoverAccess}
                           disabled={isRecovering}
                           data-testid="button-recover-access"
                         >
-                          {isRecovering ? "Enviando correo..." : "Enviar datos de acceso"}
+                          {isRecovering ? "Enviando correo..." : "Enviar datos y volver al inicio"}
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
-                          className="w-full text-xs"
+                          className="w-full text-xs text-muted-foreground"
                           onClick={() => setShowRecoveryForm(false)}
                           data-testid="button-back-login"
                         >
-                          Volver a Iniciar Sesión
+                          ← Cancelar y volver
                         </Button>
                       </div>
                     </div>
