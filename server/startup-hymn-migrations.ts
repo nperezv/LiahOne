@@ -11,6 +11,7 @@ export async function applyHymnStartupMigrations(_db?: unknown) {
   await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS lang text NOT NULL DEFAULT 'es'`);
   await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS external_url text`);
   await db.execute(sql`ALTER TABLE hymns ADD COLUMN IF NOT EXISTS number_display text`);
+  await db.execute(sql`ALTER TABLE sacramental_meetings ADD COLUMN IF NOT EXISTS intermediate_hymn_org text`);
 
   // Fix unique index: (number) → (number, hymnbook) to allow primaria to share numbers with himnario
   await db.execute(sql`DROP INDEX IF EXISTS hymns_number_unique`);

@@ -48,3 +48,4 @@ ALTER TABLE activities ADD COLUMN IF NOT EXISTS requires_registration boolean NO
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS section_data jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE quarterly_plan_items ADD COLUMN IF NOT EXISTS activity_type varchar DEFAULT 'actividad_org';
 ALTER TABLE quarterly_plan_items ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false;
+ALTER TABLE sacramental_meetings ADD COLUMN IF NOT EXISTS intermediate_hymn_org text;
