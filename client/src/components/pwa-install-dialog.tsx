@@ -9,17 +9,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Share, PlusSquare, MoreVertical, Download, Smartphone, Monitor, CheckCircle2 } from "lucide-react";
+import { Share, PlusSquare, MoreVertical, Download, Smartphone, Monitor, CheckCircle2, Search, AppWindow } from "lucide-react";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 
 interface PwaInstallDialogProps {
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  defaultTab?: "ios" | "android" | "desktop" | "find";
 }
 
-export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDialogProps) {
-  const { canPromptInstall, promptInstall } = usePwaInstall();
+export function PwaInstallDialog({ trigger, open, onOpenChange, defaultTab }: PwaInstallDialogProps) {
+  const { canPromptInstall, promptInstall, isStandalone } = usePwaInstall();
   const [installedSuccess, setInstalledSuccess] = useState(false);
 
   const handleInstallClick = async () => {
@@ -32,25 +33,33 @@ export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDial
   };
 
   const isIos = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const initialTab = defaultTab ?? (isIos ? "ios" : "android");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[540px]">
         <DialogHeader className="text-center sm:text-left">
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Smartphone className="h-5 w-5 text-primary" />
-            Cómo instalar Zendapp
+            Guía de Instalación y Búsqueda
           </DialogTitle>
           <DialogDescription>
-            Instala la aplicación en tu dispositivo para acceder rápidamente como una app nativa sin necesidad de descargar desde la App Store.
+            Accede a Zendapp rápidamente desde la pantalla de inicio de tu dispositivo como una aplicación nativa.
           </DialogDescription>
         </DialogHeader>
 
-        {canPromptInstall && !installedSuccess && (
-          <div className="my-2 p-3 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between gap-3">
+        {isStandalone && (
+          <div className="my-1 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2.5 text-green-600 dark:text-green-400 text-xs font-medium">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>¡Ya estás utilizando la versión instalada de Zendapp!</span>
+          </div>
+        )}
+
+        {canPromptInstall && !installedSuccess && !isStandalone && (
+          <div className="my-1 p-3 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between gap-3">
             <div className="text-sm">
-              <span className="font-semibold block">Instalación automática disponible</span>
+              <span className="font-semibold block">Instalación rápida disponible</span>
               <span className="text-muted-foreground text-xs">Tu navegador permite instalar Zendapp con 1 solo toque.</span>
             </div>
             <Button size="sm" onClick={handleInstallClick} className="gap-1.5 shrink-0">
@@ -61,17 +70,21 @@ export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDial
         )}
 
         {installedSuccess && (
-          <div className="my-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-3 text-green-600 dark:text-green-400">
+          <div className="my-1 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-3 text-green-600 dark:text-green-400">
             <CheckCircle2 className="h-5 w-5 shrink-0" />
-            <span className="text-sm font-medium">¡Solicitud de instalación enviada! Revisa la pantalla de inicio de tu dispositivo.</span>
+            <span className="text-sm font-medium">¡Solicitud enviada! Revisa el menú de aplicaciones de tu móvil.</span>
           </div>
         )}
 
-        <Tabs defaultValue={isIos ? "ios" : "android"} className="w-full mt-2">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="ios" className="text-xs sm:text-sm">iPhone / iPad</TabsTrigger>
-            <TabsTrigger value="android" className="text-xs sm:text-sm">Android</TabsTrigger>
-            <TabsTrigger value="desktop" className="text-xs sm:text-sm">PC / Mac</TabsTrigger>
+        <Tabs defaultValue={initialTab} className="w-full mt-2">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="ios" className="text-xs">iPhone</TabsTrigger>
+            <TabsTrigger value="android" className="text-xs">Android</TabsTrigger>
+            <TabsTrigger value="desktop" className="text-xs">PC / Mac</TabsTrigger>
+            <TabsTrigger value="find" className="text-xs gap-1">
+              <Search className="h-3.5 w-3.5" />
+              Buscar App
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="ios" className="space-y-3 pt-3">
@@ -132,7 +145,7 @@ export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDial
               <div className="space-y-1">
                 <p className="text-sm font-medium">2. Selecciona la opción de Instalación</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Según la versión de tu móvil, busca una de estas 3 opciones:
+                  Según la versión de tu móvil, busca una de estas opciones:
                 </p>
                 <ul className="text-xs font-medium text-foreground list-disc list-inside pt-1 space-y-0.5">
                   <li><strong>"Instalar aplicación"</strong></li>
@@ -165,8 +178,51 @@ export function PwaInstallDialog({ trigger, open, onOpenChange }: PwaInstallDial
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="find" className="space-y-3 pt-3">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              ¿Cómo encontrar Zendapp si ya la instalaste?
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border">
+              <div className="bg-primary/10 text-primary p-2 rounded-md shrink-0">
+                <Smartphone className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">En Android:</p>
+                <p className="text-xs text-muted-foreground">
+                  En tu pantalla de inicio, <strong>desliza el dedo hacia arriba</strong> para abrir el cajón de aplicaciones y escribe <strong>"Zendapp"</strong> en el buscador superior.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border">
+              <div className="bg-primary/10 text-primary p-2 rounded-md shrink-0">
+                <AppWindow className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">En iPhone / iPad:</p>
+                <p className="text-xs text-muted-foreground">
+                  En la pantalla principal, <strong>desliza hacia abajo desde el centro</strong> para abrir el buscador Spotlight y escribe <strong>"Zendapp"</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border">
+              <div className="bg-primary/10 text-primary p-2 rounded-md shrink-0">
+                <Monitor className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">En PC / Mac:</p>
+                <p className="text-xs text-muted-foreground">
+                  Presiona la tecla <strong>Windows / Inicio</strong> (o <strong>Cmd + Espacio</strong> en Mac) y escribe <strong>"Zendapp"</strong>.
+                </p>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
   );
 }
+

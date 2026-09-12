@@ -35,6 +35,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveredNotice, setRecoveredNotice] = useState(false);
   const [showPwaGuide, setShowPwaGuide] = useState(false);
+  const [pwaGuideTab, setPwaGuideTab] = useState<"ios" | "android" | "desktop" | "find">("android");
 
   const { toast } = useToast();
   const { canPromptInstall, promptInstall } = usePwaInstall();
@@ -344,7 +345,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
               )}
 
               {!showRecoveryForm && !otpState && (
-                <div className="pt-2 border-t border-muted/50 space-y-1.5 text-center">
+                <div className="pt-2 border-t border-muted/50 space-y-2 text-center">
                   <Button
                     type="button"
                     variant="secondary"
@@ -355,21 +356,39 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
                     <Smartphone className="h-4 w-4 text-primary" />
                     Instalar Aplicación
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPwaGuide(true)}
-                    data-testid="button-pwa-guide"
-                  >
-                    ¿Ver guía de instalación para iPhone / Android?
-                  </Button>
+                  
+                  <div className="flex flex-col gap-1 text-xs">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setPwaGuideTab("android");
+                        setShowPwaGuide(true);
+                      }}
+                      data-testid="button-pwa-guide"
+                    >
+                      ¿Cómo instalar en iPhone / Android / PC?
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto p-0 text-xs text-muted-foreground/80 hover:text-foreground underline decoration-dotted"
+                      onClick={() => {
+                        setPwaGuideTab("find");
+                        setShowPwaGuide(true);
+                      }}
+                      data-testid="button-pwa-find"
+                    >
+                      🔍 ¿Ya la instalaste? Cómo buscarla en tu móvil
+                    </Button>
+                  </div>
                 </div>
               )}
             </form>
           </Form>
 
-          <PwaInstallDialog open={showPwaGuide} onOpenChange={setShowPwaGuide} />
+          <PwaInstallDialog open={showPwaGuide} onOpenChange={setShowPwaGuide} defaultTab={pwaGuideTab} />
         </CardContent>
       </Card>
     </div>
