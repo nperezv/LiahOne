@@ -698,6 +698,15 @@ function SacramentalMeetingPageInner() {
   const { data: hymnsHimnario = [] as any[] } = useHymns("himnario");
   const { data: hymnsHogarIglesia = [] as any[] } = useHymns("hogar_iglesia");
   const hymns = useMemo(() => [...hymnsHimnario, ...hymnsHogarIglesia], [hymnsHimnario, hymnsHogarIglesia]);
+
+  const availableOrgs = useMemo(() => {
+    const dbOrgs = (organizations as any[])
+      .filter((o: any) => o.type !== "barrio" && o.name)
+      .map((o: any) => o.name);
+    const extraOrgs = ["Coro de Jóvenes", "Coro de Niños", "Grupo Musical / Instrumental"];
+    const set = new Set<string>([...dbOrgs, ...extraOrgs]);
+    return Array.from(set);
+  }, [organizations]);
   const createMutation = useCreateSacramentalMeeting();
   const updateMutation = useUpdateSacramentalMeeting();
   const deleteMutation = useDeleteSacramentalMeeting();
@@ -870,7 +879,42 @@ function SacramentalMeetingPageInner() {
     setPresiderAuthorityType("");
   };
 
-  const openPanel = (tab: TabId = "general") => { setActiveTab(tab); setIsPanelOpen(true); };
+  const DRAFT_KEY = "liahOne_sacramental_meeting_draft";
+
+  const openPanel = (tab: TabId = "general") => {
+    setActiveTab(tab);
+    setIsPanelOpen(true);
+    if (!editingId) {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft && Date.now() - (draft.updatedAt || 0) < 86400000) {
+            if (draft.values) form.reset(draft.values);
+            if (draft.intermediateHymnType) setIntermediateHymnType(draft.intermediateHymnType);
+            if (draft.intermediateHymnOrg) setIntermediateHymnOrg(draft.intermediateHymnOrg);
+            if (typeof draft.isTestimonyMeeting === "boolean") setIsTestimonyMeeting(draft.isTestimonyMeeting);
+            if (Array.isArray(draft.discourses)) setDiscourses(draft.discourses);
+            if (Array.isArray(draft.assignments)) setAssignments(draft.assignments);
+            if (Array.isArray(draft.releases)) setReleases(draft.releases);
+            if (Array.isArray(draft.sustainments)) setSustainments(draft.sustainments);
+            if (Array.isArray(draft.newMembers)) setNewMembers(draft.newMembers);
+            if (Array.isArray(draft.aaronicOrderings)) setAaronicOrderings(draft.aaronicOrderings);
+            if (Array.isArray(draft.aaronicAdvancements)) setAaronicAdvancements(draft.aaronicAdvancements);
+            if (Array.isArray(draft.childBlessings)) setChildBlessings(draft.childBlessings);
+            if (Array.isArray(draft.confirmations)) setConfirmations(draft.confirmations);
+            if (typeof draft.hasStakeBusiness === "boolean") setHasStakeBusiness(draft.hasStakeBusiness);
+            if (typeof draft.hasReleasesAndSustainments === "boolean") setHasReleasesAndSustainments(draft.hasReleasesAndSustainments);
+            if (typeof draft.hasNewMembers === "boolean") setHasNewMembers(draft.hasNewMembers);
+            if (typeof draft.hasOrderings === "boolean") setHasOrderings(draft.hasOrderings);
+            if (typeof draft.hasAdvancements === "boolean") setHasAdvancements(draft.hasAdvancements);
+            if (typeof draft.hasChildBlessings === "boolean") setHasChildBlessings(draft.hasChildBlessings);
+            if (typeof draft.hasConfirmations === "boolean") setHasConfirmations(draft.hasConfirmations);
+          }
+        }
+      } catch (e) {}
+    }
+  };
   const closePanel = () => { setIsPanelOpen(false); setEditingId(null); };
 
   const handleOpenDetails = (meeting: any) => { setDetailsMeeting(meeting); setIsDetailsOpen(true); };
@@ -1007,6 +1051,47 @@ function SacramentalMeetingPageInner() {
   const directorValue = useWatch({ control: form.control, name: "director" });
   const presiderValue = useWatch({ control: form.control, name: "presider" });
 
+  // Auto-save draft to localStorage whenever user modifies a new sacramental meeting form
+  const watchedFormValues = useWatch({ control: form.control });
+  useEffect(() => {
+    if (!isPanelOpen || editingId) return;
+    const timer = setTimeout(() => {
+      try {
+        const draft = {
+          values: watchedFormValues,
+          intermediateHymnType,
+          intermediateHymnOrg,
+          isTestimonyMeeting,
+          discourses,
+          assignments,
+          releases,
+          sustainments,
+          newMembers,
+          aaronicOrderings,
+          aaronicAdvancements,
+          childBlessings,
+          confirmations,
+          hasStakeBusiness,
+          hasReleasesAndSustainments,
+          hasNewMembers,
+          hasOrderings,
+          hasAdvancements,
+          hasChildBlessings,
+          hasConfirmations,
+          updatedAt: Date.now(),
+        };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch (e) {}
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    isPanelOpen, editingId, watchedFormValues, intermediateHymnType, intermediateHymnOrg,
+    isTestimonyMeeting, discourses, assignments, releases, sustainments, newMembers,
+    aaronicOrderings, aaronicAdvancements, childBlessings, confirmations, hasStakeBusiness,
+    hasReleasesAndSustainments, hasNewMembers, hasOrderings, hasAdvancements,
+    hasChildBlessings, hasConfirmations
+  ]);
+
   // All original effects (unchanged)
   useEffect(() => {
     if (!isPanelOpen || editingId) return;
@@ -1100,9 +1185,9 @@ function SacramentalMeetingPageInner() {
       stakeBusiness: hasStakeBusiness ? (data.stakeBusiness || "") : "",
     };
     if (editingId) {
-      updateMutation.mutate({ id: editingId, data: payload }, { onSuccess: () => { closePanel(); form.reset(); } });
+      updateMutation.mutate({ id: editingId, data: payload }, { onSuccess: () => { try { localStorage.removeItem("liahOne_sacramental_meeting_draft"); } catch (e) {} closePanel(); form.reset(); } });
     } else {
-      createMutation.mutate(payload, { onSuccess: () => { closePanel(); resetMeetingFormState(); } });
+      createMutation.mutate(payload, { onSuccess: () => { try { localStorage.removeItem("liahOne_sacramental_meeting_draft"); } catch (e) {} closePanel(); resetMeetingFormState(); } });
     }
   };
 
@@ -1540,30 +1625,41 @@ function SacramentalMeetingPageInner() {
                         {intermediateHymnType === "organization" && (
                           <div className="pt-2 border-t border-amber-200/70 dark:border-amber-800/70 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
                             <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                              Nombre de la Organización
+                              Organización asignada
                             </div>
-                            <Input
-                              placeholder="Ej. Primaria, Mujeres Jóvenes, Sociedad de Socorro..."
-                              value={intermediateHymnOrg}
-                              onChange={(e) => setIntermediateHymnOrg(e.target.value)}
-                              className="h-8 text-xs bg-background/80"
-                              data-testid="input-intermediate-hymn-org"
-                            />
-                            <div className="flex flex-wrap gap-1 pt-0.5">
-                              {["Primaria", "Mujeres Jóvenes", "Sociedad de Socorro", "Hombres Jóvenes", "Coro de Jóvenes"].map((orgPreset) => (
-                                <button
-                                  key={orgPreset}
-                                  type="button"
-                                  onClick={() => setIntermediateHymnOrg(orgPreset)}
-                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full transition-all border ${
-                                    intermediateHymnOrg === orgPreset
-                                      ? "bg-amber-600 text-white border-amber-600 shadow-xs"
-                                      : "bg-amber-100/80 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 border-amber-300/70 dark:border-amber-700/70 hover:bg-amber-200/80"
-                                  }`}
-                                >
-                                  {orgPreset}
-                                </button>
-                              ))}
+                            <div className="space-y-2">
+                              <Select
+                                value={availableOrgs.includes(intermediateHymnOrg) ? intermediateHymnOrg : (intermediateHymnOrg ? "custom" : "")}
+                                onValueChange={(val) => {
+                                  if (val === "custom") {
+                                    setIntermediateHymnOrg("");
+                                  } else {
+                                    setIntermediateHymnOrg(val);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger data-testid="select-intermediate-hymn-org" className="h-9 text-xs bg-background/80">
+                                  <SelectValue placeholder="Seleccionar organización de la lista..." />
+                                </SelectTrigger>
+                                <SelectContent className="z-[300]">
+                                  {availableOrgs.map((orgName) => (
+                                    <SelectItem key={orgName} value={orgName}>
+                                      {orgName}
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="custom">✏️ Nombre personalizado / Otra...</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              {(!availableOrgs.includes(intermediateHymnOrg) || intermediateHymnOrg === "") && (
+                                <Input
+                                  placeholder="Escribir nombre personalizado de la organización..."
+                                  value={intermediateHymnOrg}
+                                  onChange={(e) => setIntermediateHymnOrg(e.target.value)}
+                                  className="h-8 text-xs bg-background/80"
+                                  data-testid="input-intermediate-hymn-org-custom"
+                                />
+                              )}
                             </div>
                           </div>
                         )}
