@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -284,8 +284,8 @@ function CouncilDetailsForm({
     missionaryPersons: (council.missionaryPersons?.length ?? 0) > 0,
     familyHistoryPersons: (council.familyHistoryPersons?.length ?? 0) > 0,
   }));
-  const [isManuallySaving, setIsManuallySaving] = useState(false);
-  const [lastManualSave, setLastManualSave] = useState<Date | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "offline_saved" | "error">("saved");
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
 
   const watchedValues = useWatch({ control: form.control });
   const lastSavedRef = useRef<string>("");
@@ -293,6 +293,24 @@ function CouncilDetailsForm({
   const councilIdRef = useRef<string>(council.id);
   const statusRef = useRef<string>(council.status);
   const isEditable = council.status === "en_progreso" && canManage && Boolean(council.startedAt);
+  const DRAFT_KEY = `liahOne_ward_council_draft_${council.id}`;
+
+  const performSave = useCallback(
+    async (values: any) => {
+      setSaveStatus("saving");
+      try {
+        await onAutoSave(values);
+        setSaveStatus("saved");
+        setLastSavedTime(new Date());
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch (e) {}
+      } catch (err) {
+        setSaveStatus("offline_saved");
+      }
+    },
+    [DRAFT_KEY, onAutoSave]
+  );
 
   // Only reset the form when switching to a different council (id changed) or
   // when the council status changes — NOT on every refetch after auto-save.
@@ -302,7 +320,8 @@ function CouncilDetailsForm({
     if (!idChanged && !statusChanged) return;
     councilIdRef.current = council.id;
     statusRef.current = council.status;
-    form.reset({
+
+    let initialValues = {
       livingGospelPersons: council.livingGospelPersons || [],
       careForOthersPersons: council.careForOthersPersons || [],
       missionaryPersons: council.missionaryPersons || [],
@@ -312,16 +331,29 @@ function CouncilDetailsForm({
         dueDate: formatDateForInput(assignment?.dueDate),
       })),
       additionalNotes: council.additionalNotes || "",
-    });
+    };
+
+    try {
+      const rawDraft = localStorage.getItem(DRAFT_KEY);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft);
+        if (parsed) {
+          initialValues = { ...initialValues, ...parsed };
+          setSaveStatus("offline_saved");
+        }
+      }
+    } catch (e) {}
+
+    form.reset(initialValues);
     setExpandedSections({
-      livingGospelPersons: (council.livingGospelPersons?.length ?? 0) > 0,
-      careForOthersPersons: (council.careForOthersPersons?.length ?? 0) > 0,
-      missionaryPersons: (council.missionaryPersons?.length ?? 0) > 0,
-      familyHistoryPersons: (council.familyHistoryPersons?.length ?? 0) > 0,
+      livingGospelPersons: (initialValues.livingGospelPersons?.length ?? 0) > 0,
+      careForOthersPersons: (initialValues.careForOthersPersons?.length ?? 0) > 0,
+      missionaryPersons: (initialValues.missionaryPersons?.length ?? 0) > 0,
+      familyHistoryPersons: (initialValues.familyHistoryPersons?.length ?? 0) > 0,
     });
     lastSavedRef.current = "";
     initialRenderRef.current = true;
-  }, [council, form]);
+  }, [DRAFT_KEY, council, form]);
 
   useEffect(() => {
     setExpandedAssignments((current) => {
@@ -333,7 +365,9 @@ function CouncilDetailsForm({
     });
   }, [newAssignments.fields]);
 
-  // Auto-save every 30 seconds — includes newAssignments in the payload.
+  // Robust Auto-save:
+  // 1. Immediately save draft to localStorage on any field change (prevents WiFi loss data loss)
+  // 2. Debounce server synchronization to 3 seconds
   useEffect(() => {
     if (!isEditable) return;
     if (initialRenderRef.current) {
@@ -344,24 +378,40 @@ function CouncilDetailsForm({
     const payload = JSON.stringify(watchedValues ?? {});
     if (payload === lastSavedRef.current) return;
 
+    try {
+      localStorage.setItem(DRAFT_KEY, payload);
+    } catch (e) {}
+
+    setSaveStatus("saving");
+
     const timeout = window.setTimeout(() => {
       lastSavedRef.current = payload;
-      onAutoSave((watchedValues as any) ?? {});
-    }, 30000); // 30 seconds
+      performSave(watchedValues);
+    }, 3000); // 3 seconds debounce
 
     return () => window.clearTimeout(timeout);
-  }, [isEditable, onAutoSave, watchedValues]);
+  }, [DRAFT_KEY, isEditable, performSave, watchedValues]);
+
+  // Handle online reconnect event (e.g. tablet re-establishes WiFi)
+  useEffect(() => {
+    const handleOnline = () => {
+      try {
+        const stored = localStorage.getItem(DRAFT_KEY);
+        if (stored && isEditable) {
+          const parsed = JSON.parse(stored);
+          performSave(parsed);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [DRAFT_KEY, isEditable, performSave]);
 
   const handleManualSave = () => {
     if (!isEditable) return;
-    setIsManuallySaving(true);
     const values = form.getValues();
     lastSavedRef.current = JSON.stringify(values);
-    onAutoSave(values);
-    setTimeout(() => {
-      setIsManuallySaving(false);
-      setLastManualSave(new Date());
-    }, 1000);
+    performSave(values);
   };
 
   const filteredNewAssignments = (watchedValues?.newAssignments ?? []).filter(
@@ -370,10 +420,51 @@ function CouncilDetailsForm({
 
   return (
     <CardContent className="space-y-6">
-      {/* Meeting time info */}
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <span>Inicio: {council.startedAt ? new Date(council.startedAt).toLocaleTimeString("es-ES") : "-"}</span>
-        <span>Fin: {council.endedAt ? new Date(council.endedAt).toLocaleTimeString("es-ES") : "-"}</span>
+      {/* Meeting time info & auto-save status bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-muted/20">
+        <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-muted-foreground">
+          <span>Inicio: {council.startedAt ? new Date(council.startedAt).toLocaleTimeString("es-ES") : "-"}</span>
+          <span>•</span>
+          <span>Fin: {council.endedAt ? new Date(council.endedAt).toLocaleTimeString("es-ES") : "-"}</span>
+        </div>
+
+        {isEditable && (
+          <div className="flex items-center gap-2">
+            <div className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+              saveStatus === "saving"
+                ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700 animate-pulse"
+                : saveStatus === "offline_saved"
+                ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-700"
+                : saveStatus === "error"
+                ? "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/50 dark:text-red-300 dark:border-red-700"
+                : "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700"
+            }`}>
+              {saveStatus === "saving" && <Loader2 className="w-3 h-3 animate-spin text-amber-600 dark:text-amber-400" />}
+              {saveStatus === "saved" && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+              {saveStatus === "offline_saved" && <Save className="w-3 h-3 text-blue-600 dark:text-blue-400" />}
+              {saveStatus === "error" && <AlertCircle className="w-3 h-3 text-red-600 dark:text-red-400" />}
+              
+              <span>
+                {saveStatus === "saving" && "Guardando..."}
+                {saveStatus === "saved" && `Guardado en servidor${lastSavedTime ? ` (${lastSavedTime.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" })})` : ""}`}
+                {saveStatus === "offline_saved" && "Guardado en tablet (sin WiFi)"}
+                {saveStatus === "error" && "Error de red"}
+              </span>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleManualSave}
+              className="h-7 text-xs px-2.5 flex items-center gap-1 font-semibold hover:bg-accent"
+              data-testid="button-manual-save-council"
+            >
+              <Save className="w-3 h-3" />
+              Guardar ya
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Meeting info header with labeled badges */}
@@ -895,19 +986,20 @@ function CouncilDetailsForm({
           <div className="space-y-3 border-t pt-4">
             {/* Manual save row */}
             <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground">
-                {lastManualSave
-                  ? `Guardado: ${lastManualSave.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
-                  : "Sin guardar aún"}
+              <div className="text-xs font-medium text-muted-foreground">
+                {saveStatus === "saved" && <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Cambios guardados</span>}
+                {saveStatus === "saving" && <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...</span>}
+                {saveStatus === "offline_saved" && <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1"><Save className="w-3.5 h-3.5" /> Guardado en tablet (sin WiFi)</span>}
               </div>
               {isEditable && (
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   onClick={handleManualSave}
-                  disabled={isManuallySaving}
+                  disabled={saveStatus === "saving"}
                 >
-                  {isManuallySaving ? (
+                  {saveStatus === "saving" ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Guardando...
@@ -1787,7 +1879,7 @@ export default function WardCouncilPage() {
                 leaderGroups={leaderGroups}
                 leaderLookup={leaderLookup}
                 onAutoSave={(data) =>
-                  updateMutation.mutate({
+                  updateMutation.mutateAsync({
                     id: c.id,
                     data,
                     silent: true,
