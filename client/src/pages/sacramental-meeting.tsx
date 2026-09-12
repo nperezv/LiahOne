@@ -37,6 +37,17 @@ import {
   useMembers,
   useAllMemberCallings,
 } from "@/hooks/use-api";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 import { generateSacramentalMeetingPDF } from "@/lib/pdf-utils";
 import { exportSacramentalMeetings } from "@/lib/export";
@@ -435,27 +446,36 @@ const MeetingCard = ({
         )}
       </div>
 
-      {/* Actions — no left border */}
-      <div className="flex flex-col items-center justify-center gap-0.5 px-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+      {/* Actions toolbar */}
+      <div
+        className="flex flex-col items-center justify-center gap-1.5 px-3 py-2 shrink-0 border-l border-border/20 bg-muted/10"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
-          onClick={() => onPDF(meeting)} title="Descargar PDF"
+          className="h-8 px-2.5 rounded-lg border border-border/50 hover:border-primary/50 bg-background/60 hover:bg-muted text-xs font-medium flex items-center gap-1.5 transition-all text-muted-foreground hover:text-foreground shadow-xs"
+          onClick={() => onPDF(meeting)}
+          title="Descargar PDF"
         >
-          <FileText className="w-3.5 h-3.5" />
+          <FileText className="w-3.5 h-3.5 text-primary" />
+          <span className="hidden md:inline">PDF</span>
         </button>
         {canEdit && (
           <>
             <button
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
-              onClick={() => onEdit(meeting)} title="Editar"
+              className="h-8 px-2.5 rounded-lg border border-border/50 hover:border-primary/50 bg-background/60 hover:bg-muted text-xs font-medium flex items-center gap-1.5 transition-all text-muted-foreground hover:text-foreground shadow-xs"
+              onClick={() => onEdit(meeting)}
+              title="Editar programa"
             >
-              <Edit className="w-3.5 h-3.5" />
+              <Edit className="w-3.5 h-3.5 text-sky-500" />
+              <span className="hidden md:inline">Editar</span>
             </button>
             <button
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all"
-              onClick={() => onDelete(meeting.id)} title="Eliminar"
+              className="h-8 px-2.5 rounded-lg border border-destructive/30 hover:border-destructive bg-destructive/10 hover:bg-destructive/20 text-xs font-medium flex items-center gap-1.5 transition-all text-destructive shadow-xs"
+              onClick={() => onDelete(meeting)}
+              title="Eliminar programa"
             >
               <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Eliminar</span>
             </button>
           </>
         )}
@@ -506,6 +526,7 @@ class SacramentalErrorBoundary extends Component<
 }
 
 function SacramentalMeetingPageInner() {
+  const { toast } = useToast();
   // ── All original state ──
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const formPanelRef = useRef<HTMLDivElement>(null);
@@ -513,6 +534,7 @@ function SacramentalMeetingPageInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsMeeting, setDetailsMeeting] = useState<any>(null);
+  const [meetingToDelete, setMeetingToDelete] = useState<any>(null);
   const [isTestimonyMeeting, setIsTestimonyMeeting] = useState(false);
   const [hasReleasesAndSustainments, setHasReleasesAndSustainments] = useState(false);
   const [hasNewMembers, setHasNewMembers] = useState(false);
@@ -836,8 +858,22 @@ function SacramentalMeetingPageInner() {
     openPanel("general");
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta reunión sacramental?")) deleteMutation.mutate(id);
+  const handleDelete = (meeting: any) => {
+    setMeetingToDelete(meeting);
+  };
+
+  const handleConfirmDelete = () => {
+    if (meetingToDelete?.id) {
+      deleteMutation.mutate(meetingToDelete.id, {
+        onSuccess: () => {
+          toast({
+            title: "Programa eliminado",
+            description: "La reunión sacramental se ha eliminado correctamente.",
+          });
+        },
+      });
+      setMeetingToDelete(null);
+    }
   };
 
   const [programMeeting, setProgramMeeting] = useState<any>(null);
@@ -1075,8 +1111,8 @@ function SacramentalMeetingPageInner() {
     <>
     <div className="relative flex min-h-full overflow-hidden">
 
-      {/* ── LEFT: Meeting list — always visible on desktop, hidden on mobile when panel open ── */}
-      <div className={cn("flex flex-col flex-1 min-w-0 transition-all duration-300", isPanelOpen && "hidden md:flex")}>
+      {/* ── Meeting list ── */}
+      <div className="flex flex-col flex-1 min-w-0">
 
         {/* Page header */}
         <div className="px-4 md:px-6 pt-4 pb-3 md:py-5 shrink-0">
@@ -1197,31 +1233,33 @@ function SacramentalMeetingPageInner() {
           )}
         </div>
       </div>
+    </div>
 
-      {/* ── RIGHT: Form panel ──
-           Mobile: replaces the list entirely (no fixed/overlay, no z-index fights with app layout)
-           Desktop: flex column sidebar next to the list
-      ── */}
-      {isPanelOpen && (
+      {/* ── Centered Edit / Create Modal ── */}
+      {isPanelOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={closePanel}
+        >
           <div
             ref={formPanelRef}
-            className={cn(
-              "flex min-h-0 flex-col bg-background overflow-hidden",
-              "w-full md:w-[420px] lg:w-[460px] md:shrink-0",
-              "flex-1 md:flex-none",
-            )}
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-col bg-card border border-border/60 shadow-2xl rounded-2xl overflow-hidden w-full max-w-3xl h-[90vh] max-h-[820px] animate-in zoom-in-95 duration-150"
           >
           <Form {...form}>
             <form onSubmit={(e) => { e.preventDefault(); onSubmit(form.getValues()); }} className="flex h-full min-h-0 flex-1 flex-col">
 
               {/* Panel header */}
-              <div className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 shrink-0">
+              <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-border/40 shrink-0 bg-muted/20">
                 <div>
-                  <h2 className="text-sm font-bold">{editingId ? "Editar reunión" : "Nueva reunión"}</h2>
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    {editingId ? "Editar reunión sacramental" : "Nueva reunión sacramental"}
+                  </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{formatPanelDate(form.watch("date") || "")}</p>
                 </div>
-                <button type="button" onClick={closePanel} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
-                  <X className="w-3.5 h-3.5" />
+                <button type="button" onClick={closePanel} className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -1230,14 +1268,14 @@ function SacramentalMeetingPageInner() {
                 const idx = tabs.findIndex((t) => t.id === activeTab);
                 const pct = Math.round(((idx + 1) / tabs.length) * 100);
                 return (
-                  <div className="px-4 md:px-5 pt-1 pb-2 shrink-0">
+                  <div className="px-4 md:px-6 pt-2 pb-2 shrink-0 bg-muted/10">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Paso {idx + 1} de {tabs.length}
                       </span>
                       <span className="text-[10px] font-semibold text-primary">{tabs[idx].label}</span>
                     </div>
-                    <div className="h-0.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-1 rounded-full bg-muted overflow-hidden">
                       <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
@@ -1245,10 +1283,11 @@ function SacramentalMeetingPageInner() {
               })()}
 
               {/* Tab pills — scrollable, compact */}
-              <div className="flex overflow-x-auto overflow-y-hidden shrink-0 px-2 border-b border-border/40 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex overflow-x-auto overflow-y-hidden shrink-0 px-3 border-b border-border/40 bg-muted/5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {tabs.map((tab, i) => {
                   const idx = tabs.findIndex((t) => t.id === activeTab);
-                  const done = i < idx;
+                  const isCurrent = tab.id === activeTab;
+                  const isDone = i < idx;
                   return (
                     <button
                       key={tab.id}
@@ -1257,13 +1296,13 @@ function SacramentalMeetingPageInner() {
                       className={cn(
                         "flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap border-b-2 transition-colors shrink-0 mb-[-1px]",
                         activeTab === tab.id
-                          ? "border-primary text-primary"
-                          : done
+                          ? "border-primary text-primary font-semibold"
+                          : isDone
                           ? "border-transparent text-muted-foreground/60 hover:text-foreground hover:border-border"
                           : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                       )}
                     >
-                      {done ? (
+                      {isDone ? (
                         <span className="w-3 h-3 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[8px] font-black">✓</span>
                       ) : (
                         tab.icon
@@ -1840,9 +1879,9 @@ function SacramentalMeetingPageInner() {
             </form>
           </Form>
           </div>
+        </div>,
+        document.body
       )}
-
-    </div>
 
     {/* ── Details modal ── */}
     {isDetailsOpen && detailsMeeting && createPortal(
@@ -1971,6 +2010,33 @@ function SacramentalMeetingPageInner() {
         onClose={() => setProgramMeeting(null)}
       />
     )}
+
+    {/* ── Confirm Delete Modal ── */}
+    <AlertDialog open={!!meetingToDelete} onOpenChange={(open) => !open && setMeetingToDelete(null)}>
+      <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="h-5 w-5" />
+            ¿Eliminar reunión sacramental?
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-sm text-muted-foreground pt-1">
+            Esta acción no se puede deshacer. Se eliminará permanentemente la reunión sacramental programada para el{" "}
+            <span className="font-semibold text-foreground">
+              {meetingToDelete?.date ? formatPanelDate(meetingToDelete.date) : "día seleccionado"}
+            </span>.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="mt-4">
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Sí, eliminar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }

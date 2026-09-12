@@ -267,10 +267,6 @@ export default function AgendaPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
-            <Badge variant="outline" className="text-xs gap-1 border-primary/30 text-primary">
-              <Sparkles className="h-3 w-3" />
-              Notion Style
-            </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Espacio unificado de tareas, calendario y acuerdos personales.
