@@ -344,16 +344,25 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
               )}
 
               {!showRecoveryForm && !otpState && (
-                <div className="pt-2 border-t border-muted/50">
+                <div className="pt-2 border-t border-muted/50 space-y-1.5 text-center">
                   <Button
                     type="button"
-                    variant="outline"
-                    className="w-full text-xs gap-2"
+                    variant="secondary"
+                    className="w-full text-sm font-medium gap-2"
                     onClick={handleInstallClick}
                     data-testid="button-install-app"
                   >
                     <Smartphone className="h-4 w-4 text-primary" />
-                    ¿Cómo instalar Zendapp en mi móvil?
+                    Instalar Aplicación
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPwaGuide(true)}
+                    data-testid="button-pwa-guide"
+                  >
+                    ¿Ver guía de instalación para iPhone / Android?
                   </Button>
                 </div>
               )}
