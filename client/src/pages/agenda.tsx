@@ -15,7 +15,26 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Settings } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Settings,
+  Plus,
+  Mic,
+  Calendar as CalendarIcon,
+  CheckSquare,
+  LayoutGrid,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowRight,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Search,
+  Filter,
+} from "lucide-react";
 import {
   useAgendaAvailability,
   useCreateAgendaTask,
@@ -28,6 +47,7 @@ import {
 } from "@/hooks/use-api";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 type TaskFilter = "open" | "planned" | "atRisk" | "done";
 
@@ -64,22 +84,12 @@ function normalizeComparableText(value: string) {
     .trim();
 }
 
-function formatAssignmentReference(relatedTo?: string | null) {
-  if (!relatedTo) return "Sin referencia";
-  if (relatedTo.startsWith("budget:")) return `Presupuesto ${relatedTo.replace("budget:", "#")}`;
-  if (relatedTo.startsWith("interview:")) return `Entrevista ${relatedTo.replace("interview:", "#")}`;
-  if (relatedTo.startsWith("organization_interview:")) return `Entrevista org. ${relatedTo.replace("organization_interview:", "#")}`;
-  return relatedTo;
-}
-
 function shouldHideManualReminderEvent(event: any, taskTitles: Set<string>) {
   if (event.sourceType !== "manual") return false;
-
   const normalizedTitle = normalizeComparableText(event.title || "");
   const normalizedDescription = normalizeComparableText(event.description || "");
   const combinedText = `${normalizedTitle} ${normalizedDescription}`.trim();
   const reminderLikeText = /record|recuerd|llamar|comprar|preparar|pendiente|tarea|seguimiento/.test(combinedText);
-
   if (reminderLikeText) return true;
   return taskTitles.has(normalizedTitle) || taskTitles.has(normalizedDescription);
 }
@@ -87,6 +97,7 @@ function shouldHideManualReminderEvent(event: any, taskTitles: Set<string>) {
 export default function AgendaPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const { toast } = useToast();
   const { data, isLoading } = useAgendaData();
   const runPlanner = useRunAgendaPlanner();
   const createAgendaTask = useCreateAgendaTask();
@@ -96,10 +107,14 @@ export default function AgendaPage() {
   const { data: assignments } = useAssignments();
   const { data: myTasks = [] } = useMyTasks();
 
+  const [activeTab, setActiveTab] = useState<"timeline" | "kanban" | "checklist">("timeline");
+  const [quickTitle, setQuickTitle] = useState("");
+  const [quickPriority, setQuickPriority] = useState<"baja" | "media" | "alta">("media");
   const [dictatedText, setDictatedText] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("open");
+  const [searchQuery, setSearchQuery] = useState("");
   const [quietStart, setQuietStart] = useState("22:00");
   const [quietEnd, setQuietEnd] = useState("06:00");
   const [emailEnabled, setEmailEnabled] = useState(false);
@@ -108,7 +123,6 @@ export default function AgendaPage() {
   const events = data?.events ?? [];
   const plans = data?.plans ?? [];
   const tasks = data?.tasks ?? [];
-  const pendingAssignments = useMemo(() => (assignments ?? []).filter((a: any) => (a.status === "pendiente" || a.status === "en_proceso") && a.assignedTo === user?.id && !String(a.relatedTo ?? "").startsWith("interview:") && !String(a.relatedTo ?? "").startsWith("organization_interview:")), [assignments, user?.id]);
 
   const quietWindow = availability?.doNotDisturbWindows?.[0];
   useEffect(() => {
@@ -124,6 +138,7 @@ export default function AgendaPage() {
   const todayEvents = useMemo(() => events.filter((e) => isToday(parseISO(`${e.date}T00:00:00`))), [events]);
   const openTasks = useMemo(() => tasks.filter((t: any) => t.status === "open"), [tasks]);
   const atRiskTasks = useMemo(() => tasks.filter((t: any) => t.status === "open" && (t.metadata as any)?.atRisk), [tasks]);
+  const doneTasks = useMemo(() => tasks.filter((t: any) => t.status === "done"), [tasks]);
 
   const weekDays = useMemo(() => {
     const s = startOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -167,7 +182,10 @@ export default function AgendaPage() {
       doNotDisturbWindows: [{ start: quietStart, end: quietEnd }],
       reminderChannels: emailEnabled ? ["push", "email"] : ["push"],
     }, {
-      onSuccess: () => setIsPreferencesOpen(false),
+      onSuccess: () => {
+        toast({ title: "Preferencias guardadas", description: "Configuración de silencio actualizada." });
+        setIsPreferencesOpen(false);
+      },
     });
   };
 
@@ -186,17 +204,28 @@ export default function AgendaPage() {
     [plans, selectedDate, taskMap]
   );
 
-  const taskIdsWithPlans = useMemo(() => new Set(plans.filter((p: any) => p.status === "planned").map((p: any) => p.taskId)), [plans]);
-  const filteredTasks = useMemo(() => {
-    if (taskFilter === "atRisk") return tasks.filter((t: any) => t.status === "open" && (t.metadata as any)?.atRisk);
-    if (taskFilter === "planned") return tasks.filter((t: any) => t.status === "open" && taskIdsWithPlans.has(t.id));
-    if (taskFilter === "done") return tasks.filter((t: any) => t.status === "done");
-    return tasks.filter((t: any) => t.status === "open");
-  }, [taskFilter, tasks, taskIdsWithPlans]);
+  const handleQuickAdd = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const title = quickTitle.trim();
+    if (!title) return;
+
+    createAgendaTask.mutate({
+      title,
+      description: title,
+    }, {
+      onSuccess: () => {
+        setQuickTitle("");
+        toast({ title: "Tarea añadida", description: `"${title}" se guardó en tu agenda.` });
+      },
+    });
+  };
 
   const startDictation = () => {
     const recognitionImpl = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!recognitionImpl) return alert("Tu navegador no soporta dictado por voz.");
+    if (!recognitionImpl) {
+      toast({ title: "No disponible", description: "Tu navegador no soporta dictado por voz.", variant: "destructive" });
+      return;
+    }
     const recognition = new recognitionImpl();
     recognition.lang = "es-ES";
     recognition.interimResults = false;
@@ -218,45 +247,65 @@ export default function AgendaPage() {
       title: dictatedText,
       description: dictatedText,
     }, {
-      onSuccess: () => setDictatedText(null),
+      onSuccess: () => {
+        setDictatedText(null);
+        toast({ title: "Tarea guardada", description: "Se ha añadido la tarea dictada." });
+      },
     });
   };
 
+  const searchedTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks;
+    const q = searchQuery.toLowerCase();
+    return tasks.filter((t: any) => t.title?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q));
+  }, [tasks, searchQuery]);
+
   return (
-    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 lg:p-8" data-testid="agenda-page">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" data-testid="agenda-page">
+      {/* Header & Quick Actions */}
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agenda inteligente</h1>
-          <p className="text-sm text-muted-foreground">Vista operativa diaria: captura, foco, calendario y tareas personales.</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
+            <Badge variant="outline" className="text-xs gap-1 border-primary/30 text-primary">
+              <Sparkles className="h-3 w-3" />
+              Notion Style
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Espacio unificado de tareas, calendario y acuerdos personales.
+          </p>
         </div>
+
         <div className="flex items-center gap-2">
           <Dialog open={isPreferencesOpen} onOpenChange={setIsPreferencesOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Abrir preferencias de agenda">
+              <Button variant="outline" size="sm" className="gap-2 text-xs">
                 <Settings className="h-4 w-4" />
+                Preferencias
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Preferencias de recordatorios</DialogTitle>
                 <DialogDescription>
-                  Ajusta horas silenciosas y el canal para que la agenda se adapte a tu ritmo.
+                  Ajusta horas silenciosas y canales de notificación de la agenda.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className="space-y-1 text-sm">
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="space-y-1 text-xs font-medium">
                     <span className="text-muted-foreground">Silencio desde</span>
                     <Input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} />
                   </label>
-                  <label className="space-y-1 text-sm">
+                  <label className="space-y-1 text-xs font-medium">
                     <span className="text-muted-foreground">Hasta</span>
                     <Input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} />
                   </label>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} />
-                  Enviar también por email
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                  <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} className="rounded" />
+                  Enviar también recordatorios por correo electrónico
                 </label>
                 <Button className="w-full" onClick={savePreferences} disabled={updateAvailability.isPending}>
                   {updateAvailability.isPending ? "Guardando..." : "Guardar preferencias"}
@@ -264,224 +313,431 @@ export default function AgendaPage() {
               </div>
             </DialogContent>
           </Dialog>
+
           <Button
             onClick={() => runPlanner.mutate()}
             data-testid="button-plan-week"
-            className="rounded-xl bg-primary text-primary-foreground shadow-[0_6px_24px_hsl(var(--primary)/0.35)] hover:bg-primary/90"
+            size="sm"
+            className="gap-2 text-xs font-medium"
           >
-            Planificar
+            <Sparkles className="h-3.5 w-3.5" />
+            Auto-Planificar
           </Button>
         </div>
       </header>
 
-      <section className="grid grid-cols-3 gap-2 sm:gap-3">
-        {[{ label: "Eventos hoy", value: todayEvents.length, tone: "text-foreground" }, { label: "Abiertas", value: openTasks.length, tone: "text-foreground" }, { label: "En riesgo", value: atRiskTasks.length, tone: "text-amber-500" }].map((item) => (
-          <GlassCard key={item.label}>
-            <div className="space-y-1 p-3 sm:p-4">
-              <p className="text-2xl font-extrabold leading-none sm:text-3xl">
-                <span className={item.tone}>{item.value}</span>
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
-            </div>
-          </GlassCard>
-        ))}
-      </section>
+      {/* Notion Quick Capture Input Bar */}
+      <GlassCard className="p-2 sm:p-3 border-primary/20 bg-primary/5 shadow-md">
+        <form onSubmit={handleQuickAdd} className="flex flex-col sm:flex-row items-center gap-2">
+          <div className="relative flex-1 w-full">
+            <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={quickTitle}
+              onChange={(e) => setQuickTitle(e.target.value)}
+              placeholder="+ Añadir tarea o acuerdo rápido (presiona Enter)..."
+              className="pl-9 pr-4 bg-background/60 border-muted-foreground/20 text-sm focus-visible:ring-primary"
+              data-testid="input-quick-task"
+            />
+          </div>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="order-1 space-y-4 xl:col-span-3">
-          <GlassCard>
-            <div className="space-y-3 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Captura por voz</p>
-              <Button className="w-full" variant="outline" onClick={startDictation} disabled={isListening || createAgendaTask.isPending}>
-                {isListening ? "Escuchando..." : "🎤 Empezar a dictar"}
-              </Button>
-              <p className="text-xs text-muted-foreground">Dicta la tarea en voz alta. Te mostraremos una confirmación antes de guardarla.</p>
-              {dictatedText && (
-                <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Confirmación</p>
-                  <p className="text-sm">"{dictatedText}"</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={confirmDictationTask} disabled={createAgendaTask.isPending}>
-                      {createAgendaTask.isPending ? "Guardando..." : "Sí, agregar a tareas"}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setDictatedText(null)} disabled={createAgendaTask.isPending}>Cancelar</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </GlassCard>
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <select
+              value={quickPriority}
+              onChange={(e: any) => setQuickPriority(e.target.value)}
+              className="h-9 text-xs rounded-md border border-input bg-background/80 px-3 text-muted-foreground focus:outline-none"
+            >
+              <option value="baja">Prioridad Normal</option>
+              <option value="media">Prioridad Media</option>
+              <option value="alta">🔥 Prioridad Alta</option>
+            </select>
 
-          <GlassCard>
-            <div className="space-y-3 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Foco ahora ⚡</p>
-              <div className="space-y-2">
-                {atRiskTasks.slice(0, 3).map((task: any) => (
-                  <div key={task.id} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
-                    <p className="text-sm font-medium">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">Prioridad {task.priority}</p>
-                  </div>
-                ))}
-                {atRiskTasks.length === 0 && <p className="text-sm text-muted-foreground">Sin tareas críticas.</p>}
-              </div>
-            </div>
-          </GlassCard>
+            <Button
+              type="button"
+              variant={isListening ? "destructive" : "outline"}
+              size="sm"
+              onClick={startDictation}
+              className="gap-1.5 text-xs shrink-0"
+            >
+              <Mic className={`h-3.5 w-3.5 ${isListening ? "animate-pulse" : ""}`} />
+              {isListening ? "Escuchando..." : "Dictar"}
+            </Button>
 
-          <GlassCard className="order-4 xl:order-none">
-            <div className="space-y-3 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                Mis pendientes ({myTasks.filter((t: any) => t.status !== "done" && t.status !== "canceled" && t.status !== "archivada").length})
-              </p>
-              {(() => {
-                const active = myTasks.filter((t: any) => t.status !== "done" && t.status !== "canceled" && t.status !== "archivada");
-                if (active.length === 0) return <p className="text-sm text-muted-foreground">Todo al día ✓</p>;
-                // Agrupar por fuente
-                const groups: Record<string, any[]> = {};
-                for (const t of active) {
-                  const key = `${t.sourceEmoji} ${t.sourceLabel}`;
-                  if (!groups[key]) groups[key] = [];
-                  groups[key].push(t);
-                }
-                return (
-                  <div className="space-y-3">
-                    {Object.entries(groups).map(([groupLabel, items]) => (
-                      <div key={groupLabel}>
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{groupLabel}</p>
-                        <div className="space-y-1">
-                          {items.slice(0, 5).map((t: any) => (
-                            <div
-                              key={t.id}
-                              className="cursor-pointer rounded-lg border border-border/60 bg-background/20 px-2 py-1.5 text-xs transition-colors hover:border-primary/40 hover:bg-primary/5"
-                              onClick={() => setLocation(taskUrl(t))}
-                            >
-                              <p className="font-medium leading-tight">{t.title}</p>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
-                                {t.areaLabel && <span className="rounded bg-primary/10 px-1 py-px text-primary">{t.areaLabel}</span>}
-                                {t.priority && <span className="font-semibold text-amber-600">{t.priority}</span>}
-                                {t.dueDate && <span>Vence {new Date(t.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>}
-                              </div>
-                            </div>
-                          ))}
-                          {items.length > 5 && <p className="text-[10px] text-muted-foreground">+{items.length - 5} más</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!quickTitle.trim() || createAgendaTask.isPending}
+              className="text-xs font-semibold px-4 shrink-0"
+            >
+              Añadir
+            </Button>
+          </div>
+        </form>
+
+        {dictatedText && (
+          <div className="mt-3 p-3 rounded-lg border border-primary/30 bg-background/80 flex items-center justify-between gap-3 text-xs">
+            <div>
+              <span className="text-muted-foreground font-semibold">Dictado detectado: </span>
+              <span className="font-medium text-foreground">"{dictatedText}"</span>
             </div>
-          </GlassCard>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" className="h-7 text-xs" onClick={confirmDictationTask}>Guardar</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDictatedText(null)}>Descartar</Button>
+            </div>
+          </div>
+        )}
+      </GlassCard>
+
+      {/* Mini Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <GlassCard className="p-3.5 flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500">
+            <CalendarIcon className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none">{todayEvents.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">Eventos Hoy</p>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-3.5 flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none">{openTasks.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">Pendientes</p>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-3.5 flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none text-amber-500">{atRiskTasks.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">En Riesgo</p>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-3.5 flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-green-500/10 text-green-500">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold leading-none text-green-500">{doneTasks.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">Completadas</p>
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* Main Notion-Style Workspace Tabs */}
+      <Tabs defaultValue="timeline" value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-2">
+          <TabsList className="bg-muted/40 p-1">
+            <TabsTrigger value="timeline" className="gap-2 text-xs sm:text-sm">
+              <CalendarIcon className="h-4 w-4" />
+              Línea de Tiempo
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="gap-2 text-xs sm:text-sm">
+              <LayoutGrid className="h-4 w-4" />
+              Tablero Kanban
+            </TabsTrigger>
+            <TabsTrigger value="checklist" className="gap-2 text-xs sm:text-sm">
+              <CheckSquare className="h-4 w-4" />
+              Minutas & Checklists
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar en tareas..."
+              className="h-8 pl-8 text-xs bg-muted/20"
+            />
+          </div>
         </div>
 
-        <div className="order-2 space-y-4 xl:col-span-6">
-          <GlassCard>
-            <div className="space-y-3 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Semana</p>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, -7))}>←</Button>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedDate(new Date())}>Hoy</Button>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedDate((d) => addDays(d, 7))}>→</Button>
-                </div>
+        {/* TAB 1: Timeline / Day View */}
+        <TabsContent value="timeline" className="pt-4 space-y-4">
+          {/* Week Selector */}
+          <GlassCard className="p-3">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Semana de {format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "d 'de' MMMM", { locale: es })}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setSelectedDate((d) => addDays(d, -7))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs px-2.5" onClick={() => setSelectedDate(new Date())}>
+                  Hoy
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setSelectedDate((d) => addDays(d, 7))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="grid grid-cols-7 gap-2">
-                {weekDays.map((day) => {
-                  const count = events.filter((e) => isSameDay(parseISO(`${e.date}T00:00:00`), day)).length;
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      className={`rounded-xl border p-2 text-center transition-colors ${isSameDay(day, selectedDate) ? "border-primary/50 bg-primary/15" : "border-border/70"}`}
-                      onClick={() => setSelectedDate(day)}
-                    >
-                      <p className="text-[11px] font-semibold leading-tight capitalize">{format(day, "EEE", { locale: es })}</p>
-                      <p className="text-base font-bold leading-tight">{format(day, "d", { locale: es })}</p>
-                      <p className="text-[10px] text-muted-foreground">{count}</p>
-                    </button>
-                  );
-                })}
-              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+              {weekDays.map((day) => {
+                const count = events.filter((e) => isSameDay(parseISO(`${e.date}T00:00:00`), day)).length;
+                const isSel = isSameDay(day, selectedDate);
+                const isTod = isToday(day);
+
+                return (
+                  <button
+                    key={day.toISOString()}
+                    onClick={() => setSelectedDate(day)}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      isSel
+                        ? "border-primary bg-primary/15 shadow-sm text-primary font-bold"
+                        : isTod
+                        ? "border-primary/40 bg-muted/30"
+                        : "border-border/40 hover:bg-muted/20"
+                    }`}
+                  >
+                    <p className="text-[11px] uppercase tracking-wide opacity-80">{format(day, "EEE", { locale: es })}</p>
+                    <p className="text-base font-bold my-0.5">{format(day, "d", { locale: es })}</p>
+                    {count > 0 && (
+                      <span className="inline-block px-1.5 py-0.5 text-[10px] rounded-full bg-primary/20 font-semibold">
+                        {count} {count === 1 ? "evento" : "eventos"}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </GlassCard>
 
-          <GlassCard>
-            <div className="space-y-3 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Timeline · {format(selectedDate, "EEE d 'de' MMMM", { locale: es }).toUpperCase()}</p>
-              {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
-              {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && <p className="text-sm text-muted-foreground">No hay elementos para este día.</p>}
+          {/* Daily Schedule List */}
+          <GlassCard className="p-4 space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              Eventos y Acuerdos — {format(selectedDate, "EEEE d 'de' MMMM", { locale: es })}
+            </h3>
 
+            {isLoading && <p className="text-xs text-muted-foreground py-4 text-center">Cargando agenda...</p>}
+
+            {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && (
+              <div className="py-8 text-center space-y-2">
+                <p className="text-sm text-muted-foreground">Sin eventos o tareas programadas para este día.</p>
+                <Button size="sm" variant="outline" className="text-xs" onClick={() => setActiveTab("kanban")}>
+                  Ver todas las tareas pendientes →
+                </Button>
+              </div>
+            )}
+
+            <div className="space-y-2.5">
               {dayPlans.map((plan: any) => (
-                <div key={plan.id} className="rounded-lg border border-blue-500/40 bg-blue-500/5 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{plan.title}</p>
-                    <Badge variant="default">Plan</Badge>
+                <div key={plan.id} className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{plan.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {format(plan.start, "HH:mm")} - {format(plan.end, "HH:mm")}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">{format(plan.start, "HH:mm", { locale: es })} - {format(plan.end, "HH:mm", { locale: es })}</p>
+                  <Badge variant="outline" className="border-blue-500/40 text-blue-500 text-xs">Bloque Planificado</Badge>
                 </div>
               ))}
 
               {dayTasksDue.map((task: any) => (
-                <div key={`due-${task.id}`} className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{task.title}</p>
-                    <Badge variant={task.status === "done" ? "outline" : "default"}>{task.status === "done" ? "Completada" : "Tarea"}</Badge>
+                <div key={`due-${task.id}`} className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{task.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Vence hoy: {task.dueAt ? new Date(task.dueAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "Sin hora"}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Vence: {task.dueAt ? new Date(task.dueAt).toLocaleString("es-ES") : "Sin fecha"}</p>
+                  <Button
+                    size="sm"
+                    variant={task.status === "done" ? "outline" : "default"}
+                    className="h-7 text-xs"
+                    onClick={() => updateTaskStatus.mutate({ id: task.id, status: task.status === "done" ? "open" : "done" })}
+                  >
+                    {task.status === "done" ? "✓ Completada" : "Marcar Hecho"}
+                  </Button>
                 </div>
               ))}
 
               {filteredDayEvents.map((event) => {
                 const isPast = parseISO(`${event.date}T${event.endTime ?? event.startTime ?? "23:59"}:00`).getTime() < Date.now();
                 const isInterview = event.sourceType === "interview";
+
                 return (
-                  <div key={event.id} className="rounded-lg border border-border/70 bg-background/20 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium leading-tight">{event.title}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{event.startTime ? `${event.startTime}${event.endTime ? ` - ${event.endTime}` : ""}` : "Sin hora"}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {isInterview ? <Badge variant={isPast ? "outline" : "secondary"}>{isPast ? "Completada" : "Pendiente"}</Badge> : isPast ? <Badge variant="outline">Pasada</Badge> : null}
-                        <Badge variant="secondary">{sourceLabel(event.sourceType)}</Badge>
-                      </div>
+                  <div key={event.id} className="p-3 rounded-xl border border-border/60 bg-background/40 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{event.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {event.startTime ? `${event.startTime}${event.endTime ? ` - ${event.endTime}` : ""}` : "Todo el día"}
+                      </p>
                     </div>
-                    {event.sourceType !== "manual" && (
-                      <Button size="sm" variant={"link" as any} className="mt-1 h-auto px-0 py-0 text-xs" onClick={() => setLocation(isInterview ? `/interviews?highlight=${encodeURIComponent(event.sourceId ?? "")}` : "/activities")}>Abrir →</Button>
-                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{sourceLabel(event.sourceType)}</Badge>
+                      {event.sourceType !== "manual" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => setLocation(isInterview ? `/interviews?highlight=${encodeURIComponent(event.sourceId ?? "")}` : "/activities")}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </GlassCard>
-        </div>
+        </TabsContent>
 
-        <div className="order-3 xl:col-span-3">
-          <GlassCard>
-            <div className="space-y-3 p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Tareas</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={taskFilter === "open" ? "default" : "outline"} onClick={() => setTaskFilter("open")}>Abiertas</Button>
-                <Button size="sm" variant={taskFilter === "planned" ? "default" : "outline"} onClick={() => setTaskFilter("planned")}>Planif.</Button>
-                <Button size="sm" variant={taskFilter === "atRisk" ? "default" : "outline"} onClick={() => setTaskFilter("atRisk")}>Riesgo</Button>
-                <Button size="sm" variant={taskFilter === "done" ? "default" : "outline"} onClick={() => setTaskFilter("done")}>Hechas</Button>
+        {/* TAB 2: Notion Kanban Board */}
+        <TabsContent value="kanban" className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Column 1: Por Hacer */}
+            <GlassCard className="p-3 border-purple-500/20 bg-purple-500/5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-purple-500"></span>
+                  Por Hacer ({openTasks.length})
+                </span>
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                {filteredTasks.slice(0, 8).map((task: any) => (
-                  <div key={task.id} className="rounded-lg border border-border/70 bg-background/20 p-2" data-testid={`task-${task.id}`}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">{task.title}</p>
-                      <Badge>{task.priority}</Badge>
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      {task.status !== "done" && <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ id: task.id, status: "done" })}>Completar</Button>}
-                      {task.status !== "canceled" && <Button size="sm" variant="outline" onClick={() => updateTaskStatus.mutate({ id: task.id, status: "canceled" })}>Cancelar</Button>}
+
+              <div className="space-y-2">
+                {searchedTasks.filter((t: any) => t.status === "open" && !(t.metadata as any)?.atRisk).map((task: any) => (
+                  <div key={task.id} className="p-3 rounded-xl border border-border/60 bg-background/80 shadow-xs space-y-2 hover:border-primary/40 transition-all">
+                    <p className="text-sm font-medium leading-snug">{task.title}</p>
+                    <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{task.priority ?? "normal"}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[11px] px-2 text-primary"
+                        onClick={() => updateTaskStatus.mutate({ id: task.id, status: "done" })}
+                      >
+                        Completar →
+                      </Button>
                     </div>
                   </div>
                 ))}
-                {filteredTasks.length === 0 && <p className="text-sm text-muted-foreground">Sin tareas en esta vista.</p>}
+                {openTasks.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">Sin tareas pendientes.</p>}
               </div>
+            </GlassCard>
+
+            {/* Column 2: En Riesgo / Foco */}
+            <GlassCard className="p-3 border-amber-500/20 bg-amber-500/5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  En Riesgo / Foco ({atRiskTasks.length})
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {searchedTasks.filter((t: any) => t.status === "open" && (t.metadata as any)?.atRisk).map((task: any) => (
+                  <div key={task.id} className="p-3 rounded-xl border border-amber-500/30 bg-background/80 shadow-xs space-y-2">
+                    <p className="text-sm font-medium leading-snug text-amber-950 dark:text-amber-100">{task.title}</p>
+                    <div className="flex items-center justify-between pt-1 border-t border-amber-500/20">
+                      <Badge variant="secondary" className="text-[10px] bg-amber-500/20 text-amber-600">Prioridad Alta</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[11px] px-2 text-primary"
+                        onClick={() => updateTaskStatus.mutate({ id: task.id, status: "done" })}
+                      >
+                        Completar →
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {atRiskTasks.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">Sin tareas críticas en riesgo.</p>}
+              </div>
+            </GlassCard>
+
+            {/* Column 3: Completadas */}
+            <GlassCard className="p-3 border-green-500/20 bg-green-500/5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-green-600 dark:text-green-400 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                  Completadas ({doneTasks.length})
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {searchedTasks.filter((t: any) => t.status === "done").slice(0, 10).map((task: any) => (
+                  <div key={task.id} className="p-3 rounded-xl border border-border/40 bg-background/40 opacity-75 space-y-1">
+                    <p className="text-sm font-medium line-through text-muted-foreground">{task.title}</p>
+                    <p className="text-[10px] text-green-600 dark:text-green-400">✓ Completada</p>
+                  </div>
+                ))}
+                {doneTasks.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">Aún no hay tareas completadas.</p>}
+              </div>
+            </GlassCard>
+          </div>
+        </TabsContent>
+
+        {/* TAB 3: Interactive Notion Checklists & Notes */}
+        <TabsContent value="checklist" className="pt-4 space-y-4">
+          <GlassCard className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-primary" />
+                Lista de Verificación de Acuerdos y Minutas
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                Haz clic en la casilla para marcar como completado
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {searchedTasks.filter((t: any) => t.status !== "canceled").map((task: any) => {
+                const isDone = task.status === "done";
+
+                return (
+                  <div
+                    key={task.id}
+                    className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                      isDone
+                        ? "bg-muted/20 border-border/40 opacity-70"
+                        : "bg-background/60 border-border/60 hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Checkbox
+                        checked={isDone}
+                        onCheckedChange={(checked) => {
+                          updateTaskStatus.mutate({ id: task.id, status: checked ? "done" : "open" });
+                        }}
+                        className="h-5 w-5"
+                      />
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium ${isDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                          {task.title}
+                        </p>
+                        {task.description && task.description !== task.title && (
+                          <p className="text-xs text-muted-foreground truncate">{task.description}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="text-[10px]">{sourceLabel(task.source ?? "manual")}</Badge>
+                      {task.priority === "alta" && <Badge variant="destructive" className="text-[10px]">Alta</Badge>}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {tasks.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-6">No hay tareas o acuerdos registrados.</p>
+              )}
             </div>
           </GlassCard>
-        </div>
-      </section>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
