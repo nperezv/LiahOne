@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
-import { LogIn, KeyRound, Smartphone, HelpCircle, AlertCircle } from "lucide-react";
+import { LogIn, KeyRound, Smartphone, HelpCircle, AlertCircle, Search } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { PwaInstallDialog } from "@/components/pwa-install-dialog";
 
@@ -38,7 +38,7 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
   const [pwaGuideTab, setPwaGuideTab] = useState<"ios" | "android" | "desktop" | "find">("android");
 
   const { toast } = useToast();
-  const { canPromptInstall, promptInstall } = usePwaInstall();
+  const { canPromptInstall, promptInstall, isStandalone, isIos } = usePwaInstall();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -345,44 +345,33 @@ export default function LoginPage({ onLogin, onVerify }: LoginPageProps) {
               )}
 
               {!showRecoveryForm && !otpState && (
-                <div className="pt-2 border-t border-muted/50 space-y-2 text-center">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full text-sm font-medium gap-2"
-                    onClick={handleInstallClick}
-                    data-testid="button-install-app"
-                  >
-                    <Smartphone className="h-4 w-4 text-primary" />
-                    Instalar Aplicación
-                  </Button>
-                  
-                  <div className="flex flex-col gap-1 text-xs">
+                <div className="pt-2 border-t border-muted/50 text-center">
+                  {isStandalone || !canPromptInstall ? (
                     <Button
                       type="button"
-                      variant="ghost"
-                      className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        setPwaGuideTab("android");
-                        setShowPwaGuide(true);
-                      }}
-                      data-testid="button-pwa-guide"
-                    >
-                      ¿Cómo instalar en iPhone / Android / PC?
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto p-0 text-xs text-muted-foreground/80 hover:text-foreground underline decoration-dotted"
+                      variant="outline"
+                      className="w-full text-xs font-medium gap-2 text-muted-foreground hover:text-foreground"
                       onClick={() => {
                         setPwaGuideTab("find");
                         setShowPwaGuide(true);
                       }}
-                      data-testid="button-pwa-find"
+                      data-testid="button-find-pwa"
                     >
-                      🔍 ¿Ya la instalaste? Cómo buscarla en tu móvil
+                      <Search className="h-4 w-4 text-primary" />
+                      ¿Ya la instalaste? Cómo buscarla en tu móvil
                     </Button>
-                  </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full text-sm font-medium gap-2"
+                      onClick={handleInstallClick}
+                      data-testid="button-install-app"
+                    >
+                      <Smartphone className="h-4 w-4 text-primary" />
+                      Instalar Aplicación
+                    </Button>
+                  )}
                 </div>
               )}
             </form>
