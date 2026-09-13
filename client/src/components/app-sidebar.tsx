@@ -325,11 +325,7 @@ function getVisibleMenuItems(userRole: string | undefined, organizationType?: st
 }
 
 function getPinnedUrls(userRole?: string) {
-  if (ORG_ROLES.includes(userRole ?? "")) {
-    return ["/assignments", "/budget", "/resources-library"];
-  }
-
-  return ["/dashboard", "/calendar", "/assignments", "/directory", "/goals", "/budget"];
+  return ["/dashboard", "/agenda", "/assignments"];
 }
 
 function getRenamedTitle(item: MenuItem, userRole?: string) {
@@ -337,8 +333,20 @@ function getRenamedTitle(item: MenuItem, userRole?: string) {
     return ORG_ROLES.includes(userRole ?? "") ? "Mi organización" : "Organizaciones";
   }
 
-  if (item.url === "/organization-interviews") {
-    return "Entrevistas de organización";
+  if (item.url === "/organization-interviews" || item.url === "/interviews") {
+    return "Entrevistas";
+  }
+
+  if (item.url === "/agenda") {
+    return "Agenda del Barrio";
+  }
+
+  if (item.url === "/directory") {
+    return "Directorio de Miembros";
+  }
+
+  if (item.url === "/goals") {
+    return "Metas del Barrio";
   }
 
   return item.title;
@@ -360,13 +368,13 @@ const SECTION_CONFIGS: SectionConfig[] = [
   },
   {
     id: "organizations",
-    label: "Organizaciones y Áreas",
-    icon: Folder,
-    urls: ["/presidency/hombres-jovenes", "/presidency/mujeres-jovenes", "/presidency/sociedad-socorro", "/presidency/primaria", "/presidency/escuela-dominical", "/presidency/jas", "/presidency/as", "/presidency/cuorum-elderes", "/leadership", "/mission-work", "/welfare"],
+    label: "Organizaciones y Liderazgo",
+    icon: Users,
+    urls: ["/leadership", "/presidency/hombres-jovenes", "/presidency/mujeres-jovenes", "/presidency/sociedad-socorro", "/presidency/primaria", "/presidency/escuela-dominical", "/presidency/jas", "/presidency/as", "/presidency/cuorum-elderes", "/mission-work", "/welfare"],
   },
   {
     id: "management",
-    label: "Gestión y Secretaría",
+    label: "Gestión y Eventos",
     icon: FileText,
     urls: ["/secretary-dashboard", "/budget", "/activities", "/quarterly-plans", "/recurring-series", "/activity-logistics", "/goals"],
   },
