@@ -338,7 +338,7 @@ function getRenamedTitle(item: MenuItem, userRole?: string) {
   }
 
   if (item.url === "/agenda") {
-    return "Agenda del Barrio";
+    return "Agenda";
   }
 
   if (item.url === "/directory") {
