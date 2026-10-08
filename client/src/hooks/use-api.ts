@@ -1415,7 +1415,7 @@ export interface AgendaEvent {
   startTime?: string | null;
   endTime?: string | null;
   location?: string | null;
-  sourceType: "manual" | "activity" | "interview";
+  sourceType: "manual" | "activity" | "interview" | "organization_interview";
   sourceId?: string | null;
 }
 
@@ -1616,6 +1616,7 @@ export function useUpdateAssignment() {
     mutationFn: (data: any) => apiRequest("PATCH", `/api/assignments/${data.id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
       toast({
