@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from "@/lib/error-utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -1979,6 +1980,7 @@ export interface InventoryLocation {
   code: string;
   parentId?: string | null;
   description?: string | null;
+  hasNfc?: boolean;
 }
 
 export interface InventoryItem {
@@ -1991,10 +1993,42 @@ export interface InventoryItem {
   qrUrl: string;
   trackerId?: string | null;
   categoryId: string;
+  categoryName?: string | null;
   locationId?: string | null;
+  locationName?: string | null;
+  locationCode?: string | null;
+  hasNfc?: boolean;
   createdAt: string;
   updatedAt: string;
   lastVerifiedAt?: string | null;
+}
+
+export const INVENTORY_STATUS_LABELS: Record<InventoryItem["status"], string> = {
+  available: "Disponible",
+  loaned: "Prestado",
+  maintenance: "En mantenimiento",
+};
+
+/** Mensaje legible para el usuario a partir de un error de la API ("409: Ya existe..." → "Ya existe..."). */
+export function inventoryErrorMessage(error: unknown, fallback = "No se pudo guardar.") {
+  const status = (error as { status?: number })?.status;
+  const message = getApiErrorMessage(error, fallback);
+  if (status === 403) return "No tienes permiso para hacer esto en inventario. Pide al obispado que revise tu rol.";
+  if (status === 401) return "Tu sesión ha caducado. Vuelve a iniciar sesión.";
+  if (/upstream service unavailable|failed to fetch|networkerror/i.test(message)) {
+    return "No hay conexión con el servidor. Revisa la cobertura o la wifi e inténtalo de nuevo.";
+  }
+  return status ? `${message} (código ${status})` : message;
+}
+
+function useInventoryInvalidate() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory/locations"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory/by-nfc"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory/loc"] });
+  };
 }
 
 export function useInventoryItems(search?: string) {
@@ -2032,42 +2066,72 @@ export function useCreateInventoryCategory() {
 }
 
 export function useCreateInventoryLocation() {
-  const queryClient = useQueryClient();
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: (data: Partial<InventoryLocation>) => apiRequest("POST", "/api/inventory/locations", data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/inventory/locations"] }),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Armario creado", description: "La ubicación se registró correctamente." });
+    },
+    onError: (error) => toast({ title: "No se pudo crear el armario", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
+export function useCreateInventoryLocationWithNfc() {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: Partial<InventoryLocation> & { nfc_uid: string }) => apiRequest("POST", "/api/inventory/locations/with-nfc", data),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Armario creado", description: "Armario y etiqueta NFC vinculados." });
+    },
+    onError: (error) => toast({ title: "No se pudo crear el armario", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
 export function useCreateInventoryItem() {
-  const queryClient = useQueryClient();
+  const invalidate = useInventoryInvalidate();
   const { toast } = useToast();
   return useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/inventory", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-      toast({ title: "Item creado", description: "El activo se registró correctamente." });
+      invalidate();
+      toast({ title: "Activo creado", description: "El activo se registró correctamente." });
     },
-    onError: () => toast({ title: "Error", description: "No se pudo crear el item.", variant: "destructive" }),
+    onError: (error) => toast({ title: "No se pudo crear el activo", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
+export function useCreateInventoryItemWithNfc() {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: any & { nfc_uid: string }) => apiRequest("POST", "/api/inventory/with-nfc", data),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Activo creado", description: "Activo y etiqueta NFC vinculados." });
+    },
+    onError: (error) => toast({ title: "No se pudo crear el activo", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
 export function useMoveInventoryItem(assetCode: string) {
-  const queryClient = useQueryClient();
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: (data: { toLocation: string; note?: string }) => apiRequest("POST", `/api/inventory/${assetCode}/move`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory", assetCode] });
-    },
+    onSuccess: () => invalidate(),
+    onError: (error) => toast({ title: "No se pudo mover", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
 export function useMoveByScan() {
-  const queryClient = useQueryClient();
+  const invalidate = useInventoryInvalidate();
   return useMutation({
-    mutationFn: (data: { item_asset_code?: string; item_nfc_uid?: string; location_code?: string; location_nfc_uid?: string; note?: string }) => apiRequest("POST", "/inventory/move-by-scan", data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }),
+    mutationFn: (data: { item_asset_code?: string; item_nfc_uid?: string; location_code?: string; location_nfc_uid?: string; note?: string }) => apiRequest("POST", "/api/inventory/move-by-scan", data),
+    onSuccess: () => invalidate(),
   });
 }
 
@@ -2087,41 +2151,46 @@ export function useInventoryByNfc(uid?: string) {
   return useQuery<any>({
     queryKey: ["/api/inventory/by-nfc", uid ?? ""],
     enabled: Boolean(uid),
-    queryFn: async () => apiRequest("GET", `/inventory/by-nfc/${uid}`),
+    queryFn: async () => apiRequest("GET", `/api/inventory/by-nfc/${encodeURIComponent(uid ?? "")}`),
   });
 }
 
 export function useRegisterItemNfc() {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
   return useMutation({
-    mutationFn: (data: { asset_code: string; nfc_uid: string }) => apiRequest("POST", "/inventory/nfc/register-item", data),
+    mutationFn: (data: { asset_code: string; nfc_uid: string }) => apiRequest("POST", "/api/inventory/nfc/register-item", data),
+    onSuccess: () => invalidate(),
+    onError: (error) => toast({ title: "No se pudo vincular el NFC", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
 export function useRegisterLocationNfc() {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
   return useMutation({
-    mutationFn: (data: { location_id?: string; location_code?: string; nfc_uid: string }) => apiRequest("POST", "/inventory/nfc/register-location", data),
+    mutationFn: (data: { location_id?: string; location_code?: string; nfc_uid: string }) => apiRequest("POST", "/api/inventory/nfc/register-location", data),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "NFC vinculado", description: "La etiqueta ya identifica este armario." });
+    },
+    onError: (error) => toast({ title: "No se pudo vincular el NFC", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
 export function useInventoryLoan() {
-  const queryClient = useQueryClient();
+  const invalidate = useInventoryInvalidate();
   return useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/inventory/loan", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory/by-nfc"] });
-    },
+    onSuccess: () => invalidate(),
   });
 }
 
 export function useInventoryReturn() {
-  const queryClient = useQueryClient();
+  const invalidate = useInventoryInvalidate();
   return useMutation({
     mutationFn: (data: { loanId: string; returnHasIncident?: boolean; returnIncidentNotes?: string }) => apiRequest("POST", "/api/inventory/return", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory/by-nfc"] });
-    },
+    onSuccess: () => invalidate(),
   });
 }
 
@@ -2132,9 +2201,9 @@ export function useInventoryHistory() {
 
 export function useInventoryLocationDetail(locationCode?: string) {
   return useQuery<any>({
-    queryKey: ["/loc", locationCode ?? ""],
+    queryKey: ["/api/inventory/loc", locationCode ?? ""],
     enabled: Boolean(locationCode),
-    queryFn: async () => apiRequest("GET", `/loc/${locationCode}`),
+    queryFn: async () => apiRequest("GET", `/api/inventory/loc/${encodeURIComponent(locationCode ?? "")}`),
   });
 }
 
