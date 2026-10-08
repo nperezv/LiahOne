@@ -77,8 +77,8 @@ function Tile({ href, onClick, icon, label, sub, tone = "default" }: {
       </div>
     </div>
   );
-  if (href) return <Link href={href}>{content}</Link>;
-  return <button type="button" className="text-left" onClick={onClick}>{content}</button>;
+  if (href) return <Link href={href} className="block h-full">{content}</Link>;
+  return <button type="button" className="h-full text-left" onClick={onClick}>{content}</button>;
 }
 
 export default function InventoryPage() {
@@ -118,23 +118,23 @@ export default function InventoryPage() {
   const recent = history.slice(0, 5);
 
   return (
-    <div className="space-y-5 p-4 md:p-8">
+    <div className="mx-auto w-full max-w-5xl space-y-5 p-4 md:p-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Inventario del barrio</h1>
         <p className="text-sm text-muted-foreground">
-          {stats.total} activos · {locations.length} armarios{openLoans.length ? ` · ${openLoans.length} préstamo(s) en curso` : ""}
+          {stats.total} {stats.total === 1 ? "activo" : "activos"} · {locations.length} {locations.length === 1 ? "armario" : "armarios"}{openLoans.length ? ` · ${openLoans.length} préstamo(s) en curso` : ""}
         </p>
       </header>
 
       {/* Buscador directo */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="relative pb-1">
+        <Search className="pointer-events-none absolute left-3 top-[calc(50%-2px)] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input className="h-12 rounded-2xl pl-9" placeholder="Buscar un activo o armario..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       {term.length >= 2 ? (
         <div className="space-y-2">
           {locationResults.map((l) => (
-            <Link key={l.id} href={`/inventory/locations/${l.code}`}>
+            <Link key={l.id} href={`/inventory/locations/${l.code}`} className="block">
               <div className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm hover:bg-muted/60">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Box className="h-4 w-4 text-primary" /></div>
                 <span className="flex-1"><span className="block font-medium">{l.name}</span><span className="text-xs text-muted-foreground">Armario · {l.code}</span></span>
@@ -150,7 +150,7 @@ export default function InventoryPage() {
       ) : (
         <>
           {/* Acción principal */}
-          <Link href="/inventory/scan">
+          <Link href="/inventory/scan" className="block">
             <div className="flex cursor-pointer items-center gap-4 rounded-3xl bg-primary p-4 text-primary-foreground shadow-[0_8px_24px_rgba(124,58,237,0.35)]">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><ScanLine className="h-6 w-6" /></div>
               <div className="flex-1">
@@ -165,7 +165,7 @@ export default function InventoryPage() {
           {overdue.length || stats.noLocation || stats.noNfc ? (
             <div className="space-y-2">
               {overdue.length ? (
-                <Link href="/inventory/loans?tab=overdue">
+                <Link href="/inventory/loans?tab=overdue" className="block">
                   <div className="flex cursor-pointer items-center gap-3 rounded-2xl border border-rose-400/70 bg-rose-500/10 p-3 text-sm">
                     <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" />
                     <span className="flex-1"><b>{overdue.length} préstamo(s) vencido(s).</b> Toca para recordarles por WhatsApp.</span>
@@ -213,7 +213,7 @@ export default function InventoryPage() {
                 <Link href="/inventory/history" className="text-xs text-primary underline">Ver todo</Link>
               </div>
               {recent.map((e: any) => (
-                <Link key={`${e.type}-${e.id}`} href={`/inventory/${e.assetCode}`}>
+                <Link key={`${e.type}-${e.id}`} href={`/inventory/${e.assetCode}`} className="block">
                   <div className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm hover:bg-muted/60">
                     {e.type === "loan" ? <HandCoins className="h-4 w-4 shrink-0 text-amber-600" /> : <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                     <span className="min-w-0 flex-1">
@@ -279,7 +279,7 @@ export default function InventoryPage() {
             {locations.map((l) => {
               const count = items.filter((i) => i.locationId === l.id).length;
               return (
-                <Link key={l.id} href={`/inventory/locations/${l.code}?check=1`}>
+                <Link key={l.id} href={`/inventory/locations/${l.code}?check=1`} className="block">
                   <div className="flex cursor-pointer items-center gap-3 rounded-xl border p-2 text-sm hover:bg-muted/60">
                     <Box className="h-4 w-4 text-primary" />
                     <span className="flex-1">
