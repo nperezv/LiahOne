@@ -69,5 +69,25 @@ export async function applyInventoryStartupMigrations() {
     await db.execute(sql`ALTER TABLE inventory_items ALTER COLUMN asset_code TYPE varchar(40)`);
   });
 
+  // 6. Nuevas funciones: cantidades, dar de baja, préstamos a miembros, avisos de vencidos,
+  //    revisión de armarios.
+  await step("enum retired", async () => {
+    // ADD VALUE no puede ir dentro de una transacción: se ejecuta como sentencia suelta.
+    await db.execute(sql`ALTER TYPE inventory_item_status ADD VALUE IF NOT EXISTS 'retired'`);
+  });
+  await step("items quantity/retired", async () => {
+    await db.execute(sql`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS quantity integer NOT NULL DEFAULT 1`);
+    await db.execute(sql`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS retired_at timestamp`);
+    await db.execute(sql`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS retired_reason text`);
+  });
+  await step("loans quantity/member/overdue", async () => {
+    await db.execute(sql`ALTER TABLE inventory_loans ADD COLUMN IF NOT EXISTS quantity integer NOT NULL DEFAULT 1`);
+    await db.execute(sql`ALTER TABLE inventory_loans ADD COLUMN IF NOT EXISTS member_id varchar`);
+    await db.execute(sql`ALTER TABLE inventory_loans ADD COLUMN IF NOT EXISTS overdue_notified_at timestamp`);
+  });
+  await step("locations last_checked_at", async () => {
+    await db.execute(sql`ALTER TABLE inventory_locations ADD COLUMN IF NOT EXISTS last_checked_at timestamp`);
+  });
+
   console.log("[inventory-startup-migration] tablas de inventario revisadas");
 }

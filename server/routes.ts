@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import { applyInventoryStartupMigrations } from "./startup-inventory-migrations";
 import { applyHymnStartupMigrations } from "./startup-hymn-migrations";
+import { applyInventoryStartupMigrations } from "./startup-inventory-migrations";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -1089,9 +1089,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-migration: ensure hymns table has all required columns, missing entries, and external URLs
   await applyHymnStartupMigrations();
 
-  // Auto-migration: ensure inventories
+  // Auto-migration: alinear las tablas de inventario antiguas (0037) con el esquema actual
   await applyInventoryStartupMigrations();
-	
+
   // Auto-migration: quarterly_plans and quarterly_plan_items tables
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS quarterly_plans (

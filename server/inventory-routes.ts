@@ -2,10 +2,12 @@ import type { Express, NextFunction, Request, RequestHandler, Response } from "e
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import QRCode from "qrcode";
 import { z } from "zod";
 import { db } from "./db";
+import { isPushConfigured, sendPushNotification } from "./push-service";
 import {
   inventoryAuditItems,
   inventoryAudits,
@@ -16,14 +18,29 @@ import {
   inventoryLocations,
   inventoryMovements,
   inventoryNfcLinks,
+  members,
+  notifications,
+  users,
   insertInventoryAuditSchema,
   insertInventoryCategorySchema,
   insertInventoryItemSchema,
   pdfTemplates,
 } from "@shared/schema";
 
-const BASE_URL = process.env.APP_URL ?? "http://localhost:5173";
-const QR_PROVIDER_URL = "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=";
+// Dirección pública de la app. Si APP_URL no está definida se deduce de la petición
+// (antes quedaba "http://localhost:5173" y los QR apuntaban a localhost).
+const ENV_BASE_URL = (process.env.APP_URL ?? "").trim().replace(/\/$/, "");
+
+function getPublicBaseUrl(req?: Request) {
+  if (ENV_BASE_URL) return ENV_BASE_URL;
+  if (req) {
+    const proto = String(req.headers["x-forwarded-proto"] ?? req.protocol ?? "https").split(",")[0].trim();
+    const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0].trim();
+    if (host) return `${proto}://${host}`;
+  }
+  return "http://localhost:5173";
+}
+
 const MM_TO_PT = 2.8346456693;
 const CIRCLE_MM = 25;
 const QR_MM = 14;
@@ -51,12 +68,15 @@ fs.mkdirSync(LOAN_REQUEST_PDF_DIR, { recursive: true });
 
 const createInventoryLoanRequestSchema = z.object({
   itemId: z.string().min(1),
-  borrowerFirstName: z.string().min(2),
-  borrowerLastName: z.string().min(2),
-  borrowerPhone: z.string().min(6),
-  borrowerEmail: z.string().email(),
-  expectedReturnDate: z.string().min(10),
-  signatureDataUrl: z.string().min(20),
+  borrowerFirstName: z.string().trim().min(2, "Escribe el nombre"),
+  borrowerLastName: z.string().trim().min(2, "Escribe los apellidos"),
+  borrowerPhone: z.string().trim().min(6, "Escribe un teléfono de contacto"),
+  borrowerEmail: z.string().trim().email("El correo no es válido").optional().or(z.literal("")),
+  expectedReturnDate: z.string().min(10, "Elige la fecha de devolución"),
+  signatureDataUrl: z.string().min(20, "Falta la firma"),
+  quantity: z.coerce.number().int().min(1).max(10000).optional(),
+  memberId: z.string().optional().nullable(),
+  notes: z.string().max(500).optional(),
 });
 
 function isAuthed(req: Request) {
@@ -155,14 +175,9 @@ function auditLog(req: Request, action: string, payload?: Record<string, unknown
   console.log("[inventory-audit]", { action, userId, ip, userAgent, ...payload });
 }
 
-function buildQrUrl(path: string) {
-  return `${QR_PROVIDER_URL}${encodeURIComponent(`${BASE_URL.replace(/\/$/, "")}${path}`)}`;
-}
-
-async function fetchQrPngForPath(path: string) {
-  const response = await fetch(buildQrUrl(path));
-  if (!response.ok) throw new Error("QR generation failed");
-  return Buffer.from(await response.arrayBuffer());
+// El QR se genera en el propio servidor (librería qrcode), sin depender de servicios externos.
+async function qrPngForUrl(url: string) {
+  return QRCode.toBuffer(url, { type: "png", width: 512, margin: 1, errorCorrectionLevel: "M" }) as Promise<Buffer>;
 }
 
 async function getWardCode() {
@@ -202,7 +217,8 @@ function buildDynamicAssetPrefix(rawPrefix: string, wardCode: string) {
   return `${basePrefix}${normalizedWard}`;
 }
 
-type DbExecutor = Pick<typeof db, "select" | "execute">;
+// db o una transacción (tx): solo se usan select y execute.
+type DbExecutor = { select: (...args: any[]) => any; execute: (...args: any[]) => any };
 
 // IMPORTANTE: el patrón se escribe como [0-9] y no como \\d.
 // Antes llegaba a PostgreSQL como '-(\\d+)$', que busca una barra invertida literal,
@@ -247,11 +263,27 @@ async function allocateLocationCode(tx: DbExecutor, name: string) {
   return `${basePrefix}-${String(seq).padStart(3, "0")}`;
 }
 
+const ACTIVE_LOAN_SQL = sql.raw(`('active','overdue')`);
+
+/** Unidades prestadas ahora mismo de un activo. */
+async function loanedQuantity(executor: DbExecutor, itemId: string) {
+  const r: any = await executor.execute(sql`
+    SELECT COALESCE(SUM(quantity), 0)::int AS n FROM inventory_loans
+    WHERE item_id = ${itemId} AND status IN ${ACTIVE_LOAN_SQL}
+  `);
+  const rows = "rows" in r ? r.rows : r;
+  return Number(rows?.[0]?.n ?? 0);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function normalizeNfcUid(raw: string) {
   return String(raw ?? "").trim().toUpperCase().replace(/\s+/g, "");
 }
 
-async function buildItemCircularLabelPdf(assetCode: string) {
+async function buildItemCircularLabelPdf(assetCode: string, baseUrl: string) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
   const size = CIRCLE_MM * MM_TO_PT;
@@ -261,7 +293,7 @@ async function buildItemCircularLabelPdf(assetCode: string) {
   page.drawCircle({ x: center, y: center, size: center - 2, borderWidth: 1, borderColor: rgb(0, 0, 0) });
   page.drawText(assetCode, { x: 3, y: size - 11, size: 6, maxWidth: size - 6, font });
   try {
-    const png = await fetchQrPngForPath(`/a/${assetCode}`);
+    const png = await qrPngForUrl(`${baseUrl}/a/${assetCode}`);
     const image = await pdf.embedPng(png);
     page.drawImage(image, { x: center - qr / 2, y: 4, width: qr, height: qr });
   } catch {
@@ -270,7 +302,7 @@ async function buildItemCircularLabelPdf(assetCode: string) {
   return Buffer.from(await pdf.save());
 }
 
-async function buildLocationRectLabelPdf(locationCode: string) {
+async function buildLocationRectLabelPdf(locationCode: string, baseUrl: string) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
   const w = 50 * MM_TO_PT;
@@ -278,7 +310,7 @@ async function buildLocationRectLabelPdf(locationCode: string) {
   const page = pdf.addPage([w, h]);
   page.drawText(locationCode, { x: 6, y: h - 14, size: 9, font });
   try {
-    const png = await fetchQrPngForPath(`/loc/${locationCode}`);
+    const png = await qrPngForUrl(`${baseUrl}/loc/${locationCode}`);
     const image = await pdf.embedPng(png);
     page.drawImage(image, { x: w - 48, y: 4, width: 44, height: 44 });
   } catch {
@@ -292,7 +324,7 @@ async function buildLoanRequestPdf(input: {
   itemName: string;
   borrowerFullName: string;
   borrowerPhone: string;
-  borrowerEmail: string;
+  borrowerEmail?: string;
   expectedReturnDate: string;
   signatureDataUrl: string;
 }) {
@@ -305,7 +337,7 @@ async function buildLoanRequestPdf(input: {
   page.drawText(`Activo: ${input.assetCode} · ${input.itemName}`, { x: 50, y: 750, size: 12, font });
   page.drawText(`Solicitante: ${input.borrowerFullName}`, { x: 50, y: 725, size: 12, font });
   page.drawText(`Teléfono: ${input.borrowerPhone}`, { x: 50, y: 700, size: 12, font });
-  page.drawText(`Correo: ${input.borrowerEmail}`, { x: 50, y: 675, size: 12, font });
+  page.drawText(`Correo: ${input.borrowerEmail || "—"}`, { x: 50, y: 675, size: 12, font });
   page.drawText(`Fecha estimada devolución: ${input.expectedReturnDate}`, { x: 50, y: 650, size: 12, font });
   page.drawText(`Generado: ${new Date().toLocaleString("es-ES")}`, { x: 50, y: 625, size: 10, font });
 
@@ -364,14 +396,75 @@ async function buildLocationPath(locationId?: string | null): Promise<string> {
   return names.join(" / ");
 }
 
+// ── Avisos de préstamos vencidos ────────────────────────────────────────────
+// Cada hora revisa los préstamos cuya fecha de devolución ya pasó y avisa (notificación en la app
+// y push si está configurado) al bibliotecario y al líder de actividades; si no hay ninguno, al
+// obispado. Cada préstamo se vuelve a recordar como mucho cada 3 días.
+let overdueWorkerStarted = false;
+
+async function notifyOverdueLoans() {
+  const result: any = await db.execute(sql`
+    SELECT lo.id, lo.borrower_name, lo.expected_return_date, lo.quantity, i.name AS item_name, i.asset_code
+    FROM inventory_loans lo
+    JOIN inventory_items i ON i.id = lo.item_id
+    WHERE lo.status IN ${ACTIVE_LOAN_SQL}
+      AND lo.expected_return_date < CURRENT_DATE
+      AND (lo.overdue_notified_at IS NULL OR lo.overdue_notified_at < now() - interval '3 days')
+    LIMIT 100
+  `);
+  const loans = ("rows" in result ? result.rows : result) as any[];
+  if (!loans.length) return;
+
+  let recipients = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.isActive, true), inArray(users.role, ["bibliotecario", "lider_actividades"])));
+  if (!recipients.length) {
+    recipients = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.isActive, true), inArray(users.role, ["obispo", "consejero_obispo"])));
+  }
+  if (!recipients.length) return;
+
+  for (const loan of loans) {
+    const qty = Number(loan.quantity ?? 1) > 1 ? ` (${loan.quantity} uds.)` : "";
+    const title = "Préstamo vencido";
+    const description = `${loan.borrower_name} debía devolver «${loan.item_name}»${qty} el ${new Date(`${loan.expected_return_date}T12:00:00`).toLocaleDateString("es-ES")}.`;
+    for (const r of recipients) {
+      const [notif] = await db
+        .insert(notifications)
+        .values({ userId: r.id, type: "reminder", title, description, relatedId: loan.id, isRead: false })
+        .returning();
+      if (isPushConfigured()) {
+        await sendPushNotification(r.id, { title, body: description, url: "/inventory/loans", notificationId: notif?.id }).catch(() => undefined);
+      }
+    }
+    await db.execute(sql`UPDATE inventory_loans SET overdue_notified_at = now() WHERE id = ${loan.id}`);
+  }
+  console.log(`[inventory] avisos de préstamos vencidos enviados: ${loans.length}`);
+}
+
+function startOverdueLoanWorker() {
+  if (overdueWorkerStarted || process.env.NODE_ENV === "test") return;
+  overdueWorkerStarted = true;
+  const run = () => notifyOverdueLoans().catch((err) => console.error("[inventory] error en avisos de vencidos:", err));
+  setTimeout(run, 60_000);
+  setInterval(run, 60 * 60 * 1000).unref?.();
+}
+
 export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHandler, getUserIdFromRequest: (req: Request) => string | null) {
   const app = withSafeRoutes(rawApp);
+  startOverdueLoanWorker();
 
   app.get("/api/inventory", requireAuth, requireRead, async (req, res) => {
     const search = String(req.query.search ?? "").trim();
-    const where = search
-      ? sql`(${inventoryItems.assetCode} ILIKE ${`%${search}%`} OR ${inventoryItems.name} ILIKE ${`%${search}%`})`
-      : undefined;
+    const includeRetired = req.query.includeRetired === "1";
+    const conditions = [
+      search ? sql`(${inventoryItems.assetCode} ILIKE ${`%${search}%`} OR ${inventoryItems.name} ILIKE ${`%${search}%`})` : undefined,
+      includeRetired ? undefined : ne(inventoryItems.status, "retired"),
+    ].filter(Boolean) as any[];
+    const where = conditions.length ? and(...conditions) : undefined;
 
     const items = await db
       .select({
@@ -391,7 +484,12 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
         createdAt: inventoryItems.createdAt,
         updatedAt: inventoryItems.updatedAt,
         lastVerifiedAt: inventoryItems.lastVerifiedAt,
+        quantity: inventoryItems.quantity,
+        retiredAt: inventoryItems.retiredAt,
+        retiredReason: inventoryItems.retiredReason,
         hasNfc: sql<boolean>`EXISTS (SELECT 1 FROM inventory_nfc_links l WHERE l.target_type = 'item' AND l.target_id = ${inventoryItems.id})`,
+        loanedQuantity: sql<number>`(SELECT COALESCE(SUM(lo.quantity), 0)::int FROM inventory_loans lo WHERE lo.item_id = ${inventoryItems.id} AND lo.status IN ${ACTIVE_LOAN_SQL})`,
+        overdueLoans: sql<number>`(SELECT COUNT(*)::int FROM inventory_loans lo WHERE lo.item_id = ${inventoryItems.id} AND lo.status IN ${ACTIVE_LOAN_SQL} AND lo.expected_return_date < CURRENT_DATE)`,
       })
       .from(inventoryItems)
       .leftJoin(inventoryCategories, eq(inventoryItems.categoryId, inventoryCategories.id))
@@ -400,7 +498,8 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
       .orderBy(desc(inventoryItems.createdAt));
 
     auditLog(req, "list_inventory", { count: items.length });
-    res.json(items);
+    const baseUrl = getPublicBaseUrl(req);
+    res.json(items.map((item) => ({ ...item, qrUrl: `${baseUrl}/a/${item.assetCode}` })));
   });
 
   // Alta de activo. Antes solo obispo/consejero podían crear (requireAdmin), pero el
@@ -408,14 +507,16 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
   // "no se pudo guardar" (403) sin explicación. Ahora pueden todos los líderes de inventario.
   const itemCreateSchema = insertInventoryItemSchema.extend({
     categoryId: z.string().min(1, "Elige una categoría"),
+    quantity: z.coerce.number().int().min(1, "La cantidad mínima es 1").max(10000).optional(),
+    status: z.enum(["available", "maintenance"]).optional(),
     name: z.string().trim().min(2, "El nombre debe tener al menos 2 letras"),
     locationId: z.string().optional().nullable(),
   });
 
-  async function createItemInTx(tx: any, body: unknown, nfcUid?: string) {
+  async function createItemInTx(tx: any, body: unknown, baseUrl: string, nfcUid?: string) {
     const payload = itemCreateSchema.parse(body);
     const assetCode = await allocateAssetCode(tx, payload.categoryId);
-    const qrUrl = `${BASE_URL.replace(/\/$/, "")}/a/${assetCode}`;
+    const qrUrl = `${baseUrl}/a/${assetCode}`;
     const [created] = await tx
       .insert(inventoryItems)
       .values({ ...payload, locationId: payload.locationId || null, assetCode, qrUrl })
@@ -432,7 +533,7 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
   }
 
   app.post("/api/inventory", requireAuth, requireLeader, async (req: Request, res: Response) => {
-    const created = await db.transaction((tx) => createItemInTx(tx, req.body));
+    const created = await db.transaction((tx) => createItemInTx(tx, req.body, getPublicBaseUrl(req)));
     auditLog(req, "create_item", { assetCode: created.assetCode });
     res.status(201).json(created);
   });
@@ -442,9 +543,68 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
   app.post("/api/inventory/with-nfc", requireAuth, requireLeader, async (req: Request, res: Response) => {
     const { nfc_uid, ...itemData } = (req.body ?? {}) as Record<string, unknown>;
     if (!nfc_uid) throw new HttpError(400, "Falta el UID de la etiqueta NFC");
-    const created = await db.transaction((tx) => createItemInTx(tx, itemData, String(nfc_uid)));
+    const created = await db.transaction((tx) => createItemInTx(tx, itemData, getPublicBaseUrl(req), String(nfc_uid)));
     auditLog(req, "create_item_with_nfc", { assetCode: created.assetCode });
     res.status(201).json(created);
+  });
+
+  // Editar los datos de un activo (nombre, descripción, categoría, foto, estado).
+  // El estado "prestado" solo cambia con un préstamo/devolución, no a mano.
+  app.patch("/api/inventory/:assetCode", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const payload = z
+      .object({
+        name: z.string().trim().min(2, "El nombre debe tener al menos 2 letras").optional(),
+        description: z.string().max(2000).optional().nullable(),
+        categoryId: z.string().min(1).optional(),
+        photoUrl: z.string().optional().nullable(),
+        trackerId: z.string().max(120).optional().nullable(),
+        status: z.enum(["available", "maintenance"]).optional(),
+        quantity: z.coerce.number().int().min(1, "La cantidad mínima es 1").max(10000).optional(),
+      })
+      .parse(req.body ?? {});
+
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) throw new HttpError(404, "Activo no encontrado");
+    if (item.status === "retired") throw new HttpError(409, "El activo está dado de baja. Reactívalo antes de editarlo.");
+    const lent = await loanedQuantity(db, item.id);
+    if (payload.status && lent > 0) {
+      throw new HttpError(409, "El activo tiene unidades prestadas. Registra la devolución antes de cambiar su estado.");
+    }
+    if (payload.quantity !== undefined && payload.quantity < lent) {
+      throw new HttpError(409, `Hay ${lent} unidad(es) prestada(s); la cantidad no puede ser menor.`);
+    }
+
+    const [updated] = await db
+      .update(inventoryItems)
+      .set({ ...payload, updatedAt: new Date() })
+      .where(eq(inventoryItems.id, item.id))
+      .returning();
+    auditLog(req, "update_item", { assetCode: item.assetCode, fields: Object.keys(payload) });
+    res.json(updated);
+  });
+
+  // Eliminar un activo definitivamente (solo obispo y consejeros).
+  // Se borra también su historial, sus préstamos cerrados y se libera su etiqueta NFC.
+  app.delete("/api/inventory/:assetCode", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    const result = await db.transaction(async (tx) => {
+      const [item] = await tx.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+      if (!item) throw new HttpError(404, "Activo no encontrado");
+      const [activeLoan] = await tx
+        .select({ id: inventoryLoans.id })
+        .from(inventoryLoans)
+        .where(and(eq(inventoryLoans.itemId, item.id), inArray(inventoryLoans.status, ["active", "overdue"])))
+        .limit(1);
+      if (activeLoan) throw new HttpError(409, "No se puede eliminar: el activo está prestado. Registra antes la devolución.");
+
+      await tx.delete(inventoryAuditItems).where(eq(inventoryAuditItems.itemId, item.id));
+      await tx.delete(inventoryLoans).where(eq(inventoryLoans.itemId, item.id));
+      await tx.delete(inventoryMovements).where(eq(inventoryMovements.itemId, item.id));
+      await tx.delete(inventoryNfcLinks).where(and(eq(inventoryNfcLinks.targetType, "item"), eq(inventoryNfcLinks.targetId, item.id)));
+      await tx.delete(inventoryItems).where(eq(inventoryItems.id, item.id));
+      return { assetCode: item.assetCode, name: item.name };
+    });
+    auditLog(req, "delete_item", result);
+    res.json({ ok: true, ...result });
   });
 
   // /a/:codigo es la URL del QR impreso. Si la abre el navegador, se sirve la app.
@@ -586,6 +746,127 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
     res.json({ ok: true, ...result });
   });
 
+  // Préstamos (en curso, vencidos o todos) con el activo, para la pantalla "Préstamos".
+  app.get("/api/inventory/loans", requireAuth, requireRead, async (req: Request, res: Response) => {
+    const scope = String(req.query.scope ?? "active");
+    const where =
+      scope === "all"
+        ? undefined
+        : scope === "overdue"
+          ? sql`${inventoryLoans.status} IN ${ACTIVE_LOAN_SQL} AND ${inventoryLoans.expectedReturnDate} < CURRENT_DATE`
+          : sql`${inventoryLoans.status} IN ${ACTIVE_LOAN_SQL}`;
+    const rows = await db
+      .select({
+        id: inventoryLoans.id,
+        itemId: inventoryLoans.itemId,
+        assetCode: inventoryItems.assetCode,
+        itemName: inventoryItems.name,
+        photoUrl: inventoryItems.photoUrl,
+        itemQuantity: inventoryItems.quantity,
+        quantity: inventoryLoans.quantity,
+        borrowerName: inventoryLoans.borrowerName,
+        borrowerFirstName: inventoryLoans.borrowerFirstName,
+        borrowerPhone: inventoryLoans.borrowerPhone,
+        borrowerEmail: inventoryLoans.borrowerEmail,
+        dateOut: inventoryLoans.dateOut,
+        expectedReturnDate: inventoryLoans.expectedReturnDate,
+        dateReturn: inventoryLoans.dateReturn,
+        status: inventoryLoans.status,
+        returnHasIncident: inventoryLoans.returnHasIncident,
+        returnIncidentNotes: inventoryLoans.returnIncidentNotes,
+        requestPdfUrl: inventoryLoans.requestPdfUrl,
+        createdAt: inventoryLoans.createdAt,
+      })
+      .from(inventoryLoans)
+      .innerJoin(inventoryItems, eq(inventoryLoans.itemId, inventoryItems.id))
+      .where(where)
+      .orderBy(scope === "all" ? desc(inventoryLoans.createdAt) : asc(inventoryLoans.expectedReturnDate))
+      .limit(300);
+    const today = todayIso();
+    res.json(rows.map((r) => ({
+      ...r,
+      isOpen: r.status === "active" || r.status === "overdue",
+      isOverdue: (r.status === "active" || r.status === "overdue") && Boolean(r.expectedReturnDate) && String(r.expectedReturnDate) < today,
+    })));
+  });
+
+  // Buscador de personas para prestar: miembros del directorio y personas a las que ya se prestó.
+  // Solo devuelve lo imprescindible (nombre, teléfono, correo) y como mucho 8 resultados.
+  app.get("/api/inventory/borrowers", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const q = String(req.query.q ?? "").trim();
+    if (q.length < 2) return res.json([]);
+    const like = `%${q}%`;
+    const fromMembers = await db
+      .select({
+        memberId: members.id,
+        fullName: members.nameSurename,
+        firstName: members.nombre,
+        lastName: members.apellidos,
+        phone: members.phone,
+        email: members.email,
+      })
+      .from(members)
+      .where(sql`(${members.nameSurename} ILIKE ${like} OR ${members.nombre} ILIKE ${like} OR ${members.apellidos} ILIKE ${like})`)
+      .orderBy(asc(members.nameSurename))
+      .limit(8);
+
+    const pastResult: any = await db.execute(sql`
+      SELECT DISTINCT ON (lower(borrower_name)) borrower_name AS "fullName", borrower_first_name AS "firstName",
+             borrower_last_name AS "lastName", borrower_phone AS phone, borrower_email AS email
+      FROM inventory_loans
+      WHERE member_id IS NULL AND borrower_name ILIKE ${like}
+      ORDER BY lower(borrower_name), created_at DESC
+      LIMIT 5
+    `);
+    const past = ("rows" in pastResult ? pastResult.rows : pastResult) as any[];
+
+    const splitName = (full: string) => {
+      const parts = full.trim().split(/\s+/);
+      return { first: parts[0] ?? "", last: parts.slice(1).join(" ") };
+    };
+    const results = [
+      ...fromMembers.map((m) => {
+        const split = splitName(m.fullName ?? "");
+        return {
+          source: "member" as const,
+          memberId: m.memberId,
+          fullName: m.fullName,
+          firstName: m.firstName || split.first,
+          lastName: m.lastName || split.last,
+          phone: m.phone,
+          email: m.email,
+        };
+      }),
+      ...past
+        .filter((p) => !fromMembers.some((m) => (m.fullName ?? "").toLowerCase() === String(p.fullName ?? "").toLowerCase()))
+        .map((p) => ({ source: "previous" as const, memberId: null, ...p })),
+    ];
+    res.json(results.slice(0, 10));
+  });
+
+  // Revisión de armario: se marcan los activos encontrados y se devuelven los que faltan.
+  app.post("/api/inventory/locations/:locationCode/check", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const { foundItemIds } = z.object({ foundItemIds: z.array(z.string()).max(2000) }).parse(req.body ?? {});
+    const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.code, req.params.locationCode)).limit(1);
+    if (!location) throw new HttpError(404, "Armario no encontrado");
+    const expected = await db
+      .select({ id: inventoryItems.id, assetCode: inventoryItems.assetCode, name: inventoryItems.name, status: inventoryItems.status })
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.locationId, location.id), ne(inventoryItems.status, "retired")));
+    const found = new Set(foundItemIds);
+    const now = new Date();
+    const foundIds = expected.filter((i) => found.has(i.id)).map((i) => i.id);
+    await db.transaction(async (tx) => {
+      if (foundIds.length) {
+        await tx.update(inventoryItems).set({ lastVerifiedAt: now }).where(inArray(inventoryItems.id, foundIds));
+      }
+      await tx.update(inventoryLocations).set({ lastCheckedAt: now }).where(eq(inventoryLocations.id, location.id));
+    });
+    const missing = expected.filter((i) => !found.has(i.id) && i.status !== "loaned");
+    auditLog(req, "check_location", { location: location.code, found: foundIds.length, missing: missing.length });
+    res.json({ ok: true, found: foundIds.length, expected: expected.length, missing });
+  });
+
   app.get("/api/inventory/history", requireAuth, requireRead, async (_req, res) => {
     const movements = await db
       .select({
@@ -629,9 +910,16 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
       .orderBy(desc(inventoryLoans.createdAt))
       .limit(200);
 
+    const allLocations = await db.select({ id: inventoryLocations.id, name: inventoryLocations.name }).from(inventoryLocations);
+    const locName = new Map(allLocations.map((l) => [l.id, l.name]));
     const entries = [...movements, ...loans]
       .sort((a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime())
-      .slice(0, 250);
+      .slice(0, 250)
+      .map((e) => ({
+        ...e,
+        fromLocationName: e.fromLocation ? locName.get(String(e.fromLocation)) ?? null : null,
+        toLocationName: e.toLocation ? locName.get(String(e.toLocation)) ?? null : null,
+      }));
 
     res.json(entries);
   });
@@ -652,10 +940,52 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
       .where(eq(inventoryItems.assetCode, req.params.assetCode))
       .limit(1);
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
-    const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
-    const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
+    const rawMovements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
+    const loans = await db
+      .select({
+        id: inventoryLoans.id,
+        borrowerName: inventoryLoans.borrowerName,
+        borrowerPhone: inventoryLoans.borrowerPhone,
+        borrowerEmail: inventoryLoans.borrowerEmail,
+        dateOut: inventoryLoans.dateOut,
+        expectedReturnDate: inventoryLoans.expectedReturnDate,
+        dateReturn: inventoryLoans.dateReturn,
+        status: inventoryLoans.status,
+        requestPdfUrl: inventoryLoans.requestPdfUrl,
+        returnHasIncident: inventoryLoans.returnHasIncident,
+        returnIncidentNotes: inventoryLoans.returnIncidentNotes,
+        quantity: inventoryLoans.quantity,
+        memberId: inventoryLoans.memberId,
+        createdAt: inventoryLoans.createdAt,
+      })
+      .from(inventoryLoans)
+      .where(eq(inventoryLoans.itemId, item.id))
+      .orderBy(desc(inventoryLoans.createdAt));
+
+    // Nombres de armario en el historial (antes solo se veían identificadores internos).
+    const allLocations = await db.select({ id: inventoryLocations.id, name: inventoryLocations.name, code: inventoryLocations.code }).from(inventoryLocations);
+    const locName = new Map(allLocations.map((l) => [l.id, `${l.name} · ${l.code}`]));
+    const movements = rawMovements.map((m) => ({
+      ...m,
+      fromLocationName: m.fromLocation ? locName.get(m.fromLocation) ?? null : null,
+      toLocationName: m.toLocation ? locName.get(m.toLocation) ?? null : null,
+    }));
+
+    const activeLoans = loans.filter((loan) => loan.status === "active" || loan.status === "overdue");
+    const loanedQty = activeLoans.reduce((acc, loan) => acc + Number(loan.quantity ?? 1), 0);
     auditLog(req, "open_item", { assetCode: item.assetCode });
-    res.json({ item, movements, loans });
+    res.json({
+      item: {
+        ...item,
+        qrUrl: `${getPublicBaseUrl(req)}/a/${item.assetCode}`,
+        loanedQuantity: loanedQty,
+        availableQuantity: Math.max(0, Number(item.quantity ?? 1) - loanedQty),
+      },
+      movements,
+      loans,
+      activeLoans,
+      activeLoan: activeLoans[0] ?? null,
+    });
   });
 
   const locationDetailHandler = async (req: Request, res: Response) => {
@@ -663,7 +993,12 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
     if (!location) return res.status(404).json({ error: "Ubicación no encontrada" });
     const children = await db.select().from(inventoryLocations).where(eq(inventoryLocations.parentId, location.id)).orderBy(asc(inventoryLocations.name));
     const items = await db.select().from(inventoryItems).where(eq(inventoryItems.locationId, location.id)).orderBy(asc(inventoryItems.name));
-    res.json({ location, children, items, path: await buildLocationPath(location.id) });
+    const [nfcLink] = await db
+      .select({ uid: inventoryNfcLinks.uid })
+      .from(inventoryNfcLinks)
+      .where(and(eq(inventoryNfcLinks.targetType, "location"), eq(inventoryNfcLinks.targetId, location.id)))
+      .limit(1);
+    res.json({ location: { ...location, hasNfc: Boolean(nfcLink) }, children, items, path: await buildLocationPath(location.id) });
   };
 
   app.get("/api/inventory/loc/:locationCode", requireAuth, requireRead, locationDetailHandler);
@@ -702,51 +1037,67 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
   app.post("/api/inventory/move-by-scan", requireAuth, requireLeader, moveByScanHandler);
   app.post("/inventory/move-by-scan", requireAuth, requireLeader, moveByScanHandler);
 
-  app.post("/api/inventory/loan", requireAuth, requireLeader, async (req, res) => {
+  // Préstamo. Admite cantidades (p. ej. 5 de 20 sillas) y enlazar con un miembro del directorio.
+  app.post("/api/inventory/loan", requireAuth, requireLeader, async (req: Request, res: Response) => {
     const payload = createInventoryLoanRequestSchema.parse(req.body);
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, payload.itemId)).limit(1);
-    if (!item) return res.status(404).json({ error: "Item no encontrado" });
+    if (!item) throw new HttpError(404, "Activo no encontrado");
+    if (item.status === "retired") throw new HttpError(409, "Este activo está dado de baja.");
+    if (item.status === "maintenance") throw new HttpError(409, "Este activo está en mantenimiento y no se puede prestar.");
+    if (payload.expectedReturnDate < todayIso()) throw new HttpError(400, "La fecha de devolución no puede ser anterior a hoy.");
+
+    const total = Number(item.quantity ?? 1);
+    const qty = payload.quantity ?? 1;
+    const alreadyLent = await loanedQuantity(db, item.id);
+    const available = total - alreadyLent;
+    if (available <= 0) throw new HttpError(409, "No quedan unidades disponibles: todo está prestado.");
+    if (qty > available) throw new HttpError(409, `Solo quedan ${available} unidad(es) disponible(s).`);
 
     const borrowerFullName = `${payload.borrowerFirstName} ${payload.borrowerLastName}`.trim();
-    const outDate = new Date().toISOString().slice(0, 10);
     const pdfBytes = await buildLoanRequestPdf({
       assetCode: item.assetCode,
-      itemName: item.name,
+      itemName: qty > 1 ? `${item.name} (${qty} unidades)` : item.name,
       borrowerFullName,
       borrowerPhone: payload.borrowerPhone,
-      borrowerEmail: payload.borrowerEmail,
+      borrowerEmail: payload.borrowerEmail || undefined,
       expectedReturnDate: payload.expectedReturnDate,
       signatureDataUrl: payload.signatureDataUrl,
     });
 
     const storedFilename = `${randomUUID()}-${item.assetCode}-solicitud-prestamo.pdf`;
-    const absolutePath = path.join(LOAN_REQUEST_PDF_DIR, storedFilename);
-    await fs.promises.writeFile(absolutePath, pdfBytes);
+    await fs.promises.writeFile(path.join(LOAN_REQUEST_PDF_DIR, storedFilename), pdfBytes);
 
-    const [loan] = await db.insert(inventoryLoans).values({
-      itemId: payload.itemId,
-      borrowerName: borrowerFullName,
-      borrowerFirstName: payload.borrowerFirstName,
-      borrowerLastName: payload.borrowerLastName,
-      borrowerContact: payload.borrowerPhone,
-      borrowerPhone: payload.borrowerPhone,
-      borrowerEmail: payload.borrowerEmail,
-      dateOut: outDate,
-      expectedReturnDate: payload.expectedReturnDate,
-      signatureDataUrl: payload.signatureDataUrl,
-      requestPdfFilename: `solicitud-prestamo-${item.assetCode}.pdf`,
-      requestPdfUrl: `/uploads/inventory-loans/${storedFilename}`,
-      status: "active",
-    }).returning();
+    const loan = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(inventoryLoans).values({
+        itemId: item.id,
+        borrowerName: borrowerFullName,
+        borrowerFirstName: payload.borrowerFirstName,
+        borrowerLastName: payload.borrowerLastName,
+        borrowerContact: payload.borrowerPhone,
+        borrowerPhone: payload.borrowerPhone,
+        borrowerEmail: payload.borrowerEmail || null,
+        memberId: payload.memberId || null,
+        quantity: qty,
+        dateOut: todayIso(),
+        expectedReturnDate: payload.expectedReturnDate,
+        signatureDataUrl: payload.signatureDataUrl,
+        requestPdfFilename: `solicitud-prestamo-${item.assetCode}.pdf`,
+        requestPdfUrl: `/uploads/inventory-loans/${storedFilename}`,
+        status: "active",
+      }).returning();
+      // "Prestado" solo cuando no queda ninguna unidad en el armario.
+      const fullyLent = alreadyLent + qty >= total;
+      await tx.update(inventoryItems).set({ status: fullyLent ? "loaned" : "available", updatedAt: new Date() }).where(eq(inventoryItems.id, item.id));
+      return created;
+    });
 
-    await db.update(inventoryItems).set({ status: "loaned", updatedAt: new Date() }).where(eq(inventoryItems.id, payload.itemId));
-    auditLog(req, "loan_item", { itemId: payload.itemId });
+    auditLog(req, "loan_item", { itemId: item.id, quantity: qty });
     res.status(201).json(loan);
   });
 
-  app.post("/api/inventory/return", requireAuth, requireLeader, async (req, res) => {
+  app.post("/api/inventory/return", requireAuth, requireLeader, async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) throw new HttpError(401, "Tu sesión ha caducado");
 
     const payload = z.object({
       loanId: z.string().min(1),
@@ -755,21 +1106,76 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
     }).parse(req.body);
 
     if (payload.returnHasIncident && (!payload.returnIncidentNotes || payload.returnIncidentNotes.trim().length < 3)) {
-      return res.status(400).json({ error: "Debe registrar una nota de incidencia." });
+      throw new HttpError(400, "Describe la incidencia (mínimo 3 letras).");
     }
 
     const [loan] = await db.select().from(inventoryLoans).where(eq(inventoryLoans.id, payload.loanId)).limit(1);
-    if (!loan) return res.status(404).json({ error: "Préstamo no encontrado" });
-    await db.update(inventoryLoans).set({
-      status: "returned",
-      dateReturn: new Date().toISOString().slice(0, 10),
-      returnedAt: new Date(),
-      returnedBy: userId,
-      returnHasIncident: Boolean(payload.returnHasIncident),
-      returnIncidentNotes: payload.returnHasIncident ? payload.returnIncidentNotes?.trim() : null,
-    }).where(eq(inventoryLoans.id, loan.id));
-    await db.update(inventoryItems).set({ status: "available", updatedAt: new Date() }).where(eq(inventoryItems.id, loan.itemId));
+    if (!loan) throw new HttpError(404, "Préstamo no encontrado");
+    if (loan.status === "returned") throw new HttpError(409, "Este préstamo ya estaba devuelto.");
+
+    await db.transaction(async (tx) => {
+      await tx.update(inventoryLoans).set({
+        status: "returned",
+        dateReturn: todayIso(),
+        returnedAt: new Date(),
+        returnedBy: userId,
+        returnHasIncident: Boolean(payload.returnHasIncident),
+        returnIncidentNotes: payload.returnHasIncident ? payload.returnIncidentNotes?.trim() : null,
+      }).where(eq(inventoryLoans.id, loan.id));
+
+      const [item] = await tx.select().from(inventoryItems).where(eq(inventoryItems.id, loan.itemId)).limit(1);
+      if (item && item.status !== "retired" && item.status !== "maintenance") {
+        const stillLent = await loanedQuantity(tx, loan.itemId);
+        await tx.update(inventoryItems)
+          .set({ status: stillLent >= Number(item.quantity ?? 1) ? "loaned" : "available", updatedAt: new Date() })
+          .where(eq(inventoryItems.id, loan.itemId));
+      }
+    });
     auditLog(req, "return_item", { loanId: loan.id, returnHasIncident: Boolean(payload.returnHasIncident) });
+    res.json({ ok: true });
+  });
+
+  // Dar de baja (roto, perdido, donado...) conservando el historial. Se puede deshacer.
+  app.post("/api/inventory/:assetCode/retire", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) throw new HttpError(401, "Tu sesión ha caducado");
+    const { reason } = z.object({ reason: z.string().trim().min(3, "Indica el motivo de la baja (mínimo 3 letras)").max(500) }).parse(req.body ?? {});
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) throw new HttpError(404, "Activo no encontrado");
+    if (item.status === "retired") throw new HttpError(409, "Ya estaba dado de baja.");
+    if ((await loanedQuantity(db, item.id)) > 0) throw new HttpError(409, "Tiene unidades prestadas. Registra antes la devolución.");
+
+    await db.transaction(async (tx) => {
+      await tx.update(inventoryItems)
+        .set({ status: "retired", retiredAt: new Date(), retiredReason: reason, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, item.id));
+      await tx.insert(inventoryMovements).values({
+        itemId: item.id,
+        fromLocation: item.locationId,
+        toLocation: item.locationId,
+        userId,
+        note: `Dado de baja: ${reason}`,
+      });
+    });
+    auditLog(req, "retire_item", { assetCode: item.assetCode, reason });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/inventory/:assetCode/restore", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) throw new HttpError(401, "Tu sesión ha caducado");
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+    if (!item) throw new HttpError(404, "Activo no encontrado");
+    if (item.status !== "retired") throw new HttpError(409, "El activo no está dado de baja.");
+    await db.transaction(async (tx) => {
+      await tx.update(inventoryItems)
+        .set({ status: "available", retiredAt: null, retiredReason: null, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, item.id));
+      await tx.insert(inventoryMovements).values({
+        itemId: item.id, fromLocation: item.locationId, toLocation: item.locationId, userId, note: "Reactivado (vuelve al inventario)",
+      });
+    });
+    auditLog(req, "restore_item", { assetCode: item.assetCode });
     res.json({ ok: true });
   });
 
@@ -906,7 +1312,7 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
 
   app.get("/inventory/qr/:assetCode", requireAuth, requireRead, async (req, res) => {
     try {
-      const png = await fetchQrPngForPath(`/a/${req.params.assetCode}`);
+      const png = await qrPngForUrl(`${getPublicBaseUrl(req)}/a/${req.params.assetCode}`);
       res.setHeader("Content-Type", "image/png");
       res.send(png);
     } catch {
@@ -915,33 +1321,44 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
   });
 
   app.get("/inventory/label/:assetCode", requireAuth, requireRead, async (req, res) => {
-    const pdf = await buildItemCircularLabelPdf(req.params.assetCode);
+    const pdf = await buildItemCircularLabelPdf(req.params.assetCode, getPublicBaseUrl(req));
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename=item-label-${req.params.assetCode}.pdf`);
     res.send(pdf);
   });
 
   app.get("/inventory/location-label/:locationCode", requireAuth, requireRead, async (req, res) => {
-    const pdf = await buildLocationRectLabelPdf(req.params.locationCode);
+    const pdf = await buildLocationRectLabelPdf(req.params.locationCode, getPublicBaseUrl(req));
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename=location-label-${req.params.locationCode}.pdf`);
     res.send(pdf);
   });
 
   app.get("/inventory/labels/batch", requireAuth, requireRead, async (req, res) => {
-    const assetCodes = String(req.query.assetCodes ?? "").split(",").map((v) => v.trim()).filter(Boolean);
-    if (!assetCodes.length) return res.status(400).json({ error: "assetCodes es requerido" });
+    let assetCodes = String(req.query.assetCodes ?? "").split(",").map((v) => v.trim()).filter(Boolean);
+    const locationCode = String(req.query.locationCode ?? "").trim();
+    if (!assetCodes.length && locationCode) {
+      const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.code, locationCode)).limit(1);
+      if (!location) throw new HttpError(404, "Armario no encontrado");
+      const rows = await db
+        .select({ assetCode: inventoryItems.assetCode })
+        .from(inventoryItems)
+        .where(and(eq(inventoryItems.locationId, location.id), ne(inventoryItems.status, "retired")))
+        .orderBy(asc(inventoryItems.assetCode));
+      assetCodes = rows.map((r) => r.assetCode);
+    }
+    if (!assetCodes.length) throw new HttpError(400, "No hay activos para imprimir");
 
     const pdf = await PDFDocument.create();
     for (const code of assetCodes) {
-      const label = await buildItemCircularLabelPdf(code);
+      const label = await buildItemCircularLabelPdf(code, getPublicBaseUrl(req));
       const src = await PDFDocument.load(label);
       const [page] = await pdf.copyPages(src, [0]);
       pdf.addPage(page);
     }
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "attachment; filename=inventory-labels.pdf");
+    res.setHeader("Content-Disposition", `inline; filename=etiquetas-${locationCode || "inventario"}.pdf`);
     res.send(Buffer.from(await pdf.save()));
   });
 }
