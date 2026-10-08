@@ -14,3 +14,11 @@ declare module "geoip-lite" {
 }
 
 declare module "web-push";
+
+declare module "qrcode" {
+  const QRCode: {
+    toBuffer(text: string, options?: Record<string, unknown>): Promise<Buffer>;
+    toDataURL(text: string, options?: Record<string, unknown>): Promise<string>;
+  };
+  export default QRCode;
+}
