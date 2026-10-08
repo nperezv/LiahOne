@@ -2195,17 +2195,54 @@ export function useRegisterLocationNfc() {
 
 export function useInventoryLoan() {
   const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/inventory/loan", data),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Préstamo registrado", description: "El activo figura ahora como prestado." });
+    },
+    onError: (error) => toast({ title: "No se pudo registrar el préstamo", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
 export function useInventoryReturn() {
   const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: (data: { loanId: string; returnHasIncident?: boolean; returnIncidentNotes?: string }) => apiRequest("POST", "/api/inventory/return", data),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Devolución registrada", description: "El activo vuelve a estar disponible." });
+    },
+    onError: (error) => toast({ title: "No se pudo registrar la devolución", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
+export function useUpdateInventoryItem(assetCode: string) {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: { name?: string; description?: string | null; categoryId?: string; photoUrl?: string | null; status?: "available" | "maintenance" }) =>
+      apiRequest("PATCH", `/api/inventory/${encodeURIComponent(assetCode)}`, data),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Cambios guardados" });
+    },
+    onError: (error) => toast({ title: "No se pudo guardar", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
+export function useDeleteInventoryItem() {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (assetCode: string) => apiRequest("DELETE", `/api/inventory/${encodeURIComponent(assetCode)}`),
+    onSuccess: (result: { name?: string }) => {
+      invalidate();
+      toast({ title: "Activo eliminado", description: `${result?.name ?? "El activo"} se ha eliminado del inventario.` });
+    },
+    onError: (error) => toast({ title: "No se pudo eliminar", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
