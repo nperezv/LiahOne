@@ -1981,6 +1981,40 @@ export interface InventoryLocation {
   parentId?: string | null;
   description?: string | null;
   hasNfc?: boolean;
+  lastCheckedAt?: string | null;
+}
+
+export interface InventoryLoanRow {
+  id: string;
+  itemId: string;
+  assetCode: string;
+  itemName: string;
+  photoUrl?: string | null;
+  itemQuantity?: number;
+  quantity: number;
+  borrowerName: string;
+  borrowerFirstName?: string | null;
+  borrowerPhone?: string | null;
+  borrowerEmail?: string | null;
+  dateOut: string;
+  expectedReturnDate?: string | null;
+  dateReturn?: string | null;
+  status: string;
+  returnHasIncident?: boolean;
+  returnIncidentNotes?: string | null;
+  requestPdfUrl?: string | null;
+  isOpen: boolean;
+  isOverdue: boolean;
+}
+
+export interface InventoryBorrowerSuggestion {
+  source: "member" | "previous";
+  memberId: string | null;
+  fullName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface InventoryItem {
@@ -1988,9 +2022,14 @@ export interface InventoryItem {
   assetCode: string;
   name: string;
   description?: string | null;
-  status: "available" | "loaned" | "maintenance";
+  status: "available" | "loaned" | "maintenance" | "retired";
   photoUrl?: string | null;
   qrUrl: string;
+  quantity?: number;
+  loanedQuantity?: number;
+  overdueLoans?: number;
+  retiredAt?: string | null;
+  retiredReason?: string | null;
   trackerId?: string | null;
   categoryId: string;
   categoryName?: string | null;
@@ -2007,6 +2046,7 @@ export const INVENTORY_STATUS_LABELS: Record<InventoryItem["status"], string> = 
   available: "Disponible",
   loaned: "Prestado",
   maintenance: "En mantenimiento",
+  retired: "De baja",
 };
 
 /** Mensaje legible para el usuario a partir de un error de la API ("409: Ya existe..." → "Ya existe..."). */
@@ -2028,13 +2068,77 @@ function useInventoryInvalidate() {
     queryClient.invalidateQueries({ queryKey: ["/api/inventory/locations"] });
     queryClient.invalidateQueries({ queryKey: ["/api/inventory/by-nfc"] });
     queryClient.invalidateQueries({ queryKey: ["/api/inventory/loc"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory/loans"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory/history"] });
   };
 }
 
-export function useInventoryItems(search?: string) {
+export function useInventoryItems(search?: string, options?: { includeRetired?: boolean }) {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (options?.includeRetired) params.set("includeRetired", "1");
+  const qs = params.toString();
   return useQuery<InventoryItem[]>({
-    queryKey: ["/api/inventory", search ?? ""],
-    queryFn: async () => apiRequest("GET", `/api/inventory${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+    queryKey: ["/api/inventory", search ?? "", options?.includeRetired ? "with-retired" : ""],
+    queryFn: async () => apiRequest("GET", `/api/inventory${qs ? `?${qs}` : ""}`),
+  });
+}
+
+export function useInventoryLoans(scope: "active" | "overdue" | "all" = "active") {
+  return useQuery<InventoryLoanRow[]>({
+    queryKey: ["/api/inventory/loans", scope],
+    queryFn: async () => apiRequest("GET", `/api/inventory/loans?scope=${scope}`),
+  });
+}
+
+export function useInventoryBorrowerSearch(q: string) {
+  const term = q.trim();
+  return useQuery<InventoryBorrowerSuggestion[]>({
+    queryKey: ["/api/inventory/borrowers", term],
+    enabled: term.length >= 2,
+    staleTime: 30_000,
+    queryFn: async () => apiRequest("GET", `/api/inventory/borrowers?q=${encodeURIComponent(term)}`),
+  });
+}
+
+export function useRetireInventoryItem(assetCode: string) {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (reason: string) => apiRequest("POST", `/api/inventory/${encodeURIComponent(assetCode)}/retire`, { reason }),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Activo dado de baja", description: "Ya no aparece en el inventario activo. Puedes reactivarlo desde su ficha." });
+    },
+    onError: (error) => toast({ title: "No se pudo dar de baja", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
+export function useRestoreInventoryItem(assetCode: string) {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: () => apiRequest("POST", `/api/inventory/${encodeURIComponent(assetCode)}/restore`),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Activo reactivado" });
+    },
+    onError: (error) => toast({ title: "No se pudo reactivar", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
+export function useCheckInventoryLocation(locationCode: string) {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (foundItemIds: string[]) =>
+      apiRequest("POST", `/api/inventory/locations/${encodeURIComponent(locationCode)}/check`, { foundItemIds }) as Promise<{
+        found: number;
+        expected: number;
+        missing: Array<{ id: string; assetCode: string; name: string }>;
+      }>,
+    onSuccess: () => invalidate(),
+    onError: (error) => toast({ title: "No se pudo guardar la revisión", description: inventoryErrorMessage(error), variant: "destructive" }),
   });
 }
 
@@ -2223,7 +2327,7 @@ export function useUpdateInventoryItem(assetCode: string) {
   const invalidate = useInventoryInvalidate();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: (data: { name?: string; description?: string | null; categoryId?: string; photoUrl?: string | null; status?: "available" | "maintenance" }) =>
+    mutationFn: (data: { name?: string; description?: string | null; categoryId?: string; photoUrl?: string | null; status?: "available" | "maintenance"; quantity?: number }) =>
       apiRequest("PATCH", `/api/inventory/${encodeURIComponent(assetCode)}`, data),
     onSuccess: () => {
       invalidate();
