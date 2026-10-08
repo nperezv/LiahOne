@@ -199,7 +199,7 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "archivada",
 ]);
 
-export const agendaEventSourceEnum = pgEnum("agenda_event_source", ["manual", "activity", "interview"]);
+export const agendaEventSourceEnum = pgEnum("agenda_event_source", ["manual", "activity", "interview", "organization_interview"]);
 
 export const agendaTaskPriorityEnum = pgEnum("agenda_task_priority", ["P1", "P2", "P3", "P4"]);
 
