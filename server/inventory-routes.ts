@@ -515,6 +515,77 @@ export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHan
     res.status(201).json(created);
   });
 
+  // Eliminar un armario/ubicación (solo obispo y consejeros).
+  // - Los activos que tenga dentro se mueven al armario que se elija (o quedan "sin armario").
+  // - Sus sub-ubicaciones (estantes) pasan a depender del armario superior.
+  // - Su etiqueta NFC queda libre para reutilizarla.
+  // - El historial de movimientos se conserva, anotando el nombre del armario eliminado.
+  app.delete("/api/inventory/locations/:locationCode", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) throw new HttpError(401, "Tu sesión ha caducado");
+    const { moveItemsTo } = z
+      .object({ moveItemsTo: z.string().optional().nullable() })
+      .parse(req.body ?? {});
+
+    const result = await db.transaction(async (tx) => {
+      const [location] = await tx.select().from(inventoryLocations).where(eq(inventoryLocations.code, req.params.locationCode)).limit(1);
+      if (!location) throw new HttpError(404, "Ese armario no existe o ya se eliminó");
+
+      let targetId: string | null = null;
+      if (moveItemsTo && moveItemsTo !== "none") {
+        if (moveItemsTo === location.id) throw new HttpError(400, "No puedes mover los activos al mismo armario que vas a eliminar");
+        const [target] = await tx.select().from(inventoryLocations).where(eq(inventoryLocations.id, moveItemsTo)).limit(1);
+        if (!target) throw new HttpError(400, "El armario de destino no existe");
+        if (target.parentId === location.id) {
+          throw new HttpError(400, "El destino es un estante de este mismo armario; elige otro armario");
+        }
+        targetId = target.id;
+      }
+
+      const label = `${location.name} (${location.code})`;
+
+      // 1. Sacar los activos que tenga dentro.
+      const items = await tx.select({ id: inventoryItems.id }).from(inventoryItems).where(eq(inventoryItems.locationId, location.id));
+      if (items.length) {
+        await tx.update(inventoryItems).set({ locationId: targetId, updatedAt: new Date() }).where(eq(inventoryItems.locationId, location.id));
+      }
+
+      // 2. Conservar el historial: quitar la referencia al armario pero dejarlo escrito en la nota.
+      await tx.execute(sql`
+        UPDATE inventory_movements
+        SET note = TRIM(BOTH ' ' FROM COALESCE(note, '') || ' [Armario eliminado: ' || ${label} || ']'),
+            from_location = CASE WHEN from_location = ${location.id} THEN NULL ELSE from_location END,
+            to_location = CASE WHEN to_location = ${location.id} THEN NULL ELSE to_location END
+        WHERE from_location = ${location.id} OR to_location = ${location.id}
+      `);
+
+      // 3. Registrar el traslado de cada activo en el historial.
+      if (items.length) {
+        await tx.insert(inventoryMovements).values(
+          items.map((item) => ({
+            itemId: item.id,
+            fromLocation: null,
+            toLocation: targetId,
+            userId,
+            note: `Traslado automático al eliminar ${label}`,
+          })),
+        );
+      }
+
+      // 4. Los estantes de dentro suben un nivel.
+      await tx.update(inventoryLocations).set({ parentId: location.parentId ?? null }).where(eq(inventoryLocations.parentId, location.id));
+
+      // 5. Liberar la etiqueta NFC y borrar el armario.
+      await tx.delete(inventoryNfcLinks).where(and(eq(inventoryNfcLinks.targetType, "location"), eq(inventoryNfcLinks.targetId, location.id)));
+      await tx.delete(inventoryLocations).where(eq(inventoryLocations.id, location.id));
+
+      return { code: location.code, name: location.name, movedItems: items.length };
+    });
+
+    auditLog(req, "delete_location", result);
+    res.json({ ok: true, ...result });
+  });
+
   app.get("/api/inventory/history", requireAuth, requireRead, async (_req, res) => {
     const movements = await db
       .select({
