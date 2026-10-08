@@ -5,7 +5,7 @@ import { ChevronRight, Printer, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useInventoryLocationDetail, useRegisterLocationNfc } from "@/hooks/use-api";
+import { useInventoryLocationDetail, useRegisterLocationNfc, INVENTORY_STATUS_LABELS } from "@/hooks/use-api";
 
 export default function InventoryLocationDetailPage() {
   const { locationCode } = useParams<{ locationCode: string }>();
@@ -45,7 +45,7 @@ export default function InventoryLocationDetailPage() {
                   <Link key={item.id} href={`/inventory/${item.assetCode}`}>
                     <div className="cursor-pointer rounded-xl border p-2 text-sm transition-colors hover:bg-muted/60">
                       <p className="font-medium">{item.assetCode} · {item.name}</p>
-                      <p className="text-xs text-muted-foreground">Estado: {item.status}</p>
+                      <p className="text-xs text-muted-foreground">Estado: {INVENTORY_STATUS_LABELS[item.status as keyof typeof INVENTORY_STATUS_LABELS] ?? item.status}</p>
                     </div>
                   </Link>
                 ))}
@@ -82,7 +82,7 @@ export default function InventoryLocationDetailPage() {
             Asocia una etiqueta NFC a esta ubicación para movimientos por doble toque.
           </div>
           <Input className="h-12 rounded-2xl" placeholder="UID NFC" value={uid} onChange={(event) => setUid(event.target.value)} />
-          <Button className="h-12 w-full rounded-2xl" onClick={() => registerNfc.mutate({ location_code: data.location.code, nfc_uid: uid })}><Wifi className="mr-2 h-4 w-4" />Registrar NFC</Button>
+          <Button className="h-12 w-full rounded-2xl" disabled={uid.trim().length < 4 || registerNfc.isPending} onClick={() => registerNfc.mutate({ location_code: data.location.code, nfc_uid: uid.trim().toUpperCase() }, { onSuccess: () => setUid("") })}><Wifi className="mr-2 h-4 w-4" />Registrar NFC</Button>
         </CardContent>
       </Card>
     </div>

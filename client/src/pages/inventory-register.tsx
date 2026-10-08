@@ -5,14 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link } from "wouter";
 import {
+  inventoryErrorMessage,
   useCreateInventoryItem,
+  useCreateInventoryItemWithNfc,
   useCreateInventoryLocation,
+  useCreateInventoryLocationWithNfc,
   useInventoryByNfc,
   useInventoryCategories,
   useInventoryLocations,
-  useRegisterItemNfc,
-  useRegisterLocationNfc,
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
 import { NfcScanRing } from "@/components/inventory/inventory-hub-widgets";
@@ -23,9 +25,12 @@ export default function InventoryRegisterHubPage() {
   const { data: locations = [] } = useInventoryLocations();
 
   const createItem = useCreateInventoryItem();
+  const createItemWithNfc = useCreateInventoryItemWithNfc();
   const createLocation = useCreateInventoryLocation();
-  const registerItemNfc = useRegisterItemNfc();
-  const registerLocationNfc = useRegisterLocationNfc();
+  const createLocationWithNfc = useCreateInventoryLocationWithNfc();
+  // Último error visible en pantalla (además del aviso emergente), para que se pueda leer con calma.
+  const [formError, setFormError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const [assetUid, setAssetUid] = useState("");
   const [assetName, setAssetName] = useState("");
@@ -113,15 +118,22 @@ export default function InventoryRegisterHubPage() {
 
   const handleCreateAssetByNfc = async () => {
     if (!assetUid || !assetName.trim() || !assetCategoryId || assetInUse) return;
-    const created = await createItem.mutateAsync({
-      name: assetName.trim(),
-      description: assetDescription.trim() || undefined,
-      photoUrl: assetPhotoUrl.trim() || undefined,
-      categoryId: assetCategoryId,
-      locationId: assetLocationId || undefined,
-      status: "available",
-    });
-    await registerItemNfc.mutateAsync({ asset_code: created.assetCode, nfc_uid: assetUid });
+    setFormError(null);
+    let created: any;
+    try {
+      created = await createItemWithNfc.mutateAsync({
+        name: assetName.trim(),
+        description: assetDescription.trim() || undefined,
+        photoUrl: assetPhotoUrl.trim() || undefined,
+        categoryId: assetCategoryId,
+        locationId: assetLocationId || undefined,
+        status: "available",
+        nfc_uid: assetUid,
+      });
+    } catch (error) {
+      setFormError(inventoryErrorMessage(error));
+      return;
+    }
     setCreatedAssetCode(created.assetCode);
     setAssetUid("");
     setAssetUidLocked(false);
@@ -135,14 +147,21 @@ export default function InventoryRegisterHubPage() {
 
   const handleCreateAssetByQr = async () => {
     if (!assetQrName.trim() || !assetQrCategoryId) return;
-    const created = await createItem.mutateAsync({
-      name: assetQrName.trim(),
-      description: assetQrDescription.trim() || undefined,
-      photoUrl: assetQrPhotoUrl.trim() || undefined,
-      categoryId: assetQrCategoryId,
-      locationId: assetQrLocationId || undefined,
-      status: "available",
-    });
+    setFormError(null);
+    let created: any;
+    try {
+      created = await createItem.mutateAsync({
+        name: assetQrName.trim(),
+        description: assetQrDescription.trim() || undefined,
+        photoUrl: assetQrPhotoUrl.trim() || undefined,
+        categoryId: assetQrCategoryId,
+        locationId: assetQrLocationId || undefined,
+        status: "available",
+      });
+    } catch (error) {
+      setFormError(inventoryErrorMessage(error));
+      return;
+    }
     setCreatedAssetCodeByQr(created.assetCode);
     setAssetQrName("");
     setAssetQrCategoryId("");
@@ -153,11 +172,18 @@ export default function InventoryRegisterHubPage() {
 
   const handleCreateLocationByNfc = async () => {
     if (!locationUid || !locationName.trim() || locationInUse) return;
-    const created = await createLocation.mutateAsync({
-      name: locationName.trim(),
-      parentId: locationParentId === "none" ? undefined : locationParentId,
-    });
-    await registerLocationNfc.mutateAsync({ location_code: created.code, nfc_uid: locationUid });
+    setFormError(null);
+    let created: any;
+    try {
+      created = await createLocationWithNfc.mutateAsync({
+        name: locationName.trim(),
+        parentId: locationParentId === "none" ? undefined : locationParentId,
+        nfc_uid: locationUid,
+      });
+    } catch (error) {
+      setFormError(inventoryErrorMessage(error));
+      return;
+    }
     setCreatedLocationCode(created.code);
     setLocationUid("");
     setLocationUidLocked(false);
@@ -168,10 +194,17 @@ export default function InventoryRegisterHubPage() {
 
   const handleCreateLocationByQr = async () => {
     if (!locationQrName.trim()) return;
-    const created = await createLocation.mutateAsync({
-      name: locationQrName.trim(),
-      parentId: locationQrParentId === "none" ? undefined : locationQrParentId,
-    });
+    setFormError(null);
+    let created: any;
+    try {
+      created = await createLocation.mutateAsync({
+        name: locationQrName.trim(),
+        parentId: locationQrParentId === "none" ? undefined : locationQrParentId,
+      });
+    } catch (error) {
+      setFormError(inventoryErrorMessage(error));
+      return;
+    }
     setCreatedLocationCodeByQr(created.code);
     setLocationQrName("");
     setLocationQrParentId("none");
@@ -188,7 +221,7 @@ export default function InventoryRegisterHubPage() {
     });
 
     if (!response.ok) {
-      throw new Error("No se pudo subir la imagen");
+      throw new Error(`No se pudo subir la foto (código ${response.status}). Prueba con una imagen más pequeña.`);
     }
 
     const uploaded = await response.json();
@@ -197,6 +230,7 @@ export default function InventoryRegisterHubPage() {
 
   const handleAssetPhotoFile = async (file: File | null, mode: "nfc" | "qr") => {
     if (!file) return;
+    setPhotoError(null);
     try {
       if (mode === "nfc") setAssetPhotoUploading(true);
       else setAssetQrPhotoUploading(true);
@@ -204,8 +238,8 @@ export default function InventoryRegisterHubPage() {
       const url = await uploadImageToServer(file);
       if (mode === "nfc") setAssetPhotoUrl(url);
       else setAssetQrPhotoUrl(url);
-    } catch {
-      // keep silent to avoid introducing new toast dependency here
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "No se pudo subir la foto.");
     } finally {
       if (mode === "nfc") setAssetPhotoUploading(false);
       else setAssetQrPhotoUploading(false);
@@ -215,6 +249,16 @@ export default function InventoryRegisterHubPage() {
   return (
     <div className="space-y-4 p-4 md:p-8">
       <InventoryPageHeader subtitle="Registro de activos y armarios" />
+
+      {formError || photoError ? (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div>
+            <p className="font-semibold">No se pudo guardar</p>
+            <p className="mt-0.5">{formError ?? photoError}</p>
+          </div>
+          <button type="button" className="text-xs underline" onClick={() => { setFormError(null); setPhotoError(null); }}>Cerrar</button>
+        </div>
+      ) : null}
 
       <Tabs defaultValue="assets" className="space-y-4">
         <TabsList className="grid h-auto grid-cols-2 rounded-2xl bg-muted/60 p-1">
@@ -250,7 +294,7 @@ export default function InventoryRegisterHubPage() {
                         <div className="md:col-span-2">
                           <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
                             {assetPhotoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                            {assetPhotoUploading ? "Subiendo foto..." : "Subir foto desde galería"}
+                            {assetPhotoUploading ? "Subiendo foto..." : assetPhotoUrl ? "Foto añadida ✓ (cambiar)" : "Hacer o subir foto"}
                             <input
                               type="file"
                               accept="image/*"
@@ -261,12 +305,12 @@ export default function InventoryRegisterHubPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button className="h-12 flex-1 rounded-2xl" disabled={!assetUid || assetInUse || !assetName.trim() || !assetCategoryId || createItem.isPending || registerItemNfc.isPending} onClick={handleCreateAssetByNfc}><ScanLine className="mr-2 h-4 w-4" />Crear activo</Button>
+                        <Button className="h-12 flex-1 rounded-2xl" disabled={!assetUid || assetInUse || !assetName.trim() || !assetCategoryId || createItemWithNfc.isPending || assetPhotoUploading} onClick={handleCreateAssetByNfc}>{createItemWithNfc.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}{createItemWithNfc.isPending ? "Guardando..." : "Crear activo"}</Button>
                         <Button className="h-12 rounded-2xl" variant="outline" disabled={!assetUid} onClick={clearAssetNfcForm}><Eraser className="mr-2 h-4 w-4" />Reset</Button>
                       </div>
                     </>
                   ) : null}
-                  {createdAssetCode && <p className="text-sm text-emerald-700">Activo creado: <b>{createdAssetCode}</b>.</p>}
+                  {createdAssetCode && <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">Activo creado: <b>{createdAssetCode}</b>. <Link href={`/inventory/${createdAssetCode}`} className="underline">Ver ficha</Link></div>}
                 </TabsContent>
 
                 <TabsContent value="asset-qr" className="space-y-4">
@@ -278,7 +322,7 @@ export default function InventoryRegisterHubPage() {
                     <div className="md:col-span-2">
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
                         {assetQrPhotoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        {assetQrPhotoUploading ? "Subiendo foto..." : "Subir foto desde galería"}
+                        {assetQrPhotoUploading ? "Subiendo foto..." : assetQrPhotoUrl ? "Foto añadida ✓ (cambiar)" : "Hacer o subir foto"}
                         <input
                           type="file"
                           accept="image/*"
@@ -319,7 +363,7 @@ export default function InventoryRegisterHubPage() {
                       <Input className="h-11 rounded-xl" placeholder="Nombre ubicación" value={locationName} onChange={(e) => setLocationName(e.target.value)} />
                       <Select value={locationParentId} onValueChange={setLocationParentId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación padre (opcional)" /></SelectTrigger><SelectContent><SelectItem value="none">Sin padre (raíz)</SelectItem>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
                       <div className="flex gap-2">
-                        <Button className="h-11 flex-1 rounded-xl" disabled={!locationUid || locationInUse || !locationName.trim() || createLocation.isPending || registerLocationNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Alta armario</Button>
+                        <Button className="h-11 flex-1 rounded-xl" disabled={!locationUid || locationInUse || !locationName.trim() || createLocationWithNfc.isPending} onClick={handleCreateLocationByNfc}><FolderTree className="mr-2 h-4 w-4" />Alta armario</Button>
                         <Button className="h-11 rounded-xl" variant="outline" disabled={!locationUid} onClick={clearLocationNfcForm}><Eraser className="mr-2 h-4 w-4" />Reset</Button>
                       </div>
                     </>

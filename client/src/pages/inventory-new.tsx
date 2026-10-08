@@ -45,8 +45,12 @@ export default function InventoryNewPage() {
   });
 
   const onSubmit = async (values: z.infer<typeof schema>) => {
-    const created = await createItem.mutateAsync(values);
-    navigate(`/inventory/${created.assetCode}`);
+    try {
+      const created = await createItem.mutateAsync(values);
+      navigate(`/inventory/${created.assetCode}`);
+    } catch {
+      // El aviso con el motivo real ya lo muestra el hook (useCreateInventoryItem).
+    }
   };
 
   return (

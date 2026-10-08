@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useInventoryItem } from "@/hooks/use-api";
+import { useInventoryItem, INVENTORY_STATUS_LABELS } from "@/hooks/use-api";
 
 export default function InventoryPublicPage() {
   const { assetCode } = useParams<{ assetCode: string }>();
@@ -11,7 +11,7 @@ export default function InventoryPublicPage() {
     <div className="mx-auto max-w-md space-y-3 p-6">
       <h1 className="text-2xl font-bold">{data.item.assetCode}</h1>
       <p className="text-lg">{data.item.name}</p>
-      <p className="text-muted-foreground">Estado: {data.item.status}</p>
+      <p className="text-muted-foreground">Estado: {INVENTORY_STATUS_LABELS[data.item.status as keyof typeof INVENTORY_STATUS_LABELS] ?? data.item.status}</p>
     </div>
   );
 }

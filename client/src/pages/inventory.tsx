@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
-import { Boxes, History, QrCode, ScanLine, ShieldCheck } from "lucide-react";
+import { Box, Boxes, History, QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GaugeSegment, InventoryGauge } from "@/components/inventory/inventory-hub-widgets";
 import { useInventoryCategories, useInventoryItems } from "@/hooks/use-api";
@@ -60,7 +60,8 @@ export default function InventoryPage() {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><Boxes className="mr-2 h-4 w-4" />Inventario</Button></Link>
+        <Link href="/inventory/map" className="sm:col-span-2"><Button variant="outline" className="h-12 w-full rounded-2xl border-primary/40 bg-primary/5"><Box className="mr-2 h-4 w-4" />Armarios y su contenido</Button></Link>
+        <Link href="/inventory/list"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><Boxes className="mr-2 h-4 w-4" />Listado de activos</Button></Link>
         <Link href="/inventory/scan"><Button className="h-12 w-full rounded-2xl shadow-[0_8px_24px_rgba(124,58,237,0.35)]"><ScanLine className="mr-2 h-4 w-4" />Escanear</Button></Link>
         <Link href="/inventory/register"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><QrCode className="mr-2 h-4 w-4" />Registro</Button></Link>
         <Link href="/inventory/audit"><Button variant="outline" className="h-12 w-full rounded-2xl border-border/70 bg-background/50"><ShieldCheck className="mr-2 h-4 w-4" />Auditoría</Button></Link>

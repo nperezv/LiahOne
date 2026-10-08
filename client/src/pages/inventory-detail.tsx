@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useInventoryItem, useInventoryLocations, useMoveInventoryItem } from "@/hooks/use-api";
+import { useInventoryItem, useInventoryLocations, useMoveInventoryItem, INVENTORY_STATUS_LABELS } from "@/hooks/use-api";
 
 export default function InventoryDetailPage() {
   const { assetCode } = useParams<{ assetCode: string }>();
@@ -28,7 +28,7 @@ export default function InventoryDetailPage() {
       <Card>
         <CardHeader><CardTitle>{data.item.assetCode} · {data.item.name}</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <p>Estado: <strong>{data.item.status}</strong></p>
+          <p>Estado: <strong>{INVENTORY_STATUS_LABELS[data.item.status as keyof typeof INVENTORY_STATUS_LABELS] ?? data.item.status}</strong></p>
           <p>Ubicación: <strong>{data.item.locationName ?? "Sin ubicación"}</strong></p>
           <a className="text-sm text-primary underline" href={data.item.qrUrl} target="_blank">Ver QR</a>
           <div className="pt-2">
