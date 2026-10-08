@@ -61,6 +61,7 @@ const InventoryPublicPage = lazy(() => import("@/pages/inventory-public"));
 const InventoryLocationsPage = lazy(() => import("@/pages/inventory-locations"));
 const InventoryLocationDetailPage = lazy(() => import("@/pages/inventory-location-detail"));
 const InventoryHistoryPage = lazy(() => import("@/pages/inventory-history"));
+const InventoryOverviewPage = lazy(() => import("@/pages/inventory-overview"));
 const MissionWorkPage = lazy(() => import("@/pages/mission-work"));
 const BaptismPublicPage = lazy(() => import("@/pages/baptism-public"));
 const BaptismLobbyPage  = lazy(() => import("@/pages/baptism-lobby"));
@@ -199,6 +200,9 @@ function ProtectedRoutes() {
         </Route>
         <Route path="/inventory/history">
           <InventoryHistoryPage />
+        </Route>
+        <Route path="/inventory/map">
+          <InventoryOverviewPage />
         </Route>
         <Route path="/inventory/locations">
           <InventoryLocationsPage />
