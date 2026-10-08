@@ -2091,6 +2091,21 @@ export function useCreateInventoryLocationWithNfc() {
   });
 }
 
+export function useDeleteInventoryLocation() {
+  const invalidate = useInventoryInvalidate();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: { code: string; moveItemsTo?: string | null }) =>
+      apiRequest("DELETE", `/api/inventory/locations/${encodeURIComponent(data.code)}`, { moveItemsTo: data.moveItemsTo ?? null }),
+    onSuccess: (result: { name?: string; movedItems?: number }) => {
+      invalidate();
+      const moved = result?.movedItems ? ` Se movieron ${result.movedItems} activo(s).` : "";
+      toast({ title: "Armario eliminado", description: `${result?.name ?? "El armario"} se ha eliminado.${moved}` });
+    },
+    onError: (error) => toast({ title: "No se pudo eliminar el armario", description: inventoryErrorMessage(error), variant: "destructive" }),
+  });
+}
+
 export function useCreateInventoryItem() {
   const invalidate = useInventoryInvalidate();
   const { toast } = useToast();
