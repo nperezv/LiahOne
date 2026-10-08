@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { applyHymnStartupMigrations } from "./startup-hymn-migrations";
 import { applyInventoryStartupMigrations } from "./startup-inventory-migrations";
+import { applyAgendaStartupMigrations } from "./startup-agenda-migrations";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -1091,6 +1092,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Auto-migration: alinear las tablas de inventario antiguas (0037) con el esquema actual
   await applyInventoryStartupMigrations();
+
+  // Auto-migration: la agenda admite entrevistas de organización
+  await applyAgendaStartupMigrations();
 
   // Auto-migration: quarterly_plans and quarterly_plan_items tables
   await db.execute(sql`
@@ -7591,55 +7595,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   };
 
+  // ── Sincronización de la agenda con entrevistas y actividades ───────────────
+  // Corregido (oct. 2026):
+  //  - Entrevistas: se muestran las que la persona HACE (interviewer_id) y las que le hacen
+  //    (assigned_to_id). Antes solo se miraba assigned_to_id (el entrevistado) y el obispado
+  //    veía todas las del barrio mezcladas. El secretario ejecutivo, que gestiona las citas,
+  //    sigue viéndolas todas.
+  //  - Se añaden las entrevistas de organización (antes nunca llegaban a la agenda).
+  //  - Las horas se calculan en la zona horaria del barrio (el servidor corre en UTC y las
+  //    citas salían 1-2 horas antes).
+  //  - Se borran de la agenda las actividades/entrevistas eliminadas, canceladas o que ya no
+  //    corresponden a la persona.
+  //  - Solo se escribe en la base de datos lo que ha cambiado (antes se reescribía todo en
+  //    cada apertura de la agenda).
+  const AGENDA_SYNC_SOURCES = ["activity", "interview", "organization_interview"] as const;
+  const AGENDA_SYNC_WINDOW_DAYS = 30;
+
+  const resolveAgendaTimezone = async (userId: string) => {
+    const fallback = process.env.APP_TIMEZONE || "Europe/Madrid";
+    const availability = await storage.getAvailabilityByUser(userId).catch(() => undefined);
+    const tz = (availability as any)?.timezone;
+    if (!tz || tz === "UTC") return fallback;
+    try {
+      new Intl.DateTimeFormat("es-ES", { timeZone: tz });
+      return tz as string;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const localDateTimeParts = (value: Date, timeZone: string) => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(value);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+    return { date: `${get("year")}-${get("month")}-${get("day")}`, time: `${get("hour")}:${get("minute")}` };
+  };
+
   const syncSourceEventsForUser = async (user: any) => {
-    const isObispado = user.role === "obispo" || user.role === "consejero_obispo" || user.role === "secretario_ejecutivo";
-    const [activities, interviews] = await Promise.all([storage.getAllActivities(), storage.getAllInterviews()]);
+    const timeZone = await resolveAgendaTimezone(user.id);
+    const windowStart = new Date(Date.now() - AGENDA_SYNC_WINDOW_DAYS * 24 * 60 * 60_000);
+    const windowStartDate = localDateTimeParts(windowStart, timeZone).date;
+    const seesAllInterviews = user.role === "secretario_ejecutivo";
 
+    const [activities, wardInterviews, orgInterviews, allUsers, existingEvents] = await Promise.all([
+      storage.getAllActivities(),
+      storage.getAllInterviews(),
+      db
+        .select({
+          id: organizationInterviews.id,
+          date: organizationInterviews.date,
+          personName: organizationInterviews.personName,
+          interviewerId: organizationInterviews.interviewerId,
+          status: organizationInterviews.status,
+          type: organizationInterviews.type,
+          confidential: organizationInterviews.confidential,
+        })
+        .from(organizationInterviews)
+        .where(and(eq(organizationInterviews.interviewerId, user.id), eq(organizationInterviews.status, "programada"))),
+      storage.getAllUsers(),
+      db
+        .select()
+        .from(agendaEvents)
+        .where(and(eq(agendaEvents.userId, user.id), inArray(agendaEvents.sourceType, AGENDA_SYNC_SOURCES as unknown as any[]))),
+    ]);
+    const userName = new Map(allUsers.map((u: any) => [u.id, shortNameFromString(u.displayName || u.name || "")]));
+
+    type Desired = {
+      title: string;
+      description: string | null;
+      date: string;
+      startTime: string;
+      endTime: string;
+      location: string | null;
+      sourceType: (typeof AGENDA_SYNC_SOURCES)[number];
+      sourceId: string;
+    };
+    const desired: Desired[] = [];
+    const build = (when: Date, minutes: number) => {
+      const start = localDateTimeParts(when, timeZone);
+      const end = localDateTimeParts(new Date(when.getTime() + minutes * 60_000), timeZone);
+      return { date: start.date, startTime: start.time, endTime: end.date === start.date ? end.time : "23:59" };
+    };
+
+    // Actividades (las presidencias ven las de su organización y las generales)
     const visibleActivities = ["presidente_organizacion", "secretario_organizacion", "consejero_organizacion"].includes(user.role)
-      ? activities.filter((a) => a && (!a.organizationId || a.organizationId === user.organizationId))
+      ? activities.filter((a: any) => a && (!a.organizationId || a.organizationId === user.organizationId))
       : activities;
-    const allVisibleInterviews = isObispado ? interviews : interviews.filter((i) => i && i.assignedToId === user.id);
-    const activeInterviews = allVisibleInterviews.filter((i) => i && i.status === "programada");
-    const inactiveInterviews = allVisibleInterviews.filter((i) => i && i.status !== "programada");
-
-    for (const activity of visibleActivities) {
+    for (const activity of visibleActivities as any[]) {
       const when = new Date(activity.date);
-      await storage.upsertAgendaEvent({
-        userId: user.id,
+      if (Number.isNaN(when.getTime()) || when < windowStart) continue;
+      desired.push({
         title: activity.title,
         description: activity.description ?? null,
-        date: when.toISOString().slice(0, 10),
-        startTime: `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
-        endTime: `${String((when.getHours() + 2) % 24).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
+        ...build(when, 120),
         location: activity.location ?? null,
         sourceType: "activity",
         sourceId: activity.id,
       });
     }
 
-    // Only sync scheduled interviews; remove agenda events for completed/archived/cancelled ones
-    for (const interview of activeInterviews) {
+    // Entrevistas del barrio
+    for (const interview of wardInterviews as any[]) {
+      if (!interview || interview.status !== "programada") continue;
+      const iDoIt = interview.interviewerId === user.id;
+      const theyInterviewMe = interview.assignedToId === user.id;
+      if (!iDoIt && !theyInterviewMe && !seesAllInterviews) continue;
       const when = new Date(interview.date);
-      await storage.upsertAgendaEvent({
-        userId: user.id,
-        title: `Entrevista con ${shortNameFromString(interview.personName)}`,
-        description: interview.notes ?? null,
-        date: when.toISOString().slice(0, 10),
-        startTime: `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
-        endTime: `${String((when.getHours() + 1) % 24).padStart(2, "0")}:${String(when.getMinutes()).padStart(2, "0")}`,
+      if (Number.isNaN(when.getTime()) || when < windowStart) continue;
+      const interviewer = userName.get(interview.interviewerId) || "el obispado";
+      desired.push({
+        title: iDoIt || (seesAllInterviews && !theyInterviewMe)
+          ? `Entrevista con ${shortNameFromString(interview.personName)}${!iDoIt ? ` (${interviewer})` : ""}`
+          : `Te entrevista ${interviewer}`,
+        description: iDoIt ? interview.notes ?? null : interview.type ?? null,
+        ...build(when, 30),
         location: "Oficina",
         sourceType: "interview",
         sourceId: interview.id,
       });
     }
 
-    for (const interview of inactiveInterviews) {
-      const existing = await db
-        .select({ id: agendaEvents.id })
-        .from(agendaEvents)
-        .where(and(eq(agendaEvents.userId, user.id), eq(agendaEvents.sourceType, "interview"), eq(agendaEvents.sourceId, interview.id)))
-        .limit(1);
-      if (existing[0]) await storage.deleteAgendaEvent(existing[0].id);
+    // Entrevistas de organización que hace esta persona
+    for (const interview of orgInterviews) {
+      const when = new Date(interview.date as any);
+      if (Number.isNaN(when.getTime()) || when < windowStart) continue;
+      desired.push({
+        title: `Entrevista con ${shortNameFromString(interview.personName)}`,
+        description: interview.confidential ? "Entrevista confidencial" : null,
+        ...build(when, 30),
+        location: null,
+        sourceType: "organization_interview",
+        sourceId: interview.id,
+      });
+    }
+
+    // Guardar solo lo que cambia
+    const existingByKey = new Map(existingEvents.map((e: any) => [`${e.sourceType}:${e.sourceId}`, e]));
+    const desiredKeys = new Set<string>();
+    for (const d of desired) {
+      const key = `${d.sourceType}:${d.sourceId}`;
+      desiredKeys.add(key);
+      const current: any = existingByKey.get(key);
+      const changed =
+        !current ||
+        current.title !== d.title ||
+        (current.description ?? null) !== d.description ||
+        String(current.date) !== d.date ||
+        (current.startTime ?? null) !== d.startTime ||
+        (current.endTime ?? null) !== d.endTime ||
+        (current.location ?? null) !== d.location;
+      if (changed) {
+        await storage.upsertAgendaEvent({ userId: user.id, ...d } as any);
+      }
+    }
+
+    // Quitar lo que ya no corresponde (borrado, cancelado, completado, reasignado...)
+    // Lo anterior a la ventana se deja como historial.
+    for (const event of existingEvents as any[]) {
+      const key = `${event.sourceType}:${event.sourceId}`;
+      if (desiredKeys.has(key)) continue;
+      if (String(event.date) < windowStartDate) continue;
+      await storage.deleteAgendaEvent(event.id);
     }
   };
 
