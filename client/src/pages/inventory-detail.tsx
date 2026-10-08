@@ -42,7 +42,7 @@ import { InventoryPageHeader } from "@/components/inventory/inventory-page-heade
 import { InventoryLoanDialog, InventoryReturnDialog } from "@/components/inventory/inventory-loan-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { assetPublicUrl, itemLabelPdf, loanReminderText, qrDataUrl, uploadInventoryPhoto, whatsappLink } from "@/lib/inventory-files";
+import { assetPublicUrl, itemLabelPdf, loanReminderText, renderInventoryLabelPng, uploadInventoryPhoto, whatsappLink } from "@/lib/inventory-files";
 import {
   INVENTORY_STATUS_LABELS,
   useDeleteInventoryItem,
@@ -118,7 +118,9 @@ export default function InventoryDetailPage() {
 
   useEffect(() => {
     if (!qrOpen || !item) return;
-    qrDataUrl(assetPublicUrl(item.assetCode)).then(setQrImage).catch(() => setQrImage(""));
+    renderInventoryLabelPng({ code: item.assetCode, title: item.name, url: assetPublicUrl(item.assetCode) })
+      .then(setQrImage)
+      .catch(() => setQrImage(""));
   }, [qrOpen, item]);
 
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Cargando...</div>;
@@ -297,7 +299,7 @@ export default function InventoryDetailPage() {
         )}
         <Button variant="secondary" className="h-11 rounded-xl" disabled={isRetired} onClick={() => setMoveOpen(true)}><MoveRight className="mr-2 h-4 w-4" />Mover</Button>
         <Button variant="secondary" className="h-11 rounded-xl" disabled={isRetired} onClick={openEdit}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
-        <Button variant="outline" className="h-11 rounded-xl" onClick={() => setQrOpen(true)}><QrCode className="mr-2 h-4 w-4" />Ver QR</Button>
+        <Button variant="outline" className="h-11 rounded-xl" onClick={() => setQrOpen(true)}><QrCode className="mr-2 h-4 w-4" />Ver etiqueta</Button>
         <Button variant="outline" className="h-11 rounded-xl" disabled={labelLoading} onClick={() => void doLabel()}>
           {labelLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}Etiqueta
         </Button>
@@ -453,17 +455,22 @@ export default function InventoryDetailPage() {
       </Dialog>
 
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>QR de {item.assetCode}</DialogTitle>
-            <DialogDescription>Al escanearlo se abre esta ficha.</DialogDescription>
+            <DialogTitle>Etiqueta de {item.assetCode}</DialogTitle>
+            <DialogDescription>Al escanear el QR se abre esta ficha.</DialogDescription>
           </DialogHeader>
-          {qrImage ? <img src={qrImage} alt={`QR ${item.assetCode}`} className="mx-auto w-64 rounded-xl bg-white p-2" /> : <Package className="mx-auto h-10 w-10 animate-pulse text-muted-foreground" />}
+          {qrImage ? <img src={qrImage} alt={`Etiqueta ${item.assetCode}`} className="w-full rounded-xl shadow" /> : <Package className="mx-auto h-10 w-10 animate-pulse text-muted-foreground" />}
           <p className="break-all text-center text-xs text-muted-foreground">{assetPublicUrl(item.assetCode)}</p>
           {qrImage ? (
-            <a href={qrImage} download={`qr-${item.assetCode}.png`}>
-              <Button variant="outline" className="w-full rounded-xl"><Download className="mr-2 h-4 w-4" />Descargar imagen</Button>
-            </a>
+            <div className="grid grid-cols-2 gap-2">
+              <a href={qrImage} download={`etiqueta-${item.assetCode}.png`}>
+                <Button variant="outline" className="w-full rounded-xl"><Download className="mr-2 h-4 w-4" />Imagen</Button>
+              </a>
+              <Button variant="outline" className="rounded-xl" disabled={labelLoading} onClick={() => void doLabel()}>
+                <Printer className="mr-2 h-4 w-4" />PDF para imprimir
+              </Button>
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>
