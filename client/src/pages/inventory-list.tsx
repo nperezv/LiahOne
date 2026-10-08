@@ -100,6 +100,7 @@ export default function InventoryListPage() {
             category={categoryNameById.get(item.categoryId)}
             location={item.locationId ? locationNameById.get(item.locationId) : undefined}
             photoUrl={item.photoUrl}
+            status={item.status}
             defaultExpanded={selectedAssetCode === item.assetCode}
           />
         ))}

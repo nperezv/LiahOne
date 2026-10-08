@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { locationLabelPdf } from "@/lib/inventory-files";
+import { useToast } from "@/hooks/use-toast";
 import { useParams } from "wouter";
 import { Link } from "wouter";
 import { ChevronRight, Printer, Wifi } from "lucide-react";
@@ -8,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useInventoryLocationDetail, useRegisterLocationNfc, INVENTORY_STATUS_LABELS } from "@/hooks/use-api";
 
 export default function InventoryLocationDetailPage() {
+  const { toast } = useToast();
   const { locationCode } = useParams<{ locationCode: string }>();
   const { data } = useInventoryLocationDetail(locationCode);
   const registerNfc = useRegisterLocationNfc();
@@ -23,9 +26,7 @@ export default function InventoryLocationDetailPage() {
           <p className="text-sm text-muted-foreground">Código: {data.location.code}</p>
           <p className="text-sm">Ruta: {data.path}</p>
           <div className="grid gap-2 sm:flex">
-            <a className="w-full sm:w-auto" href={`/inventory/location-label/${data.location.code}`} target="_blank" rel="noreferrer">
-              <Button variant="outline" className="h-10 w-full rounded-xl"><Printer className="mr-2 h-4 w-4" />Imprimir etiqueta</Button>
-            </a>
+            <Button variant="outline" className="h-10 w-full rounded-xl sm:w-auto" onClick={() => locationLabelPdf(data.location.code).catch((e) => toast({ title: "No se pudo generar la etiqueta", description: e.message, variant: "destructive" }))}><Printer className="mr-2 h-4 w-4" />Imprimir etiqueta</Button>
             <Link href="/inventory">
               <Button variant="secondary" className="h-10 w-full rounded-xl sm:w-auto"><ChevronRight className="mr-2 h-4 w-4" />Usar como destino</Button>
             </Link>

@@ -17,6 +17,7 @@ import {
   useInventoryLocations,
 } from "@/hooks/use-api";
 import { useNfcScanner } from "@/hooks/use-nfc-scanner";
+import { itemLabelPdf, locationLabelPdf, uploadInventoryPhoto } from "@/lib/inventory-files";
 import { NfcScanRing } from "@/components/inventory/inventory-hub-widgets";
 import { InventoryPageHeader } from "@/components/inventory/inventory-page-header";
 
@@ -210,23 +211,7 @@ export default function InventoryRegisterHubPage() {
     setLocationQrParentId("none");
   };
 
-  const uploadImageToServer = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/api/uploads", {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error(`No se pudo subir la foto (código ${response.status}). Prueba con una imagen más pequeña.`);
-    }
-
-    const uploaded = await response.json();
-    return uploaded?.url as string;
-  };
+  const uploadImageToServer = (file: File) => uploadInventoryPhoto(file);
 
   const handleAssetPhotoFile = async (file: File | null, mode: "nfc" | "qr") => {
     if (!file) return;
@@ -333,7 +318,7 @@ export default function InventoryRegisterHubPage() {
                     </div>
                   </div>
                   <Button className="h-12 rounded-2xl" disabled={!assetQrName.trim() || !assetQrCategoryId || createItem.isPending} onClick={handleCreateAssetByQr}><QrCode className="mr-2 h-4 w-4" />Crear activo (QR)</Button>
-                  {createdAssetCodeByQr && <div className="space-y-2 rounded-2xl border p-3"><p className="text-sm">Activo creado: <b>{createdAssetCodeByQr}</b>.</p><div className="flex flex-wrap gap-2"><a href={`/inventory/qr/${createdAssetCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Ver QR</Button></a><a href={`/inventory/label/${createdAssetCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Etiqueta PDF</Button></a></div></div>}
+                  {createdAssetCodeByQr && <div className="space-y-2 rounded-2xl border p-3"><p className="text-sm">Activo creado: <b>{createdAssetCodeByQr}</b>.</p><div className="flex flex-wrap gap-2"><Link href={`/inventory/${createdAssetCodeByQr}`}><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Ver ficha y QR</Button></Link><Button variant="outline" className="rounded-xl" onClick={() => itemLabelPdf(createdAssetCodeByQr).catch((e) => setFormError(e.message))}><QrCode className="mr-2 h-4 w-4" />Etiqueta PDF</Button></div></div>}
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -375,7 +360,7 @@ export default function InventoryRegisterHubPage() {
                   <Input className="h-11 rounded-xl" placeholder="Nombre armario/ubicación" value={locationQrName} onChange={(e) => setLocationQrName(e.target.value)} />
                   <Select value={locationQrParentId} onValueChange={setLocationQrParentId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación padre (opcional)" /></SelectTrigger><SelectContent><SelectItem value="none">Sin padre (raíz)</SelectItem>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
                   <Button className="h-11 rounded-xl" disabled={!locationQrName.trim() || createLocation.isPending} onClick={handleCreateLocationByQr}><QrCode className="mr-2 h-4 w-4" />Crear ubicación (QR)</Button>
-                  {createdLocationCodeByQr && <div className="space-y-2 rounded-2xl border p-3"><p className="text-sm">Ubicación creada: <b>{createdLocationCodeByQr}</b>.</p><div className="flex flex-wrap gap-2"><a href={`/loc/${createdLocationCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><ArrowRight className="mr-2 h-4 w-4" />Ver ubicación</Button></a><a href={`/inventory/location-label/${createdLocationCodeByQr}`} target="_blank" rel="noreferrer"><Button variant="outline" className="rounded-xl"><QrCode className="mr-2 h-4 w-4" />Etiqueta QR ubicación</Button></a></div></div>}
+                  {createdLocationCodeByQr && <div className="space-y-2 rounded-2xl border p-3"><p className="text-sm">Ubicación creada: <b>{createdLocationCodeByQr}</b>.</p><div className="flex flex-wrap gap-2"><Link href={`/inventory/locations/${createdLocationCodeByQr}`}><Button variant="outline" className="rounded-xl"><ArrowRight className="mr-2 h-4 w-4" />Ver ubicación</Button></Link><Button variant="outline" className="rounded-xl" onClick={() => locationLabelPdf(createdLocationCodeByQr).catch((e) => setFormError(e.message))}><QrCode className="mr-2 h-4 w-4" />Etiqueta QR ubicación</Button></div></div>}
                 </TabsContent>
               </Tabs>
             </CardContent>

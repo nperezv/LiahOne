@@ -112,6 +112,7 @@ export default function InventoryScanPage() {
                   category={detected.categoryName || detected.category_name}
                   location={detected.locationName || detected.location_name || detected.location_code}
                   photoUrl={detected.photoUrl || detected.photo_url}
+                  status={detected.status}
                   defaultExpanded
                 />
 

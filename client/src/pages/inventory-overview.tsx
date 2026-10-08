@@ -1,4 +1,6 @@
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
+import { locationLabelPdf } from "@/lib/inventory-files";
+import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
   AlertTriangle,
@@ -91,6 +93,7 @@ function ItemRow({ item }: { item: InventoryItem }) {
 }
 
 export default function InventoryOverviewPage() {
+  const { toast } = useToast();
   const { data: items = [], isLoading: loadingItems } = useInventoryItems();
   const { data: locations = [], isLoading: loadingLocations } = useInventoryLocations();
   const [search, setSearch] = useState("");
@@ -228,9 +231,9 @@ export default function InventoryOverviewPage() {
                 <Link href={`/inventory/locations/${loc.code}`}>
                   <Button size="sm" variant="outline" className="rounded-xl">Abrir armario</Button>
                 </Link>
-                <a href={`/inventory/location-label/${loc.code}`} target="_blank" rel="noreferrer">
-                  <Button size="sm" variant="ghost" className="rounded-xl"><Printer className="mr-1 h-3.5 w-3.5" />Etiqueta</Button>
-                </a>
+                <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => locationLabelPdf(loc.code).catch((e) => toast({ title: "No se pudo generar la etiqueta", description: e.message, variant: "destructive" }))}>
+                  <Printer className="mr-1 h-3.5 w-3.5" />Etiqueta
+                </Button>
                 {canDelete ? (
                   <Button
                     size="sm"
