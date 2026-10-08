@@ -1,8 +1,8 @@
-import type { Express, Request, RequestHandler } from "express";
+import type { Express, NextFunction, Request, RequestHandler, Response } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { z } from "zod";
 import { db } from "./db";
@@ -88,6 +88,66 @@ function requireAdmin(req: Request, res: any, next: any) {
   next();
 }
 
+class HttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+// Convierte cualquier fallo en una respuesta JSON con un mensaje claro.
+// Antes, un error dentro de una ruta async (Express 4) no se capturaba:
+// la petición se quedaba colgada o el proceso se caía, y el móvil solo
+// mostraba "No se pudo crear el item" sin ningún motivo.
+function sendInventoryError(err: any, res: Response, next: NextFunction) {
+  if (res.headersSent) return next(err);
+  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+  if (err instanceof z.ZodError) {
+    const first = err.issues[0];
+    const field = first?.path?.join(".") || "datos";
+    return res.status(400).json({ error: `Dato no válido en "${field}": ${first?.message ?? "revisa el formulario"}`, code: "VALIDATION" });
+  }
+  const pgCode = err?.code ?? err?.cause?.code;
+  if (pgCode === "23505") {
+    return res.status(409).json({ error: "Ya existe un registro con ese código o esa etiqueta NFC", code: "DUPLICATE" });
+  }
+  if (pgCode === "23503") {
+    return res.status(400).json({ error: "La categoría o la ubicación seleccionada ya no existe", code: "FOREIGN_KEY" });
+  }
+  console.error("[inventory-error]", err);
+  return res.status(500).json({ error: `Error interno del servidor: ${err?.message ?? "desconocido"}`, code: "INTERNAL" });
+}
+
+function wrapHandlers(handlers: RequestHandler[]): RequestHandler[] {
+  return handlers.map((h) => {
+    if (typeof h !== "function") return h;
+    return (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const out: any = h(req, res, next);
+        if (out && typeof out.catch === "function") out.catch((err: any) => sendInventoryError(err, res, next));
+      } catch (err) {
+        sendInventoryError(err, res, next);
+      }
+    };
+  });
+}
+
+// Envuelve app.get/post/... para que todas las rutas de inventario tengan manejo de errores.
+function withSafeRoutes(app: Express) {
+  return {
+    get: (route: string, ...handlers: RequestHandler[]) => app.get(route, ...wrapHandlers(handlers)),
+    post: (route: string, ...handlers: RequestHandler[]) => app.post(route, ...wrapHandlers(handlers)),
+    patch: (route: string, ...handlers: RequestHandler[]) => app.patch(route, ...wrapHandlers(handlers)),
+    delete: (route: string, ...handlers: RequestHandler[]) => app.delete(route, ...wrapHandlers(handlers)),
+  };
+}
+
+// Las URLs /a/:codigo y /loc/:codigo son las que llevan los QR impresos.
+// Si las abre el navegador (pide HTML) deben ir a la app, no devolver JSON.
+function skipIfBrowserNavigation(req: Request, _res: Response, next: NextFunction) {
+  if (req.accepts(["html", "json"]) === "html") return next("route");
+  next();
+}
+
 function auditLog(req: Request, action: string, payload?: Record<string, unknown>) {
   const userId = (req as any).user?.id;
   const ip = req.headers["x-forwarded-for"] ?? req.socket.remoteAddress;
@@ -142,43 +202,53 @@ function buildDynamicAssetPrefix(rawPrefix: string, wardCode: string) {
   return `${basePrefix}${normalizedWard}`;
 }
 
-async function allocateAssetCode(categoryId: string) {
-  return db.transaction(async (tx) => {
-    const [category] = await tx.select({ id: inventoryCategories.id }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
-    if (!category) throw new Error("Categoría inválida");
-    const wardCode = await getWardCode();
-    const dynamicPrefix = `AC${wardCode}`;
+type DbExecutor = Pick<typeof db, "select" | "execute">;
 
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`inventory_asset_code_${wardCode}`}))`);
-    const seqResult = await tx.execute(sql`
-      SELECT COALESCE(MAX(CAST(SUBSTRING(${inventoryItems.assetCode} FROM '-(\\d+)$') AS integer)), 0) + 1 AS seq
-      FROM ${inventoryItems}
-      WHERE ${inventoryItems.assetCode} LIKE ${`${dynamicPrefix}-%`}
-    `);
-    const seqRows = "rows" in seqResult ? (seqResult.rows as Array<{ seq: number }>) : [];
-    const seq = seqRows[0]?.seq ?? 1;
+// IMPORTANTE: el patrón se escribe como [0-9] y no como \\d.
+// Antes llegaba a PostgreSQL como '-(\\d+)$', que busca una barra invertida literal,
+// nunca coincidía, y todos los activos recibían el número 001 → el segundo guardado
+// fallaba por código duplicado.
+const SEQ_SUFFIX_REGEX = "-([0-9]+)$";
 
-    return `${dynamicPrefix}-${String(seq).padStart(3, "0")}`;
-  });
+async function allocateAssetCode(tx: DbExecutor, categoryId: string) {
+  const [category] = await tx.select({ id: inventoryCategories.id }).from(inventoryCategories).where(eq(inventoryCategories.id, categoryId)).limit(1);
+  if (!category) throw new HttpError(400, "La categoría seleccionada no existe");
+  const wardCode = await getWardCode();
+  const dynamicPrefix = `AC${wardCode}`;
+
+  // El bloqueo dura hasta el final de la transacción del que llama,
+  // así que cubre también el INSERT y evita dos códigos iguales a la vez.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`inventory_asset_code_${wardCode}`}))`);
+  const seqResult = await tx.execute(sql`
+    SELECT COALESCE(MAX(CAST(SUBSTRING(${inventoryItems.assetCode} FROM ${SEQ_SUFFIX_REGEX}) AS integer)), 0) + 1 AS seq
+    FROM ${inventoryItems}
+    WHERE ${inventoryItems.assetCode} LIKE ${`${dynamicPrefix}-%`}
+  `);
+  const seqRows = "rows" in seqResult ? (seqResult.rows as Array<{ seq: number }>) : (seqResult as any as Array<{ seq: number }>);
+  const seq = Number(seqRows[0]?.seq ?? 1);
+
+  return `${dynamicPrefix}-${String(seq).padStart(3, "0")}`;
 }
 
-async function allocateLocationCode(name: string) {
-  return db.transaction(async (tx) => {
-    const wardCode = await getWardCode();
-    const type = getLocationTypeCode(name);
-    const basePrefix = type === "ARM" ? `AM${wardCode}` : `${type}${wardCode}`;
+async function allocateLocationCode(tx: DbExecutor, name: string) {
+  const wardCode = await getWardCode();
+  const type = getLocationTypeCode(name);
+  const basePrefix = type === "ARM" ? `AM${wardCode}` : `${type}${wardCode}`;
 
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`inventory_location_code_${basePrefix}`}))`);
-    const seqResult = await tx.execute(sql`
-      SELECT COALESCE(MAX(CAST(SUBSTRING(${inventoryLocations.code} FROM '-(\\d+)$') AS integer)), 0) + 1 AS seq
-      FROM ${inventoryLocations}
-      WHERE ${inventoryLocations.code} LIKE ${`${basePrefix}-%`}
-    `);
-    const seqRows = "rows" in seqResult ? (seqResult.rows as Array<{ seq: number }>) : [];
-    const seq = seqRows[0]?.seq ?? 1;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`inventory_location_code_${basePrefix}`}))`);
+  const seqResult = await tx.execute(sql`
+    SELECT COALESCE(MAX(CAST(SUBSTRING(${inventoryLocations.code} FROM ${SEQ_SUFFIX_REGEX}) AS integer)), 0) + 1 AS seq
+    FROM ${inventoryLocations}
+    WHERE ${inventoryLocations.code} LIKE ${`${basePrefix}-%`}
+  `);
+  const seqRows = "rows" in seqResult ? (seqResult.rows as Array<{ seq: number }>) : (seqResult as any as Array<{ seq: number }>);
+  const seq = Number(seqRows[0]?.seq ?? 1);
 
-    return `${basePrefix}-${String(seq).padStart(3, "0")}`;
-  });
+  return `${basePrefix}-${String(seq).padStart(3, "0")}`;
+}
+
+function normalizeNfcUid(raw: string) {
+  return String(raw ?? "").trim().toUpperCase().replace(/\s+/g, "");
 }
 
 async function buildItemCircularLabelPdf(assetCode: string) {
@@ -259,7 +329,7 @@ async function resolveItemByInputs(input: { item_asset_code?: string; item_nfc_u
     return item ?? null;
   }
   if (input.item_nfc_uid) {
-    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, input.item_nfc_uid.toUpperCase())).limit(1);
+    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, normalizeNfcUid(input.item_nfc_uid))).limit(1);
     if (!link || link.targetType !== "item") return null;
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, link.targetId)).limit(1);
     return item ?? null;
@@ -273,7 +343,7 @@ async function resolveLocationByInputs(input: { location_code?: string; location
     return location ?? null;
   }
   if (input.location_nfc_uid) {
-    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, input.location_nfc_uid.toUpperCase())).limit(1);
+    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, normalizeNfcUid(input.location_nfc_uid))).limit(1);
     if (!link || link.targetType !== "location") return null;
     const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.id, link.targetId)).limit(1);
     return location ?? null;
@@ -294,7 +364,9 @@ async function buildLocationPath(locationId?: string | null): Promise<string> {
   return names.join(" / ");
 }
 
-export function registerInventoryRoutes(app: Express, requireAuth: RequestHandler, getUserIdFromRequest: (req: Request) => string | null) {
+export function registerInventoryRoutes(rawApp: Express, requireAuth: RequestHandler, getUserIdFromRequest: (req: Request) => string | null) {
+  const app = withSafeRoutes(rawApp);
+
   app.get("/api/inventory", requireAuth, requireRead, async (req, res) => {
     const search = String(req.query.search ?? "").trim();
     const where = search
@@ -319,6 +391,7 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
         createdAt: inventoryItems.createdAt,
         updatedAt: inventoryItems.updatedAt,
         lastVerifiedAt: inventoryItems.lastVerifiedAt,
+        hasNfc: sql<boolean>`EXISTS (SELECT 1 FROM inventory_nfc_links l WHERE l.target_type = 'item' AND l.target_id = ${inventoryItems.id})`,
       })
       .from(inventoryItems)
       .leftJoin(inventoryCategories, eq(inventoryItems.categoryId, inventoryCategories.id))
@@ -330,60 +403,117 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     res.json(items);
   });
 
-  app.post("/api/inventory", requireAuth, requireAdmin, async (req, res) => {
-    const parsed = insertInventoryItemSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: "Datos de activo inválidos" });
-    }
+  // Alta de activo. Antes solo obispo/consejero podían crear (requireAdmin), pero el
+  // bibliotecario y el líder de actividades ven la pantalla de registro: les salía
+  // "no se pudo guardar" (403) sin explicación. Ahora pueden todos los líderes de inventario.
+  const itemCreateSchema = insertInventoryItemSchema.extend({
+    categoryId: z.string().min(1, "Elige una categoría"),
+    name: z.string().trim().min(2, "El nombre debe tener al menos 2 letras"),
+    locationId: z.string().optional().nullable(),
+  });
 
-    const payload = parsed.data;
-    const assetCode = await allocateAssetCode(payload.categoryId);
+  async function createItemInTx(tx: any, body: unknown, nfcUid?: string) {
+    const payload = itemCreateSchema.parse(body);
+    const assetCode = await allocateAssetCode(tx, payload.categoryId);
     const qrUrl = `${BASE_URL.replace(/\/$/, "")}/a/${assetCode}`;
-    const [created] = await db.insert(inventoryItems).values({ ...payload, assetCode, qrUrl }).returning();
-    auditLog(req, "create_item", { assetCode });
+    const [created] = await tx
+      .insert(inventoryItems)
+      .values({ ...payload, locationId: payload.locationId || null, assetCode, qrUrl })
+      .returning();
+
+    if (nfcUid) {
+      const uid = normalizeNfcUid(nfcUid);
+      if (uid.length < 4) throw new HttpError(400, "El UID de la etiqueta NFC no es válido");
+      const [existing] = await tx.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, uid)).limit(1);
+      if (existing) throw new HttpError(409, "Esta etiqueta NFC ya está asignada a otro activo o armario");
+      await tx.insert(inventoryNfcLinks).values({ uid, targetType: "item", targetId: created.id });
+    }
+    return created;
+  }
+
+  app.post("/api/inventory", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const created = await db.transaction((tx) => createItemInTx(tx, req.body));
+    auditLog(req, "create_item", { assetCode: created.assetCode });
     res.status(201).json(created);
   });
 
-  app.get("/a/:assetCode", requireAuth, requireRead, async (req, res) => {
+  // Crea el activo y vincula la etiqueta NFC en una sola operación:
+  // si algo falla, no se queda un activo "huérfano" sin etiqueta.
+  app.post("/api/inventory/with-nfc", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const { nfc_uid, ...itemData } = (req.body ?? {}) as Record<string, unknown>;
+    if (!nfc_uid) throw new HttpError(400, "Falta el UID de la etiqueta NFC");
+    const created = await db.transaction((tx) => createItemInTx(tx, itemData, String(nfc_uid)));
+    auditLog(req, "create_item_with_nfc", { assetCode: created.assetCode });
+    res.status(201).json(created);
+  });
+
+  // /a/:codigo es la URL del QR impreso. Si la abre el navegador, se sirve la app.
+  app.get("/a/:assetCode", skipIfBrowserNavigation, requireAuth, requireRead, async (req: Request, res: Response) => {
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
     res.json(item);
   });
 
-  app.get("/api/inventory/categories", requireAuth, requireRead, async (_req, res) => {
+  app.get("/api/inventory/categories", requireAuth, requireRead, async (_req: Request, res: Response) => {
     res.json(await db.select().from(inventoryCategories).orderBy(asc(inventoryCategories.name)));
   });
 
-  app.post("/api/inventory/categories", requireAuth, requireAdmin, async (req, res) => {
+  app.post("/api/inventory/categories", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     const payload = insertInventoryCategorySchema.parse(req.body);
     const [created] = await db.insert(inventoryCategories).values(payload).returning();
     await db.insert(inventoryCategoryCounters).values({ categoryId: created.id, nextSeq: 1 }).onConflictDoNothing();
     res.status(201).json(created);
   });
 
-  app.get("/api/inventory/locations", requireAuth, requireRead, async (_req, res) => {
-    const rows = await db.select().from(inventoryLocations).orderBy(asc(inventoryLocations.name));
+  app.get("/api/inventory/locations", requireAuth, requireRead, async (_req: Request, res: Response) => {
+    const rows = await db
+      .select({
+        ...getTableColumns(inventoryLocations),
+        hasNfc: sql<boolean>`EXISTS (SELECT 1 FROM inventory_nfc_links l WHERE l.target_type = 'location' AND l.target_id = ${inventoryLocations.id})`,
+      })
+      .from(inventoryLocations)
+      .orderBy(asc(inventoryLocations.name));
     res.json(rows);
   });
 
-  app.post("/api/inventory/locations", requireAuth, requireAdmin, async (req, res) => {
-    const parsed = z.object({
-      name: z.string().min(1),
-      parentId: z.string().optional(),
-      description: z.string().optional(),
-      code: z.string().optional(),
-    }).safeParse(req.body);
+  const locationCreateSchema = z.object({
+    name: z.string().trim().min(1, "Escribe un nombre para el armario"),
+    parentId: z.string().optional().nullable(),
+    description: z.string().optional(),
+    code: z.string().optional(),
+  });
 
-    if (!parsed.success) {
-      return res.status(400).json({ error: "Datos de ubicación inválidos" });
+  async function createLocationInTx(tx: any, body: unknown, nfcUid?: string) {
+    const payload = locationCreateSchema.parse(body);
+    const code = payload.code || (await allocateLocationCode(tx, payload.name));
+    const [created] = await tx
+      .insert(inventoryLocations)
+      .values({ ...payload, parentId: payload.parentId || null, code })
+      .returning();
+
+    if (nfcUid) {
+      const uid = normalizeNfcUid(nfcUid);
+      if (uid.length < 4) throw new HttpError(400, "El UID de la etiqueta NFC no es válido");
+      const [existing] = await tx.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, uid)).limit(1);
+      if (existing) throw new HttpError(409, "Esta etiqueta NFC ya está asignada a otro activo o armario");
+      await tx.insert(inventoryNfcLinks).values({ uid, targetType: "location", targetId: created.id });
     }
+    return created;
+  }
 
-    const payload = parsed.data;
-    const code = payload.code || (await allocateLocationCode(payload.name));
-    const [created] = (await db.insert(inventoryLocations).values({ ...payload, code }).returning()) as any[];
+  app.post("/api/inventory/locations", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const created = await db.transaction((tx) => createLocationInTx(tx, req.body));
+    auditLog(req, "create_location", { code: created.code });
     res.status(201).json(created);
   });
 
+  app.post("/api/inventory/locations/with-nfc", requireAuth, requireLeader, async (req: Request, res: Response) => {
+    const { nfc_uid, ...locationData } = (req.body ?? {}) as Record<string, unknown>;
+    if (!nfc_uid) throw new HttpError(400, "Falta el UID de la etiqueta NFC");
+    const created = await db.transaction((tx) => createLocationInTx(tx, locationData, String(nfc_uid)));
+    auditLog(req, "create_location_with_nfc", { code: created.code });
+    res.status(201).json(created);
+  });
 
   app.get("/api/inventory/history", requireAuth, requireRead, async (_req, res) => {
     const movements = await db
@@ -435,8 +565,21 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     res.json(entries);
   });
 
-  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req, res) => {
-    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.assetCode, req.params.assetCode)).limit(1);
+  app.get("/api/inventory/:assetCode", requireAuth, requireRead, async (req: Request, res: Response) => {
+    // Incluye nombre de categoría y ubicación: la ficha mostraba siempre "Sin ubicación".
+    const [item] = await db
+      .select({
+        ...getTableColumns(inventoryItems),
+        categoryName: inventoryCategories.name,
+        locationName: inventoryLocations.name,
+        locationCode: inventoryLocations.code,
+        hasNfc: sql<boolean>`EXISTS (SELECT 1 FROM inventory_nfc_links l WHERE l.target_type = 'item' AND l.target_id = ${inventoryItems.id})`,
+      })
+      .from(inventoryItems)
+      .leftJoin(inventoryCategories, eq(inventoryItems.categoryId, inventoryCategories.id))
+      .leftJoin(inventoryLocations, eq(inventoryItems.locationId, inventoryLocations.id))
+      .where(eq(inventoryItems.assetCode, req.params.assetCode))
+      .limit(1);
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
     const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.itemId, item.id)).orderBy(desc(inventoryMovements.createdAt));
     const loans = await db.select().from(inventoryLoans).where(eq(inventoryLoans.itemId, item.id)).orderBy(desc(inventoryLoans.createdAt));
@@ -444,13 +587,17 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     res.json({ item, movements, loans });
   });
 
-  app.get("/loc/:locationCode", requireAuth, requireRead, async (req, res) => {
+  const locationDetailHandler = async (req: Request, res: Response) => {
     const [location] = await db.select().from(inventoryLocations).where(eq(inventoryLocations.code, req.params.locationCode)).limit(1);
     if (!location) return res.status(404).json({ error: "Ubicación no encontrada" });
     const children = await db.select().from(inventoryLocations).where(eq(inventoryLocations.parentId, location.id)).orderBy(asc(inventoryLocations.name));
     const items = await db.select().from(inventoryItems).where(eq(inventoryItems.locationId, location.id)).orderBy(asc(inventoryItems.name));
     res.json({ location, children, items, path: await buildLocationPath(location.id) });
-  });
+  };
+
+  app.get("/api/inventory/loc/:locationCode", requireAuth, requireRead, locationDetailHandler);
+  // /loc/:codigo es la URL del QR del armario. Si la abre el navegador, se sirve la app.
+  app.get("/loc/:locationCode", skipIfBrowserNavigation, requireAuth, requireRead, locationDetailHandler);
 
   app.post("/api/inventory/:assetCode/move", requireAuth, requireLeader, async (req, res) => {
     const userId = getUserIdFromRequest(req);
@@ -591,7 +738,7 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
   });
 
   const byNfcHandler = async (req: Request, res: any) => {
-    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, req.params.uid.toUpperCase())).limit(1);
+    const [link] = await db.select().from(inventoryNfcLinks).where(eq(inventoryNfcLinks.uid, normalizeNfcUid(req.params.uid))).limit(1);
     if (!link) return res.json({ registered: false });
 
     if (link.targetType === "item") {
@@ -655,7 +802,7 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
     if (!item) return res.status(404).json({ error: "Item no encontrado" });
     const [created] = await db
       .insert(inventoryNfcLinks)
-      .values({ uid: payload.nfc_uid.toUpperCase(), targetType: "item", targetId: item.id })
+      .values({ uid: normalizeNfcUid(payload.nfc_uid), targetType: "item", targetId: item.id })
       .onConflictDoNothing()
       .returning();
     if (!created) return res.status(409).json({ error: "UID ya registrado" });
@@ -675,7 +822,7 @@ export function registerInventoryRoutes(app: Express, requireAuth: RequestHandle
 
     const [created] = await db
       .insert(inventoryNfcLinks)
-      .values({ uid: payload.nfc_uid.toUpperCase(), targetType: "location", targetId: location.id })
+      .values({ uid: normalizeNfcUid(payload.nfc_uid), targetType: "location", targetId: location.id })
       .onConflictDoNothing()
       .returning();
     if (!created) return res.status(409).json({ error: "UID ya registrado" });
