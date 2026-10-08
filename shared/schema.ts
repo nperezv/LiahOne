@@ -2038,6 +2038,7 @@ export const inventoryItemStatusEnum = pgEnum("inventory_item_status", [
   "available",
   "loaned",
   "maintenance",
+  "retired",
 ]);
 
 export const inventoryLoanStatusEnum = pgEnum("inventory_loan_status", [
@@ -2067,6 +2068,7 @@ export const inventoryLocations = pgTable("inventory_locations", {
   parentId: varchar("parent_id").references((): any => inventoryLocations.id),
   code: varchar("code", { length: 40 }).notNull().unique(),
   description: text("description"),
+  lastCheckedAt: timestamp("last_checked_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -2081,6 +2083,9 @@ export const inventoryItems = pgTable("inventory_items", {
   photoUrl: text("photo_url"),
   qrUrl: text("qr_url").notNull(),
   trackerId: varchar("tracker_id", { length: 120 }),
+  quantity: integer("quantity").notNull().default(1),
+  retiredAt: timestamp("retired_at"),
+  retiredReason: text("retired_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   lastVerifiedAt: timestamp("last_verified_at"),
@@ -2116,6 +2121,9 @@ export const inventoryLoans = pgTable("inventory_loans", {
   returnHasIncident: boolean("return_has_incident").notNull().default(false),
   returnIncidentNotes: text("return_incident_notes"),
   status: inventoryLoanStatusEnum("status").notNull().default("active"),
+  quantity: integer("quantity").notNull().default(1),
+  memberId: varchar("member_id"),
+  overdueNotifiedAt: timestamp("overdue_notified_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -2236,6 +2244,8 @@ export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit
   createdAt: true,
   updatedAt: true,
   lastVerifiedAt: true,
+  retiredAt: true,
+  retiredReason: true,
 });
 
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({
