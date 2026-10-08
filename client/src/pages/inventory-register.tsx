@@ -36,7 +36,10 @@ export default function InventoryRegisterHubPage() {
   const [assetUid, setAssetUid] = useState("");
   const [assetName, setAssetName] = useState("");
   const [assetCategoryId, setAssetCategoryId] = useState("");
-  const [assetLocationId, setAssetLocationId] = useState("");
+  // ?location=ID permite llegar desde un armario con la ubicación ya elegida.
+  const presetLocation = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("location") ?? "" : "";
+  const [assetLocationId, setAssetLocationId] = useState(presetLocation);
+  const [assetQuantity, setAssetQuantity] = useState("1");
   const [assetDescription, setAssetDescription] = useState("");
   const [assetPhotoUrl, setAssetPhotoUrl] = useState("");
   const [assetPhotoUploading, setAssetPhotoUploading] = useState(false);
@@ -44,7 +47,8 @@ export default function InventoryRegisterHubPage() {
 
   const [assetQrName, setAssetQrName] = useState("");
   const [assetQrCategoryId, setAssetQrCategoryId] = useState("");
-  const [assetQrLocationId, setAssetQrLocationId] = useState("");
+  const [assetQrLocationId, setAssetQrLocationId] = useState(presetLocation);
+  const [assetQrQuantity, setAssetQrQuantity] = useState("1");
   const [assetQrDescription, setAssetQrDescription] = useState("");
   const [assetQrPhotoUrl, setAssetQrPhotoUrl] = useState("");
   const [assetQrPhotoUploading, setAssetQrPhotoUploading] = useState(false);
@@ -128,6 +132,7 @@ export default function InventoryRegisterHubPage() {
         photoUrl: assetPhotoUrl.trim() || undefined,
         categoryId: assetCategoryId,
         locationId: assetLocationId || undefined,
+        quantity: Math.max(1, Number(assetQuantity) || 1),
         status: "available",
         nfc_uid: assetUid,
       });
@@ -139,8 +144,8 @@ export default function InventoryRegisterHubPage() {
     setAssetUid("");
     setAssetUidLocked(false);
     setAssetName("");
-    setAssetCategoryId("");
-    setAssetLocationId("");
+    setAssetQuantity("1");
+    // Se mantienen categoría y armario: lo normal es registrar varias cosas seguidas del mismo sitio.
     setAssetDescription("");
     setAssetPhotoUrl("");
     stopNfc();
@@ -157,6 +162,7 @@ export default function InventoryRegisterHubPage() {
         photoUrl: assetQrPhotoUrl.trim() || undefined,
         categoryId: assetQrCategoryId,
         locationId: assetQrLocationId || undefined,
+        quantity: Math.max(1, Number(assetQrQuantity) || 1),
         status: "available",
       });
     } catch (error) {
@@ -165,8 +171,7 @@ export default function InventoryRegisterHubPage() {
     }
     setCreatedAssetCodeByQr(created.assetCode);
     setAssetQrName("");
-    setAssetQrCategoryId("");
-    setAssetQrLocationId("");
+    setAssetQrQuantity("1");
     setAssetQrDescription("");
     setAssetQrPhotoUrl("");
   };
@@ -274,7 +279,8 @@ export default function InventoryRegisterHubPage() {
                       <div className="grid gap-3 md:grid-cols-2">
                         <Select value={assetCategoryId} onValueChange={setAssetCategoryId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} · {c.prefix}</SelectItem>)}</SelectContent></Select>
                         <Select value={assetLocationId} onValueChange={setAssetLocationId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación inicial (opcional)" /></SelectTrigger><SelectContent>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
-                        <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
+                        <Input className="h-11 rounded-xl" placeholder="Nombre activo" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
+                        <div className="flex items-center gap-2"><span className="shrink-0 text-sm text-muted-foreground">Cantidad</span><Input className="h-11 rounded-xl" type="number" inputMode="numeric" min={1} value={assetQuantity} onChange={(e) => setAssetQuantity(e.target.value)} /></div>
                         <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetDescription} onChange={(e) => setAssetDescription(e.target.value)} />
                         <div className="md:col-span-2">
                           <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
@@ -302,7 +308,8 @@ export default function InventoryRegisterHubPage() {
                   <div className="grid gap-3 md:grid-cols-2">
                     <Select value={assetQrCategoryId} onValueChange={setAssetQrCategoryId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} · {c.prefix}</SelectItem>)}</SelectContent></Select>
                     <Select value={assetQrLocationId} onValueChange={setAssetQrLocationId}><SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Ubicación inicial (opcional)" /></SelectTrigger><SelectContent>{locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}</SelectContent></Select>
-                    <Input className="h-11 rounded-xl md:col-span-2" placeholder="Nombre activo" value={assetQrName} onChange={(e) => setAssetQrName(e.target.value)} />
+                    <Input className="h-11 rounded-xl" placeholder="Nombre activo" value={assetQrName} onChange={(e) => setAssetQrName(e.target.value)} />
+                    <div className="flex items-center gap-2"><span className="shrink-0 text-sm text-muted-foreground">Cantidad</span><Input className="h-11 rounded-xl" type="number" inputMode="numeric" min={1} value={assetQrQuantity} onChange={(e) => setAssetQrQuantity(e.target.value)} /></div>
                     <Input className="h-11 rounded-xl md:col-span-2" placeholder="Descripción (opcional)" value={assetQrDescription} onChange={(e) => setAssetQrDescription(e.target.value)} />
                     <div className="md:col-span-2">
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">

@@ -4,8 +4,11 @@ import {
   ArrowRight,
   Camera,
   Download,
+  Archive,
+  ArchiveRestore,
   FileText,
   HandCoins,
+  MessageCircle,
   Loader2,
   MapPin,
   MoveRight,
@@ -39,7 +42,7 @@ import { InventoryPageHeader } from "@/components/inventory/inventory-page-heade
 import { InventoryLoanDialog, InventoryReturnDialog } from "@/components/inventory/inventory-loan-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { assetPublicUrl, itemLabelPdf, qrDataUrl, uploadInventoryPhoto } from "@/lib/inventory-files";
+import { assetPublicUrl, itemLabelPdf, loanReminderText, qrDataUrl, uploadInventoryPhoto, whatsappLink } from "@/lib/inventory-files";
 import {
   INVENTORY_STATUS_LABELS,
   useDeleteInventoryItem,
@@ -47,6 +50,8 @@ import {
   useInventoryItem,
   useInventoryLocations,
   useMoveInventoryItem,
+  useRestoreInventoryItem,
+  useRetireInventoryItem,
   useUpdateInventoryItem,
 } from "@/hooks/use-api";
 
@@ -54,6 +59,7 @@ const STATUS_STYLE: Record<string, string> = {
   available: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
   loaned: "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
   maintenance: "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+  retired: "border-zinc-300 bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
 };
 
 const LOAN_STATUS: Record<string, string> = { active: "En curso", returned: "Devuelto", overdue: "Vencido" };
@@ -82,9 +88,13 @@ export default function InventoryDetailPage() {
   const moveItem = useMoveInventoryItem(assetCode);
   const updateItem = useUpdateInventoryItem(assetCode);
   const deleteItem = useDeleteInventoryItem();
+  const retireItem = useRetireInventoryItem(assetCode);
+  const restoreItem = useRestoreInventoryItem(assetCode);
+  const [retireOpen, setRetireOpen] = useState(false);
+  const [retireReason, setRetireReason] = useState("");
+  const [returningLoan, setReturningLoan] = useState<any | null>(null);
 
   const [loanOpen, setLoanOpen] = useState(false);
-  const [returnOpen, setReturnOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -99,10 +109,12 @@ export default function InventoryDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editPhoto, setEditPhoto] = useState("");
+  const [editQuantity, setEditQuantity] = useState("1");
   const [photoUploading, setPhotoUploading] = useState(false);
 
   const item = data?.item;
-  const activeLoan = data?.activeLoan;
+  const activeLoans: any[] = data?.activeLoans ?? (data?.activeLoan ? [data.activeLoan] : []);
+  const activeLoan = activeLoans[0];
 
   useEffect(() => {
     if (!qrOpen || !item) return;
@@ -124,6 +136,7 @@ export default function InventoryDetailPage() {
     setEditDescription(item.description ?? "");
     setEditCategory(item.categoryId ?? "");
     setEditPhoto(item.photoUrl ?? "");
+    setEditQuantity(String(item.quantity ?? 1));
     setEditOpen(true);
   };
 
@@ -134,6 +147,7 @@ export default function InventoryDetailPage() {
         description: editDescription.trim() || null,
         categoryId: editCategory || undefined,
         photoUrl: editPhoto || null,
+        quantity: Math.max(1, Number(editQuantity) || 1),
       });
       setEditOpen(false);
     } catch {
@@ -179,6 +193,21 @@ export default function InventoryDetailPage() {
   const toggleMaintenance = () =>
     updateItem.mutate({ status: item.status === "maintenance" ? "available" : "maintenance" });
 
+  const doRetire = async () => {
+    try {
+      await retireItem.mutateAsync(retireReason.trim());
+      setRetireOpen(false);
+      setRetireReason("");
+    } catch {
+      // aviso mostrado por el hook
+    }
+  };
+
+  const totalQty = Number(item.quantity ?? 1);
+  const lentQty = Number(item.loanedQuantity ?? 0);
+  const availableQty = Number(item.availableQuantity ?? Math.max(0, totalQty - lentQty));
+  const isRetired = item.status === "retired";
+
   const doDelete = async () => {
     try {
       await deleteItem.mutateAsync(item.assetCode);
@@ -211,6 +240,9 @@ export default function InventoryDetailPage() {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">{item.assetCode}{item.categoryName ? ` · ${item.categoryName}` : ""}</p>
+            {totalQty > 1 ? (
+              <p className="text-sm"><b>{totalQty}</b> unidades · <span className="text-emerald-600">{availableQty} disponibles</span>{lentQty ? <span className="text-amber-600"> · {lentQty} prestadas</span> : null}</p>
+            ) : null}
             <p className="flex items-center gap-1 text-sm"><MapPin className="h-4 w-4 text-muted-foreground" />{item.locationName ? `${item.locationName} · ${item.locationCode}` : "Sin armario asignado"}</p>
             <p className="flex items-center gap-1 text-xs text-muted-foreground"><Wifi className="h-3.5 w-3.5" />{item.hasNfc ? "Tiene etiqueta NFC" : "Sin etiqueta NFC"}</p>
             {item.description ? <p className="text-sm">{item.description}</p> : null}
@@ -218,45 +250,65 @@ export default function InventoryDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Préstamo en curso */}
-      {activeLoan ? (
-        <div className={`rounded-2xl border p-4 text-sm ${isOverdue(activeLoan.expectedReturnDate) ? "border-rose-400 bg-rose-50 dark:bg-rose-950/30" : "border-amber-300 bg-amber-50 dark:bg-amber-950/30"}`}>
-          <p className="font-semibold">
-            {isOverdue(activeLoan.expectedReturnDate) ? "⚠️ Préstamo vencido" : "Prestado"} a {activeLoan.borrowerName}
-          </p>
-          <p className="mt-1 text-muted-foreground">
-            Desde {formatDate(activeLoan.dateOut)} · Devolver antes del {formatDate(activeLoan.expectedReturnDate)}
-          </p>
-          {activeLoan.borrowerPhone ? (
-            <a className="mt-1 inline-block underline" href={`tel:${activeLoan.borrowerPhone}`}>Llamar: {activeLoan.borrowerPhone}</a>
-          ) : null}
+      {/* Dado de baja */}
+      {isRetired ? (
+        <div className="space-y-2 rounded-2xl border border-zinc-300 bg-zinc-100 p-4 text-sm dark:bg-zinc-900">
+          <p className="font-semibold">Dado de baja{item.retiredAt ? ` el ${formatDate(item.retiredAt)}` : ""}</p>
+          {item.retiredReason ? <p className="text-muted-foreground">Motivo: {item.retiredReason}</p> : null}
+          <Button variant="outline" className="rounded-xl" disabled={restoreItem.isPending} onClick={() => restoreItem.mutate()}>
+            <ArchiveRestore className="mr-2 h-4 w-4" />Reactivar (vuelve al inventario)
+          </Button>
         </div>
       ) : null}
 
+      {/* Préstamos en curso */}
+      {activeLoans.map((loan) => {
+        const late = isOverdue(loan.expectedReturnDate);
+        const wa = whatsappLink(loan.borrowerPhone, loanReminderText(loan.borrowerName, item.name, loan.expectedReturnDate));
+        return (
+          <div key={loan.id} className={`space-y-2 rounded-2xl border p-4 text-sm ${late ? "border-rose-400 bg-rose-50 dark:bg-rose-950/30" : "border-amber-300 bg-amber-50 dark:bg-amber-950/30"}`}>
+            <p className="font-semibold">
+              {late ? "⚠️ Préstamo vencido" : "Prestado"}{Number(loan.quantity ?? 1) > 1 ? ` (${loan.quantity} uds.)` : ""} a {loan.borrowerName}
+            </p>
+            <p className="text-muted-foreground">Desde {formatDate(loan.dateOut)} · Devolver antes del {formatDate(loan.expectedReturnDate)}</p>
+            <div className="grid grid-cols-3 gap-2">
+              <Button size="sm" className="rounded-xl" onClick={() => setReturningLoan(loan)}><Undo2 className="mr-1 h-3.5 w-3.5" />Devuelto</Button>
+              {wa ? <a href={wa} target="_blank" rel="noreferrer"><Button size="sm" variant="outline" className="w-full rounded-xl"><MessageCircle className="mr-1 h-3.5 w-3.5" />Recordar</Button></a> : null}
+              {loan.borrowerPhone ? <a href={`tel:${loan.borrowerPhone}`}><Button size="sm" variant="outline" className="w-full rounded-xl">Llamar</Button></a> : null}
+            </div>
+          </div>
+        );
+      })}
+
       {/* Acciones principales */}
       <div className="grid grid-cols-2 gap-2">
-        {activeLoan ? (
-          <Button className="col-span-2 h-12 rounded-2xl" onClick={() => setReturnOpen(true)}>
-            <Undo2 className="mr-2 h-4 w-4" />Registrar devolución
+        {isRetired ? null : availableQty > 0 && item.status !== "maintenance" ? (
+          <Button className="col-span-2 h-12 rounded-2xl bg-amber-600 text-white hover:bg-amber-500" onClick={() => setLoanOpen(true)}>
+            <HandCoins className="mr-2 h-4 w-4" />{totalQty > 1 ? `Prestar (quedan ${availableQty})` : "Prestar"}
+          </Button>
+        ) : item.status === "maintenance" ? (
+          <Button className="col-span-2 h-12 rounded-2xl" variant="outline" disabled>
+            <Wrench className="mr-2 h-4 w-4" />En mantenimiento: no se puede prestar
           </Button>
         ) : (
-          <Button
-            className="col-span-2 h-12 rounded-2xl bg-amber-600 text-white hover:bg-amber-500"
-            disabled={item.status === "maintenance"}
-            onClick={() => setLoanOpen(true)}
-          >
-            <HandCoins className="mr-2 h-4 w-4" />{item.status === "maintenance" ? "En mantenimiento: no se puede prestar" : "Prestar"}
+          <Button className="col-span-2 h-12 rounded-2xl" onClick={() => setReturningLoan(activeLoan)}>
+            <Undo2 className="mr-2 h-4 w-4" />Registrar devolución
           </Button>
         )}
-        <Button variant="secondary" className="h-11 rounded-xl" onClick={() => setMoveOpen(true)}><MoveRight className="mr-2 h-4 w-4" />Mover</Button>
-        <Button variant="secondary" className="h-11 rounded-xl" onClick={openEdit}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
+        <Button variant="secondary" className="h-11 rounded-xl" disabled={isRetired} onClick={() => setMoveOpen(true)}><MoveRight className="mr-2 h-4 w-4" />Mover</Button>
+        <Button variant="secondary" className="h-11 rounded-xl" disabled={isRetired} onClick={openEdit}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
         <Button variant="outline" className="h-11 rounded-xl" onClick={() => setQrOpen(true)}><QrCode className="mr-2 h-4 w-4" />Ver QR</Button>
         <Button variant="outline" className="h-11 rounded-xl" disabled={labelLoading} onClick={() => void doLabel()}>
           {labelLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}Etiqueta
         </Button>
-        {!activeLoan ? (
+        {!activeLoan && !isRetired ? (
           <Button variant="ghost" className="h-11 rounded-xl" disabled={updateItem.isPending} onClick={toggleMaintenance}>
             <Wrench className="mr-2 h-4 w-4" />{item.status === "maintenance" ? "Ya está reparado" : "A mantenimiento"}
+          </Button>
+        ) : null}
+        {!isRetired && !activeLoan ? (
+          <Button variant="ghost" className="h-11 rounded-xl" onClick={() => setRetireOpen(true)}>
+            <Archive className="mr-2 h-4 w-4" />Dar de baja
           </Button>
         ) : null}
         {canDelete ? (
@@ -274,7 +326,7 @@ export default function InventoryDetailPage() {
           {data.loans.map((loan: any) => (
             <div key={loan.id} className="space-y-1 rounded-xl border p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <p className="font-medium">{loan.borrowerName}</p>
+                <p className="font-medium">{loan.borrowerName}{Number(loan.quantity ?? 1) > 1 ? ` · ${loan.quantity} uds.` : ""}</p>
                 <Badge variant="secondary">{LOAN_STATUS[loan.status] ?? loan.status}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -311,10 +363,33 @@ export default function InventoryDetailPage() {
       </Card>
 
       {/* Diálogos */}
-      <InventoryLoanDialog open={loanOpen} onOpenChange={setLoanOpen} itemId={item.id} assetCode={item.assetCode} itemName={item.name} />
-      {activeLoan ? (
-        <InventoryReturnDialog open={returnOpen} onOpenChange={setReturnOpen} loanId={activeLoan.id} borrowerName={activeLoan.borrowerName} />
+      <InventoryLoanDialog open={loanOpen} onOpenChange={setLoanOpen} itemId={item.id} assetCode={item.assetCode} itemName={item.name} availableQuantity={availableQty} />
+      {returningLoan ? (
+        <InventoryReturnDialog
+          open={Boolean(returningLoan)}
+          onOpenChange={(o) => { if (!o) setReturningLoan(null); }}
+          loanId={returningLoan.id}
+          borrowerName={returningLoan.borrowerName}
+        />
       ) : null}
+
+      <Dialog open={retireOpen} onOpenChange={setRetireOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dar de baja</DialogTitle>
+            <DialogDescription>Deja de aparecer en el inventario, pero se conserva su historial. Se puede reactivar.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {["Roto", "Perdido", "Donado", "Tirado por viejo"].map((r) => (
+              <Button key={r} type="button" size="sm" variant={retireReason === r ? "default" : "outline"} className="rounded-full" onClick={() => setRetireReason(r)}>{r}</Button>
+            ))}
+          </div>
+          <Textarea placeholder="Motivo (puedes escribir más detalle)" value={retireReason} onChange={(e) => setRetireReason(e.target.value)} />
+          <Button className="h-11 rounded-xl" disabled={retireReason.trim().length < 3 || retireItem.isPending} onClick={() => void doRetire()}>
+            <Archive className="mr-2 h-4 w-4" />{retireItem.isPending ? "Guardando..." : "Dar de baja"}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
         <DialogContent className="max-w-md">
@@ -345,6 +420,10 @@ export default function InventoryDetailPage() {
           <DialogHeader><DialogTitle>Editar activo</DialogTitle></DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1"><Label>Nombre</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
+            <div className="grid gap-1">
+              <Label>Cantidad (unidades iguales, p. ej. 20 sillas)</Label>
+              <Input type="number" inputMode="numeric" min={Math.max(1, lentQty)} value={editQuantity} onChange={(e) => setEditQuantity(e.target.value)} />
+            </div>
             <div className="grid gap-1"><Label>Descripción</Label><Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} /></div>
             <div className="grid gap-1">
               <Label>Categoría</Label>

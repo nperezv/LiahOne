@@ -101,6 +101,7 @@ export default function InventoryListPage() {
             location={item.locationId ? locationNameById.get(item.locationId) : undefined}
             photoUrl={item.photoUrl}
             status={item.status}
+            availableQuantity={Math.max(1, (item.quantity ?? 1) - (item.loanedQuantity ?? 0))}
             defaultExpanded={selectedAssetCode === item.assetCode}
           />
         ))}

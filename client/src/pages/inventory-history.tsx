@@ -123,23 +123,25 @@ export default function InventoryHistoryPage() {
           {!isLoading && filteredEntries.length === 0 ? <p className="text-sm text-muted-foreground">Sin registros para los filtros seleccionados.</p> : null}
           {filteredEntries.map((entry: any) => (
             <div key={`${entry.type}-${entry.id}`} className="rounded-xl border p-3 text-sm space-y-1">
-              <p>
-                <strong>{entry.assetCode}</strong> · {entry.itemName}
-              </p>
+              <Link href={`/inventory/${entry.assetCode}`}>
+                <p className="cursor-pointer underline-offset-2 hover:underline">
+                  <strong>{entry.assetCode}</strong> · {entry.itemName}
+                </p>
+              </Link>
               {entry.type === "movement" ? (
                 <>
-                  <p>Movimiento de ubicación registrado.</p>
+                  <p>{entry.fromLocationName || entry.toLocationName ? `${entry.fromLocationName ?? "Sin armario"} → ${entry.toLocationName ?? "Sin armario"}` : "Movimiento de ubicación registrado."}</p>
                   {entry.note ? <p className="text-muted-foreground">Nota: {entry.note}</p> : null}
                 </>
               ) : (
                 <>
-                  <p>Préstamo · Estado: <span className="uppercase">{entry.status}</span></p>
+                  <p>Préstamo · {entry.status === "returned" ? "Devuelto" : entry.status === "overdue" ? "Vencido" : "En curso"}</p>
                   <p className="text-muted-foreground">Solicitante: {entry.borrowerName || "—"}</p>
                   <p className="text-muted-foreground">Fecha estimada: {entry.expectedReturnDate || "—"} · Devolución: {entry.dateReturn || "—"}</p>
                   {entry.requestPdfUrl ? <a className="underline text-primary" href={entry.requestPdfUrl} target="_blank" rel="noreferrer">Descargar PDF</a> : null}
                 </>
               )}
-              <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleString("es-ES")}</p>
             </div>
           ))}
         </CardContent>

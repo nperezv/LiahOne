@@ -1,5 +1,5 @@
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
-import { locationLabelPdf } from "@/lib/inventory-files";
+import { locationItemsLabelsPdf, locationLabelPdf } from "@/lib/inventory-files";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -40,20 +40,25 @@ import {
   useInventoryLocations,
 } from "@/hooks/use-api";
 
-type QuickFilter = "all" | "available" | "loaned" | "maintenance" | "no-location" | "no-nfc";
+type QuickFilter = "all" | "available" | "loaned" | "maintenance" | "no-location" | "no-nfc" | "retired";
 
 const STATUS_BADGE: Record<InventoryItem["status"], string> = {
   available: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
   loaned: "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
   maintenance: "border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+  retired: "border-zinc-300 bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
 };
 
 function matchesFilter(item: InventoryItem, filter: QuickFilter) {
+  if (filter === "retired") return item.status === "retired";
+  if (item.status === "retired") return false; // los dados de baja solo se ven en su filtro
   switch (filter) {
     case "available":
+      return item.status === "available" && (item.quantity ?? 1) > (item.loanedQuantity ?? 0);
     case "loaned":
+      return (item.loanedQuantity ?? 0) > 0;
     case "maintenance":
-      return item.status === filter;
+      return item.status === "maintenance";
     case "no-location":
       return !item.locationId;
     case "no-nfc":
@@ -75,7 +80,7 @@ function ItemRow({ item }: { item: InventoryItem }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{item.name}</p>
+          <p className="truncate text-sm font-medium">{item.name}{(item.quantity ?? 1) > 1 ? ` · ${item.quantity} uds.` : ""}</p>
           <p className="truncate text-xs text-muted-foreground">
             {item.assetCode}
             {item.categoryName ? ` · ${item.categoryName}` : ""}
@@ -85,6 +90,8 @@ function ItemRow({ item }: { item: InventoryItem }) {
           <Badge variant="outline" className={`text-[10px] ${STATUS_BADGE[item.status]}`}>
             {INVENTORY_STATUS_LABELS[item.status] ?? item.status}
           </Badge>
+          {(item.overdueLoans ?? 0) > 0 ? <span className="text-[10px] font-semibold text-rose-600">vencido</span> : null}
+          {(item.quantity ?? 1) > 1 && (item.loanedQuantity ?? 0) > 0 ? <span className="text-[10px] text-amber-600">{item.loanedQuantity} prestadas</span> : null}
           {!item.hasNfc ? <span className="text-[10px] text-muted-foreground">sin NFC</span> : null}
         </div>
       </div>
@@ -94,10 +101,13 @@ function ItemRow({ item }: { item: InventoryItem }) {
 
 export default function InventoryOverviewPage() {
   const { toast } = useToast();
-  const { data: items = [], isLoading: loadingItems } = useInventoryItems();
+  const { data: items = [], isLoading: loadingItems } = useInventoryItems(undefined, { includeRetired: true });
   const { data: locations = [], isLoading: loadingLocations } = useInventoryLocations();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<QuickFilter>("all");
+  const [filter, setFilter] = useState<QuickFilter>(() => {
+    const f = new URLSearchParams(window.location.search).get("filter") as QuickFilter | null;
+    return f && ["all", "available", "loaned", "maintenance", "no-location", "no-nfc", "retired"].includes(f) ? f : "all";
+  });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const { user } = useAuth();
   // Igual que en el servidor: solo obispo y consejeros pueden eliminar armarios.
@@ -156,18 +166,19 @@ export default function InventoryOverviewPage() {
     return count;
   }, [itemsByLocation, childrenByParent]);
 
-  const stats = useMemo(
-    () => ({
-      total: items.length,
-      available: items.filter((i) => i.status === "available").length,
-      loaned: items.filter((i) => i.status === "loaned").length,
-      maintenance: items.filter((i) => i.status === "maintenance").length,
-      noLocation: items.filter((i) => !i.locationId).length,
-      noNfc: items.filter((i) => !i.hasNfc).length,
+  const stats = useMemo(() => {
+    const active = items.filter((i) => i.status !== "retired");
+    return {
+      total: active.length,
+      available: active.filter((i) => matchesFilter(i, "available")).length,
+      loaned: active.filter((i) => matchesFilter(i, "loaned")).length,
+      maintenance: active.filter((i) => i.status === "maintenance").length,
+      noLocation: active.filter((i) => !i.locationId).length,
+      noNfc: active.filter((i) => !i.hasNfc).length,
+      retired: items.length - active.length,
       locations: locations.length,
-    }),
-    [items, locations],
-  );
+    };
+  }, [items, locations]);
 
   const filtering = filter !== "all" || Boolean(normalizedSearch);
 
@@ -234,6 +245,14 @@ export default function InventoryOverviewPage() {
                 <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => locationLabelPdf(loc.code).catch((e) => toast({ title: "No se pudo generar la etiqueta", description: e.message, variant: "destructive" }))}>
                   <Printer className="mr-1 h-3.5 w-3.5" />Etiqueta
                 </Button>
+                {ownItems.length ? (
+                  <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => locationItemsLabelsPdf(loc.code).catch((e) => toast({ title: "No se pudieron generar las etiquetas", description: e.message, variant: "destructive" }))}>
+                    <Printer className="mr-1 h-3.5 w-3.5" />Etiquetas de todo
+                  </Button>
+                ) : null}
+                <Link href={`/inventory/locations/${loc.code}?check=1`}>
+                  <Button size="sm" variant="ghost" className="rounded-xl">Revisar</Button>
+                </Link>
                 {canDelete ? (
                   <Button
                     size="sm"
@@ -266,6 +285,7 @@ export default function InventoryOverviewPage() {
     { key: "maintenance", label: "Mantenimiento", value: stats.maintenance, icon: <Wrench className="h-3 w-3" /> },
     { key: "no-location", label: "Sin armario", value: stats.noLocation, icon: <AlertTriangle className="h-3 w-3" /> },
     { key: "no-nfc", label: "Sin NFC", value: stats.noNfc, icon: <Wifi className="h-3 w-3" /> },
+    ...(stats.retired ? [{ key: "retired" as QuickFilter, label: "De baja", value: stats.retired }] : []),
   ];
 
   return (
