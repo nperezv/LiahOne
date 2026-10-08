@@ -1,12 +1,12 @@
 import { PointerEvent, useEffect, useRef, useState } from "react";
-import { Eraser, HandCoins, Undo2 } from "lucide-react";
+import { BookUser, Eraser, HandCoins, History, Minus, Plus, Search, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useInventoryLoan, useInventoryReturn } from "@/hooks/use-api";
+import { type InventoryBorrowerSuggestion, useInventoryBorrowerSearch, useInventoryLoan, useInventoryReturn } from "@/hooks/use-api";
 
 function isoDatePlusDays(days: number) {
   const d = new Date();
@@ -26,11 +26,17 @@ interface LoanDialogProps {
   itemId: string;
   assetCode: string;
   itemName: string;
+  /** Unidades disponibles para prestar (para activos con cantidad > 1). */
+  availableQuantity?: number;
   onDone?: () => void;
 }
 
-export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, itemName, onDone }: LoanDialogProps) {
+export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, itemName, availableQuantity = 1, onDone }: LoanDialogProps) {
   const loan = useInventoryLoan();
+  const [search, setSearch] = useState("");
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const suggestions = useInventoryBorrowerSearch(memberId ? "" : search);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -51,6 +57,7 @@ export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, ite
 
   useEffect(() => {
     if (!open) return;
+    setQuantity(1);
     // El lienzo se monta un instante después de abrir el diálogo.
     const t = setTimeout(() => {
       const ctx = canvasRef.current?.getContext("2d");
@@ -92,7 +99,26 @@ export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, ite
     drawingRef.current = false;
   };
 
-  const canSubmit = firstName.trim().length >= 2 && lastName.trim().length >= 2 && phone.trim().length >= 6 && returnDate.length === 10 && hasSignature;
+  const pickPerson = (p: InventoryBorrowerSuggestion) => {
+    setFirstName(p.firstName ?? "");
+    setLastName(p.lastName ?? "");
+    setPhone(p.phone ?? "");
+    setEmail(p.email ?? "");
+    setMemberId(p.memberId);
+    setSearch(p.fullName);
+  };
+
+  const clearPerson = () => {
+    setMemberId(null);
+    setSearch("");
+    setFirstName("");
+    setLastName("");
+    setPhone("");
+    setEmail("");
+  };
+
+  const maxQty = Math.max(1, availableQuantity);
+  const canSubmit = quantity >= 1 && quantity <= maxQty && firstName.trim().length >= 2 && lastName.trim().length >= 2 && phone.trim().length >= 6 && returnDate.length === 10 && hasSignature;
 
   const submit = async () => {
     const canvas = canvasRef.current;
@@ -106,10 +132,15 @@ export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, ite
         borrowerEmail: email.trim(),
         expectedReturnDate: returnDate,
         signatureDataUrl: canvas.toDataURL("image/png"),
+        quantity,
+        memberId,
       });
     } catch {
       return; // el aviso con el motivo ya lo muestra el hook
     }
+    setMemberId(null);
+    setSearch("");
+    setQuantity(1);
     setFirstName("");
     setLastName("");
     setPhone("");
@@ -127,6 +158,72 @@ export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, ite
           <DialogDescription>{assetCode} · {itemName}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
+          {/* Buscar en el directorio: rellena nombre, teléfono y correo de un toque */}
+          <div className="grid gap-1">
+            <Label className="flex items-center gap-1"><BookUser className="h-3.5 w-3.5" />¿A quién se lo prestas?</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9 pr-9"
+                placeholder="Busca por nombre en el directorio"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  if (memberId) setMemberId(null);
+                }}
+              />
+              {search ? (
+                <button type="button" aria-label="Borrar" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={clearPerson}>
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            {!memberId && search.trim().length >= 2 && suggestions.data?.length ? (
+              <div className="max-h-48 overflow-y-auto rounded-xl border bg-popover">
+                {suggestions.data.map((p, idx) => (
+                  <button
+                    key={`${p.memberId ?? p.fullName}-${idx}`}
+                    type="button"
+                    className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
+                    onClick={() => pickPerson(p)}
+                  >
+                    {p.source === "member" ? <BookUser className="h-4 w-4 shrink-0 text-primary" /> : <History className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{p.fullName}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {p.source === "member" ? "Directorio" : "Ya se le prestó antes"}{p.phone ? ` · ${p.phone}` : ""}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {!memberId && search.trim().length >= 2 && suggestions.isFetched && !suggestions.data?.length ? (
+              <p className="text-xs text-muted-foreground">No está en el directorio: rellena los datos a mano.</p>
+            ) : null}
+            {memberId ? <p className="text-xs text-emerald-600">Datos tomados del directorio. Revisa que el teléfono sea correcto.</p> : null}
+          </div>
+
+          {availableQuantity > 1 ? (
+            <div className="grid gap-1">
+              <Label>¿Cuántas unidades? (quedan {availableQuantity})</Label>
+              <div className="flex items-center gap-2">
+                <Button type="button" size="icon" variant="outline" disabled={quantity <= 1} onClick={() => setQuantity((q) => Math.max(1, q - 1))}><Minus className="h-4 w-4" /></Button>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-24 text-center"
+                  min={1}
+                  max={maxQty}
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.min(maxQty, Math.max(1, Number(e.target.value) || 1)))}
+                />
+                <Button type="button" size="icon" variant="outline" disabled={quantity >= maxQty} onClick={() => setQuantity((q) => Math.min(maxQty, q + 1))}><Plus className="h-4 w-4" /></Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setQuantity(maxQty)}>Todas</Button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1">
               <Label>Nombre *</Label>
@@ -184,7 +281,7 @@ export function InventoryLoanDialog({ open, onOpenChange, itemId, assetCode, ite
           </div>
           <Button className="h-12 rounded-2xl bg-amber-600 text-white hover:bg-amber-500" onClick={() => void submit()} disabled={loan.isPending || !canSubmit}>
             <HandCoins className="mr-2 h-4 w-4" />
-            {loan.isPending ? "Registrando..." : "Registrar préstamo"}
+            {loan.isPending ? "Registrando..." : quantity > 1 ? `Prestar ${quantity} unidades` : "Registrar préstamo"}
           </Button>
           {!canSubmit ? <p className="text-center text-xs text-muted-foreground">Rellena los campos con * y firma en el recuadro blanco.</p> : null}
         </div>

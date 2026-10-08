@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { INVENTORY_STATUS_LABELS } from "@/hooks/use-api";
+import { INVENTORY_STATUS_LABELS, type InventoryItem } from "@/hooks/use-api";
 import { InventoryLoanDialog } from "@/components/inventory/inventory-loan-dialog";
 
 interface InventoryItemActionsCardProps {
@@ -15,7 +15,8 @@ interface InventoryItemActionsCardProps {
   category?: string;
   location?: string;
   photoUrl?: string | null;
-  status?: "available" | "loaned" | "maintenance";
+  status?: InventoryItem["status"];
+  availableQuantity?: number;
   defaultExpanded?: boolean;
 }
 
@@ -23,6 +24,7 @@ const STATUS_STYLE: Record<string, string> = {
   available: "border-emerald-300 text-emerald-700 dark:text-emerald-300",
   loaned: "border-amber-300 text-amber-700 dark:text-amber-300",
   maintenance: "border-rose-300 text-rose-700 dark:text-rose-300",
+  retired: "border-zinc-300 text-zinc-500",
 };
 
 export function InventoryItemActionsCard({
@@ -34,6 +36,7 @@ export function InventoryItemActionsCard({
   location,
   photoUrl,
   status = "available",
+  availableQuantity = 1,
   defaultExpanded = false,
 }: InventoryItemActionsCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -61,7 +64,7 @@ export function InventoryItemActionsCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-lg font-semibold">{name}</p>
-              <Badge variant="outline" className={cn("shrink-0 text-[10px]", STATUS_STYLE[status])}>{INVENTORY_STATUS_LABELS[status]}</Badge>
+              <Badge variant="outline" className={cn("shrink-0 text-[10px]", STATUS_STYLE[status])}>{INVENTORY_STATUS_LABELS[status] ?? status}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">{assetCode} · {resolvedCategory}</p>
             <p className="text-sm text-muted-foreground">{resolvedLocation}</p>
@@ -78,7 +81,7 @@ export function InventoryItemActionsCard({
               <Button
                 className="h-11 w-full rounded-xl bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50"
                 onClick={() => setIsLoanOpen(true)}
-                disabled={!itemId || status === "maintenance"}
+                disabled={!itemId || status === "maintenance" || status === "retired"}
               >
                 <HandCoins className="mr-2 h-4 w-4" />Prestar
               </Button>
@@ -97,7 +100,7 @@ export function InventoryItemActionsCard({
         ) : null}
       </article>
 
-      <InventoryLoanDialog open={isLoanOpen} onOpenChange={setIsLoanOpen} itemId={itemId} assetCode={assetCode} itemName={name} />
+      <InventoryLoanDialog open={isLoanOpen} onOpenChange={setIsLoanOpen} itemId={itemId} assetCode={assetCode} itemName={name} availableQuantity={availableQuantity} />
     </>
   );
 }
