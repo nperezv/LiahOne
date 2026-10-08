@@ -11,6 +11,7 @@ import {
   Plus,
   Printer,
   Search,
+  Trash2,
   Wrench,
 } from "lucide-react";
 import { InventoryPageHeader } from "@/components/inventory/inventory-page-header";
@@ -18,7 +19,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/lib/auth";
+import {
   INVENTORY_STATUS_LABELS,
+  useDeleteInventoryLocation,
   type InventoryItem,
   type InventoryLocation,
   useInventoryItems,
@@ -83,6 +96,12 @@ export default function InventoryOverviewPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<QuickFilter>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
+  // Igual que en el servidor: solo obispo y consejeros pueden eliminar armarios.
+  const canDelete = ["obispo", "consejero_obispo"].includes(String(user?.role ?? ""));
+  const deleteLocation = useDeleteInventoryLocation();
+  const [toDelete, setToDelete] = useState<InventoryLocation | null>(null);
+  const [moveItemsTo, setMoveItemsTo] = useState<string>("none");
 
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -212,6 +231,19 @@ export default function InventoryOverviewPage() {
                 <a href={`/inventory/location-label/${loc.code}`} target="_blank" rel="noreferrer">
                   <Button size="sm" variant="ghost" className="rounded-xl"><Printer className="mr-1 h-3.5 w-3.5" />Etiqueta</Button>
                 </a>
+                {canDelete ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      setMoveItemsTo(loc.parentId ?? "none");
+                      setToDelete(loc);
+                    }}
+                  >
+                    <Trash2 className="mr-1 h-3.5 w-3.5" />Eliminar
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -296,6 +328,60 @@ export default function InventoryOverviewPage() {
       <Link href="/inventory/register">
         <Button variant="outline" className="h-11 w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />Registrar activo o armario</Button>
       </Link>
+      <AlertDialog open={Boolean(toDelete)} onOpenChange={(open) => { if (!open && !deleteLocation.isPending) setToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {toDelete?.name}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                {(() => {
+                  if (!toDelete) return null;
+                  const directItems = items.filter((i) => i.locationId === toDelete.id).length;
+                  const subLocations = childrenByParent.get(toDelete.id)?.length ?? 0;
+                  return (
+                    <>
+                      <p>Esta acción no se puede deshacer. El historial de movimientos se conserva.</p>
+                      {directItems ? <p><b>Tiene {directItems} activo(s) dentro.</b> Elige a dónde pasan:</p> : <p>El armario está vacío.</p>}
+                      {subLocations ? <p>Sus {subLocations} sub-ubicación(es) pasarán a estar directamente en el nivel superior.</p> : null}
+                      {toDelete.hasNfc ? <p>Su etiqueta NFC quedará libre para usarla en otro armario.</p> : null}
+                    </>
+                  );
+                })()}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {toDelete && items.some((i) => i.locationId === toDelete.id) ? (
+            <Select value={moveItemsTo} onValueChange={setMoveItemsTo}>
+              <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Mover activos a..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Dejarlos sin armario</SelectItem>
+                {locations
+                  .filter((l) => l.id !== toDelete.id && l.parentId !== toDelete.id)
+                  .map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.code}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLocation.isPending}>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteLocation.isPending}
+              onClick={() => {
+                if (!toDelete) return;
+                deleteLocation.mutate(
+                  { code: toDelete.code, moveItemsTo: moveItemsTo === "none" ? null : moveItemsTo },
+                  { onSuccess: () => setToDelete(null) },
+                );
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {deleteLocation.isPending ? "Eliminando..." : "Eliminar armario"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
