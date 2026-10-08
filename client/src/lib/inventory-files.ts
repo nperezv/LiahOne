@@ -111,3 +111,67 @@ export function loanReminderText(name: string | null | undefined, itemName: stri
   const first = String(name ?? "").split(" ")[0] || "";
   return `Hola${first ? ` ${first}` : ""}, te escribimos del barrio para recordarte la devolución de «${itemName}»${expected ? `, prevista para el ${formatShortDate(expected)}` : ""}. ¡Gracias!`;
 }
+
+// ── Etiqueta con el diseño del barrio (misma plantilla que el PDF del servidor) ──
+const LABEL_TEMPLATE_URL = "/inventory/label-template.jpg";
+const LABEL_BOX = { x: 0.6259, y: 0.1788, w: 0.3282, h: 0.6348 };
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
+    img.src = src;
+  });
+}
+
+function fitCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  let t = text;
+  if (ctx.measureText(t).width <= maxWidth) return t;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
+  return `${t.trimEnd()}…`;
+}
+
+/** Dibuja la etiqueta (plantilla + QR + código + nombre) y devuelve una imagen PNG (data URL). */
+export async function renderInventoryLabelPng(opts: { code: string; title?: string | null; url: string }) {
+  const [template, qr] = await Promise.all([
+    loadImage(LABEL_TEMPLATE_URL),
+    qrDataUrl(opts.url).then(loadImage),
+  ]);
+  const W = template.naturalWidth;
+  const H = template.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(template, 0, 0, W, H);
+
+  const ptToPx = W / (76 * 2.8346456693); // misma escala que la etiqueta de 76 mm
+  const bx = LABEL_BOX.x * W;
+  const by = LABEL_BOX.y * H;
+  const bw = LABEL_BOX.w * W;
+  const bh = LABEL_BOX.h * H;
+  const pad = bw * 0.07;
+  const codePx = 6.2 * ptToPx;
+  const titlePx = 4.6 * ptToPx;
+  const textBlock = codePx + (opts.title ? titlePx + 2 * ptToPx : 0) + 2 * ptToPx;
+  const q = Math.min(bw - pad * 2, bh - pad * 2 - textBlock);
+  const qx = bx + (bw - q) / 2;
+  const qy = by + pad;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(qr, qx, qy, q, q);
+  ctx.imageSmoothingEnabled = true;
+
+  ctx.fillStyle = "#2b3d4f";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.font = `700 ${codePx}px Helvetica, Arial, sans-serif`;
+  const codeY = qy + q + 2 * ptToPx;
+  ctx.fillText(fitCanvasText(ctx, opts.code, bw - pad), bx + bw / 2, codeY);
+  if (opts.title) {
+    ctx.font = `400 ${titlePx}px Helvetica, Arial, sans-serif`;
+    ctx.fillText(fitCanvasText(ctx, opts.title, bw - pad), bx + bw / 2, codeY + codePx + 2 * ptToPx);
+  }
+  return canvas.toDataURL("image/png");
+}
