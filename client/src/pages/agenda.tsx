@@ -42,8 +42,8 @@ import {
   useRunAgendaPlanner,
   useUpdateAgendaAvailability,
   useUpdateAgendaTaskStatus,
-  useAssignments,
   useMyTasks,
+  useUpdateAssignment,
 } from "@/hooks/use-api";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -54,7 +54,27 @@ type TaskFilter = "open" | "planned" | "atRisk" | "done";
 function sourceLabel(sourceType: string) {
   if (sourceType === "activity") return "Actividad";
   if (sourceType === "interview") return "Entrevista";
+  if (sourceType === "organization_interview") return "Entrevista org.";
+  if (sourceType === "assignment") return "Asignación";
   return "Manual";
+}
+
+/** A dónde lleva el botón de un evento sincronizado. */
+function eventUrl(event: any): string {
+  const id = encodeURIComponent(event.sourceId ?? "");
+  if (event.sourceType === "interview") return `/interviews?highlight=${id}&from=agenda`;
+  if (event.sourceType === "organization_interview") return `/organization-interviews?highlight=${id}&from=agenda`;
+  if (event.sourceType === "activity") return `/activities?highlight=${id}&from=agenda`;
+  return "/agenda";
+}
+
+// Asignaciones cuyo estado lo cambia su propio flujo (entrevista, presupuesto): no se completan a mano.
+function canCompleteAssignmentHere(task: any) {
+  return ["manual", "council", "presidency-meeting", "activity"].includes(task.source);
+}
+
+function isOpenAssignment(task: any) {
+  return task.type === "assignment" && (task.status === "pendiente" || task.status === "en_proceso");
 }
 
 function taskUrl(task: any): string {
@@ -104,8 +124,11 @@ export default function AgendaPage() {
   const updateTaskStatus = useUpdateAgendaTaskStatus();
   const { data: availability } = useAgendaAvailability();
   const updateAvailability = useUpdateAgendaAvailability();
-  const { data: assignments } = useAssignments();
   const { data: myTasks = [] } = useMyTasks();
+  const updateAssignment = useUpdateAssignment();
+
+  // Asignaciones del usuario (antes se cargaban pero no se mostraban en ningún sitio).
+  const myAssignments = useMemo(() => (myTasks as any[]).filter(isOpenAssignment), [myTasks]);
 
   const [activeTab, setActiveTab] = useState<"timeline" | "kanban" | "checklist">("timeline");
   const [quickTitle, setQuickTitle] = useState("");
@@ -155,6 +178,25 @@ export default function AgendaPage() {
     () => tasks.filter((task: any) => task.dueAt && isSameDay(new Date(task.dueAt), selectedDate) && task.status !== "canceled"),
     [tasks, selectedDate]
   );
+
+  const dayAssignmentsDue = useMemo(
+    () => myAssignments.filter((a: any) => a.dueDate && isSameDay(new Date(a.dueDate), selectedDate)),
+    [myAssignments, selectedDate]
+  );
+
+  const startOfToday = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const overdueAssignments = useMemo(
+    () => myAssignments.filter((a: any) => a.dueDate && new Date(a.dueDate) < startOfToday),
+    [myAssignments, startOfToday]
+  );
+  const undatedAssignments = useMemo(() => myAssignments.filter((a: any) => !a.dueDate), [myAssignments]);
+
+  const completeAssignment = (a: any) =>
+    updateAssignment.mutate({ id: a.id, status: "completada" });
 
   const filteredDayEvents = useMemo(() => {
     const taskTitles = new Set(dayTasksDue.map((task: any) => normalizeComparableText(task.title || "")));
@@ -400,7 +442,7 @@ export default function AgendaPage() {
             <Clock className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-2xl font-bold leading-none">{openTasks.length}</p>
+            <p className="text-2xl font-bold leading-none">{openTasks.length + myAssignments.length}</p>
             <p className="text-xs text-muted-foreground mt-1">Pendientes</p>
           </div>
         </GlassCard>
@@ -478,7 +520,9 @@ export default function AgendaPage() {
 
             <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
               {weekDays.map((day) => {
-                const count = events.filter((e) => isSameDay(parseISO(`${e.date}T00:00:00`), day)).length;
+                const count =
+                  events.filter((e) => isSameDay(parseISO(`${e.date}T00:00:00`), day)).length +
+                  myAssignments.filter((a: any) => a.dueDate && isSameDay(new Date(a.dueDate), day)).length;
                 const isSel = isSameDay(day, selectedDate);
                 const isTod = isToday(day);
 
@@ -509,7 +553,7 @@ export default function AgendaPage() {
                               : "bg-primary/20 text-primary font-semibold"
                           }`}
                         >
-                          {count} {count === 1 ? "ev." : "ev."}
+                          {count}
                         </span>
                       ) : (
                         <span className="h-1 w-1 rounded-full bg-transparent"></span>
@@ -530,7 +574,7 @@ export default function AgendaPage() {
 
             {isLoading && <p className="text-xs text-muted-foreground py-4 text-center">Cargando agenda...</p>}
 
-            {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && (
+            {!isLoading && dayEvents.length === 0 && dayPlans.length === 0 && dayTasksDue.length === 0 && dayAssignmentsDue.length === 0 && (
               <div className="py-8 text-center space-y-2">
                 <p className="text-sm text-muted-foreground">Sin eventos o tareas programadas para este día.</p>
                 <Button size="sm" variant="outline" className="text-xs" onClick={() => setActiveTab("kanban")}>
@@ -571,9 +615,29 @@ export default function AgendaPage() {
                 </div>
               ))}
 
+              {dayAssignmentsDue.map((a: any) => (
+                <div key={`asg-${a.id}`} className="p-3 rounded-xl border border-violet-500/30 bg-violet-500/5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{a.sourceEmoji} {a.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Asignación · vence este día{a.sourceLabel ? ` · ${a.sourceLabel}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {canCompleteAssignmentHere(a) ? (
+                      <Button size="sm" className="h-7 text-xs" disabled={updateAssignment.isPending} onClick={() => completeAssignment(a)}>
+                        Hecho
+                      </Button>
+                    ) : null}
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setLocation(taskUrl(a))}>
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
               {filteredDayEvents.map((event) => {
                 const isPast = parseISO(`${event.date}T${event.endTime ?? event.startTime ?? "23:59"}:00`).getTime() < Date.now();
-                const isInterview = event.sourceType === "interview";
 
                 return (
                   <div key={event.id} className="p-3 rounded-xl border border-border/60 bg-background/40 flex items-center justify-between gap-3">
@@ -591,7 +655,7 @@ export default function AgendaPage() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          onClick={() => setLocation(isInterview ? `/interviews?highlight=${encodeURIComponent(event.sourceId ?? "")}` : "/activities")}
+                          onClick={() => setLocation(eventUrl(event))}
                         >
                           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
@@ -602,6 +666,48 @@ export default function AgendaPage() {
               })}
             </div>
           </GlassCard>
+
+          {/* Mis asignaciones: vencidas y sin fecha (las que tienen fecha salen en su día) */}
+          {overdueAssignments.length > 0 || undatedAssignments.length > 0 ? (
+            <GlassCard className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4 text-primary" />
+                  Mis asignaciones pendientes
+                </h3>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setLocation("/assignments")}>
+                  Ver todas <ArrowRight className="ml-1 h-3 w-3" />
+                </Button>
+              </div>
+              {[...overdueAssignments, ...undatedAssignments].slice(0, 12).map((a: any) => {
+                const late = Boolean(a.dueDate);
+                return (
+                  <div
+                    key={`pend-${a.id}`}
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${late ? "border-rose-500/40 bg-rose-500/5" : "border-border/60 bg-background/40"}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{a.sourceEmoji} {a.title}</p>
+                      <p className={`text-xs mt-0.5 ${late ? "text-rose-600" : "text-muted-foreground"}`}>
+                        {late ? `Vencida el ${format(new Date(a.dueDate), "d 'de' MMMM", { locale: es })}` : "Sin fecha límite"}
+                        {a.sourceLabel ? ` · ${a.sourceLabel}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {canCompleteAssignmentHere(a) ? (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={updateAssignment.isPending} onClick={() => completeAssignment(a)}>
+                          Hecho
+                        </Button>
+                      ) : null}
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setLocation(taskUrl(a))}>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </GlassCard>
+          ) : null}
         </TabsContent>
 
         {/* TAB 2: Notion Kanban Board */}
@@ -612,7 +718,7 @@ export default function AgendaPage() {
               <div className="flex items-center justify-between pb-2 border-b border-border/40">
                 <span className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-purple-500"></span>
-                  Por Hacer ({openTasks.length})
+                  Por Hacer ({openTasks.length + myAssignments.length})
                 </span>
               </div>
 
@@ -633,7 +739,28 @@ export default function AgendaPage() {
                     </div>
                   </div>
                 ))}
-                {openTasks.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">Sin tareas pendientes.</p>}
+                {myAssignments
+                  .filter((a: any) => !searchQuery.trim() || `${a.title} ${a.description ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((a: any) => (
+                  <div key={`kb-asg-${a.id}`} className="p-3 rounded-xl border border-violet-500/30 bg-background/80 shadow-xs space-y-2">
+                    <p className="text-sm font-medium leading-snug">{a.sourceEmoji} {a.title}</p>
+                    <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {a.dueDate ? `Vence ${format(new Date(a.dueDate), "d MMM", { locale: es })}` : "Asignación"}
+                      </Badge>
+                      {canCompleteAssignmentHere(a) ? (
+                        <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2 text-primary" onClick={() => completeAssignment(a)}>
+                          Completar →
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2 text-primary" onClick={() => setLocation(taskUrl(a))}>
+                          Abrir →
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {openTasks.length === 0 && myAssignments.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">Sin tareas pendientes.</p>}
               </div>
             </GlassCard>
 
