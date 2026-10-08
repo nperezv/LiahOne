@@ -86,3 +86,28 @@ export async function uploadInventoryPhoto(file: File): Promise<string> {
   if (!uploaded?.url) throw new Error("El servidor no devolvió la dirección de la foto");
   return uploaded.url as string;
 }
+
+/** PDF con las etiquetas de todos los activos de un armario. */
+export function locationItemsLabelsPdf(locationCode: string) {
+  return openInventoryPdf(`/inventory/labels/batch?locationCode=${encodeURIComponent(locationCode)}`, `etiquetas-${locationCode}.pdf`);
+}
+
+/** Enlace de WhatsApp con un mensaje ya escrito. Si el número no lleva prefijo, se asume España (+34). */
+export function whatsappLink(phone: string | null | undefined, text: string) {
+  let digits = String(phone ?? "").replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) digits = digits.slice(1);
+  else if (digits.startsWith("00")) digits = digits.slice(2);
+  else if (digits.length === 9) digits = `34${digits}`;
+  return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : null;
+}
+
+export function formatShortDate(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value.length === 10 ? `${value}T12:00:00` : value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+}
+
+export function loanReminderText(name: string | null | undefined, itemName: string, expected?: string | null) {
+  const first = String(name ?? "").split(" ")[0] || "";
+  return `Hola${first ? ` ${first}` : ""}, te escribimos del barrio para recordarte la devolución de «${itemName}»${expected ? `, prevista para el ${formatShortDate(expected)}` : ""}. ¡Gracias!`;
+}
