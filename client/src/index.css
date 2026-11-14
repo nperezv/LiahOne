@@ -1015,3 +1015,122 @@
   75%  { width: 88%; }
   100% { width: 100%; }
 }
+
+/* ── Settla-inspired Modern Micro-animations & Elevation ── */
+
+@keyframes breathe-ring {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.85;
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.06);
+  }
+}
+
+.animate-breathe-ring {
+  animation: breathe-ring 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-breathe {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+@keyframes flash-highlight {
+  0% {
+    background-color: hsl(var(--primary) / 0.28);
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.is-flash,
+.animate-flash {
+  animation: flash-highlight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Card micro-elevation */
+.card-lift {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* Smooth spring entrance */
+@keyframes fade-up-spring {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up-spring 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Badge pop */
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-badge-pop {
+  animation: badge-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Active button tactile spring */
+.btn-press {
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), opacity 0.15s ease;
+}
+
+.btn-press:active {
+  transform: scale(0.975);
+}
+
+/* Live Dot Pulse */
+.live-pulse {
+  position: relative;
+  display: inline-flex;
+}
+
+.live-pulse::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background-color: currentColor;
+  animation: breathe-ring 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
