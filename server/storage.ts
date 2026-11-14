@@ -736,6 +736,19 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUserWithCleanup(id: string): Promise<void> {
     await db.transaction(async (tx) => {
+      // Release any active callings associated with the user's memberId
+      const [targetUser] = await tx
+        .select({ memberId: users.memberId })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+      if (targetUser?.memberId) {
+        await tx
+          .update(memberCallings)
+          .set({ isActive: false, endDate: new Date() })
+          .where(and(eq(memberCallings.memberId, targetUser.memberId), eq(memberCallings.isActive, true)));
+      }
+
       // Auth/session
       await tx.delete(notifications).where(eq(notifications.userId, id));
       await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, id));
@@ -1556,6 +1569,7 @@ export class DatabaseStorage implements IStorage {
       .from(memberCallings)
       .leftJoin(members, eq(memberCallings.memberId, members.id))
       .leftJoin(organizations, eq(memberCallings.organizationId, organizations.id))
+      .where(and(eq(memberCallings.isActive, true), eq(members.memberStatus, "active")))
       .orderBy(asc(members.nameSurename), asc(memberCallings.callingName));
   }
 

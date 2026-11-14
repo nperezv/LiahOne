@@ -1848,7 +1848,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log("[upload] OK:", uploadedFile.originalname, uploadedFile.mimetype, uploadedFile.size, "bytes");
 
-        const extension = path.extname(uploadedFile.originalname || "");
+        const extension = path.extname(uploadedFile.originalname || "").toLowerCase();
+        const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt"];
+        if (!allowedExtensions.includes(extension)) {
+          return res.status(400).json({ error: "Tipo de archivo no permitido. Solo se admiten imágenes, documentos PDF y hojas de cálculo." });
+        }
         const storedFilename = `${randomUUID()}${extension}`;
         const storedPath = path.join(uploadsPath, storedFilename);
         await fs.promises.writeFile(storedPath, uploadedFile.buffer);
@@ -2229,8 +2233,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Bishop-level roles automatically get the Obispado organizationId
       const bishopRoles = ["consejero_obispo", "secretario", "bibliotecario"];
-      const obispadoId = "0fc67882-5b4e-43d5-9384-83b1f8afe1e3"; // replace with the real Obispado ID
-      const finalOrganizationId = bishopRoles.includes(role) ? obispadoId : organizationId || null;
+      let obispadoId: string | null = null;
+      if (bishopRoles.includes(role)) {
+        const allOrgs = await storage.getAllOrganizations();
+        const obispadoOrg = allOrgs.find((o: any) => o.type === "obispado");
+        obispadoId = obispadoOrg?.id || null;
+      }
+      const finalOrganizationId = bishopRoles.includes(role) ? (obispadoId || organizationId || null) : organizationId || null;
 
       const temporaryPassword = generateTemporaryPassword();
       const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
@@ -2953,7 +2962,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   };
 
-  app.post("/api/sacramental-meetings", requireAuth, async (req: Request, res: Response) => {
+  app.post(
+    "/api/sacramental-meetings",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const dataToValidate = {
         ...req.body,
@@ -2983,7 +2996,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/sacramental-meetings/:id", requireAuth, async (req: Request, res: Response) => {
+  app.patch(
+    "/api/sacramental-meetings/:id",
+    requireAuth,
+    requireRole("obispo", "consejero_obispo", "secretario", "secretario_ejecutivo"),
+    async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const currentMeeting = await storage.getSacramentalMeeting(id);
@@ -3631,6 +3648,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/budget-requests/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const currentUser = (req as any).user;
+      const isFinancierOrBishop = ["obispo", "secretario_financiero"].includes(currentUser?.role || "");
+
+      // If user is not Bishop or Financial Secretary, verify ownership and prevent unauthorized approval/tampering
+      if (!isFinancierOrBishop) {
+        const existing = await storage.getBudgetRequest(id);
+        if (!existing) {
+          return res.status(404).json({ error: "Budget request not found" });
+        }
+        if (existing.requestedBy !== currentUser?.id && existing.organizationId !== currentUser?.organizationId) {
+          return res.status(403).json({ error: "No tienes permiso para modificar esta solicitud de presupuesto" });
+        }
+        if (req.body.status && req.body.status !== existing.status) {
+          return res.status(403).json({ error: "Solo el obispo o el secretario financiero pueden cambiar el estado de la solicitud" });
+        }
+        if (req.body.amount && String(req.body.amount) !== String(existing.amount)) {
+          return res.status(403).json({ error: "Solo el obispo o el secretario financiero pueden modificar el monto de la solicitud" });
+        }
+      }
+
       const hasActivityDate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "activityDate");
       const normalizedActivityDate = hasActivityDate
         ? normalizeBudgetRequestActivityDate(req.body?.activityDate)
@@ -3699,7 +3736,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const currentUser = (req as any).user;
       const updaterName = shortName(currentUser) || "Un usuario";
       const allUsers = await storage.getAllUsers();
       const obispadoMembers = allUsers.filter((member: any) =>
@@ -8981,7 +9017,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             LEFT JOIN users u ON u.id = i.interviewer_id
             WHERE i.status = 'programada'
               AND (i.requester_phone LIKE ${`%${last9Digits}`}
-                   OR (i.person_name ILIKE ${`%${firstWord}%`})
                    OR EXISTS (
                      SELECT 1 FROM members m 
                      WHERE m.id = i.member_id 
@@ -9550,10 +9585,13 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
           }
         } else if (aiResponse.action.type === "cancel_interview") {
           const { interviewId } = aiResponse.action;
-          if (interviewId) {
+          if (interviewId && phone) {
+            const cleanPhone = phone.replace(/\D/g, "");
+            const last9Digits = cleanPhone.slice(-9);
             const ids = String(interviewId).split(",").map((s: string) => s.trim()).filter(Boolean);
             for (const id of ids) {
               try {
+                // Verify that the interview belongs to this requester's phone before cancelling
                 await db.execute(sql`
                   UPDATE interviews
                   SET status = 'archivada',
@@ -9563,12 +9601,22 @@ IMPORTANTE: Debes responder SIEMPRE en formato JSON válido con esta estructura 
                       archived_at = NOW(),
                       updated_at = NOW()
                   WHERE id = ${id}
+                    AND (
+                      requester_phone LIKE ${`%${last9Digits}`}
+                      OR EXISTS (
+                        SELECT 1 FROM members m 
+                        WHERE m.id = interviews.member_id 
+                          AND m.phone LIKE ${`%${last9Digits}`}
+                      )
+                    )
                 `);
-                console.log(`[POST /api/public/chat] Interview ${id} cancelled successfully via Zen.`);
+                console.log(`[POST /api/public/chat] Interview ${id} verified and cancelled successfully via Zen.`);
               } catch (err) {
                 console.error(`Error cancelling interview ${id} via Zen:`, err);
               }
             }
+          } else if (interviewId && !phone) {
+            console.warn(`[POST /api/public/chat] Cancel interview ${interviewId} rejected: no phone provided.`);
           }
         }
       }

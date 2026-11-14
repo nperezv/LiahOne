@@ -747,26 +747,34 @@ function SacramentalMeetingPageInner() {
       }
     };
 
-    // 1. Add users with role 'obispo' or 'consejero_obispo' (solo activos)
+    // 1. Add active leadership users with role 'obispo' or 'consejero_obispo' (prioridad absoluta)
     const obispadoUsers = users.filter((u: any) => u.isActive !== false && ["obispo", "consejero_obispo"].includes(u.role));
     obispadoUsers.forEach((u: any) => {
       const label = shortUserName(u) || u.name || u.email || "";
       addUnique(label, u.role, u.email);
     });
 
-    // 2. Add from activeMemberCallings for Obispado callings (solo llamamientos ACTIVOS)
-    const obispadoCallings = activeMemberCallings.filter((c) => {
-      if (obispadoOrgId && c.organizationId !== obispadoOrgId) return false;
-      const cn = normalizeText(c.callingName || "");
-      return (cn.includes("obispo") || cn.includes("consejero")) && !cn.includes("secretario");
-    });
+    // 2. Add from activeMemberCallings ONLY if bishopric is incomplete (< 3 autoridades)
+    // and verify the member is not inactive or deleted
+    if (list.length < 3) {
+      const inactiveUserNames = users.filter((u: any) => u.isActive === false).map((u: any) => shortUserName(u) || u.name || "");
+      const obispadoCallings = activeMemberCallings.filter((c) => {
+        if (obispadoOrgId && c.organizationId !== obispadoOrgId) return false;
+        const cn = normalizeText(c.callingName || "");
+        return (cn.includes("obispo") || cn.includes("consejero")) && !cn.includes("secretario");
+      });
 
-    obispadoCallings.forEach((c) => {
-      if (c.memberName) {
-        const role = normalizeText(c.callingName || "").includes("obispo") ? "obispo" : "consejero_obispo";
-        addUnique(c.memberName, role);
+      for (const c of obispadoCallings) {
+        if (list.length >= 3) break;
+        if (c.memberName) {
+          const isInactive = inactiveUserNames.some((iu: string) => Boolean(iu) && isSameMemberName(iu, c.memberName || ""));
+          if (!isInactive) {
+            const role = normalizeText(c.callingName || "").includes("obispo") ? "obispo" : "consejero_obispo";
+            addUnique(c.memberName, role);
+          }
+        }
       }
-    });
+    }
 
     return list;
   }, [users, activeMemberCallings, obispadoOrgId]);
