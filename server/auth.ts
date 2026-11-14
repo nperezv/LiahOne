@@ -709,6 +709,10 @@ export async function sendOrganizationInterviewCancelledEmail(payload: {
 export async function sendInterviewUpdatedEmail(payload: {
   toEmail: string;
   recipientName: string;
+  isInterviewer?: boolean;
+  intervieweeName?: string | null;
+  interviewType?: string | null;
+  notes?: string | null;
   interviewDate: string;
   interviewTime: string;
   interviewerName?: string | null;
@@ -732,18 +736,75 @@ export async function sendInterviewUpdatedEmail(payload: {
     ? `Si necesitas apoyo para coordinar, comunícate con el secretario ${payload.secretaryName.trim()}.`
     : "Si necesitas apoyo para coordinar, comunícate con el secretario ejecutivo.";
 
-  const updatedLines = [
-    buildPastoralGreeting({ recipientName: payload.recipientName, recipientSex: payload.recipientSex, recipientOrganizationType: payload.recipientOrganizationType, }),
-    "", "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
-    ...changeLines, "",
-    `Fecha: ${payload.interviewDate}`, `Hora: ${payload.interviewTime} hrs.`,
-    payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
-    "", "Gracias por tu disposición y tu fe.", secretaryLine, "",
-    "Con cariño fraternal,", wardSig(payload.wardName),
-  ];
+  const typeLine = payload.interviewType ? `Tipo de entrevista: ${payload.interviewType}` : null;
+  const notesLine = payload.notes?.trim() ? `Notas / Motivo: ${payload.notes.trim()}` : null;
+
+  let updatedLines: (string | null)[];
+  let subject: string;
+
+  if (payload.isInterviewer) {
+    subject = payload.intervieweeName
+      ? `Actualización de entrevista con ${payload.intervieweeName}`
+      : "Actualización de entrevista asignada";
+
+    updatedLines = [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+      }),
+      "",
+      payload.intervieweeName
+        ? `Te informamos sobre los cambios recientes en la entrevista programada con ${payload.intervieweeName}:`
+        : "Te informamos sobre los cambios recientes en tu entrevista asignada:",
+      ...changeLines,
+      "",
+      payload.intervieweeName ? `Persona citada: ${payload.intervieweeName}` : null,
+      typeLine,
+      `Fecha: ${payload.interviewDate}`,
+      `Hora: ${payload.interviewTime} hrs.`,
+      "Lugar: Oficina del obispado.",
+      notesLine,
+      "",
+      secretaryLine,
+      "",
+      "Con aprecio fraternal,",
+      wardSig(payload.wardName),
+    ];
+  } else {
+    subject = payload.interviewerName
+      ? `Actualización de tu entrevista con ${payload.interviewerName}`
+      : "Actualización de tu entrevista";
+
+    updatedLines = [
+      buildPastoralGreeting({
+        recipientName: payload.recipientName,
+        recipientSex: payload.recipientSex,
+        recipientOrganizationType: payload.recipientOrganizationType,
+      }),
+      "",
+      "Esperamos que te encuentres bien. Te compartimos los cambios recientes de tu entrevista:",
+      ...changeLines,
+      "",
+      typeLine,
+      `Fecha: ${payload.interviewDate}`,
+      `Hora: ${payload.interviewTime} hrs.`,
+      payload.interviewerName ? `Entrevistador: ${payload.interviewerName}` : null,
+      "Lugar: Oficina del obispado.",
+      notesLine,
+      "",
+      "Gracias por tu disposición y tu fe.",
+      secretaryLine,
+      "",
+      "Con cariño fraternal,",
+      wardSig(payload.wardName),
+    ];
+  }
+
   await smtp.transporter.sendMail({
-    from: smtp.from, to: payload.toEmail,
-    subject: "Actualización de tu entrevista",
+    from: smtp.from,
+    to: payload.toEmail,
+    subject,
     text: updatedLines.filter((l): l is string => Boolean(l)).join("\n"),
     html: buildHtmlEmail(updatedLines, payload.wardName),
   });

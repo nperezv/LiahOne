@@ -1092,7 +1092,7 @@ export default function WardCouncilPage() {
     const grouped = new Map<string, { name: string; members: any[] }>();
 
     users
-      .filter((user: any) => leaderRoles.has(user.role))
+      .filter((user: any) => user.isActive !== false && leaderRoles.has(user.role))
       .forEach((user: any) => {
         const isSecretary = secretaryRoles.has(user.role);
         const rawOrgName = user.organizationId
@@ -1415,7 +1415,7 @@ export default function WardCouncilPage() {
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Crear Consejo de Barrio</DialogTitle>
                   <DialogDescription>
@@ -1426,132 +1426,58 @@ export default function WardCouncilPage() {
                 <Form {...createForm}>
                   <form onSubmit={createForm.handleSubmit(onCreate)} className="space-y-4">
 
-                    {/* Fecha */}
-                    <FormField
-                      control={createForm.control}
-                      name="date"
-                      render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fecha</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                    <FormField
-                      control={createForm.control}
-                      name="time"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hora</FormLabel>
-                          <FormControl>
-                            <Input type="time" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={createForm.control}
-                      name="location"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Lugar</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Ej. Salón de consejeros" />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Preside */}
-                    <FormField
-                      control={createForm.control}
-                      name="presider"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Preside</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona un líder" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>{createLeaderOptions}</SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Dirige */}
-                    <FormField
-                      control={createForm.control}
-                      name="director"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Dirige</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona un líder" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>{createLeaderOptions}</SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Oración inicial */}
-                    <FormField
-                      control={createForm.control}
-                      name="openingPrayer"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Oración inicial</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona un líder" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>{createLeaderOptions}</SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Pensamiento espiritual */}
-                    <FormField
-                      control={createForm.control}
-                      name="hasSpiritualThought"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center space-x-2">
-                          <FormControl>
-                            <Checkbox
-                              checked={Boolean(field.value)}
-                              onCheckedChange={(checked) => field.onChange(Boolean(checked))}
-                            />
-                          </FormControl>
-                          <FormLabel className="text-sm font-medium">
-                            Pensamiento espiritual
-                          </FormLabel>
-                        </FormItem>
-                      )}
-                    />
-
-                    {createForm.watch("hasSpiritualThought") && (
-                      <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Columna Izquierda: Datos de reunión y autoridades */}
+                      <div className="space-y-4">
+                        {/* Fecha */}
                         <FormField
                           control={createForm.control}
-                          name="spiritualThoughtBy"
+                          name="date"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Asignado a:</FormLabel>
+                              <FormLabel>Fecha</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={createForm.control}
+                          name="time"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hora</FormLabel>
+                              <FormControl>
+                                <Input type="time" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={createForm.control}
+                          name="location"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Lugar</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Ej. Salón de consejeros" />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Preside */}
+                        <FormField
+                          control={createForm.control}
+                          name="presider"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Preside</FormLabel>
                               <Select value={field.value} onValueChange={field.onChange}>
                                 <FormControl>
                                   <SelectTrigger>
@@ -1563,27 +1489,109 @@ export default function WardCouncilPage() {
                             </FormItem>
                           )}
                         />
-                      </>
-                    )}
 
-                    {/* Oración final */}
-                    <FormField
-                      control={createForm.control}
-                      name="closingPrayerBy"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Oración final</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona un líder" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>{createLeaderOptions}</SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
+                        {/* Dirige */}
+                        <FormField
+                          control={createForm.control}
+                          name="director"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Dirige</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>{createLeaderOptions}</SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {/* Columna Derecha: Oraciones y espiritualidad */}
+                      <div className="space-y-4">
+                        {/* Oración inicial */}
+                        <FormField
+                          control={createForm.control}
+                          name="openingPrayer"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Oración inicial</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>{createLeaderOptions}</SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Pensamiento espiritual */}
+                        <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
+                          <FormField
+                            control={createForm.control}
+                            name="hasSpiritualThought"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={Boolean(field.value)}
+                                    onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-sm font-medium cursor-pointer">
+                                  Pensamiento espiritual
+                                </FormLabel>
+                              </FormItem>
+                            )}
+                          />
+
+                          {createForm.watch("hasSpiritualThought") && (
+                            <FormField
+                              control={createForm.control}
+                              name="spiritualThoughtBy"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Asignado a:</FormLabel>
+                                  <Select value={field.value} onValueChange={field.onChange}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona un líder" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>{createLeaderOptions}</SelectContent>
+                                  </Select>
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                        </div>
+
+                        {/* Oración final */}
+                        <FormField
+                          control={createForm.control}
+                          name="closingPrayerBy"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Oración final</FormLabel>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona un líder" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>{createLeaderOptions}</SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
 
                     {/* Revisión compromisos anteriores */}
                     <div className="space-y-3">
@@ -1907,7 +1915,7 @@ export default function WardCouncilPage() {
           setIsEditOpen(open);
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Consejo de Barrio</DialogTitle>
             <DialogDescription>
@@ -1917,123 +1925,54 @@ export default function WardCouncilPage() {
 
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-4">
-              <FormField
-                control={editForm.control}
-                name="date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fecha</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hora</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Lugar</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Ej. Salón de consejeros" />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="presider"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preside</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un líder" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>{editLeaderOptions}</SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="director"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Dirige</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un líder" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>{editLeaderOptions}</SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="openingPrayer"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Oración inicial</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un líder" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>{editLeaderOptions}</SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={editForm.control}
-                name="hasSpiritualThought"
-                render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2">
-                    <FormControl>
-                      <Checkbox
-                        checked={Boolean(field.value)}
-                        onCheckedChange={(checked) => field.onChange(Boolean(checked))}
-                      />
-                    </FormControl>
-                    <FormLabel className="text-sm font-medium">Pensamiento espiritual</FormLabel>
-                  </FormItem>
-                )}
-              />
-
-              {editForm.watch("hasSpiritualThought") && (
-                <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Columna Izquierda: Datos de reunión y autoridades */}
+                <div className="space-y-4">
                   <FormField
                     control={editForm.control}
-                    name="spiritualThoughtBy"
+                    name="date"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Asignado a:</FormLabel>
+                        <FormLabel>Fecha</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hora</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lugar</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Ej. Salón de consejeros" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={editForm.control}
+                    name="presider"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preside</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
                             <SelectTrigger>
@@ -2045,26 +1984,103 @@ export default function WardCouncilPage() {
                       </FormItem>
                     )}
                   />
-                </>
-              )}
 
-              <FormField
-                control={editForm.control}
-                name="closingPrayerBy"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Oración final</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona un líder" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>{editLeaderOptions}</SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
+                  <FormField
+                    control={editForm.control}
+                    name="director"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Dirige</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{editLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Columna Derecha: Oraciones y espiritualidad */}
+                <div className="space-y-4">
+                  <FormField
+                    control={editForm.control}
+                    name="openingPrayer"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Oración inicial</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{editLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
+                    <FormField
+                      control={editForm.control}
+                      name="hasSpiritualThought"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl>
+                            <Checkbox
+                              checked={Boolean(field.value)}
+                              onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                            />
+                          </FormControl>
+                          <FormLabel className="text-sm font-medium cursor-pointer">Pensamiento espiritual</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    {editForm.watch("hasSpiritualThought") && (
+                      <FormField
+                        control={editForm.control}
+                        name="spiritualThoughtBy"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Asignado a:</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona un líder" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>{editLeaderOptions}</SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+
+                  <FormField
+                    control={editForm.control}
+                    name="closingPrayerBy"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Oración final</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un líder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>{editLeaderOptions}</SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -2203,7 +2219,7 @@ export default function WardCouncilPage() {
       </Dialog>
 
       <Dialog open={!!detailsCouncil} onOpenChange={() => setDetailsCouncil(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalles del Consejo</DialogTitle>
             <DialogDescription>

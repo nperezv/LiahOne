@@ -83,6 +83,19 @@ export function shortMemberName(member: {
   }
   const raw = member.nameSurename?.trim() ?? "";
   if (!raw) return "";
+
+  // Preservar nombres de familias o títulos honoríficos sin permutar
+  const lower = raw.toLowerCase();
+  if (
+    lower.startsWith("familia") ||
+    lower.startsWith("hno") ||
+    lower.startsWith("hna") ||
+    lower.startsWith("hermano") ||
+    lower.startsWith("hermana")
+  ) {
+    return raw;
+  }
+
   if (raw.includes(",")) {
     const ci = raw.indexOf(",");
     const ap = raw.slice(0, ci).trim();
@@ -91,7 +104,9 @@ export function shortMemberName(member: {
     const fa = ap.split(/\s+/)[0] ?? "";
     return [fn, fa].filter(Boolean).join(" ");
   }
-  return normalizeMemberName(raw);
+
+  // Si no contiene coma, ya es un nombre en formato directo ingresado por el usuario
+  return raw;
 }
 
 /**
@@ -111,6 +126,17 @@ export const normalizeMemberName = (value?: string | null) => {
   const cleaned = value.trim().replace(/\s+/g, " ");
   if (!cleaned) return "";
 
+  const lower = cleaned.toLowerCase();
+  if (
+    lower.startsWith("familia") ||
+    lower.startsWith("hno") ||
+    lower.startsWith("hna") ||
+    lower.startsWith("hermano") ||
+    lower.startsWith("hermana")
+  ) {
+    return cleaned;
+  }
+
   if (cleaned.includes(",")) {
     const [surnamePart, namePart] = cleaned.split(",").map((part) => part.trim());
     if (namePart && surnamePart) {
@@ -122,14 +148,14 @@ export const normalizeMemberName = (value?: string | null) => {
   if (parts.length < 2) return cleaned;
   if (parts.length === 2) return cleaned;
 
+  // Si ya tiene orden directo o no contiene partículas evidentes de apellidos inversos, retornar cleaned
   const lowerTokens = parts.map((part) => part.toLowerCase());
   const hasParticles = lowerTokens.some((token) => isSurnameParticle(token));
   const hasLowercaseTokens = parts.some((part) => isLowercaseToken(part));
 
-  if (parts.length === 4 && !hasParticles && !hasLowercaseTokens) {
-    const surnames = parts.slice(0, 2);
-    const names = parts.slice(2);
-    return [...names, ...surnames].join(" ");
+  if (!hasParticles && !hasLowercaseTokens) {
+    // Si no proviene de un formato inverso con coma, no alterar el orden natural del usuario
+    return cleaned;
   }
 
   const candidateGivenCounts = [1, 2].filter((count) => parts.length - count >= 1);

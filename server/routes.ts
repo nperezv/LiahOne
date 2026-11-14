@@ -5134,9 +5134,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (changeLines.length > 0) {
+          const isInterviewer = Boolean(
+            currentInterviewer?.email && recipient.email.toLowerCase() === currentInterviewer.email.toLowerCase()
+          );
+          const typeMap: Record<string, string> = {
+            recomendacion_templo: "Recomendación para el Templo",
+            llamamiento: "Llamamiento",
+            anual: "Entrevista Anual",
+            orientacion: "Orientación",
+            otra: "Otra",
+            inicial: "Inicial",
+            seguimiento: "Seguimiento",
+            recomendacion: "Recomendación para el Templo",
+            ajuste_diezmos: "Ajuste de Diezmos",
+            diezmo: "Ajuste de Diezmos",
+          };
+          const formattedType = typeMap[interview.type] || interview.type;
+
           await sendInterviewUpdatedEmail({
             toEmail: recipient.email,
             recipientName: recipient.name,
+            isInterviewer,
+            intervieweeName: interview.personName,
+            interviewType: formattedType,
+            notes: interview.notes || null,
             interviewDate: currentDateLabel,
             interviewTime: currentTimeLabel,
             interviewerName: shortName(currentInterviewer),

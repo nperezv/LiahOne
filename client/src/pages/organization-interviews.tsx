@@ -320,6 +320,7 @@ export default function OrganizationInterviewsPage() {
     if (!user?.organizationId) return [];
     return users.filter(
       (u: any) =>
+        u.isActive !== false &&
         u.organizationId === user.organizationId &&
         (u.role === "presidente_organizacion" ||
           u.role === "consejero_organizacion")
@@ -1061,7 +1062,7 @@ export default function OrganizationInterviewsPage() {
                   data-interview-id={interview.id}
                   className={activeHighlightId === interview.id ? "notif-highlight" : ""}
                 >
-                  <TableCell>{shortMemberName({ nameSurename: interview.personName })}</TableCell>
+                  <TableCell>{interview.personName || "—"}</TableCell>
                   <TableCell>
                     {formatInterviewType(interview.type)}
                   </TableCell>

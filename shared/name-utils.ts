@@ -58,6 +58,16 @@ export function deriveNameSurename(
 export function shortNameFromString(raw: string | null | undefined): string {
   const s = raw?.trim() ?? "";
   if (!s) return "";
+  const lower = s.toLowerCase();
+  if (
+    lower.startsWith("familia") ||
+    lower.startsWith("hno") ||
+    lower.startsWith("hna") ||
+    lower.startsWith("hermano") ||
+    lower.startsWith("hermana")
+  ) {
+    return s;
+  }
   if (s.includes(",")) {
     const commaIdx = s.indexOf(",");
     const ap = s.slice(0, commaIdx).trim();

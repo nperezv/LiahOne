@@ -1165,11 +1165,11 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
 
   return (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto p-0" aria-describedby={undefined}>
-        <SheetTitle className="sr-only">{persona.nombre}</SheetTitle>
-        {/* Name + button — sticky only in edit mode */}
-        <div className={editMode ? "px-6 pt-5 pb-4 sticky top-0 z-10 bg-background border-b" : "px-6 pt-5 pb-4"}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl w-[95vw] h-[92vh] max-h-[920px] p-0 flex flex-col overflow-hidden sm:rounded-2xl border shadow-2xl" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">{persona.nombre}</DialogTitle>
+        {/* Name + button */}
+        <div className="px-6 pt-5 pb-4 border-b shrink-0 bg-background">
           <div className="text-left">
             {tipo === "enseñando" ? (
               <>
@@ -1218,6 +1218,7 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
           </div>
         </div>
 
+        <div className="flex-1 overflow-y-auto">
         {/* Metadata — dates/events, always scrollable */}
         <div className="px-6 pt-3 pb-4 border-b">
           {tipo === "enseñando" ? (
@@ -1915,8 +1916,9 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
           )}
         </div>
         </div>
-      </SheetContent>
-    </Sheet>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     {/* Mini modal para registrar sesión de principio */}
     <Dialog open={!!sesionModal} onOpenChange={(v) => { if (!v) setSesionModal(null); }}>
@@ -2416,7 +2418,7 @@ function BaptismalServiceSheet({
 
   const bishopricOptions = useMemo(
     () => (usersData as any[])
-      .filter((u) => u.role === "obispo" || u.role === "consejero_obispo")
+      .filter((u) => (u.role === "obispo" || u.role === "consejero_obispo") && u.isActive !== false)
       .map((u) => u.fullName || u.name || u.email || "")
       .filter(Boolean),
     [usersData]
@@ -2921,9 +2923,9 @@ function BaptismalServiceSheet({
 
   return (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-lg flex flex-col p-0 gap-0" aria-describedby={undefined}>
-        <SheetTitle className="sr-only">Servicio bautismal</SheetTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl w-[95vw] h-[92vh] max-h-[920px] p-0 flex flex-col overflow-hidden sm:rounded-2xl border shadow-2xl" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">Servicio bautismal</DialogTitle>
 
         {/* Header */}
         <div className="px-5 pt-5 pb-0 border-b shrink-0">
@@ -2998,218 +3000,226 @@ function BaptismalServiceSheet({
                   <div className="h-full bg-green-500 transition-all" style={{ width: programComplete ? "100%" : "0%" }} />
                 </div>
               </div>
-              {editMode && (
-                <div>
-                  <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Información del servicio" />
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
-                        <Input type="date" value={serviceAtVal}
-                          onChange={(e) => setServiceAtVal(e.target.value)}
-                          onBlur={saveDateTime}
-                          className="h-8 text-sm" />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1 block">Hora</Label>
-                        <Input type="time" value={serviceTimeVal}
-                          onChange={(e) => setServiceTimeVal(e.target.value)}
-                          onBlur={saveDateTime}
-                          className="h-8 text-sm" />
-                      </div>
-                    </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                {/* Columna Izquierda: Información, Autoridades e Himnos */}
+                <div className="space-y-6">
+                  {editMode && (
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                        <Lock className="h-3 w-3" /> Lugar
-                      </Label>
-                      <Input value={locationVal} readOnly
-                        className="h-8 text-sm bg-muted/50 cursor-default" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                        <Lock className="h-3 w-3" /> Dirección
-                      </Label>
-                      <Input value={locationAddrVal} readOnly
-                        className="h-8 text-sm bg-muted/50 cursor-default" />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground/60">
-                      Lugar y dirección se configuran en Ajustes → Centro de Reuniones
-                    </p>
-                    <div
-                      className="flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
-                      onClick={() => { setIsPublicLocal(!isPublicLocal); updateServiceMutation.mutate({ isPublic: !isPublicLocal }); }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isPublicLocal}
-                        readOnly
-                        className="h-4 w-4 accent-primary pointer-events-none"
-                      />
-                      <div>
-                        <p className="text-xs font-medium flex items-center gap-1.5">
-                          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                          Es un evento público
-                        </p>
-                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                          Aparece en la página principal para cualquier visitante
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <BaptismSectionHead icon={<UserCheck className="h-4 w-4" />} title="Autoridades" />
-                {detailQuery.isLoading ? (
-                  <div className="space-y-2">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
-                ) : (
-                  <div>
-                    <ProgramRow type="preside">
-                      {editMode ? (
-                        <Select value={programDraft["preside"] ?? ""} onValueChange={(v) => setProgramField("preside", v)}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                          <SelectContent>
-                            {bishopricOptions.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <p className="text-sm">{programDraft["preside"] || <span className="text-muted-foreground/60">—</span>}</p>
-                      )}
-                    </ProgramRow>
-                    <ProgramRow type="dirige">
-                      {editMode ? (
-                        <MemberAutocomplete value={programDraft["dirige"] ?? ""} options={dirigenteOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige", v)} className="h-8 text-sm" />
-                      ) : (
-                        <p className="text-sm">{programDraft["dirige"] || <span className="text-muted-foreground/60">—</span>}</p>
-                      )}
-                    </ProgramRow>
-                    <ProgramRow type="dirige_musica">
-                      {editMode ? (
-                        <MemberAutocomplete value={programDraft["dirige_musica"] ?? ""} options={musicDirectorOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige_musica", v)} className="h-8 text-sm" />
-                      ) : (
-                        <p className="text-sm">{programDraft["dirige_musica"] || <span className="text-muted-foreground/60">—</span>}</p>
-                      )}
-                    </ProgramRow>
-                    <ProgramRow type="acompanamiento_piano">
-                      {editMode ? (
-                        <MemberAutocomplete value={programDraft["acompanamiento_piano"] ?? ""} options={pianistOptions} placeholder="Nombre" onChange={(v) => setProgramField("acompanamiento_piano", v)} className="h-8 text-sm" />
-                      ) : (
-                        <p className="text-sm">{programDraft["acompanamiento_piano"] || <span className="text-muted-foreground/60">—</span>}</p>
-                      )}
-                    </ProgramRow>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <BaptismSectionHead icon={<Music className="h-4 w-4" />} title="Himnos" />
-                <div>
-                  {(["primer_himno", "ultimo_himno"] as const).map((hymnType) => {
-                    const src = hymnSources[hymnType] ?? "himnario";
-                    const opts = hymnOptionsBySource[src as keyof typeof hymnOptionsBySource] ?? [];
-                    return (
-                      <ProgramRow key={hymnType} type={hymnType}>
-                        {editMode ? (
-                          <div className="flex flex-col gap-1 w-full">
-                            <div className="flex gap-1">
-                              {HYMN_SOURCES.map(({ key, label }) => (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => {
-                                    setHymnSources((s) => ({ ...s, [hymnType]: key }));
-                                    setProgramField(hymnType, "");
-                                  }}
-                                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                                    src === key
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "border-border text-muted-foreground hover:bg-accent"
-                                  }`}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                            <HymnAutocomplete
-                              value={programDraft[hymnType] ?? ""}
-                              options={opts}
-                              placeholder="Número o nombre"
-                              onChange={(v) => setProgramField(hymnType, v)}
-                              onBlur={() => {}}
-                              onNormalize={(v) => setProgramField(hymnType, v)}
-                              className="h-8 text-sm"
-                            />
+                      <BaptismSectionHead icon={<CalendarDays className="h-4 w-4" />} title="Información del servicio" />
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">Fecha</Label>
+                            <Input type="date" value={serviceAtVal}
+                              onChange={(e) => setServiceAtVal(e.target.value)}
+                              onBlur={saveDateTime}
+                              className="h-8 text-sm" />
                           </div>
-                        ) : (
-                          <p className="text-sm">
-                            {programDraft[hymnType]
-                              ? stripHymnPrefix(programDraft[hymnType])
-                              : <span className="text-muted-foreground/60">—</span>}
-                          </p>
-                        )}
-                      </ProgramRow>
-                    );
-                  })}
-                </div>
-              </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">Hora</Label>
+                            <Input type="time" value={serviceTimeVal}
+                              onChange={(e) => setServiceTimeVal(e.target.value)}
+                              onBlur={saveDateTime}
+                              className="h-8 text-sm" />
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <Lock className="h-3 w-3" /> Lugar
+                          </Label>
+                          <Input value={locationVal} readOnly
+                            className="h-8 text-sm bg-muted/50 cursor-default" />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <Lock className="h-3 w-3" /> Dirección
+                          </Label>
+                          <Input value={locationAddrVal} readOnly
+                            className="h-8 text-sm bg-muted/50 cursor-default" />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/60">
+                          Lugar y dirección se configuran en Ajustes → Centro de Reuniones
+                        </p>
+                        <div
+                          className="flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+                          onClick={() => { setIsPublicLocal(!isPublicLocal); updateServiceMutation.mutate({ isPublic: !isPublicLocal }); }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isPublicLocal}
+                            readOnly
+                            className="h-4 w-4 accent-primary pointer-events-none"
+                          />
+                          <div>
+                            <p className="text-xs font-medium flex items-center gap-1.5">
+                              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                              Es un evento público
+                            </p>
+                            <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                              Aparece en la página principal para cualquier visitante
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              <div>
-                <BaptismSectionHead icon={<Handshake className="h-4 w-4" />} title="Oraciones y mensajes" />
-                <div>
-                  {["oracion_apertura", "primer_mensaje", "numero_especial", "segundo_mensaje", "ultima_oracion"].map((type) => (
-                    <ProgramRow key={type} type={type}>
-                      {editMode ? (
-                        <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
-                      ) : (
-                        <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
-                      )}
-                    </ProgramRow>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <BaptismSectionHead icon={<Waves className="h-4 w-4" />} title="Ordenanzas" />
-                <div>
-                  {ordinanceBautismoKeys.map((type, idx) => {
-                    const candidateName = serviceCandidates[idx]?.nombre;
-                    const label = serviceCandidates.length > 1 ? `Bautismo de ${candidateName}` : "Bautismo";
-                    return (
-                      <ProgramRow key={type} type={type} label={label}>
-                        {editMode ? (
-                          <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
-                        ) : (
-                          <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
-                        )}
-                      </ProgramRow>
-                    );
-                  })}
-                  <ProgramRow key="testigos" type="testigos">
-                    {editMode ? (
-                      <input
-                        className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
-                        value={programDraft["testigos"] ?? ""}
-                        placeholder="Nombres de los testigos"
-                        onChange={(e) => setProgramField("testigos", e.target.value)}
-                      />
+                  <div>
+                    <BaptismSectionHead icon={<UserCheck className="h-4 w-4" />} title="Autoridades" />
+                    {detailQuery.isLoading ? (
+                      <div className="space-y-2">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
                     ) : (
-                      <p className="text-sm">{programDraft["testigos"] || <span className="text-muted-foreground/60">—</span>}</p>
+                      <div>
+                        <ProgramRow type="preside">
+                          {editMode ? (
+                            <Select value={programDraft["preside"] ?? ""} onValueChange={(v) => setProgramField("preside", v)}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                              <SelectContent>
+                                {bishopricOptions.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <p className="text-sm">{programDraft["preside"] || <span className="text-muted-foreground/60">—</span>}</p>
+                          )}
+                        </ProgramRow>
+                        <ProgramRow type="dirige">
+                          {editMode ? (
+                            <MemberAutocomplete value={programDraft["dirige"] ?? ""} options={dirigenteOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige", v)} className="h-8 text-sm" />
+                          ) : (
+                            <p className="text-sm">{programDraft["dirige"] || <span className="text-muted-foreground/60">—</span>}</p>
+                          )}
+                        </ProgramRow>
+                        <ProgramRow type="dirige_musica">
+                          {editMode ? (
+                            <MemberAutocomplete value={programDraft["dirige_musica"] ?? ""} options={musicDirectorOptions} placeholder="Nombre" onChange={(v) => setProgramField("dirige_musica", v)} className="h-8 text-sm" />
+                          ) : (
+                            <p className="text-sm">{programDraft["dirige_musica"] || <span className="text-muted-foreground/60">—</span>}</p>
+                          )}
+                        </ProgramRow>
+                        <ProgramRow type="acompanamiento_piano">
+                          {editMode ? (
+                            <MemberAutocomplete value={programDraft["acompanamiento_piano"] ?? ""} options={pianistOptions} placeholder="Nombre" onChange={(v) => setProgramField("acompanamiento_piano", v)} className="h-8 text-sm" />
+                          ) : (
+                            <p className="text-sm">{programDraft["acompanamiento_piano"] || <span className="text-muted-foreground/60">—</span>}</p>
+                          )}
+                        </ProgramRow>
+                      </div>
                     )}
-                  </ProgramRow>
-                  {ordinanceConfirmKeys.map((type, idx) => {
-                    const candidateName = serviceCandidates[idx]?.nombre;
-                    const label = serviceCandidates.length > 1 ? `Confirmación de ${candidateName}` : "Confirmación";
-                    return (
-                      <ProgramRow key={type} type={type} label={label}>
+                  </div>
+
+                  <div>
+                    <BaptismSectionHead icon={<Music className="h-4 w-4" />} title="Himnos" />
+                    <div>
+                      {(["primer_himno", "ultimo_himno"] as const).map((hymnType) => {
+                        const src = hymnSources[hymnType] ?? "himnario";
+                        const opts = hymnOptionsBySource[src as keyof typeof hymnOptionsBySource] ?? [];
+                        return (
+                          <ProgramRow key={hymnType} type={hymnType}>
+                            {editMode ? (
+                              <div className="flex flex-col gap-1 w-full">
+                                <div className="flex gap-1">
+                                  {HYMN_SOURCES.map(({ key, label }) => (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() => {
+                                        setHymnSources((s) => ({ ...s, [hymnType]: key }));
+                                        setProgramField(hymnType, "");
+                                      }}
+                                      className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                                        src === key
+                                          ? "bg-primary text-primary-foreground border-primary"
+                                          : "border-border text-muted-foreground hover:bg-accent"
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <HymnAutocomplete
+                                  value={programDraft[hymnType] ?? ""}
+                                  options={opts}
+                                  placeholder="Número o nombre"
+                                  onChange={(v) => setProgramField(hymnType, v)}
+                                  onBlur={() => {}}
+                                  onNormalize={(v) => setProgramField(hymnType, v)}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                            ) : (
+                              <p className="text-sm">
+                                {programDraft[hymnType]
+                                  ? stripHymnPrefix(programDraft[hymnType])
+                                  : <span className="text-muted-foreground/60">—</span>}
+                              </p>
+                            )}
+                          </ProgramRow>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Columna Derecha: Oraciones, Mensajes y Ordenanzas */}
+                <div className="space-y-6">
+                  <div>
+                    <BaptismSectionHead icon={<Handshake className="h-4 w-4" />} title="Oraciones y mensajes" />
+                    <div>
+                      {["oracion_apertura", "primer_mensaje", "numero_especial", "segundo_mensaje", "ultima_oracion"].map((type) => (
+                        <ProgramRow key={type} type={type}>
+                          {editMode ? (
+                            <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
+                          ) : (
+                            <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
+                          )}
+                        </ProgramRow>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <BaptismSectionHead icon={<Waves className="h-4 w-4" />} title="Ordenanzas" />
+                    <div>
+                      {ordinanceBautismoKeys.map((type, idx) => {
+                        const candidateName = serviceCandidates[idx]?.nombre;
+                        const label = serviceCandidates.length > 1 ? `Bautismo de ${candidateName}` : "Bautismo";
+                        return (
+                          <ProgramRow key={type} type={type} label={label}>
+                            {editMode ? (
+                              <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
+                            ) : (
+                              <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
+                            )}
+                          </ProgramRow>
+                        );
+                      })}
+                      <ProgramRow key="testigos" type="testigos">
                         {editMode ? (
-                          <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
+                          <input
+                            className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                            value={programDraft["testigos"] ?? ""}
+                            placeholder="Nombres de los testigos"
+                            onChange={(e) => setProgramField("testigos", e.target.value)}
+                          />
                         ) : (
-                          <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
+                          <p className="text-sm">{programDraft["testigos"] || <span className="text-muted-foreground/60">—</span>}</p>
                         )}
                       </ProgramRow>
-                    );
-                  })}
+                      {ordinanceConfirmKeys.map((type, idx) => {
+                        const candidateName = serviceCandidates[idx]?.nombre;
+                        const label = serviceCandidates.length > 1 ? `Confirmación de ${candidateName}` : "Confirmación";
+                        return (
+                          <ProgramRow key={type} type={type} label={label}>
+                            {editMode ? (
+                              <MemberAutocomplete value={programDraft[type] ?? ""} options={memberOptions} placeholder="Nombre" onChange={(v) => setProgramField(type, v)} className="h-8 text-sm" />
+                            ) : (
+                              <p className="text-sm">{programDraft[type] || <span className="text-muted-foreground/60">—</span>}</p>
+                            )}
+                          </ProgramRow>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -3273,24 +3283,63 @@ function BaptismalServiceSheet({
               )}
 
               {visibleChecklistItems && (
-                <>
-                  {(() => {
-                    const total = (visibleChecklistItems as any[]).length;
-                    const completed = (visibleChecklistItems as any[]).filter((i) => i.completed).length;
-                    return (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">{completed} de {total} completados</span>
-                        <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full bg-green-500 transition-all"
-                            style={{ width: total > 0 ? `${(completed / total) * 100}%` : "0%" }}
-                          />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  {/* Columna Izquierda: Progreso, Enlace y Acciones */}
+                  <div className="space-y-4">
+                    {(() => {
+                      const total = (visibleChecklistItems as any[]).length;
+                      const completed = (visibleChecklistItems as any[]).filter((i) => i.completed).length;
+                      return (
+                        <div className="p-4 rounded-xl border bg-card space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Progreso general</span>
+                            <span className="text-sm font-semibold text-primary">{completed} de {total} completados</span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full bg-green-500 transition-all"
+                              style={{ width: total > 0 ? `${(completed / total) * 100}%` : "0%" }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {liveService?.approval_status === "approved" && detail?.stable_url && (
+                      <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Enlace del programa bautismal</p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 text-xs bg-background rounded-lg px-2.5 py-2 border truncate">
+                            {window.location.origin}{detail!.stable_url}
+                          </code>
+                          <Button size="sm" variant="outline" className="shrink-0 text-xs h-9"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
+                              toast({ title: "Enlace copiado" });
+                            }}>
+                            Copiar
+                          </Button>
                         </div>
                       </div>
-                    );
-                  })()}
+                    )}
 
-                  {/* Checklist items — grouped by responsible when obispo */}
+                    {!isObispo && programComplete && checklistComplete &&
+                      liveService?.approval_status !== "pending_approval" &&
+                      liveService?.approval_status !== "approved" && (
+                      <Button
+                        className="w-full"
+                        onClick={() => submitForApprovalMutation.mutate(undefined, {
+                          onSuccess: () => { onOpenChange(false); toast({ title: "Solicitud enviada al obispado" }); },
+                        })}
+                        disabled={submitForApprovalMutation.isPending}>
+                        {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo para aprobación"}
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Columna Derecha: Checklist agrupado por líder */}
+                  <div className="space-y-4">
+                    {/* Checklist items — grouped by responsible when obispo */}
                   {(() => {
                     const renderItem = (item: any) => {
                       const itemKey = item.itemKey ?? item.item_key;
@@ -3530,38 +3579,8 @@ function BaptismalServiceSheet({
 
                     return <div className="space-y-1">{(visibleChecklistItems as any[]).map(renderItem)}</div>;
                   })()}
-
-                  {!isObispo && programComplete && checklistComplete &&
-                    liveService?.approval_status !== "pending_approval" &&
-                    liveService?.approval_status !== "approved" && (
-                    <Button
-                      className="w-full mt-2"
-                      onClick={() => submitForApprovalMutation.mutate(undefined, {
-                        onSuccess: () => { onOpenChange(false); toast({ title: "Solicitud enviada al obispado" }); },
-                      })}
-                      disabled={submitForApprovalMutation.isPending}>
-                      {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar al obispo para aprobación"}
-                    </Button>
-                  )}
-
-                  {liveService?.approval_status === "approved" && detail?.stable_url && (
-                    <div className="rounded-lg border bg-muted/30 px-3 py-3 space-y-2 mt-2">
-                      <p className="text-xs font-medium text-muted-foreground">Enlace del programa bautismal</p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 text-xs bg-background rounded px-2 py-1.5 border truncate">
-                          {window.location.origin}{detail!.stable_url}
-                        </code>
-                        <Button size="sm" variant="outline" className="shrink-0 text-xs h-8"
-                          onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}${detail!.stable_url}`);
-                            toast({ title: "Enlace copiado" });
-                          }}>
-                          Copiar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </>
+                  </div>
+                </div>
               )}
 
               {!visibleChecklistItems && !checklistQuery.isLoading && (
@@ -4314,8 +4333,8 @@ function BaptismalServiceSheet({
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
 
     {/* Budget request dialogs */}
     <BudgetRequestDialog
@@ -4446,6 +4465,331 @@ function BaptismalServiceSheet({
   );
 }
 
+function CreateBaptismServiceDialog({
+  open,
+  onOpenChange,
+  onServiceCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onServiceCreated: (service: any) => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const membersQuery = useQuery<DirectoryMember[]>({ queryKey: ["/api/members"] });
+  const ensenandoQuery = usePersonas("enseñando");
+
+  const [candidateType, setCandidateType] = useState<"nino" | "amigo">("nino");
+  const [candidateName, setCandidateName] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
+  const [sexo, setSexo] = useState<"M" | "F" | "">("");
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [serviceDate, setServiceDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
+    return d.toISOString().split("T")[0];
+  });
+  const [serviceTime, setServiceTime] = useState("10:00");
+  const [locationName, setLocationName] = useState("Centro de reuniones");
+
+  const [memberSearch, setMemberSearch] = useState("");
+  const filteredMembers = useMemo(() => {
+    const list = membersQuery.data ?? [];
+    if (!memberSearch.trim()) return list.slice(0, 8);
+    const q = memberSearch.toLowerCase();
+    return list.filter((m) => m.nameSurename.toLowerCase().includes(q)).slice(0, 8);
+  }, [membersQuery.data, memberSearch]);
+
+  const friendsList = useMemo(() => ensenandoQuery.data ?? [], [ensenandoQuery.data]);
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await apiRequest("POST", "/api/mission/baptism-services", payload);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      qc.invalidateQueries({ queryKey: ["/api/mission/personas", "enseñando"] });
+      toast({
+        title: "Servicio bautismal programado",
+        description: `Se ha creado el servicio para ${candidateName}`,
+      });
+      onOpenChange(false);
+      setCandidateName("");
+      setSelectedMemberId(null);
+      setSelectedPersonaId(null);
+      setSexo("");
+      setFechaNacimiento("");
+      onServiceCreated(data);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Error al crear servicio",
+        description: err.message || "Ocurrió un error inesperado",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!candidateName.trim()) {
+      toast({ title: "Nombre requerido", description: "Ingresa el nombre del candidato", variant: "destructive" });
+      return;
+    }
+    if (!serviceDate || !serviceTime) {
+      toast({ title: "Fecha y hora requeridas", variant: "destructive" });
+      return;
+    }
+
+    createMutation.mutate({
+      candidateType,
+      candidateName: candidateName.trim(),
+      memberId: candidateType === "nino" ? selectedMemberId : null,
+      personaId: candidateType === "amigo" ? selectedPersonaId : null,
+      sexo: sexo || null,
+      fechaNacimiento: fechaNacimiento || null,
+      serviceAt: `${serviceDate}T${serviceTime}:00Z`,
+      locationName: locationName.trim(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl w-[95vw] p-6 sm:rounded-2xl border shadow-2xl" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <Waves className="h-5 w-5 text-primary" />
+            Programar Servicio Bautismal
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Planifica un bautismo para un niño de 8 años o un amigo de la Iglesia en enseñanza.
+          </p>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Tipo de Candidato
+            </Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCandidateType("nino");
+                  setSelectedPersonaId(null);
+                }}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                  candidateType === "nino"
+                    ? "border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary"
+                    : "border-border hover:bg-muted/50 text-muted-foreground"
+                }`}
+              >
+                <Users className="h-5 w-5 mb-1" />
+                <span className="text-xs font-semibold">Niño de 8 años</span>
+                <span className="text-[10px] opacity-75">Hijo de miembros / Primaria</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCandidateType("amigo");
+                  setSelectedMemberId(null);
+                }}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                  candidateType === "amigo"
+                    ? "border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary"
+                    : "border-border hover:bg-muted/50 text-muted-foreground"
+                }`}
+              >
+                <User2 className="h-5 w-5 mb-1" />
+                <span className="text-xs font-semibold">Amigo de la Iglesia</span>
+                <span className="text-[10px] opacity-75">Persona en enseñanza</span>
+              </button>
+            </div>
+          </div>
+
+          {candidateType === "nino" ? (
+            <div className="space-y-3 p-3.5 rounded-xl border bg-muted/20">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Buscar en el Directorio o escribir nombre</Label>
+                <Input
+                  placeholder="Ej. Lucas Daniel Morales"
+                  value={candidateName}
+                  onChange={(e) => {
+                    setCandidateName(e.target.value);
+                    setMemberSearch(e.target.value);
+                    setSelectedMemberId(null);
+                  }}
+                  className="h-9 text-sm"
+                  autoFocus
+                />
+              </div>
+
+              {filteredMembers.length > 0 && candidateName.length >= 2 && !selectedMemberId && (
+                <div className="space-y-1 max-h-36 overflow-y-auto rounded-lg border bg-background p-1 shadow-inner">
+                  <p className="text-[10px] uppercase font-semibold text-muted-foreground px-2 py-0.5">Sugerencias del directorio:</p>
+                  {filteredMembers.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setCandidateName(m.nameSurename);
+                        setSelectedMemberId(m.id);
+                        setMemberSearch("");
+                      }}
+                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-accent flex items-center justify-between"
+                    >
+                      <span className="font-medium text-foreground">{m.nameSurename}</span>
+                      <span className="text-[10px] text-muted-foreground">{m.organizationName || "Miembro"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Sexo</Label>
+                  <select
+                    value={sexo}
+                    onChange={(e) => setSexo(e.target.value as any)}
+                    className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Seleccionar</option>
+                    <option value="M">Masculino</option>
+                    <option value="F">Femenino</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha de nacimiento</Label>
+                  <Input
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 p-3.5 rounded-xl border bg-muted/20">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Amigo de la Iglesia</Label>
+                {friendsList.length > 0 ? (
+                  <Select
+                    value={selectedPersonaId ?? "manual"}
+                    onValueChange={(val) => {
+                      if (val === "manual") {
+                        setSelectedPersonaId(null);
+                        setCandidateName("");
+                      } else {
+                        setSelectedPersonaId(val);
+                        const p = friendsList.find((f) => f.id === val);
+                        if (p) {
+                          setCandidateName(p.nombre);
+                          if (p.sexo) setSexo(p.sexo);
+                          if (p.fechaNacimiento) setFechaNacimiento(p.fechaNacimiento);
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Selecciona de las personas en enseñanza" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">-- Escribir nombre manualmente --</SelectItem>
+                      {friendsList.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+
+                {(!selectedPersonaId || selectedPersonaId === "manual") && (
+                  <Input
+                    placeholder="Nombre completo del amigo"
+                    value={candidateName}
+                    onChange={(e) => setCandidateName(e.target.value)}
+                    className="h-9 text-sm mt-2"
+                  />
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Sexo</Label>
+                  <select
+                    value={sexo}
+                    onChange={(e) => setSexo(e.target.value as any)}
+                    className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm"
+                  >
+                    <option value="">Seleccionar</option>
+                    <option value="M">Masculino</option>
+                    <option value="F">Femenino</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Fecha de nacimiento</Label>
+                  <Input
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-medium mb-1 block">Fecha del Servicio</Label>
+              <Input
+                type="date"
+                value={serviceDate}
+                onChange={(e) => setServiceDate(e.target.value)}
+                className="h-9 text-sm"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium mb-1 block">Hora</Label>
+              <Input
+                type="time"
+                value={serviceTime}
+                onChange={(e) => setServiceTime(e.target.value)}
+                className="h-9 text-sm"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs font-medium mb-1 block">Lugar del Servicio</Label>
+            <Input
+              value={locationName}
+              onChange={(e) => setLocationName(e.target.value)}
+              placeholder="Centro de reuniones"
+              className="h-9 text-sm"
+            />
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? "Creando..." : "Crear Servicio Bautismal"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ============================================================
 
 const SECTION_META: Record<PersonaTipo, { label: string; subtitle: string }> = {
@@ -4514,6 +4858,7 @@ export default function MissionWork() {
   const [selectedService, setSelectedService] = useState<BaptismService | null>(null);
   const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
   const [serviceInitialEditMode, setServiceInitialEditMode] = useState(false);
+  const [createServiceOpen, setCreateServiceOpen] = useState(false);
 
   const accessQuery = useQuery<{ allowed: boolean }>({
     queryKey: ["/api/mission/access"],
@@ -4599,18 +4944,28 @@ export default function MissionWork() {
             <h1 className="text-2xl font-bold mb-1">Servicios Bautismales</h1>
             <p className="text-sm text-muted-foreground">Planificación y programa de los servicios bautismales</p>
           </div>
-          <Button variant="outline" className="rounded-full" onClick={() => setSection(null)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setCreateServiceOpen(true)} className="rounded-full shadow-sm">
+              <Plus className="mr-1.5 h-4 w-4" /> Programar Bautismo
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={() => setSection(null)}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+            </Button>
+          </div>
         </div>
 
         {baptismServicesQuery.isLoading ? (
           <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
         ) : services.length === 0 ? (
           <div className="text-center text-muted-foreground py-16">
-            <Waves className="h-8 w-8 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No hay servicios bautismales programados.</p>
-            <p className="text-xs mt-1">Se crean automáticamente al registrar una fecha bautismal.</p>
+            <Waves className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p className="text-base font-semibold text-foreground">No hay servicios bautismales programados</p>
+            <p className="text-xs mt-1 max-w-sm mx-auto">
+              Programa un servicio bautismal para un niño de 8 años (inscrito) o un amigo de la Iglesia en enseñanza.
+            </p>
+            <Button className="mt-4 rounded-full" onClick={() => setCreateServiceOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Programar Servicio Bautismal
+            </Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -4696,6 +5051,16 @@ export default function MissionWork() {
             if (!v) { setSelectedService(null); setServiceInitialEditMode(false); }
           }}
           userRole={user?.role}
+        />
+
+        <CreateBaptismServiceDialog
+          open={createServiceOpen}
+          onOpenChange={setCreateServiceOpen}
+          onServiceCreated={(newService) => {
+            setSelectedService(newService);
+            setServiceInitialEditMode(true);
+            setServiceSheetOpen(true);
+          }}
         />
       </div>
     );

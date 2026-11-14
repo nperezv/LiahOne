@@ -747,15 +747,15 @@ function SacramentalMeetingPageInner() {
       }
     };
 
-    // 1. Add users with role 'obispo' or 'consejero_obispo'
-    const obispadoUsers = users.filter((u: any) => ["obispo", "consejero_obispo"].includes(u.role));
+    // 1. Add users with role 'obispo' or 'consejero_obispo' (solo activos)
+    const obispadoUsers = users.filter((u: any) => u.isActive !== false && ["obispo", "consejero_obispo"].includes(u.role));
     obispadoUsers.forEach((u: any) => {
       const label = shortUserName(u) || u.name || u.email || "";
       addUnique(label, u.role, u.email);
     });
 
-    // 2. Add from memberCallings for Obispado callings (Obispo, 1er/2do consejero)
-    const obispadoCallings = memberCallings.filter((c) => {
+    // 2. Add from activeMemberCallings for Obispado callings (solo llamamientos ACTIVOS)
+    const obispadoCallings = activeMemberCallings.filter((c) => {
       if (obispadoOrgId && c.organizationId !== obispadoOrgId) return false;
       const cn = normalizeText(c.callingName || "");
       return (cn.includes("obispo") || cn.includes("consejero")) && !cn.includes("secretario");
@@ -769,7 +769,7 @@ function SacramentalMeetingPageInner() {
     });
 
     return list;
-  }, [users, memberCallings, obispadoOrgId]);
+  }, [users, activeMemberCallings, obispadoOrgId]);
 
   const parsePersonValue = (value?: string | null) => {
     const trimmed = (value ?? "").toString().trim();

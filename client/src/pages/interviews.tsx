@@ -475,7 +475,7 @@ export default function InterviewsPage() {
   const canCancel = user?.role === "obispo"; // si quieres solo obispo cancela/borra
 
   const interviewers = useMemo(
-    () => users.filter((u: any) => u.role === "obispo" || u.role === "consejero_obispo"),
+    () => users.filter((u: any) => u.isActive !== false && (u.role === "obispo" || u.role === "consejero_obispo")),
     [users]
   );
 
@@ -881,7 +881,7 @@ export default function InterviewsPage() {
     updateMutation.mutate(
       {
         id: editingInterview.id,
-        personName: normalizeMemberName(data.personName),
+        personName: data.personName.trim(),
         date: formatDateTimeForApi(data.date),
         type: data.type,
         interviewerId: data.interviewerId,
@@ -916,7 +916,7 @@ export default function InterviewsPage() {
   const handleEditClick = (interview: any) => {
     setEditingInterview(interview);
     editForm.reset({
-      personName: normalizeMemberName(interview.personName),
+      personName: interview.personName,
       memberId: interview.memberId ?? "",
       date: formatDateTimeForInput(interview.date),
       type: interview.type,
@@ -1869,7 +1869,7 @@ export default function InterviewsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-base font-semibold leading-tight">
-                            {shortMemberName({ nameSurename: interview.personName })}
+                            {interview.personName || "Sin nombre"}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {formatInterviewType(interview.type)}
@@ -1965,7 +1965,7 @@ export default function InterviewsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold leading-tight">
-              {shortMemberName({ nameSurename: detailsInterview?.personName }) || "Sin nombre"}
+              {detailsInterview?.personName || "Sin nombre"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
