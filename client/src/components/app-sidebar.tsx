@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useAuth } from "@/lib/auth";
 import { useDashboardStats, useOrganizations } from "@/hooks/use-api";
 import { PwaInstallDialog } from "@/components/pwa-install-dialog";
+import { cn } from "@/lib/utils";
 
 interface MenuItem {
   title: string;
@@ -495,7 +496,7 @@ function AppSidebarInner() {
   ]);
 
   return (
-    <Sidebar>
+    <Sidebar variant="floating" collapsible="icon">
       <SidebarContent className="space-y-1 pb-4">
         {/* App Branding Header */}
         <div className="mx-2 mt-3 rounded-[20px] border border-sidebar-border/70 bg-sidebar-accent/20 px-3.5 py-2.5">
@@ -503,7 +504,7 @@ function AppSidebarInner() {
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background/80 shrink-0">
               <img src="/icons/compass.svg" alt="Zendapp" className="h-5 w-5 object-contain" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
               <p className="truncate text-sm font-bold leading-none tracking-tight">Zendapp</p>
               <p className="truncate pt-0.5 text-[10.5px] text-sidebar-foreground/65">Panel principal</p>
             </div>
@@ -514,20 +515,26 @@ function AppSidebarInner() {
           <SidebarGroupContent className="space-y-2.5">
             {/* Quick Access Card */}
             <div className="mx-2 rounded-[20px] border border-sidebar-border/70 bg-gradient-to-b from-sidebar-accent/50 via-sidebar-accent/20 to-transparent px-2.5 py-2.5 shadow-2xs">
-              <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+              <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                 <span>Accesos rápidos</span>
               </div>
               <SidebarMenu>
                 {pinnedMenuItems.map((item) => {
                   const title = getRenamedTitle(item, user?.role);
+                  const isActive = location === item.url;
 
                   return (
                     <SidebarMenuItem key={`${title}-${item.url}`}>
                       <SidebarMenuButton
                         asChild
-                        isActive={location === item.url}
-                        className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 hover:translate-x-1.5 hover:bg-sidebar-accent active:scale-[0.97] active:translate-x-0.5"
+                        isActive={isActive}
+                        className={cn(
+                          "rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 active:scale-[0.97]",
+                          isActive
+                            ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
+                            : "hover:translate-x-1.5 hover:bg-sidebar-accent/80 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                        )}
                         data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
                         <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
@@ -549,7 +556,7 @@ function AppSidebarInner() {
             {/* Categorized Section Cards */}
             {sections.map((section) => (
               <div key={section.id} className="mx-2 rounded-[20px] border border-sidebar-border/70 bg-sidebar/30 px-2.5 py-2.5 shadow-2xs">
-                <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+                <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
                   <section.icon className="h-3.5 w-3.5 text-primary/80" />
                   <span>{section.label}</span>
                 </div>
@@ -567,7 +574,12 @@ function AppSidebarInner() {
                           <SidebarMenuItem>
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
-                                className={`rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 hover:translate-x-1.5 hover:bg-sidebar-accent active:scale-[0.97] active:translate-x-0.5 ${isActive ? "bg-sidebar-accent font-semibold translate-x-1" : ""}`}
+                                className={cn(
+                                  "rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 active:scale-[0.97]",
+                                  isActive
+                                    ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
+                                    : "hover:translate-x-1.5 hover:bg-sidebar-accent/80 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                )}
                                 data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                               >
                                 <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
@@ -577,20 +589,28 @@ function AppSidebarInner() {
                             </CollapsibleTrigger>
                             <CollapsibleContent>
                               <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/50 pl-2 space-y-0.5">
-                                {visibleSubItems.map((subItem) => (
-                                  <SidebarMenuSubItem key={subItem.url}>
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      isActive={location === subItem.url}
-                                      className="rounded-lg px-2 py-1.5 text-[0.8rem] transition-all duration-150 hover:translate-x-1 hover:bg-sidebar-accent"
-                                      data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
-                                    >
-                                      <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
-                                        <span className="truncate">{subItem.title}</span>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
+                                {visibleSubItems.map((subItem) => {
+                                  const isSubActive = location === subItem.url;
+                                  return (
+                                    <SidebarMenuSubItem key={subItem.url}>
+                                      <SidebarMenuSubButton
+                                        asChild
+                                        isActive={isSubActive}
+                                        className={cn(
+                                          "rounded-lg px-2 py-1.5 text-[0.8rem] transition-all duration-150",
+                                          isSubActive
+                                            ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                                            : "hover:translate-x-1 hover:bg-sidebar-accent/80 text-sidebar-foreground/75 hover:text-sidebar-foreground"
+                                        )}
+                                        data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
+                                      >
+                                        <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
+                                          <span className="truncate">{subItem.title}</span>
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  );
+                                })}
                               </SidebarMenuSub>
                             </CollapsibleContent>
                           </SidebarMenuItem>
@@ -598,12 +618,18 @@ function AppSidebarInner() {
                       );
                     }
 
+                    const isItemActive = location === item.url;
                     return (
                       <SidebarMenuItem key={`${title}-${item.url}`}>
                         <SidebarMenuButton
                           asChild
-                          isActive={location === item.url}
-                          className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 hover:translate-x-1.5 hover:bg-sidebar-accent active:scale-[0.97] active:translate-x-0.5"
+                          isActive={isItemActive}
+                          className={cn(
+                            "rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 active:scale-[0.97]",
+                            isItemActive
+                              ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
+                              : "hover:translate-x-1.5 hover:bg-sidebar-accent/80 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                          )}
                           data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                         >
                           <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
@@ -624,7 +650,7 @@ function AppSidebarInner() {
             ))}
 
             {/* PWA Mobile App Install Option */}
-            <div className="mx-2 mt-2 px-1">
+            <div className="mx-2 mt-2 px-1 group-data-[collapsible=icon]:hidden">
               <SidebarMenuButton
                 onClick={() => setShowPwaGuide(true)}
                 className="rounded-xl px-2.5 py-2 text-[0.82rem] text-sidebar-foreground/80 hover:text-sidebar-foreground flex items-center gap-2"

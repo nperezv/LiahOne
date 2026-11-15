@@ -1172,3 +1172,37 @@
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
+/* Sidebar Active Nav Pill (Ardena-Style Indigo Glass Pill) */
+[data-sidebar="menu-button"][data-active="true"],
+[data-slot="sidebar-menu-button"][data-active="true"],
+[data-sidebar="menu-sub-button"][data-active="true"],
+[data-slot="sidebar-menu-sub-button"][data-active="true"] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 16px -2px rgba(124, 58, 237, 0.45) !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"]:hover,
+[data-slot="sidebar-menu-button"][data-active="true"]:hover {
+  transform: translateX(3px) !important;
+  box-shadow: 0 6px 20px -2px rgba(124, 58, 237, 0.55) !important;
+}
+
+/* Smoked Glass Surfaces (Ardena Aesthetic) */
+.glass-panel {
+  background: rgba(24, 24, 28, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.light .glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 30px -8px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+

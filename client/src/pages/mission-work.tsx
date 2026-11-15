@@ -43,6 +43,8 @@ import {
   Check,
   TrendingUp,
   CalendarCheck,
+  Maximize2,
+  Minimize2,
   UserCheck,
   Waves,
   CheckSquare,
@@ -885,6 +887,7 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
   const ministracionQuery = usePersonaMinistracion(tipo !== "enseñando" ? id : null);
   const otrosCompromisosQuery = usePersonaOtrosCompromisos(tipo === "enseñando" ? id : null);
 
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const sundays = useMemo(() => getCurrentMonthSundays(), []);
 
   // Amigo add state
@@ -1166,11 +1169,18 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[92vh] max-h-[920px] p-0 flex flex-col overflow-hidden sm:rounded-2xl border shadow-2xl" aria-describedby={undefined}>
+      <DialogContent
+        className={
+          isFullScreen
+            ? "fixed inset-0 z-50 w-screen h-screen max-w-none max-h-none rounded-none p-0 flex flex-col overflow-hidden border-0 shadow-none bg-background transition-all duration-200"
+            : "max-w-5xl w-[95vw] h-[92vh] max-h-[920px] p-0 flex flex-col overflow-hidden sm:rounded-2xl border shadow-2xl bg-background transition-all duration-200"
+        }
+        aria-describedby={undefined}
+      >
         <DialogTitle className="sr-only">{persona.nombre}</DialogTitle>
         {/* Name + button */}
-        <div className="px-6 pt-5 pb-4 border-b shrink-0 bg-background">
-          <div className="text-left">
+        <div className="px-6 pt-5 pb-4 border-b shrink-0 bg-background/95 backdrop-blur flex items-start justify-between gap-4">
+          <div className="text-left min-w-0 flex-1">
             {tipo === "enseñando" ? (
               <>
                 <p className="text-2xl sm:text-3xl font-medium">{persona.nombre}</p>
@@ -1215,6 +1225,17 @@ const PersonaDetailSheet = React.memo(function PersonaDetailSheet({
                 </button>
               </>
             )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+            <button
+              type="button"
+              onClick={() => setIsFullScreen((v) => !v)}
+              className="hidden sm:inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              title={isFullScreen ? "Restaurar tamaño normal" : "Expandir a pantalla completa"}
+            >
+              {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
           </div>
         </div>
 
@@ -2101,6 +2122,7 @@ const TabContent = React.memo(function TabContent({
   const [addOpen, setAddOpen] = useState(false);
   const { data, isLoading } = usePersonas(tipo);
 
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const sundays = useMemo(() => getCurrentMonthSundays(), []);
 
   return (
@@ -2393,6 +2415,45 @@ function BaptismalServiceSheet({
   const showMisionSections = isObispo || isMissionLeader || isPresidenteOrg;
   const showLogisticsSections = isLiderActividades; // only lider_actividades edits logistics
   const showLogisticsStatus = isObispo || isMissionLeader || isPresidenteOrg;
+  const canManage = isObispo || isMissionLeader || isPresidenteOrg;
+
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [newCandidateType, setNewCandidateType] = useState<"nino" | "amigo">("nino");
+  const [newCandidateName, setNewCandidateName] = useState("");
+  const [newCandidateMemberId, setNewCandidateMemberId] = useState<string | null>(null);
+  const [newCandidatePersonaId, setNewCandidatePersonaId] = useState<string | null>(null);
+  const [newCandidateSearch, setNewCandidateSearch] = useState("");
+
+  const ensenandoQuery = usePersonas("enseñando");
+  const availableFriends = useMemo(() => ensenandoQuery.data ?? [], [ensenandoQuery.data]);
+
+  const addCandidateMutation = useMutation({
+    mutationFn: (payload: any) =>
+      apiRequest("POST", `/api/mission/baptism-services/${service?.id}/candidates`, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      if (service?.id) qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service.id] });
+      toast({ title: "Candidato agregado", description: "El candidato ha sido vinculado al servicio bautismal." });
+      setAddCandidateOpen(false);
+      setNewCandidateName("");
+      setNewCandidateMemberId(null);
+      setNewCandidatePersonaId(null);
+      setNewCandidateSearch("");
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const removeCandidateMutation = useMutation({
+    mutationFn: (candId: string) =>
+      apiRequest("DELETE", `/api/mission/baptism-services/${service?.id}/candidates/${candId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services"] });
+      if (service?.id) qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service.id] });
+      toast({ title: "Candidato removido", description: "El candidato ha sido desvinculado del servicio." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   // Data hooks
   const { data: wardTemplate } = useQuery({ queryKey: ["/api/pdf-template"], queryFn: () => apiRequest("GET", "/api/pdf-template") });
@@ -2924,18 +2985,74 @@ function BaptismalServiceSheet({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[92vh] max-h-[920px] p-0 flex flex-col overflow-hidden sm:rounded-2xl border shadow-2xl" aria-describedby={undefined}>
+      <DialogContent
+        className={
+          isFullScreen
+            ? "fixed inset-0 z-50 w-screen h-screen max-w-none max-h-none rounded-none p-0 flex flex-col overflow-hidden border-0 shadow-none bg-background transition-all duration-200"
+            : "max-w-5xl w-[95vw] h-[92vh] max-h-[920px] p-0 flex flex-col overflow-hidden sm:rounded-2xl border shadow-2xl bg-background transition-all duration-200"
+        }
+        aria-describedby={undefined}
+      >
         <DialogTitle className="sr-only">Servicio bautismal</DialogTitle>
 
         {/* Header */}
-        <div className="px-5 pt-5 pb-0 border-b shrink-0">
-          <div className="min-w-0 mb-4">
-            {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c) => (
-              <p key={c.id} className="text-xl font-semibold leading-tight">{c.nombre}</p>
-            )) ?? <p className="text-xl font-semibold">{service.persona_nombre}</p>}
-            <div className="flex items-center gap-2 mt-1">
-              {approvalBadge()}
-              <span className="text-xs text-muted-foreground">{formatServiceDate(service.service_at)}</span>
+        <div className="px-5 pt-5 pb-0 border-b shrink-0 bg-background/95 backdrop-blur">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {(detail?.candidates && detail.candidates.length > 0 ? detail.candidates : null)?.map((c: any) => (
+                  <span
+                    key={c.id || c.nombre}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/25 shadow-2xs"
+                  >
+                    {c.is_child ? <Users className="h-3.5 w-3.5" /> : <User2 className="h-3.5 w-3.5" />}
+                    <span>{c.nombre}</span>
+                    <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">
+                      {c.is_child ? "Niño 8 años" : "Amigo"}
+                    </span>
+                    {canManage && (detail?.candidates?.length ?? 0) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeCandidateMutation.mutate(c.id || c.persona_id)}
+                        disabled={removeCandidateMutation.isPending}
+                        className="hover:text-destructive transition-colors ml-1 p-0.5 rounded-full hover:bg-destructive/10"
+                        title="Desvincular candidato del servicio"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                )) ?? (
+                  <p className="text-xl font-semibold leading-tight">{service.persona_nombre}</p>
+                )}
+
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => setAddCandidateOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-dashed border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all active:scale-95 shadow-2xs"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Agregar Niño / Amigo</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 mt-2">
+                {approvalBadge()}
+                <span className="text-xs text-muted-foreground font-medium">{formatServiceDate(service.service_at)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setIsFullScreen((v) => !v)}
+                className="hidden sm:inline-flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                title={isFullScreen ? "Restaurar tamaño normal" : "Expandir a pantalla completa"}
+              >
+                {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -4332,6 +4449,157 @@ function BaptismalServiceSheet({
               })()}
             </div>
           )}
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Add Candidate Subdialog */}
+    <Dialog open={addCandidateOpen} onOpenChange={setAddCandidateOpen}>
+      <DialogContent className="max-w-md w-[95vw] p-6 rounded-2xl border shadow-2xl bg-card" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold flex items-center gap-2">
+            <Plus className="h-5 w-5 text-primary" />
+            Agregar Candidato al Servicio Bautismal
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Puedes agregar un niño del barrio (8 años) o un amigo de la Iglesia en enseñanza.
+          </p>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setNewCandidateType("nino");
+                setNewCandidatePersonaId(null);
+              }}
+              className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                newCandidateType === "nino"
+                  ? "border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary"
+                  : "border-border hover:bg-muted/50 text-muted-foreground"
+              }`}
+            >
+              <Users className="h-4 w-4 mb-1" />
+              <span className="text-xs font-semibold">Niño de 8 años</span>
+              <span className="text-[10px] opacity-75">Hijo de miembros / Primaria</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setNewCandidateType("amigo");
+                setNewCandidateMemberId(null);
+              }}
+              className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                newCandidateType === "amigo"
+                  ? "border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary"
+                  : "border-border hover:bg-muted/50 text-muted-foreground"
+              }`}
+            >
+              <User2 className="h-4 w-4 mb-1" />
+              <span className="text-xs font-semibold">Amigo de la Iglesia</span>
+              <span className="text-[10px] opacity-75">Persona en enseñanza</span>
+            </button>
+          </div>
+
+          {newCandidateType === "nino" ? (
+            <div className="space-y-3 p-3 rounded-xl border bg-muted/20">
+              <Label className="text-xs font-medium">Buscar en el Directorio o escribir nombre</Label>
+              <Input
+                placeholder="Ej. Lucas Daniel Morales"
+                value={newCandidateName}
+                onChange={(e) => {
+                  setNewCandidateName(e.target.value);
+                  setNewCandidateSearch(e.target.value);
+                  setNewCandidateMemberId(null);
+                }}
+                className="h-9 text-sm"
+                autoFocus
+              />
+
+              {members.length > 0 && newCandidateName.length >= 2 && !newCandidateMemberId && (
+                <div className="space-y-1 max-h-36 overflow-y-auto rounded-lg border bg-background p-1 shadow-inner">
+                  <p className="text-[10px] uppercase font-semibold text-muted-foreground px-2 py-0.5">Sugerencias del directorio:</p>
+                  {members
+                    .filter((m: any) => m.nameSurename.toLowerCase().includes(newCandidateSearch.toLowerCase()))
+                    .slice(0, 8)
+                    .map((m: any) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setNewCandidateName(m.nameSurename);
+                          setNewCandidateMemberId(m.id);
+                          setNewCandidateSearch("");
+                        }}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-accent flex items-center justify-between"
+                      >
+                        <span className="font-medium text-foreground">{m.nameSurename}</span>
+                        <span className="text-[10px] text-muted-foreground">{m.organizationName || "Miembro"}</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 p-3 rounded-xl border bg-muted/20">
+              <Label className="text-xs font-medium">Seleccionar de las personas en enseñanza</Label>
+              {availableFriends.length > 0 ? (
+                <Select
+                  value={newCandidatePersonaId || ""}
+                  onValueChange={(val) => {
+                    setNewCandidatePersonaId(val);
+                    const f = availableFriends.find((p) => p.id === val);
+                    if (f) setNewCandidateName(f.nombre);
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Seleccionar amigo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableFriends.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No hay amigos registrados en enseñanza.</p>
+              )}
+
+              <div className="space-y-1 pt-1">
+                <Label className="text-xs font-medium">O escribir nombre manual</Label>
+                <Input
+                  placeholder="Nombre completo"
+                  value={newCandidateName}
+                  onChange={(e) => setNewCandidateName(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setAddCandidateOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!newCandidateName.trim() || addCandidateMutation.isPending}
+              onClick={() => {
+                addCandidateMutation.mutate({
+                  candidateType: newCandidateType,
+                  candidateName: newCandidateName.trim(),
+                  memberId: newCandidateMemberId,
+                  personaId: newCandidatePersonaId,
+                });
+              }}
+            >
+              {addCandidateMutation.isPending ? "Agregando..." : "Agregar Candidato"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

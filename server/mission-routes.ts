@@ -1470,22 +1470,37 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const result = await db.execute(sql`
         SELECT bs.*,
-          COALESCE(
-            (SELECT json_agg(json_build_object('id', mp.id, 'nombre', mp.nombre) ORDER BY mp.nombre)
-             FROM baptism_service_candidates bsc
-             JOIN mission_personas mp ON mp.id = bsc.persona_id
-             WHERE bsc.service_id = bs.id),
-            (SELECT json_agg(json_build_object('id', elem->>'id', 'nombre', elem->>'nombre'))
-             FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem),
-            '[]'::json
+          (
+            SELECT COALESCE(json_agg(json_build_object('id', c.id, 'nombre', c.nombre, 'is_child', c.is_child) ORDER BY c.nombre), '[]'::json)
+            FROM (
+              SELECT mp.id::text AS id, mp.nombre, false AS is_child
+              FROM baptism_service_candidates bsc
+              JOIN mission_personas mp ON mp.id = bsc.persona_id
+              WHERE bsc.service_id = bs.id
+
+              UNION ALL
+
+              SELECT COALESCE(elem->>'id', elem->>'memberId') AS id, elem->>'nombre' AS nombre, COALESCE((elem->>'isChild')::boolean, true) AS is_child
+              FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem
+              WHERE elem->>'nombre' IS NOT NULL
+            ) c
           ) AS candidates,
           COALESCE(
-            (SELECT string_agg(mp.nombre, ', ' ORDER BY mp.nombre)
-             FROM baptism_service_candidates bsc
-             JOIN mission_personas mp ON mp.id = bsc.persona_id
-             WHERE bsc.service_id = bs.id),
-            (SELECT string_agg(elem->>'nombre', ', ')
-             FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem),
+            (
+              SELECT string_agg(c.nombre, ', ' ORDER BY c.nombre)
+              FROM (
+                SELECT mp.nombre
+                FROM baptism_service_candidates bsc
+                JOIN mission_personas mp ON mp.id = bsc.persona_id
+                WHERE bsc.service_id = bs.id
+
+                UNION ALL
+
+                SELECT elem->>'nombre' AS nombre
+                FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem
+                WHERE elem->>'nombre' IS NOT NULL
+              ) c
+            ),
             'Candidato bautismal'
           ) AS persona_nombre
         FROM baptism_services bs
@@ -1626,37 +1641,57 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
       const result = await db.execute(sql`
         SELECT bs.*,
-          COALESCE(
-            (SELECT json_agg(c ORDER BY c->>'nombre')
-             FROM (
-               SELECT jsonb_build_object(
-                 'id', mp2.id,
-                 'nombre', mp2.nombre,
-                 'entrevista_invitado', mcb.fecha_invitado,
-                 'entrevista_fecha', mcb.fecha_cumplido
-               ) AS c
-               FROM (
-                 SELECT persona_id FROM baptism_service_candidates WHERE service_id = bs.id
-                 UNION
-                 SELECT candidate_persona_id FROM baptism_services
-                 WHERE id = bs.id AND candidate_persona_id IS NOT NULL
-                   AND NOT EXISTS (SELECT 1 FROM baptism_service_candidates WHERE service_id = bs.id)
-               ) cands
-               JOIN mission_personas mp2 ON mp2.id = cands.persona_id
-               LEFT JOIN mission_compromiso_bautismo mcb
-                 ON mcb.persona_id = cands.persona_id AND mcb.commitment_key = 'entrevista_bautismo'
-             ) sub),
-            (SELECT json_agg(jsonb_build_object('id', elem->>'id', 'nombre', elem->>'nombre', 'is_child', true))
-             FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem),
-            '[]'::json
+          (
+            SELECT COALESCE(json_agg(c ORDER BY c->>'nombre'), '[]'::json)
+            FROM (
+              SELECT jsonb_build_object(
+                'id', mp2.id,
+                'nombre', mp2.nombre,
+                'is_child', false,
+                'persona_id', mp2.id,
+                'entrevista_invitado', mcb.fecha_invitado,
+                'entrevista_fecha', mcb.fecha_cumplido
+              ) AS c
+              FROM (
+                SELECT persona_id FROM baptism_service_candidates WHERE service_id = bs.id
+                UNION
+                SELECT candidate_persona_id FROM baptism_services
+                WHERE id = bs.id AND candidate_persona_id IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM baptism_service_candidates WHERE service_id = bs.id)
+              ) cands
+              JOIN mission_personas mp2 ON mp2.id = cands.persona_id
+              LEFT JOIN mission_compromiso_bautismo mcb
+                ON mcb.persona_id = cands.persona_id AND mcb.commitment_key = 'entrevista_bautismo'
+
+              UNION ALL
+
+              SELECT jsonb_build_object(
+                'id', COALESCE(elem->>'id', elem->>'memberId'),
+                'nombre', elem->>'nombre',
+                'is_child', COALESCE((elem->>'isChild')::boolean, true),
+                'member_id', elem->>'memberId',
+                'entrevista_fecha', elem->>'entrevistaFecha'
+              ) AS c
+              FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem
+              WHERE elem->>'nombre' IS NOT NULL
+            ) sub
           ) AS candidates,
           COALESCE(
-            (SELECT string_agg(mp2.nombre, ', ' ORDER BY mp2.nombre)
-             FROM baptism_service_candidates bsc2
-             JOIN mission_personas mp2 ON mp2.id = bsc2.persona_id
-             WHERE bsc2.service_id = bs.id),
-            (SELECT string_agg(elem->>'nombre', ', ')
-             FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem),
+            (
+              SELECT string_agg(c.nombre, ', ' ORDER BY c.nombre)
+              FROM (
+                SELECT mp2.nombre
+                FROM baptism_service_candidates bsc2
+                JOIN mission_personas mp2 ON mp2.id = bsc2.persona_id
+                WHERE bsc2.service_id = bs.id
+
+                UNION ALL
+
+                SELECT elem->>'nombre' AS nombre
+                FROM jsonb_array_elements(COALESCE(bs.candidate_meta, '[]'::jsonb)) AS elem
+                WHERE elem->>'nombre' IS NOT NULL
+              ) c
+            ),
             'Candidato bautismal'
           ) AS persona_nombre,
           (SELECT json_agg(pi ORDER BY pi."order")
@@ -1718,6 +1753,121 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
       return res.json({ success: true });
     } catch (err) {
       console.error("[mission/baptism-services/:id DELETE]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // POST /api/mission/baptism-services/:id/candidates — add a child or friend to existing baptism service
+  app.post("/api/mission/baptism-services/:id/candidates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
+
+      const schema = z.object({
+        candidateType: z.enum(["nino", "amigo"]).default("nino"),
+        candidateName: z.string().min(1, "Nombre requerido"),
+        memberId: z.string().nullable().optional(),
+        personaId: z.string().nullable().optional(),
+        sexo: z.enum(["M", "F"]).nullable().optional(),
+        fechaNacimiento: z.string().nullable().optional(),
+      });
+      const data = schema.parse(req.body);
+
+      const svcCheck = await db.execute(sql`
+        SELECT * FROM baptism_services WHERE id = ${req.params.id} AND unit_id = ${unitId}
+      `);
+      if (!svcCheck.rows.length) return res.status(404).json({ message: "Servicio no encontrado" });
+
+      const svc = svcCheck.rows[0] as any;
+      const candidateId = data.personaId || data.memberId || randomBytes(8).toString("hex");
+
+      if (data.candidateType === "amigo" && data.personaId) {
+        await db.execute(sql`
+          INSERT INTO baptism_service_candidates (service_id, persona_id)
+          VALUES (${req.params.id}, ${data.personaId})
+          ON CONFLICT DO NOTHING
+        `);
+        if (svc.service_at) {
+          const serviceDateStr = new Date(svc.service_at).toISOString().split("T")[0];
+          await db.execute(sql`
+            UPDATE mission_personas
+            SET fecha_bautismo = ${serviceDateStr}, updated_at = NOW()
+            WHERE id = ${data.personaId}
+          `);
+        }
+      } else {
+        // Child from directory or manual -> append to candidate_meta
+        const existingMeta: any[] = Array.isArray(svc.candidate_meta) ? svc.candidate_meta : [];
+        const updatedMeta = [
+          ...existingMeta.filter((c: any) => c.id !== candidateId && c.nombre !== data.candidateName.trim()),
+          {
+            id: candidateId,
+            nombre: data.candidateName.trim(),
+            memberId: data.memberId || null,
+            personaId: data.personaId || null,
+            isChild: data.candidateType === "nino",
+            sexo: data.sexo || null,
+            fechaNacimiento: data.fechaNacimiento || null,
+          },
+        ];
+        await db.execute(sql`
+          UPDATE baptism_services
+          SET candidate_meta = ${JSON.stringify(updatedMeta)}::jsonb, updated_at = NOW()
+          WHERE id = ${req.params.id}
+        `);
+      }
+
+      return res.json({ success: true, candidateId });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.message });
+      console.error("[POST /api/mission/baptism-services/:id/candidates]", err);
+      return res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // DELETE /api/mission/baptism-services/:id/candidates/:candidateId — remove a candidate from a baptism service
+  app.delete("/api/mission/baptism-services/:id/candidates/:candidateId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (!(await canAccessMission(user))) return res.status(403).json({ message: "Sin acceso" });
+      const unitId = await getMissionUnitId(user);
+      if (!unitId) return res.status(400).json({ message: "Sin unidad asignada" });
+
+      const { id, candidateId } = req.params;
+
+      // Clear from baptism_service_candidates
+      await db.execute(sql`
+        DELETE FROM baptism_service_candidates
+        WHERE service_id = ${id} AND persona_id = ${candidateId}
+      `);
+
+      // Clear fecha_bautismo if persona
+      await db.execute(sql`
+        UPDATE mission_personas SET fecha_bautismo = NULL, updated_at = NOW()
+        WHERE id = ${candidateId}
+      `).catch(() => {});
+
+      // Also clean from candidate_meta
+      const svcCheck = await db.execute(sql`
+        SELECT candidate_meta FROM baptism_services WHERE id = ${id} AND unit_id = ${unitId}
+      `);
+      if (svcCheck.rows.length > 0) {
+        const meta = svcCheck.rows[0].candidate_meta;
+        if (Array.isArray(meta)) {
+          const updated = meta.filter((c: any) => c.id !== candidateId && c.memberId !== candidateId && c.personaId !== candidateId);
+          await db.execute(sql`
+            UPDATE baptism_services
+            SET candidate_meta = ${JSON.stringify(updated)}::jsonb, updated_at = NOW()
+            WHERE id = ${id}
+          `);
+        }
+      }
+
+      return res.json({ success: true });
+    } catch (err: any) {
+      console.error("[DELETE /api/mission/baptism-services/:id/candidates/:candidateId]", err);
       return res.status(500).json({ message: "Error interno" });
     }
   });
