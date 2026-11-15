@@ -409,8 +409,13 @@ function movePill(
 ) {
   if (!pillEl) return;
   const navEl = pillEl.parentElement;
-  if (!navEl || !targetEl || !targetEl.offsetWidth) {
-    gsap.set(pillEl, { opacity: 0 });
+  if (!navEl) return;
+
+  // If no target element or element has 0 width (not rendered / detached)
+  if (!targetEl || !targetEl.offsetWidth) {
+    if (!(pillEl as any).__state) {
+      gsap.set(pillEl, { opacity: 0 });
+    }
     return;
   }
 
@@ -436,18 +441,41 @@ function movePill(
     `inset(${p.t}px ${p.r}px ${p.b}px ${p.l}px round ${radius}px)`;
 
   const state: PillBounds | undefined = (pillEl as any).__state;
+  const cur: PillBounds | undefined = (pillEl as any).__cur;
+
+  // GUARD 1: If animate is false (e.g. from ResizeObserver) and we are currently tweening,
+  // do NOT interrupt or cancel the running drag animation!
+  if (!animate && cur && gsap.isTweening(cur)) {
+    return;
+  }
+
+  // GUARD 2: If we are already targeting this exact destination and a tween is already in flight,
+  // let it run smoothly without restarting or snapping!
+  const isSameTarget =
+    state &&
+    Math.abs(state.l - target.l) < 2 &&
+    Math.abs(state.r - target.r) < 2 &&
+    Math.abs(state.t - target.t) < 2 &&
+    Math.abs(state.b - target.b) < 2;
+
+  if (isSameTarget && cur && gsap.isTweening(cur)) {
+    return;
+  }
+
+  // If no animation requested, or first render, or pill currently hidden
   if (!animate || !state || Number(gsap.getProperty(pillEl, "opacity")) === 0) {
-    gsap.killTweensOf((pillEl as any).__cur ?? {});
+    if (cur) gsap.killTweensOf(cur);
     (pillEl as any).__cur = { ...target };
-    (pillEl as any).__state = target;
+    (pillEl as any).__state = { ...target };
     gsap.set(pillEl, { clipPath: clipFn(target), opacity: 1 });
     return;
   }
 
-  (pillEl as any).__state = target;
-  const cur: PillBounds = (pillEl as any).__cur ?? { ...state };
-  (pillEl as any).__cur = cur;
-  gsap.killTweensOf(cur);
+  // Animate the elastic rubber-band stretch between current position and target!
+  (pillEl as any).__state = { ...target };
+  const tweenObj: PillBounds = cur ? { ...cur } : { ...state };
+  (pillEl as any).__cur = tweenObj;
+  gsap.killTweensOf(tweenObj);
 
   const isVertical = Math.abs(target.t - state.t) > Math.abs(target.l - state.l);
   const isMovingForward = isVertical ? target.t > state.t : target.l > state.l;
@@ -456,14 +484,40 @@ function movePill(
     : (isMovingForward ? ["r", "l"] : ["l", "r"]);
   const cross = isVertical ? ["l", "r"] : ["t", "b"];
 
-  const update = () => gsap.set(pillEl, { clipPath: clipFn(cur), opacity: 1 });
+  const update = () => gsap.set(pillEl, { clipPath: clipFn(tweenObj), opacity: 1 });
 
-  // Leading edge stretches first:
-  gsap.to(cur, { [leading]: target[leading], duration: 0.38, ease: "power3.out", onUpdate: update });
-  // Trailing edge catches up smoothly:
-  gsap.to(cur, { [trailing]: target[trailing], duration: 0.58, ease: "power3.inOut", onUpdate: update });
-  // Cross axis:
-  gsap.to(cur, { [cross[0]]: target[cross[0]], [cross[1]]: target[cross[1]], duration: 0.45, ease: "power3.inOut", onUpdate: update });
+  const dist = Math.abs(target.t - state.t);
+  // Tranquil, elegant durations that clearly showcase the stretch:
+  // Leading edge stretches first: 0.40s - 0.50s with power3.out
+  const leadDur = Math.min(0.50, Math.max(0.40, 0.38 + dist / 2200));
+  // Trailing edge catches up smoothly: 0.62s - 0.74s with power3.inOut
+  const trailDur = Math.min(0.74, Math.max(0.62, 0.60 + dist / 1800));
+  const crossDur = 0.48;
+
+  // 1. Leading edge stretches out to the destination like liquid
+  gsap.to(tweenObj, {
+    [leading]: target[leading],
+    duration: leadDur,
+    ease: "power3.out",
+    onUpdate: update,
+  });
+
+  // 2. Trailing edge follows smoothly, creating the elastic snap
+  gsap.to(tweenObj, {
+    [trailing]: target[trailing],
+    duration: trailDur,
+    ease: "power3.inOut",
+    onUpdate: update,
+  });
+
+  // 3. Cross axis adjustments (width/horizontal alignment)
+  gsap.to(tweenObj, {
+    [cross[0]]: target[cross[0]],
+    [cross[1]]: target[cross[1]],
+    duration: crossDur,
+    ease: "power3.inOut",
+    onUpdate: update,
+  });
 }
 
 function AppSidebarInner() {
@@ -476,14 +530,20 @@ function AppSidebarInner() {
   const pillRef = React.useRef<HTMLSpanElement | null>(null);
   const isFirstRender = React.useRef(true);
 
-  const [, startTransition] = React.useTransition();
+  const handleLinkClick = React.useCallback(
+    (path: string, targetEl?: HTMLElement | null) => {
+      if (isMobile) setOpenMobile(false);
 
-  const handleLinkClick = React.useCallback((path: string) => {
-    if (isMobile) setOpenMobile(false);
-    startTransition(() => {
+      // 1. Launch the stretch animation in the exact frame of the user click!
+      if (targetEl && pillRef.current) {
+        movePill(pillRef.current, targetEl, { animate: true, radius: 13 });
+      }
+
+      // 2. Immediate route change
       setLocation(path);
-    });
-  }, [isMobile, setLocation, setOpenMobile, startTransition]);
+    },
+    [isMobile, setLocation, setOpenMobile]
+  );
 
   const handlePrefetch = React.useCallback((url: string) => {
     const prefetcher = ROUTE_PREFETCHERS[url];
@@ -555,25 +615,34 @@ function AppSidebarInner() {
     });
   }, [isOpen, menuItems, handlePrefetch]);
 
-  // Ardena-style smooth sliding pill positioning
+  // Ardena-style smooth sliding pill positioning on location change
   React.useLayoutEffect(() => {
-    const timer = setTimeout(() => {
-      const activeEl = navRef.current?.querySelector<HTMLElement>('.snav__item[aria-current="page"]');
-      movePill(pillRef.current, activeEl ?? null, { animate: !isFirstRender.current, radius: 13 });
-      isFirstRender.current = false;
-    }, 20);
-    return () => clearTimeout(timer);
+    const activeEl =
+      navRef.current?.querySelector<HTMLElement>(`.snav__item[data-id="${location}"]`) ??
+      navRef.current?.querySelector<HTMLElement>(`[data-id="${location}"]`) ??
+      navRef.current?.querySelector<HTMLElement>('.snav__item[aria-current="page"]');
+
+    if (activeEl) {
+      movePill(pillRef.current, activeEl, { animate: !isFirstRender.current, radius: 13 });
+    }
+    isFirstRender.current = false;
   }, [location, open]);
 
   React.useEffect(() => {
     const update = () => {
-      const activeEl = navRef.current?.querySelector<HTMLElement>('.snav__item[aria-current="page"]');
-      movePill(pillRef.current, activeEl ?? null, { animate: false, radius: 13 });
+      const activeEl =
+        navRef.current?.querySelector<HTMLElement>(`.snav__item[data-id="${location}"]`) ??
+        navRef.current?.querySelector<HTMLElement>(`[data-id="${location}"]`) ??
+        navRef.current?.querySelector<HTMLElement>('.snav__item[aria-current="page"]');
+      if (activeEl) {
+        movePill(pillRef.current, activeEl, { animate: false, radius: 13 });
+      }
     };
     const ro = new ResizeObserver(update);
     if (navRef.current) ro.observe(navRef.current);
+    document.fonts?.ready?.then(update);
     return () => ro.disconnect();
-  }, [open]);
+  }, [location, open]);
 
   return (
     <Sidebar variant="floating" collapsible="icon">
@@ -639,8 +708,12 @@ function AppSidebarInner() {
                           <Link
                             href={item.url!}
                             aria-current={isActive ? "page" : undefined}
+                            data-id={item.url}
                             onMouseEnter={() => handlePrefetch(item.url!)}
-                            onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              handleLinkClick(item.url!, event.currentTarget);
+                            }}
                             className="relative flex items-center w-full gap-2.5"
                           >
                             <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
@@ -708,8 +781,12 @@ function AppSidebarInner() {
                                           <Link
                                             href={subItem.url}
                                             aria-current={isSubActive ? "page" : undefined}
+                                            data-id={subItem.url}
                                             onMouseEnter={() => handlePrefetch(subItem.url)}
-                                            onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}
+                                            onClick={(event) => {
+                                              event.preventDefault();
+                                              handleLinkClick(subItem.url, event.currentTarget);
+                                            }}
                                             className="relative flex items-center w-full"
                                           >
                                             <span className="truncate relative z-10">{subItem.title}</span>
@@ -743,8 +820,12 @@ function AppSidebarInner() {
                             <Link
                               href={item.url!}
                               aria-current={isItemActive ? "page" : undefined}
+                              data-id={item.url}
                               onMouseEnter={() => handlePrefetch(item.url!)}
-                              onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                handleLinkClick(item.url!, event.currentTarget);
+                              }}
                               className="relative flex items-center w-full gap-2.5"
                             >
                               <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />

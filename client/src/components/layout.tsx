@@ -109,12 +109,23 @@ export function Layout({ children }: LayoutProps) {
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={location}
-                initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -6, filter: "blur(6px)" }}
-                transition={{
-                  duration: 0.36,
-                  ease: [0.22, 1, 0.36, 1],
+                initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  filter: "blur(0px)",
+                  transition: {
+                    duration: 0.32,
+                    ease: [0.16, 1, 0.3, 1],
+                  },
+                }}
+                exit={{
+                  opacity: 0,
+                  filter: "blur(4px)",
+                  transition: {
+                    duration: 0.12,
+                    ease: "easeIn",
+                  },
                 }}
                 className="app-page-content w-full min-h-full"
               >
