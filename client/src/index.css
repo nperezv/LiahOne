@@ -1064,7 +1064,7 @@
   animation: flash-highlight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Card micro-elevation */
+/* Card micro-elevation with visible hover lift */
 .card-lift {
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
               box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
@@ -1072,8 +1072,12 @@
 }
 
 .card-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.32), 0 4px 12px -2px rgba(0, 0, 0, 0.18);
+}
+
+.dark .card-lift:hover {
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 /* Smooth spring entrance */

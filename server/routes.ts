@@ -4948,6 +4948,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let updateData: any = rest;
 
+      if (personName !== undefined && personName !== null) {
+        updateData.personName = String(personName).trim();
+      }
+
       if (memberId !== undefined) {
         if (memberId) {
           const member = await storage.getMemberById(memberId);
@@ -4955,28 +4959,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(404).json({ error: "Member not found" });
           }
           updateData.memberId = memberId;
-          updateData.personName = member.nameSurename;
+          if (!updateData.personName) {
+            updateData.personName = member.nameSurename;
+          } else if (updateData.personName !== member.nameSurename) {
+            // Also update the member record so directory and interviews stay aligned
+            try {
+              await storage.updateMember(memberId, { nameSurename: updateData.personName });
+            } catch (err) {
+              console.warn("Could not sync member nameSurename:", err);
+            }
+          }
           updateData.assignedToId = null;
         } else {
           updateData.memberId = null;
         }
       }
 
-      if (memberId === undefined && personName) {
-        updateData.personName = personName;
-
+      if (!updateData.assignedToId && updateData.personName) {
         const users = await storage.getAllUsers();
-        const normalizedInput = personName.toLowerCase().trim();
+        const normalizedInput = updateData.personName.toLowerCase().trim();
 
         let foundUser = users.find(
-          (u) => u.name.toLowerCase() === normalizedInput
+          (u) => (u.displayName || u.name || "").toLowerCase() === normalizedInput
         );
 
         if (!foundUser) {
           foundUser = users.find(
             (u) =>
-              u.name.toLowerCase().includes(normalizedInput) ||
-              normalizedInput.includes(u.name.toLowerCase())
+              (u.displayName || u.name || "").toLowerCase().includes(normalizedInput) ||
+              normalizedInput.includes((u.displayName || u.name || "").toLowerCase())
           );
         }
 

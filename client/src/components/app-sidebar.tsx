@@ -527,11 +527,11 @@ function AppSidebarInner() {
                       <SidebarMenuButton
                         asChild
                         isActive={location === item.url}
-                        className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight"
+                        className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 hover:translate-x-1.5 hover:bg-sidebar-accent active:scale-[0.97] active:translate-x-0.5"
                         data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
                         <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
-                          <item.icon className="h-4 w-4 shrink-0" />
+                          <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
                           <span className="truncate flex-1 min-w-0">{title}</span>
                         </Link>
                       </SidebarMenuButton>
@@ -567,10 +567,10 @@ function AppSidebarInner() {
                           <SidebarMenuItem>
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
-                                className={`rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight ${isActive ? "bg-sidebar-accent font-semibold" : ""}`}
+                                className={`rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 hover:translate-x-1.5 hover:bg-sidebar-accent active:scale-[0.97] active:translate-x-0.5 ${isActive ? "bg-sidebar-accent font-semibold translate-x-1" : ""}`}
                                 data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                               >
-                                <item.icon className="h-4 w-4 shrink-0" />
+                                <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
                                 <span className="truncate flex-1 min-w-0">{title}</span>
                                 <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200" />
                               </SidebarMenuButton>
@@ -582,7 +582,7 @@ function AppSidebarInner() {
                                     <SidebarMenuSubButton
                                       asChild
                                       isActive={location === subItem.url}
-                                      className="rounded-lg px-2 py-1.5 text-[0.8rem]"
+                                      className="rounded-lg px-2 py-1.5 text-[0.8rem] transition-all duration-150 hover:translate-x-1 hover:bg-sidebar-accent"
                                       data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
                                     >
                                       <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
@@ -603,11 +603,11 @@ function AppSidebarInner() {
                         <SidebarMenuButton
                           asChild
                           isActive={location === item.url}
-                          className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight"
+                          className="rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 hover:translate-x-1.5 hover:bg-sidebar-accent active:scale-[0.97] active:translate-x-0.5"
                           data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                         >
                           <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
-                            <item.icon className="h-4 w-4 shrink-0" />
+                            <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
                             <span className="truncate flex-1 min-w-0">{title}</span>
                           </Link>
                         </SidebarMenuButton>

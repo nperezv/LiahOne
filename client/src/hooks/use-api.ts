@@ -950,6 +950,7 @@ export function useUpdateInterview() {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/assignments"] });      
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
       toast({
         title: "Entrevista actualizada",
         description: "La entrevista ha sido actualizada exitosamente.",

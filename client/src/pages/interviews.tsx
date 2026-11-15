@@ -1861,7 +1861,7 @@ export default function InterviewsPage() {
                     data-testid={`card-interview-${interview.id}`}
                     data-interview-id={interview.id}
                     onClick={() => handleOpenDetails(interview)}
-                    className={`cursor-pointer rounded-2xl border bg-card/95 backdrop-blur transition-all duration-500 ${
+                    className={`cursor-pointer rounded-2xl border bg-card/95 backdrop-blur transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:border-primary/50 active:scale-[0.99] card-lift ${
                       isHighlighted ? "notif-highlight border-primary" : "border-border/70"
                     }`}
                   >
@@ -1906,6 +1906,7 @@ export default function InterviewsPage() {
                                 onClick={() => handleCompleteInterview(interview.id)}
                                 disabled={updateMutation.isPending}
                                 title="Completar"
+                                className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 active:scale-95 shadow-sm"
                               >
                                 <CheckCircle2 className="h-4 w-4" />
                               </Button>
@@ -1919,6 +1920,7 @@ export default function InterviewsPage() {
                                 onClick={() => handleEditClick(interview)}
                                 disabled={updateMutation.isPending}
                                 title="Editar"
+                                className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:border-primary active:scale-95 shadow-sm"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -1931,6 +1933,7 @@ export default function InterviewsPage() {
                                 onClick={() => handleCancelInterview(interview.id)}
                                 disabled={updateMutation.isPending}
                                 title="Cancelar"
+                                className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive active:scale-95 shadow-sm"
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -2050,25 +2053,14 @@ export default function InterviewsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Nombre de la Persona</FormLabel>
-                    {editMemberId ? (
-                      <div className="space-y-2">
-                        <FormControl>
-                          <Input placeholder="Nombre" {...field} disabled data-testid="input-edit-person-name" />
-                        </FormControl>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => editForm.setValue("memberId", "")}
-                        >
-                          Desvincular y editar manualmente
-                        </Button>
-                      </div>
-                    ) : (
-                      <FormControl>
-                        <Input placeholder="Nombre" {...field} data-testid="input-edit-person-name" />
-                      </FormControl>
-                    )}
+                    <FormControl>
+                      <Input
+                        placeholder="Nombre completo"
+                        {...field}
+                        data-testid="input-edit-person-name"
+                        className="transition-all focus:ring-2"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
