@@ -1138,3 +1138,33 @@
   background-color: currentColor;
   animation: breathe-ring 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
+
+/* Sidebar interactive hover micro-movement & tactile response */
+[data-sidebar="menu-button"],
+[data-slot="sidebar-menu-button"],
+[data-sidebar="menu-sub-button"],
+[data-slot="sidebar-menu-sub-button"] {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.15s ease, color 0.15s ease !important;
+  will-change: transform;
+}
+
+[data-sidebar="menu-button"]:hover,
+[data-slot="sidebar-menu-button"]:hover,
+[data-sidebar="menu-sub-button"]:hover,
+[data-slot="sidebar-menu-sub-button"]:hover {
+  transform: translateX(6px) !important;
+}
+
+[data-sidebar="menu-button"]:active,
+[data-slot="sidebar-menu-button"]:active,
+[data-sidebar="menu-sub-button"]:active,
+[data-slot="sidebar-menu-sub-button"]:active {
+  transform: translateX(2px) scale(0.975) !important;
+}
+
+[data-sidebar="menu-button"]:hover svg,
+[data-slot="sidebar-menu-button"]:hover svg {
+  transform: scale(1.15) !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
