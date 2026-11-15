@@ -105,7 +105,7 @@ export function Layout({ children }: LayoutProps) {
             onLogout={logout}
           />
           <main ref={mainRef} className="app-scroll-container flex-1 overflow-y-auto pb-20 md:pb-0">
-            <div key={location} className="app-page-content app-route-fade">
+            <div key={location} className="app-page-content app-route-fade w-full min-h-full">
               {children}
             </div>
           </main>
