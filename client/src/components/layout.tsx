@@ -151,7 +151,7 @@ export function Layout({ children }: LayoutProps) {
 
   const sidebarStyle = {
     "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
+    "--sidebar-width-icon": "3.25rem",
   };
 
   return (
