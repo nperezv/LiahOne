@@ -2117,10 +2117,10 @@ export function registerMissionRoutes(app: Express, requireAuth: RequestHandler)
         SELECT * FROM baptism_program_items WHERE service_id = ${req.params.id} ORDER BY "order"
       `);
 
-      // Auto-mark "programa" checklist item if all required program fields are filled
-      const PROGRAM_ORDER = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","numero_especial","segundo_mensaje","testigos","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
+      // Auto-mark "programa" checklist item if all required program fields are filled (numero_especial and testimonios are optional)
+      const REQUIRED_TYPES = ["preside","dirige","dirige_musica","acompanamiento_piano","primer_himno","oracion_apertura","primer_mensaje","segundo_mensaje","testigos","ordenanza_bautismo","ordenanza_confirmacion","ultimo_himno","ultima_oracion"];
       const savedMap = new Map(items.map((it) => [it.type, it.participantDisplayName]));
-      const programComplete = PROGRAM_ORDER.every((t) => savedMap.get(t)?.trim());
+      const programComplete = REQUIRED_TYPES.every((t) => !!savedMap.get(t)?.trim());
       if (programComplete) {
         const activityRow = await db
           .select({ id: activities.id })

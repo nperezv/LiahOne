@@ -413,7 +413,7 @@ function movePill(
 
   // If no target element or element has 0 width (not rendered / detached)
   if (!targetEl || !targetEl.offsetWidth) {
-    if (!(pillEl as any).__state) {
+    if (!(pillEl as any).__cur) {
       gsap.set(pillEl, { opacity: 0 });
     }
     return;
@@ -433,6 +433,7 @@ function movePill(
   const b = Math.round(scrollH - (t + targetRect.height));
 
   const target: PillBounds = { l, t, r, b };
+  const targetKey = `${l},${t},${r},${b}`;
 
   pillEl.style.width = `${scrollW}px`;
   pillEl.style.height = `${scrollH}px`;
@@ -440,7 +441,6 @@ function movePill(
   const clipFn = (p: PillBounds) =>
     `inset(${p.t}px ${p.r}px ${p.b}px ${p.l}px round ${radius}px)`;
 
-  const state: PillBounds | undefined = (pillEl as any).__state;
   const cur: PillBounds | undefined = (pillEl as any).__cur;
 
   // GUARD 1: If animate is false (e.g. from ResizeObserver) and we are currently tweening,
@@ -449,61 +449,52 @@ function movePill(
     return;
   }
 
-  // GUARD 2: If we are already targeting this exact destination and a tween is already in flight,
-  // let it run smoothly without restarting or snapping!
-  const isSameTarget =
-    state &&
-    Math.abs(state.l - target.l) < 2 &&
-    Math.abs(state.r - target.r) < 2 &&
-    Math.abs(state.t - target.t) < 2 &&
-    Math.abs(state.b - target.b) < 2;
-
-  if (isSameTarget && cur && gsap.isTweening(cur)) {
+  // GUARD 2: If we are already heading to this target and tween is running, let it complete smoothly!
+  if ((pillEl as any).__targetKey === targetKey && cur && gsap.isTweening(cur)) {
     return;
   }
 
+  (pillEl as any).__targetKey = targetKey;
+
   // If no animation requested, or first render, or pill currently hidden
-  if (!animate || !state || Number(gsap.getProperty(pillEl, "opacity")) === 0) {
+  if (!animate || !cur || Number(gsap.getProperty(pillEl, "opacity")) === 0) {
     if (cur) gsap.killTweensOf(cur);
     (pillEl as any).__cur = { ...target };
-    (pillEl as any).__state = { ...target };
     gsap.set(pillEl, { clipPath: clipFn(target), opacity: 1 });
     return;
   }
 
   // Animate the elastic rubber-band stretch between current position and target!
-  (pillEl as any).__state = { ...target };
-  const tweenObj: PillBounds = cur ? { ...cur } : { ...state };
-  (pillEl as any).__cur = tweenObj;
-  gsap.killTweensOf(tweenObj);
+  // Kill running tweens on the ACTUAL object being tweened
+  gsap.killTweensOf(cur);
 
-  const isVertical = Math.abs(target.t - state.t) > Math.abs(target.l - state.l);
-  const isMovingForward = isVertical ? target.t > state.t : target.l > state.l;
+  const isVertical = Math.abs(target.t - cur.t) > Math.abs(target.l - cur.l);
+  const isMovingForward = isVertical ? target.t > cur.t : target.l > cur.l;
   const [leading, trailing] = isVertical
     ? (isMovingForward ? ["b", "t"] : ["t", "b"])
     : (isMovingForward ? ["r", "l"] : ["l", "r"]);
   const cross = isVertical ? ["l", "r"] : ["t", "b"];
 
-  const update = () => gsap.set(pillEl, { clipPath: clipFn(tweenObj), opacity: 1 });
+  const update = () => gsap.set(pillEl, { clipPath: clipFn(cur), opacity: 1 });
 
-  const dist = Math.abs(target.t - state.t);
-  // Tranquil, elegant durations that clearly showcase the stretch:
-  // Leading edge stretches first: 0.40s - 0.50s with power3.out
-  const leadDur = Math.min(0.50, Math.max(0.40, 0.38 + dist / 2200));
-  // Trailing edge catches up smoothly: 0.62s - 0.74s with power3.inOut
-  const trailDur = Math.min(0.74, Math.max(0.62, 0.60 + dist / 1800));
+  const dist = Math.abs(target.t - cur.t);
+  // Tranquil, physical, elegant durations that clearly showcase the stretch:
+  // Leading edge stretches first: 0.42s - 0.52s with power2.out
+  const leadDur = Math.min(0.52, Math.max(0.40, 0.38 + dist / 2200));
+  // Trailing edge catches up smoothly: 0.65s - 0.78s with power3.inOut
+  const trailDur = Math.min(0.78, Math.max(0.64, 0.60 + dist / 1800));
   const crossDur = 0.48;
 
   // 1. Leading edge stretches out to the destination like liquid
-  gsap.to(tweenObj, {
+  gsap.to(cur, {
     [leading]: target[leading],
     duration: leadDur,
-    ease: "power3.out",
+    ease: "power2.out",
     onUpdate: update,
   });
 
   // 2. Trailing edge follows smoothly, creating the elastic snap
-  gsap.to(tweenObj, {
+  gsap.to(cur, {
     [trailing]: target[trailing],
     duration: trailDur,
     ease: "power3.inOut",
@@ -511,7 +502,7 @@ function movePill(
   });
 
   // 3. Cross axis adjustments (width/horizontal alignment)
-  gsap.to(tweenObj, {
+  gsap.to(cur, {
     [cross[0]]: target[cross[0]],
     [cross[1]]: target[cross[1]],
     duration: crossDur,
@@ -648,8 +639,8 @@ function AppSidebarInner() {
     <Sidebar variant="floating" collapsible="icon">
       <SidebarContent className="space-y-0.5 pb-4 select-none">
         {/* App Branding Header & Sidebar Toggle */}
-        <div className="mx-2 mt-3 mb-1.5 rounded-[20px] border border-sidebar-border/60 bg-sidebar-accent/20 p-2 backdrop-blur-md">
-          <div className="flex items-center gap-2">
+        <div className="mx-2 mt-3 mb-1.5 rounded-[20px] border border-sidebar-border/60 bg-sidebar-accent/20 p-2 backdrop-blur-md group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:p-1 group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent">
+          <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -696,8 +687,9 @@ function AppSidebarInner() {
                         <SidebarMenuButton
                           asChild
                           isActive={isActive}
+                          tooltip={title}
                           className={cn(
-                            "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
+                            "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9",
                             isActive
                               ? "text-white font-semibold"
                               : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
@@ -714,10 +706,10 @@ function AppSidebarInner() {
                               event.preventDefault();
                               handleLinkClick(item.url!, event.currentTarget);
                             }}
-                            className="relative flex items-center w-full gap-2.5"
+                            className="relative flex items-center w-full gap-2.5 group-data-[collapsible=icon]:justify-center"
                           >
                             <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
-                            <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
+                            <span className="truncate flex-1 min-w-0 relative z-10 group-data-[collapsible=icon]:hidden">{title}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -733,6 +725,8 @@ function AppSidebarInner() {
                     <section.icon className="h-3 w-3 text-primary/75" />
                     <span>{section.label}</span>
                   </div>
+                  <div className="hidden group-data-[collapsible=icon]:block my-2 mx-auto w-5 h-[1px] bg-sidebar-border/40" />
+
                   <SidebarMenu className="space-y-0.5">
                     {section.items.map((item) => {
                       const title = getRenamedTitle(item, user?.role);
@@ -747,8 +741,9 @@ function AppSidebarInner() {
                             <SidebarMenuItem className="relative">
                               <CollapsibleTrigger asChild>
                                 <SidebarMenuButton
+                                  tooltip={title}
                                   className={cn(
-                                    "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
+                                    "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9",
                                     isActive
                                       ? "text-primary-foreground font-semibold"
                                       : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
@@ -756,11 +751,11 @@ function AppSidebarInner() {
                                   data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                                 >
                                   <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
-                                  <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
-                                  <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 relative z-10" />
+                                  <span className="truncate flex-1 min-w-0 relative z-10 group-data-[collapsible=icon]:hidden">{title}</span>
+                                  <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 relative z-10 group-data-[collapsible=icon]:hidden" />
                                 </SidebarMenuButton>
                               </CollapsibleTrigger>
-                              <CollapsibleContent>
+                              <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
                                 <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/40 pl-2 space-y-0.5">
                                   {visibleSubItems.map((subItem) => {
                                     const isSubActive = location === subItem.url;
@@ -808,8 +803,9 @@ function AppSidebarInner() {
                           <SidebarMenuButton
                             asChild
                             isActive={isItemActive}
+                            tooltip={title}
                             className={cn(
-                              "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
+                              "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9",
                               isItemActive
                                 ? "text-white font-semibold"
                                 : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
@@ -826,10 +822,10 @@ function AppSidebarInner() {
                                 event.preventDefault();
                                 handleLinkClick(item.url!, event.currentTarget);
                               }}
-                              className="relative flex items-center w-full gap-2.5"
+                              className="relative flex items-center w-full gap-2.5 group-data-[collapsible=icon]:justify-center"
                             >
                               <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
-                              <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
+                              <span className="truncate flex-1 min-w-0 relative z-10 group-data-[collapsible=icon]:hidden">{title}</span>
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

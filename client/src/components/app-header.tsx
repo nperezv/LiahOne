@@ -9,6 +9,7 @@ import {
   Euro,
   UserPlus,
   Clock,
+  PanelLeft,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -138,15 +139,9 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           data-testid="button-sidebar-toggle"
           title="Abrir o cerrar menú lateral"
           aria-label="Abrir o cerrar menú lateral"
-          className="h-10 w-10 rounded-xl bg-sidebar-accent/50 hover:bg-sidebar-accent border border-sidebar-border/60 shadow-2xs transition-all active:scale-95 flex items-center justify-center p-0 cursor-pointer"
+          className="h-9 w-9 rounded-xl bg-sidebar-accent/50 hover:bg-sidebar-accent border border-sidebar-border/60 shadow-2xs transition-all active:scale-95 flex items-center justify-center p-0 cursor-pointer"
         >
-          <img
-            src="/icons/compass.svg"
-            alt="Abrir o cerrar menú lateral"
-            className="h-5 w-5 object-contain app-compass-static transition-transform hover:rotate-12"
-            decoding="async"
-            loading="eager"
-          />
+          <PanelLeft className="h-4.5 w-4.5 text-sidebar-foreground/80 transition-transform hover:scale-105" />
         </SidebarTrigger>
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold tracking-tight">{wardName}</h1>

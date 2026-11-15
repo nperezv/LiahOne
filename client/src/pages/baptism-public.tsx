@@ -70,6 +70,8 @@ const PROGRAM_LABELS: Record<string, string> = {
   ultima_oracion:          "Oración de cierre",
   ordenanza_bautismo:      "Oficia el bautismo",
   ordenanza_confirmacion:  "Oficia la confirmación",
+  primer_testimonio:       "Primer testimonio",
+  segundo_testimonio:      "Segundo testimonio",
   testigos:                "Testigos",
   interludio:              "Interludio",
   // Legacy keys
@@ -85,44 +87,106 @@ const PROGRAM_LABELS: Record<string, string> = {
   otro:                    "Otro",
 };
 
-// Types that belong inside the "Realización de la ordenanza" section
-const ORDINANCE_TYPES = new Set([
-  "ordenanza_bautismo", "ordenanza_confirmacion",
-  "bautismo", "confirmacion",
-  "testigos", "interludio",
-]);
+function isOrdinanceType(type: string): boolean {
+  return (
+    type.startsWith("ordenanza_bautismo") ||
+    type.startsWith("bautismo") ||
+    type.startsWith("ordenanza_confirmacion") ||
+    type.startsWith("confirmacion") ||
+    type === "testigos" ||
+    type === "interludio"
+  );
+}
 
-// Canonical display order for program types.
-// Items of the same type keep their relative DB order among themselves.
-const TYPE_DISPLAY_ORDER: Record<string, number> = {
-  preside:                0,
-  dirige:                 1,
-  dirige_musica:          2,
-  acompanamiento_piano:   3,
-  primer_himno:           4,
-  himno_apertura:         4,
-  oracion_apertura:       5,
-  primer_mensaje:         6,
-  numero_especial:        7,
-  segundo_mensaje:        8,
-  // ── ordenanza section ──
-  ordenanza_bautismo:     9,
-  bautismo:               9,
-  testigos:              10,
-  interludio:            11,
-  ordenanza_confirmacion:12,
-  confirmacion:          12,
-  // ── post-ordinance ──
-  ultimo_himno:          13,
-  himno_cierre:          13,
-  ultima_oracion:        14,
-  oracion_cierre:        14,
-};
+function getItemDisplayOrder(type: string): number {
+  if (type === "preside") return 0;
+  if (type === "dirige") return 1;
+  if (type === "dirige_musica") return 2;
+  if (type === "acompanamiento_piano") return 3;
+  if (type === "primer_himno" || type === "himno_apertura") return 4;
+  if (type === "oracion_apertura") return 5;
+  if (type === "primer_mensaje" || type === "discurso_1") return 6;
+  if (type === "numero_especial" || type === "musica_especial") return 7;
+  if (type === "segundo_mensaje" || type === "discurso_2") return 8;
+
+  // Ordinances:
+  if (type.startsWith("ordenanza_bautismo") || type.startsWith("bautismo")) {
+    const numMatch = type.match(/\d+$/);
+    const idx = numMatch ? parseInt(numMatch[0], 10) : 1;
+    return 9 + idx * 0.05;
+  }
+  if (type === "testigos") return 10;
+  if (type === "interludio") return 11;
+  if (type.startsWith("ordenanza_confirmacion") || type.startsWith("confirmacion")) {
+    const numMatch = type.match(/\d+$/);
+    const idx = numMatch ? parseInt(numMatch[0], 10) : 1;
+    return 12 + idx * 0.05;
+  }
+
+  // Testimonies:
+  if (type === "primer_testimonio" || type === "testimonio_1") return 12.6;
+  if (type === "segundo_testimonio" || type === "testimonio_2") return 12.7;
+  if (type.includes("testimonio")) return 12.8;
+
+  // Closing:
+  if (type === "ultimo_himno" || type === "himno_cierre") return 13;
+  if (type === "ultima_oracion" || type === "oracion_cierre") return 14;
+
+  return 50;
+}
+
+function getItemLabel(type: string, candidates: Array<{ nombre: string }>): string {
+  // Check if it's a baptism ordinance
+  if (type.startsWith("ordenanza_bautismo") || type.startsWith("bautismo")) {
+    const numMatch = type.match(/\d+$/);
+    const candIndex = numMatch ? parseInt(numMatch[0], 10) - 1 : 0;
+    const cand = candidates[candIndex];
+    if (candidates.length > 1 && cand?.nombre) {
+      const shortName = cand.nombre.trim().split(" ")[0];
+      return `Oficia el bautismo (${shortName})`;
+    }
+    return "Oficia el bautismo";
+  }
+
+  // Check if it's a confirmation ordinance
+  if (type.startsWith("ordenanza_confirmacion") || type.startsWith("confirmacion")) {
+    const numMatch = type.match(/\d+$/);
+    const candIndex = numMatch ? parseInt(numMatch[0], 10) - 1 : 0;
+    const cand = candidates[candIndex];
+    if (candidates.length > 1 && cand?.nombre) {
+      const shortName = cand.nombre.trim().split(" ")[0];
+      return `Oficia la confirmación (${shortName})`;
+    }
+    return "Oficia la confirmación";
+  }
+
+  if (type === "primer_testimonio" || type === "testimonio_1") return "Primer testimonio";
+  if (type === "segundo_testimonio" || type === "testimonio_2") return "Segundo testimonio";
+  if (type.includes("testimonio")) return "Testimonio";
+
+  return PROGRAM_LABELS[type] ?? type;
+}
+
+function shouldShowItem(item: ProgramItem): boolean {
+  if (item.type === "numero_especial" || item.type === "musica_especial") {
+    const val = item.title?.trim() ?? "";
+    if (!item.hymn && (!val || val === "-" || val.toLowerCase() === "ninguno" || val.toLowerCase() === "n/a")) {
+      return false;
+    }
+  }
+  if (item.type.includes("testimonio")) {
+    const val = item.title?.trim() ?? "";
+    if (!val || val === "-" || val.toLowerCase() === "ninguno" || val.toLowerCase() === "n/a") {
+      return false;
+    }
+  }
+  return true;
+}
 
 function sortItems(items: ProgramItem[]): ProgramItem[] {
   return [...items].sort((a, b) => {
-    const oa = TYPE_DISPLAY_ORDER[a.type] ?? 50;
-    const ob = TYPE_DISPLAY_ORDER[b.type] ?? 50;
+    const oa = getItemDisplayOrder(a.type);
+    const ob = getItemDisplayOrder(b.type);
     if (oa !== ob) return oa - ob;
     return a.order - b.order; // tie-break by DB order
   });
@@ -407,13 +471,13 @@ function OrdinanceCloseDivider() {
 // ── Program page ──────────────────────────────────────────────────────────────
 
 function ProgramPage({ data }: { data: ServiceData }) {
-  const items = sortItems(data.program);
+  const items = sortItems(data.program.filter(shouldShowItem));
   const names = data.candidates.map((c) => c.nombre);
   const dateParts = parseDateParts(data.serviceAt);
 
   // Split: pre-ordinance | ordinance | post-ordinance
-  const firstOrdIdx = items.findIndex((i) => ORDINANCE_TYPES.has(i.type));
-  const lastOrdIdx = [...items].map((i, idx) => ORDINANCE_TYPES.has(i.type) ? idx : -1).filter((x) => x >= 0).at(-1) ?? -1;
+  const firstOrdIdx = items.findIndex((i) => isOrdinanceType(i.type));
+  const lastOrdIdx = [...items].map((i, idx) => isOrdinanceType(i.type) ? idx : -1).filter((x) => x >= 0).at(-1) ?? -1;
 
   // Format "a 06 de enero de 2024"
   const dateStr = dateParts
@@ -421,8 +485,8 @@ function ProgramPage({ data }: { data: ServiceData }) {
     : null;
 
   function renderItem(item: ProgramItem, idx: number) {
-    const label = PROGRAM_LABELS[item.type] ?? item.type;
-    const isOrd = ORDINANCE_TYPES.has(item.type);
+    const label = getItemLabel(item.type, data.candidates);
+    const isOrd = isOrdinanceType(item.type);
 
     return (
       <div key={idx}>
@@ -494,7 +558,7 @@ function ProgramPage({ data }: { data: ServiceData }) {
 // ── Hymns page ────────────────────────────────────────────────────────────────
 
 function HymnsPage({ data }: { data: ServiceData }) {
-  const hymnItems = sortItems(data.program).filter((i) => i.hymn);
+  const hymnItems = sortItems(data.program.filter(shouldShowItem)).filter((i) => i.hymn);
 
   return (
     <div
@@ -526,7 +590,7 @@ function HymnsPage({ data }: { data: ServiceData }) {
                 className="text-xs tracking-[0.12em] uppercase font-semibold mb-1"
                 style={{ color: C.teal, fontFamily: "'Cinzel', serif" }}
               >
-                {PROGRAM_LABELS[item.type] ?? item.type}
+                {getItemLabel(item.type, data.candidates)}
               </p>
               <p className="font-semibold text-base" style={{ color: C.ink }}>
                 #{item.hymn!.number}{item.hymn!.title ? ` · ${item.hymn!.title}` : ""}

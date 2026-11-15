@@ -2323,11 +2323,13 @@ const PROGRAM_ITEM_LABELS: Record<string, string> = {
   primer_himno: "Primer himno",
   oracion_apertura: "Oración de apertura",
   primer_mensaje: "Primer mensaje",
-  numero_especial: "Número especial",
+  numero_especial: "Número especial (opcional)",
   segundo_mensaje: "Segundo mensaje",
   testigos: "Testigos",
   ordenanza_bautismo: "Ordenanza: Efectúa la ordenanza del Bautismo",
   ordenanza_confirmacion: "Efectúa la ordenanza de la Confirmación",
+  primer_testimonio: "Primer testimonio (opcional)",
+  segundo_testimonio: "Segundo testimonio (opcional)",
   ultimo_himno: "Último himno",
   ultima_oracion: "Última oración",
 };
@@ -2342,9 +2344,11 @@ const PROGRAM_ORDER = [
   "primer_mensaje",
   "numero_especial",
   "segundo_mensaje",
-  "testigos",
   "ordenanza_bautismo",
+  "testigos",
   "ordenanza_confirmacion",
+  "primer_testimonio",
+  "segundo_testimonio",
   "ultimo_himno",
   "ultima_oracion",
 ];
@@ -2605,7 +2609,10 @@ function BaptismalServiceSheet({
       qc.invalidateQueries({ queryKey: ["/api/mission/baptism-services", service?.id] });
       qc.invalidateQueries({ queryKey: ["/api/baptisms/services", service?.id, "checklist"] });
       setEditMode(false);
-      const complete = effectiveProgramOrder.every((t) => programDraft[t]?.trim());
+      const complete = effectiveProgramOrder.every((t) => {
+        if (t === "numero_especial" || t === "primer_testimonio" || t === "segundo_testimonio") return true;
+        return !!programDraft[t]?.trim();
+      });
       if (complete) {
         setActiveTab("coordinacion");
         toast({ title: "Agenda guardada", description: "Coordina los detalles del servicio" });
@@ -2937,12 +2944,28 @@ function BaptismalServiceSheet({
     ? serviceCandidates.map((_, i) => i === 0 ? "ordenanza_confirmacion" : `ordenanza_confirmacion_${i + 1}`)
     : ["ordenanza_confirmacion"];
   const effectiveProgramOrder = [
-    ...PROGRAM_ORDER.filter((k) => k !== "ordenanza_bautismo" && k !== "ordenanza_confirmacion"),
+    "preside",
+    "dirige",
+    "dirige_musica",
+    "acompanamiento_piano",
+    "primer_himno",
+    "oracion_apertura",
+    "primer_mensaje",
+    "numero_especial",
+    "segundo_mensaje",
     ...ordinanceBautismoKeys,
+    "testigos",
     ...ordinanceConfirmKeys,
+    "primer_testimonio",
+    "segundo_testimonio",
+    "ultimo_himno",
+    "ultima_oracion",
   ];
 
-  const programComplete = effectiveProgramOrder.every((t) => programDraft[t]?.trim());
+  const programComplete = effectiveProgramOrder.every((t) => {
+    if (t === "numero_especial" || t === "primer_testimonio" || t === "segundo_testimonio") return true;
+    return !!programDraft[t]?.trim();
+  });
 
   const coordComplete = (() => {
     if (isObispo) {
@@ -3335,6 +3358,33 @@ function BaptismalServiceSheet({
                           </ProgramRow>
                         );
                       })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <BaptismSectionHead icon={<Mic2 className="h-4 w-4" />} title="Testimonios (opcional)" />
+                    <div>
+                      {["primer_testimonio", "segundo_testimonio"].map((type) => (
+                        <ProgramRow
+                          key={type}
+                          type={type}
+                          label={type === "primer_testimonio" ? "Primer testimonio" : "Segundo testimonio"}
+                        >
+                          {editMode ? (
+                            <MemberAutocomplete
+                              value={programDraft[type] ?? ""}
+                              options={memberOptions}
+                              placeholder="Nombre (opcional)"
+                              onChange={(v) => setProgramField(type, v)}
+                              className="h-8 text-sm"
+                            />
+                          ) : (
+                            <p className="text-sm">
+                              {programDraft[type] || <span className="text-muted-foreground/60">— (opcional)</span>}
+                            </p>
+                          )}
+                        </ProgramRow>
+                      ))}
                     </div>
                   </div>
                 </div>
