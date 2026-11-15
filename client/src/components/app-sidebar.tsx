@@ -1,6 +1,6 @@
 import * as React from "react";
-import { motion } from "framer-motion";
-import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList, LayoutList, Smartphone } from "lucide-react";
+import { gsap } from "gsap";
+import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList, LayoutList, Smartphone, PanelLeftClose } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -394,12 +394,87 @@ const SECTION_CONFIGS: SectionConfig[] = [
   },
 ];
 
+interface PillBounds {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
+  [key: string]: number;
+}
+
+function movePill(
+  pillEl: HTMLElement | null,
+  targetEl: HTMLElement | null,
+  { animate = true, radius = 13 }: { animate?: boolean; radius?: number } = {}
+) {
+  if (!pillEl) return;
+  const navEl = pillEl.parentElement;
+  if (!navEl || !targetEl || !targetEl.offsetWidth) {
+    gsap.set(pillEl, { opacity: 0 });
+    return;
+  }
+
+  const navRect = navEl.getBoundingClientRect();
+  const targetRect = targetEl.getBoundingClientRect();
+  const scrollLeft = navEl.scrollLeft || 0;
+  const scrollTop = navEl.scrollTop || 0;
+
+  const scrollW = navEl.scrollWidth > navEl.clientWidth ? navEl.scrollWidth : navEl.offsetWidth;
+  const scrollH = navEl.scrollHeight > navEl.clientHeight ? navEl.scrollHeight : navEl.offsetHeight;
+
+  const l = Math.round(targetRect.left - navRect.left + scrollLeft);
+  const t = Math.round(targetRect.top - navRect.top + scrollTop);
+  const r = Math.round(scrollW - (l + targetRect.width));
+  const b = Math.round(scrollH - (t + targetRect.height));
+
+  const target: PillBounds = { l, t, r, b };
+
+  pillEl.style.width = `${scrollW}px`;
+  pillEl.style.height = `${scrollH}px`;
+
+  const clipFn = (p: PillBounds) =>
+    `inset(${p.t}px ${p.r}px ${p.b}px ${p.l}px round ${radius}px)`;
+
+  const state: PillBounds | undefined = (pillEl as any).__state;
+  if (!animate || !state || Number(gsap.getProperty(pillEl, "opacity")) === 0) {
+    gsap.killTweensOf((pillEl as any).__cur ?? {});
+    (pillEl as any).__cur = { ...target };
+    (pillEl as any).__state = target;
+    gsap.set(pillEl, { clipPath: clipFn(target), opacity: 1 });
+    return;
+  }
+
+  (pillEl as any).__state = target;
+  const cur: PillBounds = (pillEl as any).__cur ?? { ...state };
+  (pillEl as any).__cur = cur;
+  gsap.killTweensOf(cur);
+
+  const isVertical = Math.abs(target.t - state.t) > Math.abs(target.l - state.l);
+  const isMovingForward = isVertical ? target.t > state.t : target.l > state.l;
+  const [leading, trailing] = isVertical
+    ? (isMovingForward ? ["b", "t"] : ["t", "b"])
+    : (isMovingForward ? ["r", "l"] : ["l", "r"]);
+  const cross = isVertical ? ["l", "r"] : ["t", "b"];
+
+  const update = () => gsap.set(pillEl, { clipPath: clipFn(cur), opacity: 1 });
+
+  // Leading edge stretches first:
+  gsap.to(cur, { [leading]: target[leading], duration: 0.38, ease: "power3.out", onUpdate: update });
+  // Trailing edge catches up smoothly:
+  gsap.to(cur, { [trailing]: target[trailing], duration: 0.58, ease: "power3.inOut", onUpdate: update });
+  // Cross axis:
+  gsap.to(cur, { [cross[0]]: target[cross[0]], [cross[1]]: target[cross[1]], duration: 0.45, ease: "power3.inOut", onUpdate: update });
+}
+
 function AppSidebarInner() {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
-  const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, open, openMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const { data: dashboardStats } = useDashboardStats();
   const [showPwaGuide, setShowPwaGuide] = React.useState(false);
+  const navRef = React.useRef<HTMLElement | null>(null);
+  const pillRef = React.useRef<HTMLSpanElement | null>(null);
+  const isFirstRender = React.useRef(true);
 
   const [, startTransition] = React.useTransition();
 
@@ -451,7 +526,6 @@ function AppSidebarInner() {
       return { ...config, items };
     }).filter((s) => s.items.length > 0);
 
-    // Fallback for any leftover items not in SECTION_CONFIGS
     const categorizedUrls = SECTION_CONFIGS.flatMap((c) => c.urls);
     const uncategorized = secondaryMenuItems.filter((item) => {
       if (item.url) return !categorizedUrls.includes(item.url);
@@ -481,231 +555,215 @@ function AppSidebarInner() {
     });
   }, [isOpen, menuItems, handlePrefetch]);
 
-  const pendingByUrl: Record<string, number> = React.useMemo(() => ({
-    "/assignments": dashboardStats?.pendingAssignments ?? 0,
-    "/interviews": dashboardStats?.upcomingInterviews ?? 0,
-    "/organization-interviews": dashboardStats?.upcomingInterviews ?? 0,
-    "/budget": dashboardStats?.budgetRequests?.pending ?? 0,
-    "/activity-logistics": dashboardStats?.pendingServiceTasks ?? 0,
-    "/mission-work": dashboardStats?.pendingBaptismDrafts ?? 0,
-  }), [
-    dashboardStats?.budgetRequests?.pending,
-    dashboardStats?.pendingAssignments,
-    dashboardStats?.upcomingInterviews,
-    dashboardStats?.pendingServiceTasks,
-    dashboardStats?.pendingBaptismDrafts,
-  ]);
+  // Ardena-style smooth sliding pill positioning
+  React.useLayoutEffect(() => {
+    const timer = setTimeout(() => {
+      const activeEl = navRef.current?.querySelector<HTMLElement>('.snav__item[aria-current="page"]');
+      movePill(pillRef.current, activeEl ?? null, { animate: !isFirstRender.current, radius: 13 });
+      isFirstRender.current = false;
+    }, 20);
+    return () => clearTimeout(timer);
+  }, [location, open]);
+
+  React.useEffect(() => {
+    const update = () => {
+      const activeEl = navRef.current?.querySelector<HTMLElement>('.snav__item[aria-current="page"]');
+      movePill(pillRef.current, activeEl ?? null, { animate: false, radius: 13 });
+    };
+    const ro = new ResizeObserver(update);
+    if (navRef.current) ro.observe(navRef.current);
+    return () => ro.disconnect();
+  }, [open]);
 
   return (
     <Sidebar variant="floating" collapsible="icon">
       <SidebarContent className="space-y-0.5 pb-4 select-none">
-        {/* App Branding Header */}
-        <div className="mx-2 mt-3 mb-1.5 rounded-[20px] border border-sidebar-border/60 bg-sidebar-accent/20 px-3.5 py-2.5 backdrop-blur-md">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-background/80 shadow-2xs shrink-0">
+        {/* App Branding Header & Sidebar Toggle */}
+        <div className="mx-2 mt-3 mb-1.5 rounded-[20px] border border-sidebar-border/60 bg-sidebar-accent/20 p-2 backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title={open ? "Colapsar menú lateral" : "Expandir menú lateral"}
+              aria-label="Abrir o cerrar menú lateral"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-background/80 hover:bg-background shadow-2xs shrink-0 transition-transform active:scale-95 cursor-pointer"
+            >
               <img src="/icons/compass.svg" alt="Zendapp" className="h-5 w-5 object-contain" />
-            </div>
-            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+            </button>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
               <p className="truncate text-sm font-bold leading-none tracking-tight">Zendapp</p>
               <p className="truncate pt-1 text-[10.5px] text-sidebar-foreground/65">Panel principal</p>
             </div>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title="Colapsar menú lateral"
+              aria-label="Colapsar menú lateral"
+              className="ml-auto rounded-lg p-1.5 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors group-data-[collapsible=icon]:hidden cursor-pointer"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
         <SidebarGroup className="pt-1 px-1">
           <SidebarGroupContent className="space-y-2">
-            {/* Quick Access Section */}
-            <div className="px-1.5 pt-1">
-              <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden">
-                <Sparkles className="h-3 w-3 text-amber-500" />
-                <span>Accesos rápidos</span>
-              </div>
-              <SidebarMenu className="space-y-0.5">
-                {pinnedMenuItems.map((item) => {
-                  const title = getRenamedTitle(item, user?.role);
-                  const isActive = location === item.url;
+            <nav ref={navRef} className="snav relative w-full flex-1">
+              <span ref={pillRef} className="snav__pill" />
 
-                  return (
-                    <SidebarMenuItem key={`${title}-${item.url}`} className="relative">
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        className={cn(
-                          "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
-                          isActive
-                            ? "text-primary-foreground font-semibold"
-                            : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                        )}
-                        data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <Link
-                          href={item.url!}
-                          onMouseEnter={() => handlePrefetch(item.url!)}
-                          onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
-                          className="relative flex items-center w-full gap-2.5"
-                        >
-                          {isActive && (
-                            <motion.span
-                              layoutId="sidebar-active-indicator"
-                              className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary via-primary to-primary/90 shadow-md shadow-primary/35 -z-10"
-                              transition={{
-                                type: "spring",
-                                stiffness: 380,
-                                damping: 30,
-                                mass: 0.8,
-                              }}
-                            />
-                          )}
-                          <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
-                          <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                      {item.url && pendingByUrl[item.url] > 0 && (
-                        <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full relative z-10">
-                          {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
-                        </SidebarMenuBadge>
-                      )}
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </div>
-
-            {/* Categorized Sections */}
-            {sections.map((section) => (
-              <div key={section.id} className="px-1.5 pt-1.5">
+              {/* Quick Access Section */}
+              <div className="px-1.5 pt-1">
                 <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden">
-                  <section.icon className="h-3 w-3 text-primary/75" />
-                  <span>{section.label}</span>
+                  <Sparkles className="h-3 w-3 text-amber-500" />
+                  <span>Accesos rápidos</span>
                 </div>
                 <SidebarMenu className="space-y-0.5">
-                  {section.items.map((item) => {
+                  {pinnedMenuItems.map((item) => {
                     const title = getRenamedTitle(item, user?.role);
-                    if (item.subItems) {
-                      const visibleSubItems = item.subItems.filter(sub =>
-                        !sub.roles || sub.roles.includes(user?.role ?? "")
-                      );
-                      if (visibleSubItems.length === 0) return null;
-                      const isActive = visibleSubItems.some(sub => location === sub.url);
-                      return (
-                        <Collapsible key={title} defaultOpen={isActive}>
-                          <SidebarMenuItem className="relative">
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuButton
-                                className={cn(
-                                  "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
-                                  isActive
-                                    ? "text-primary-foreground font-semibold"
-                                    : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                                )}
-                                data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
-                              >
-                                <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
-                                <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
-                                <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 relative z-10" />
-                              </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/40 pl-2 space-y-0.5">
-                                {visibleSubItems.map((subItem) => {
-                                  const isSubActive = location === subItem.url;
-                                  return (
-                                    <SidebarMenuSubItem key={subItem.url} className="relative">
-                                      <SidebarMenuSubButton
-                                        asChild
-                                        isActive={isSubActive}
-                                        className={cn(
-                                          "relative rounded-lg px-2 py-1.5 text-[0.8rem] transition-colors duration-150 overflow-visible",
-                                          isSubActive
-                                            ? "text-primary-foreground font-semibold"
-                                            : "text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                                        )}
-                                        data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
-                                      >
-                                        <Link
-                                          href={subItem.url}
-                                          onMouseEnter={() => handlePrefetch(subItem.url)}
-                                          onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}
-                                          className="relative flex items-center w-full"
-                                        >
-                                          {isSubActive && (
-                                            <motion.span
-                                              layoutId="sidebar-sub-active-indicator"
-                                              className="absolute inset-0 rounded-lg bg-primary/90 shadow-sm shadow-primary/30 -z-10"
-                                              transition={{
-                                                type: "spring",
-                                                stiffness: 380,
-                                                damping: 30,
-                                                mass: 0.8,
-                                              }}
-                                            />
-                                          )}
-                                          <span className="truncate relative z-10">{subItem.title}</span>
-                                        </Link>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                  );
-                                })}
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
-                          </SidebarMenuItem>
-                        </Collapsible>
-                      );
-                    }
+                    const isActive = location === item.url;
 
-                    const isItemActive = location === item.url;
                     return (
                       <SidebarMenuItem key={`${title}-${item.url}`} className="relative">
                         <SidebarMenuButton
                           asChild
-                          isActive={isItemActive}
+                          isActive={isActive}
                           className={cn(
-                            "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
-                            isItemActive
-                              ? "text-primary-foreground font-semibold"
+                            "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
+                            isActive
+                              ? "text-white font-semibold"
                               : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                           )}
+                          data-id={item.url}
                           data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                         >
                           <Link
                             href={item.url!}
+                            aria-current={isActive ? "page" : undefined}
                             onMouseEnter={() => handlePrefetch(item.url!)}
                             onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
                             className="relative flex items-center w-full gap-2.5"
                           >
-                            {isItemActive && (
-                              <motion.span
-                                layoutId="sidebar-active-indicator"
-                                className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary via-primary to-primary/90 shadow-md shadow-primary/35 -z-10"
-                                transition={{
-                                  type: "spring",
-                                  stiffness: 380,
-                                  damping: 30,
-                                  mass: 0.8,
-                                }}
-                              />
-                            )}
                             <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
                             <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
                           </Link>
                         </SidebarMenuButton>
-                        {item.url && pendingByUrl[item.url] > 0 && (
-                          <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full relative z-10">
-                            {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
-                          </SidebarMenuBadge>
-                        )}
                       </SidebarMenuItem>
                     );
                   })}
                 </SidebarMenu>
               </div>
-            ))}
+
+              {/* Categorized Sections */}
+              {sections.map((section) => (
+                <div key={section.id} className="px-1.5 pt-1.5">
+                  <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden">
+                    <section.icon className="h-3 w-3 text-primary/75" />
+                    <span>{section.label}</span>
+                  </div>
+                  <SidebarMenu className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const title = getRenamedTitle(item, user?.role);
+                      if (item.subItems) {
+                        const visibleSubItems = item.subItems.filter(sub =>
+                          !sub.roles || sub.roles.includes(user?.role ?? "")
+                        );
+                        if (visibleSubItems.length === 0) return null;
+                        const isActive = visibleSubItems.some(sub => location === sub.url);
+                        return (
+                          <Collapsible key={title} defaultOpen={isActive}>
+                            <SidebarMenuItem className="relative">
+                              <CollapsibleTrigger asChild>
+                                <SidebarMenuButton
+                                  className={cn(
+                                    "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
+                                    isActive
+                                      ? "text-primary-foreground font-semibold"
+                                      : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                                  )}
+                                  data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
+                                >
+                                  <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
+                                  <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
+                                  <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 relative z-10" />
+                                </SidebarMenuButton>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/40 pl-2 space-y-0.5">
+                                  {visibleSubItems.map((subItem) => {
+                                    const isSubActive = location === subItem.url;
+                                    return (
+                                      <SidebarMenuSubItem key={subItem.url} className="relative">
+                                        <SidebarMenuSubButton
+                                          asChild
+                                          isActive={isSubActive}
+                                          className={cn(
+                                            "snav__item relative rounded-lg px-2 py-1.5 text-[0.8rem] transition-colors duration-150 overflow-visible",
+                                            isSubActive
+                                              ? "text-white font-semibold"
+                                              : "text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                                          )}
+                                          data-id={subItem.url}
+                                          data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
+                                        >
+                                          <Link
+                                            href={subItem.url}
+                                            aria-current={isSubActive ? "page" : undefined}
+                                            onMouseEnter={() => handlePrefetch(subItem.url)}
+                                            onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}
+                                            className="relative flex items-center w-full"
+                                          >
+                                            <span className="truncate relative z-10">{subItem.title}</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    );
+                                  })}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </SidebarMenuItem>
+                          </Collapsible>
+                        );
+                      }
+
+                      const isItemActive = location === item.url;
+                      return (
+                        <SidebarMenuItem key={`${title}-${item.url}`} className="relative">
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isItemActive}
+                            className={cn(
+                              "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
+                              isItemActive
+                                ? "text-white font-semibold"
+                                : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                            )}
+                            data-id={item.url}
+                            data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <Link
+                              href={item.url!}
+                              aria-current={isItemActive ? "page" : undefined}
+                              onMouseEnter={() => handlePrefetch(item.url!)}
+                              onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
+                              className="relative flex items-center w-full gap-2.5"
+                            >
+                              <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
+                              <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </div>
+              ))}
+            </nav>
 
             {/* PWA Mobile App Install Option */}
             <div className="mx-2 mt-2 px-1 group-data-[collapsible=icon]:hidden">
               <SidebarMenuButton
                 onClick={() => setShowPwaGuide(true)}
-                className="rounded-xl px-2.5 py-2 text-[0.82rem] text-sidebar-foreground/80 hover:text-sidebar-foreground flex items-center gap-2"
+                className="rounded-xl px-2.5 py-2 text-[0.82rem] text-sidebar-foreground/80 hover:text-sidebar-foreground flex items-center gap-2 cursor-pointer"
                 data-testid="nav-pwa-guide"
               >
                 <Smartphone className="h-4 w-4 text-primary shrink-0" />

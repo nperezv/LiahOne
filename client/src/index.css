@@ -1172,18 +1172,52 @@
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Sidebar Active Nav Pill: text colors while Framer Motion handles the gliding sliding pill */
+/* Sidebar Active Nav Pill: text colors while GSAP handles the elastic sliding pill */
 [data-sidebar="menu-button"][data-active="true"],
 [data-slot="sidebar-menu-button"][data-active="true"],
 [data-sidebar="menu-sub-button"][data-active="true"],
-[data-slot="sidebar-menu-sub-button"][data-active="true"] {
-  color: hsl(var(--primary-foreground)) !important;
+[data-slot="sidebar-menu-sub-button"][data-active="true"],
+.snav__item[aria-current="page"] {
+  color: #ffffff !important;
   font-weight: 600 !important;
+  background-color: transparent !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"] svg,
+[data-slot="sidebar-menu-button"][data-active="true"] svg,
+.snav__item[aria-current="page"] svg {
+  color: #ffffff !important;
 }
 
 [data-sidebar="menu-button"][data-active="true"]:hover,
-[data-slot="sidebar-menu-button"][data-active="true"]:hover {
+[data-slot="sidebar-menu-button"][data-active="true"]:hover,
+.snav__item[aria-current="page"]:hover {
   transform: none !important;
+}
+
+/* Ardena Sliding Elastic Liquid Pill */
+.snav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.snav__pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 60%), hsl(var(--primary));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.15), 0 10px 24px -8px rgba(124, 58, 237, 0.65);
+  will-change: clip-path, opacity;
+}
+
+.snav__item {
+  position: relative;
+  z-index: 1;
 }
 
 /* ========================================================

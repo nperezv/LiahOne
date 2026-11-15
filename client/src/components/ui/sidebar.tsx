@@ -277,21 +277,27 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-[3.625rem] w-[3.625rem] transition-colors duration-150 ease-out", className)}
+      className={cn("h-9 w-9 transition-colors duration-150 ease-out", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
       }}
       {...props}
     >
-      <span
-        className={cn(
-          "inline-flex items-center justify-center transition-transform duration-180 ease-out",
-          isExpanded ? "rotate-90" : "rotate-0"
-        )}
-      >
-        {children ?? <PanelLeft aria-hidden="true" className="h-6 w-6" />}
-      </span>
+      {children ? (
+        <span className="inline-flex items-center justify-center">
+          {children}
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "inline-flex items-center justify-center transition-transform duration-180 ease-out",
+            isExpanded ? "rotate-90" : "rotate-0"
+          )}
+        >
+          <PanelLeft aria-hidden="true" className="h-5 w-5" />
+        </span>
+      )}
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
