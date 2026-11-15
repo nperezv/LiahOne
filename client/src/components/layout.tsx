@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Redirect, useLocation } from "wouter";
+import { AnimatePresence, motion } from "framer-motion";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -105,9 +106,21 @@ export function Layout({ children }: LayoutProps) {
             onLogout={logout}
           />
           <main ref={mainRef} className="app-scroll-container flex-1 overflow-y-auto pb-20 md:pb-0">
-            <div key={location} className="app-page-content app-route-fade w-full min-h-full">
-              {children}
-            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={location}
+                initial={{ opacity: 0, y: 8, filter: "blur(5px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -6, filter: "blur(5px)" }}
+                transition={{
+                  duration: 0.22,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="app-page-content w-full min-h-full"
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
           </main>
           {isMobile && <MobileNav />}
         </div>

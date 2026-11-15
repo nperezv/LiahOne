@@ -1152,11 +1152,11 @@
   will-change: transform;
 }
 
-[data-sidebar="menu-button"]:hover,
-[data-slot="sidebar-menu-button"]:hover,
-[data-sidebar="menu-sub-button"]:hover,
-[data-slot="sidebar-menu-sub-button"]:hover {
-  transform: translateX(6px) !important;
+[data-sidebar="menu-button"]:hover:not([data-active="true"]),
+[data-slot="sidebar-menu-button"]:hover:not([data-active="true"]),
+[data-sidebar="menu-sub-button"]:hover:not([data-active="true"]),
+[data-slot="sidebar-menu-sub-button"]:hover:not([data-active="true"]) {
+  transform: translateX(5px) !important;
 }
 
 [data-sidebar="menu-button"]:active,
@@ -1168,25 +1168,85 @@
 
 [data-sidebar="menu-button"]:hover svg,
 [data-slot="sidebar-menu-button"]:hover svg {
-  transform: scale(1.15) !important;
+  transform: scale(1.12) !important;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Sidebar Active Nav Pill (Ardena-Style Indigo Glass Pill) */
+/* Sidebar Active Nav Pill: text colors while Framer Motion handles the gliding sliding pill */
 [data-sidebar="menu-button"][data-active="true"],
 [data-slot="sidebar-menu-button"][data-active="true"],
 [data-sidebar="menu-sub-button"][data-active="true"],
 [data-slot="sidebar-menu-sub-button"][data-active="true"] {
-  background-color: hsl(var(--primary)) !important;
   color: hsl(var(--primary-foreground)) !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 16px -2px rgba(124, 58, 237, 0.45) !important;
 }
 
 [data-sidebar="menu-button"][data-active="true"]:hover,
 [data-slot="sidebar-menu-button"][data-active="true"]:hover {
-  transform: translateX(3px) !important;
-  box-shadow: 0 6px 20px -2px rgba(124, 58, 237, 0.55) !important;
+  transform: none !important;
+}
+
+/* ========================================================
+   PC SCROLLBAR FIXES & ARDENA MINIMALIST SCROLL DESIGN
+   ======================================================== */
+
+/* Completely hide scrollbars inside Sidebar (floating card & submenus) */
+[data-sidebar="content"],
+[data-slot="sidebar-content"],
+[data-sidebar="sidebar"],
+[data-slot="sidebar-inner"],
+.sidebar-scrollbar-none {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar,
+[data-slot="sidebar-content"]::-webkit-scrollbar,
+[data-sidebar="sidebar"]::-webkit-scrollbar,
+[data-slot="sidebar-inner"]::-webkit-scrollbar,
+.sidebar-scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* App-wide ultra-sleek translucent scrollbars for PC */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.light * {
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
 }
 
 /* Smoked Glass Surfaces (Ardena Aesthetic) */

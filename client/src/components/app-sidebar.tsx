@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion } from "framer-motion";
 import { Home, Calendar, Users, Euro, UserCheck, Target, Cake, FileText, ChevronDown, CalendarDays, Grid3x3, BarChart3, Settings, CheckSquare, Shield, Library, Sparkles, Folder, Heart, ClipboardList, LayoutList, Smartphone } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -497,53 +498,70 @@ function AppSidebarInner() {
 
   return (
     <Sidebar variant="floating" collapsible="icon">
-      <SidebarContent className="space-y-1 pb-4">
+      <SidebarContent className="space-y-0.5 pb-4 select-none">
         {/* App Branding Header */}
-        <div className="mx-2 mt-3 rounded-[20px] border border-sidebar-border/70 bg-sidebar-accent/20 px-3.5 py-2.5">
+        <div className="mx-2 mt-3 mb-1.5 rounded-[20px] border border-sidebar-border/60 bg-sidebar-accent/20 px-3.5 py-2.5 backdrop-blur-md">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background/80 shrink-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-background/80 shadow-2xs shrink-0">
               <img src="/icons/compass.svg" alt="Zendapp" className="h-5 w-5 object-contain" />
             </div>
             <div className="min-w-0 group-data-[collapsible=icon]:hidden">
               <p className="truncate text-sm font-bold leading-none tracking-tight">Zendapp</p>
-              <p className="truncate pt-0.5 text-[10.5px] text-sidebar-foreground/65">Panel principal</p>
+              <p className="truncate pt-1 text-[10.5px] text-sidebar-foreground/65">Panel principal</p>
             </div>
           </div>
         </div>
 
-        <SidebarGroup className="pt-2 px-0">
-          <SidebarGroupContent className="space-y-2.5">
-            {/* Quick Access Card */}
-            <div className="mx-2 rounded-[20px] border border-sidebar-border/70 bg-gradient-to-b from-sidebar-accent/50 via-sidebar-accent/20 to-transparent px-2.5 py-2.5 shadow-2xs">
-              <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+        <SidebarGroup className="pt-1 px-1">
+          <SidebarGroupContent className="space-y-2">
+            {/* Quick Access Section */}
+            <div className="px-1.5 pt-1">
+              <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden">
+                <Sparkles className="h-3 w-3 text-amber-500" />
                 <span>Accesos rápidos</span>
               </div>
-              <SidebarMenu>
+              <SidebarMenu className="space-y-0.5">
                 {pinnedMenuItems.map((item) => {
                   const title = getRenamedTitle(item, user?.role);
                   const isActive = location === item.url;
 
                   return (
-                    <SidebarMenuItem key={`${title}-${item.url}`}>
+                    <SidebarMenuItem key={`${title}-${item.url}`} className="relative">
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
                         className={cn(
-                          "rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 active:scale-[0.97]",
+                          "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
                           isActive
-                            ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
-                            : "hover:translate-x-1.5 hover:bg-sidebar-accent/80 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                            ? "text-primary-foreground font-semibold"
+                            : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                         )}
                         data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                       >
-                        <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
-                          <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
-                          <span className="truncate flex-1 min-w-0">{title}</span>
+                        <Link
+                          href={item.url!}
+                          onMouseEnter={() => handlePrefetch(item.url!)}
+                          onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
+                          className="relative flex items-center w-full gap-2.5"
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="sidebar-active-indicator"
+                              className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary via-primary to-primary/90 shadow-md shadow-primary/35 -z-10"
+                              transition={{
+                                type: "spring",
+                                stiffness: 380,
+                                damping: 30,
+                                mass: 0.8,
+                              }}
+                            />
+                          )}
+                          <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
+                          <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
                         </Link>
                       </SidebarMenuButton>
                       {item.url && pendingByUrl[item.url] > 0 && (
-                        <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full">
+                        <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full relative z-10">
                           {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
                         </SidebarMenuBadge>
                       )}
@@ -553,14 +571,14 @@ function AppSidebarInner() {
               </SidebarMenu>
             </div>
 
-            {/* Categorized Section Cards */}
+            {/* Categorized Sections */}
             {sections.map((section) => (
-              <div key={section.id} className="mx-2 rounded-[20px] border border-sidebar-border/70 bg-sidebar/30 px-2.5 py-2.5 shadow-2xs">
-                <div className="mb-1.5 flex items-center gap-1.5 px-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-                  <section.icon className="h-3.5 w-3.5 text-primary/80" />
+              <div key={section.id} className="px-1.5 pt-1.5">
+                <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden">
+                  <section.icon className="h-3 w-3 text-primary/75" />
                   <span>{section.label}</span>
                 </div>
-                <SidebarMenu>
+                <SidebarMenu className="space-y-0.5">
                   {section.items.map((item) => {
                     const title = getRenamedTitle(item, user?.role);
                     if (item.subItems) {
@@ -571,41 +589,58 @@ function AppSidebarInner() {
                       const isActive = visibleSubItems.some(sub => location === sub.url);
                       return (
                         <Collapsible key={title} defaultOpen={isActive}>
-                          <SidebarMenuItem>
+                          <SidebarMenuItem className="relative">
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
                                 className={cn(
-                                  "rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 active:scale-[0.97]",
+                                  "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
                                   isActive
-                                    ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
-                                    : "hover:translate-x-1.5 hover:bg-sidebar-accent/80 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                    ? "text-primary-foreground font-semibold"
+                                    : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                                 )}
                                 data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                               >
-                                <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
-                                <span className="truncate flex-1 min-w-0">{title}</span>
-                                <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200" />
+                                <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
+                                <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
+                                <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-200 relative z-10" />
                               </SidebarMenuButton>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/50 pl-2 space-y-0.5">
+                              <SidebarMenuSub className="my-1 ml-3.5 border-l border-sidebar-border/40 pl-2 space-y-0.5">
                                 {visibleSubItems.map((subItem) => {
                                   const isSubActive = location === subItem.url;
                                   return (
-                                    <SidebarMenuSubItem key={subItem.url}>
+                                    <SidebarMenuSubItem key={subItem.url} className="relative">
                                       <SidebarMenuSubButton
                                         asChild
                                         isActive={isSubActive}
                                         className={cn(
-                                          "rounded-lg px-2 py-1.5 text-[0.8rem] transition-all duration-150",
+                                          "relative rounded-lg px-2 py-1.5 text-[0.8rem] transition-colors duration-150 overflow-visible",
                                           isSubActive
-                                            ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
-                                            : "hover:translate-x-1 hover:bg-sidebar-accent/80 text-sidebar-foreground/75 hover:text-sidebar-foreground"
+                                            ? "text-primary-foreground font-semibold"
+                                            : "text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                                         )}
                                         data-testid={`nav-${subItem.title.toLowerCase().replace(/\s+/g, '-')}`}
                                       >
-                                        <Link href={subItem.url} onMouseEnter={() => handlePrefetch(subItem.url)} onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}>
-                                          <span className="truncate">{subItem.title}</span>
+                                        <Link
+                                          href={subItem.url}
+                                          onMouseEnter={() => handlePrefetch(subItem.url)}
+                                          onClick={(event) => { event.preventDefault(); handleLinkClick(subItem.url); }}
+                                          className="relative flex items-center w-full"
+                                        >
+                                          {isSubActive && (
+                                            <motion.span
+                                              layoutId="sidebar-sub-active-indicator"
+                                              className="absolute inset-0 rounded-lg bg-primary/90 shadow-sm shadow-primary/30 -z-10"
+                                              transition={{
+                                                type: "spring",
+                                                stiffness: 380,
+                                                damping: 30,
+                                                mass: 0.8,
+                                              }}
+                                            />
+                                          )}
+                                          <span className="truncate relative z-10">{subItem.title}</span>
                                         </Link>
                                       </SidebarMenuSubButton>
                                     </SidebarMenuSubItem>
@@ -620,25 +655,42 @@ function AppSidebarInner() {
 
                     const isItemActive = location === item.url;
                     return (
-                      <SidebarMenuItem key={`${title}-${item.url}`}>
+                      <SidebarMenuItem key={`${title}-${item.url}`} className="relative">
                         <SidebarMenuButton
                           asChild
                           isActive={isItemActive}
                           className={cn(
-                            "rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-all duration-200 active:scale-[0.97]",
+                            "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible",
                             isItemActive
-                              ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/25"
-                              : "hover:translate-x-1.5 hover:bg-sidebar-accent/80 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                              ? "text-primary-foreground font-semibold"
+                              : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                           )}
                           data-testid={`nav-${title.toLowerCase().replace(/\s+/g, '-')}`}
                         >
-                          <Link href={item.url!} onMouseEnter={() => handlePrefetch(item.url!)} onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}>
-                            <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115" />
-                            <span className="truncate flex-1 min-w-0">{title}</span>
+                          <Link
+                            href={item.url!}
+                            onMouseEnter={() => handlePrefetch(item.url!)}
+                            onClick={(event) => { event.preventDefault(); handleLinkClick(item.url!); }}
+                            className="relative flex items-center w-full gap-2.5"
+                          >
+                            {isItemActive && (
+                              <motion.span
+                                layoutId="sidebar-active-indicator"
+                                className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary via-primary to-primary/90 shadow-md shadow-primary/35 -z-10"
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 380,
+                                  damping: 30,
+                                  mass: 0.8,
+                                }}
+                              />
+                            )}
+                            <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover/menu-button:scale-115 relative z-10" />
+                            <span className="truncate flex-1 min-w-0 relative z-10">{title}</span>
                           </Link>
                         </SidebarMenuButton>
                         {item.url && pendingByUrl[item.url] > 0 && (
-                          <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full">
+                          <SidebarMenuBadge className="bg-red-500 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full relative z-10">
                             {pendingByUrl[item.url] > 99 ? "99+" : pendingByUrl[item.url]}
                           </SidebarMenuBadge>
                         )}

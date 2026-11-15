@@ -734,11 +734,12 @@ function SacramentalMeetingPageInner() {
 
   const getMemberLabel = (m?: any) => m ? (typeof m === "string" ? m : (shortUserName(m) || m?.name || m?.email || "")) : "";
 
-  // Strictly Obispo & Counselors (Obispado) with robust deduplication
+  // Strictly Obispo & Counselors (Obispado: máximo 3 autoridades - Obispo, 1er y 2do Consejero)
   const bishopricMembers = useMemo(() => {
     const list: Array<{ name: string; role: string; email?: string }> = [];
 
     const addUnique = (name: string, role: string, email?: string) => {
+      if (list.length >= 3) return;
       const cleanName = shortMemberName({ nameSurename: name }) || normalizeMemberName(name) || name.trim();
       if (!cleanName) return;
       const exists = list.some((item) => isSameMemberName(item.name, cleanName));
@@ -747,33 +748,52 @@ function SacramentalMeetingPageInner() {
       }
     };
 
-    // 1. Add active leadership users with role 'obispo' or 'consejero_obispo' (prioridad absoluta)
-    const obispadoUsers = users.filter((u: any) => u.isActive !== false && ["obispo", "consejero_obispo"].includes(u.role));
-    obispadoUsers.forEach((u: any) => {
-      const label = shortUserName(u) || u.name || u.email || "";
-      addUnique(label, u.role, u.email);
+    // 1. Prioridad: llamamientos activos registrados en el llamamiento de Obispado
+    const obispadoCallings = activeMemberCallings.filter((c) => {
+      if (obispadoOrgId && c.organizationId !== obispadoOrgId) return false;
+      const cn = normalizeText(c.callingName || "");
+      return (cn.includes("obispo") || cn.includes("consejero")) && !cn.includes("secretario");
     });
 
-    // 2. Add from activeMemberCallings ONLY if bishopric is incomplete (< 3 autoridades)
-    // and verify the member is not inactive or deleted
-    if (list.length < 3) {
-      const inactiveUserNames = users.filter((u: any) => u.isActive === false).map((u: any) => shortUserName(u) || u.name || "");
-      const obispadoCallings = activeMemberCallings.filter((c) => {
-        if (obispadoOrgId && c.organizationId !== obispadoOrgId) return false;
-        const cn = normalizeText(c.callingName || "");
-        return (cn.includes("obispo") || cn.includes("consejero")) && !cn.includes("secretario");
+    if (obispadoCallings.length > 0) {
+      // Ordenar: Obispo primero, luego 1er consejero, 2do consejero
+      const sortedCallings = [...obispadoCallings].sort((a, b) => {
+        const aName = normalizeText(a.callingName || "");
+        const bName = normalizeText(b.callingName || "");
+        const aIsBishop = aName.includes("obispo") && !aName.includes("consejero");
+        const bIsBishop = bName.includes("obispo") && !bName.includes("consejero");
+        if (aIsBishop && !bIsBishop) return -1;
+        if (bIsBishop && !aIsBishop) return 1;
+        const aIs1 = aName.includes("primer") || aName.includes("1");
+        const bIs1 = bName.includes("primer") || bName.includes("1");
+        if (aIs1 && !bIs1) return -1;
+        if (bIs1 && !aIs1) return 1;
+        return 0;
       });
 
-      for (const c of obispadoCallings) {
-        if (list.length >= 3) break;
+      sortedCallings.forEach((c) => {
+        if (list.length >= 3) return;
         if (c.memberName) {
-          const isInactive = inactiveUserNames.some((iu: string) => Boolean(iu) && isSameMemberName(iu, c.memberName || ""));
-          if (!isInactive) {
-            const role = normalizeText(c.callingName || "").includes("obispo") ? "obispo" : "consejero_obispo";
-            addUnique(c.memberName, role);
-          }
+          const role = normalizeText(c.callingName || "").includes("obispo") && !normalizeText(c.callingName || "").includes("consejero") ? "obispo" : "consejero_obispo";
+          addUnique(c.memberName, role);
         }
-      }
+      });
+    }
+
+    // 2. Si el obispado aún tiene menos de 3 integrantes, completar con usuarios de liderazgo activos
+    if (list.length < 3) {
+      const obispadoUsers = users.filter((u: any) => u.isActive !== false && ["obispo", "consejero_obispo"].includes(u.role));
+      const sortedUsers = [...obispadoUsers].sort((a, b) => {
+        if (a.role === "obispo" && b.role !== "obispo") return -1;
+        if (b.role === "obispo" && a.role !== "obispo") return 1;
+        return 0;
+      });
+
+      sortedUsers.forEach((u: any) => {
+        if (list.length >= 3) return;
+        const label = shortUserName(u) || u.name || u.email || "";
+        addUnique(label, u.role, u.email);
+      });
     }
 
     return list;

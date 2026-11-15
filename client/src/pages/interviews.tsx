@@ -44,6 +44,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Drawer,
   DrawerContent,
   DrawerHeader,
@@ -1900,45 +1906,58 @@ export default function InterviewsPage() {
                         {(canManage || canCancel) && (
                           <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
                             {isObispado && isPending && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleCompleteInterview(interview.id)}
-                                disabled={updateMutation.isPending}
-                                title="Completar"
-                                className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 active:scale-95 shadow-sm"
-                              >
-                                <CheckCircle2 className="h-4 w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCompleteInterview(interview.id)}
+                                    disabled={updateMutation.isPending}
+                                    aria-label="Completar"
+                                    className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 active:scale-95 shadow-sm"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Completar</TooltipContent>
+                              </Tooltip>
                             )}
 
-
                             {isObispado && !isCompleted && !isArchived && !isReadOnly && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleEditClick(interview)}
-                                disabled={updateMutation.isPending}
-                                title="Editar"
-                                className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:border-primary active:scale-95 shadow-sm"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleEditClick(interview)}
+                                    disabled={updateMutation.isPending}
+                                    aria-label="Editar"
+                                    className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:border-primary active:scale-95 shadow-sm"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Editar</TooltipContent>
+                              </Tooltip>
                             )}
 
                             {canCancel && !isCompleted && !isCancelled && !isArchived && !isReadOnly && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleCancelInterview(interview.id)}
-                                disabled={updateMutation.isPending}
-                                title="Cancelar"
-                                className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive active:scale-95 shadow-sm"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCancelInterview(interview.id)}
+                                    disabled={updateMutation.isPending}
+                                    aria-label="Cancelar"
+                                    className="transition-all duration-150 hover:scale-110 hover:-translate-y-0.5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive active:scale-95 shadow-sm"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Cancelar</TooltipContent>
+                              </Tooltip>
                             )}
-
                           </div>
                         )}
                       </div>
