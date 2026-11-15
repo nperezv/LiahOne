@@ -1,6 +1,6 @@
 // Reference: javascript_database blueprint
 import { db } from "./db";
-import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, inArray, type SQLWrapper, getTableColumns } from "drizzle-orm";
+import { eq, desc, and, gte, lte, lt, or, isNull, sql, asc, inArray, ne, type SQLWrapper, getTableColumns } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   users,
@@ -768,49 +768,85 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(agendaCommandLogs).where(eq(agendaCommandLogs.userId, id));
       await tx.delete(userAvailability).where(eq(userAvailability.userId, id));
 
-      // Assignments & interviews
-      await tx.delete(assignments).where(eq(assignments.assignedTo, id));
-      await tx.delete(assignments).where(eq(assignments.assignedBy, id));
-      await tx.delete(interviews).where(eq(interviews.assignedBy, id));
-      await tx.delete(interviews).where(eq(interviews.interviewerId, id));
+      // Institutional records protection: find fallback active leader (Bishop or any active user)
+      // to reassign ward records instead of deleting congregational history
+      const [fallbackLeader] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.isActive, true), eq(users.role, "obispo"), ne(users.id, id)))
+        .limit(1);
+
+      const fallbackUserId = fallbackLeader?.id || (
+        await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.isActive, true), ne(users.id, id)))
+          .limit(1)
+      )[0]?.id;
+
+      // Assignments & interviews: preserve history by reassigning rather than wiping
+      if (fallbackUserId) {
+        await tx.update(assignments).set({ assignedBy: fallbackUserId }).where(eq(assignments.assignedBy, id));
+        await tx.update(assignments).set({ assignedTo: fallbackUserId }).where(eq(assignments.assignedTo, id));
+        await tx.update(interviews).set({ assignedBy: fallbackUserId }).where(eq(interviews.assignedBy, id));
+        await tx.update(interviews).set({ interviewerId: fallbackUserId }).where(eq(interviews.interviewerId, id));
+      } else {
+        await tx.delete(assignments).where(eq(assignments.assignedTo, id));
+        await tx.delete(assignments).where(eq(assignments.assignedBy, id));
+        await tx.delete(interviews).where(eq(interviews.assignedBy, id));
+        await tx.delete(interviews).where(eq(interviews.interviewerId, id));
+      }
       await tx.update(interviews).set({ assignedToId: null }).where(eq(interviews.assignedToId, id));
 
-      // Meetings & activities
-      // Baptism tables have no Drizzle objects but have FKs to users.id in the DB
-      await tx.execute(sql`DELETE FROM baptism_services WHERE created_by = ${id}`);
+      // Meetings & activities: NEVER delete church records if a fallback leader exists
+      if (fallbackUserId) {
+        await tx.execute(sql`UPDATE baptism_services SET created_by = ${fallbackUserId} WHERE created_by = ${id}`);
+        await tx.execute(sql`UPDATE baptism_public_links SET created_by = ${fallbackUserId} WHERE created_by = ${id}`);
+        await tx.update(activities).set({ createdBy: fallbackUserId }).where(eq(activities.createdBy, id));
+        await tx.update(goals).set({ createdBy: fallbackUserId }).where(eq(goals.createdBy, id));
+        await tx.update(wardCouncils).set({ createdBy: fallbackUserId }).where(eq(wardCouncils.createdBy, id));
+        await tx.update(presidencyMeetings).set({ createdBy: fallbackUserId }).where(eq(presidencyMeetings.createdBy, id));
+        await tx.update(presidencyResources).set({ createdBy: fallbackUserId }).where(eq(presidencyResources.createdBy, id));
+        await tx.update(sacramentalMeetings).set({ createdBy: fallbackUserId }).where(eq(sacramentalMeetings.createdBy, id));
+        await tx.update(organizationInterviews).set({ createdBy: fallbackUserId }).where(eq(organizationInterviews.createdBy, id));
+        await tx.update(organizationInterviews).set({ interviewerId: fallbackUserId }).where(eq(organizationInterviews.interviewerId, id));
+        await tx.update(organizationWeeklyAttendance).set({ createdBy: fallbackUserId }).where(eq(organizationWeeklyAttendance.createdBy, id));
+        await tx.update(organizationAttendanceMonthlySnapshots).set({ closedBy: fallbackUserId }).where(eq(organizationAttendanceMonthlySnapshots.closedBy, id));
+        await tx.update(budgetRequests).set({ requestedBy: fallbackUserId }).where(eq(budgetRequests.requestedBy, id));
+        await tx.update(welfareRequests).set({ requestedBy: fallbackUserId }).where(eq(welfareRequests.requestedBy, id));
+      } else {
+        await tx.execute(sql`DELETE FROM baptism_services WHERE created_by = ${id}`);
+        await tx.execute(sql`DELETE FROM baptism_public_links WHERE created_by = ${id}`);
+        await tx.delete(activities).where(eq(activities.createdBy, id));
+        await tx.delete(goals).where(eq(goals.createdBy, id));
+        await tx.delete(wardCouncils).where(eq(wardCouncils.createdBy, id));
+        await tx.delete(presidencyMeetings).where(eq(presidencyMeetings.createdBy, id));
+        await tx.delete(presidencyResources).where(eq(presidencyResources.createdBy, id));
+        await tx.delete(sacramentalMeetings).where(eq(sacramentalMeetings.createdBy, id));
+        await tx.delete(organizationInterviews).where(eq(organizationInterviews.createdBy, id));
+        await tx.delete(organizationInterviews).where(eq(organizationInterviews.interviewerId, id));
+        await tx.delete(organizationWeeklyAttendance).where(eq(organizationWeeklyAttendance.createdBy, id));
+        await tx.delete(organizationAttendanceMonthlySnapshots).where(eq(organizationAttendanceMonthlySnapshots.closedBy, id));
+        await tx.delete(budgetRequests).where(eq(budgetRequests.requestedBy, id));
+        await tx.delete(welfareRequests).where(eq(welfareRequests.requestedBy, id));
+      }
+
       await tx.execute(sql`UPDATE baptism_services SET approved_by = NULL WHERE approved_by = ${id}`);
       await tx.execute(sql`UPDATE baptism_assignments SET assignee_user_id = NULL WHERE assignee_user_id = ${id}`);
       await tx.execute(sql`UPDATE baptism_program_items SET updated_by = NULL WHERE updated_by = ${id}`);
       await tx.execute(sql`UPDATE baptism_program_items SET participant_user_id = NULL WHERE participant_user_id = ${id}`);
-      await tx.execute(sql`DELETE FROM baptism_public_links WHERE created_by = ${id}`);
       await tx.execute(sql`UPDATE baptism_public_links SET revoked_by = NULL WHERE revoked_by = ${id}`);
       await tx.execute(sql`UPDATE baptism_public_posts SET moderated_by = NULL WHERE moderated_by = ${id}`);
       await tx.update(activities).set({ approvedBy: null }).where(eq(activities.approvedBy, id));
-      const userActivityIds = await tx.select({ id: activities.id }).from(activities).where(eq(activities.createdBy, id));
-      if (userActivityIds.length > 0) {
-        await tx.update(quarterlyPlanItems).set({ activityId: null }).where(inArray(quarterlyPlanItems.activityId, userActivityIds.map((a) => a.id)));
-      }
-      await tx.delete(activities).where(eq(activities.createdBy, id));
       await tx.update(serviceTasks).set({ assignedTo: null }).where(eq(serviceTasks.assignedTo, id));
       await tx.update(serviceTasks).set({ createdBy: null }).where(eq(serviceTasks.createdBy, id));
       await tx.update(quarterlyPlans).set({ submittedBy: null }).where(eq(quarterlyPlans.submittedBy, id));
       await tx.update(quarterlyPlans).set({ reviewedBy: null }).where(eq(quarterlyPlans.reviewedBy, id));
-      await tx.delete(goals).where(eq(goals.createdBy, id));
-      await tx.delete(wardCouncils).where(eq(wardCouncils.createdBy, id));
-      await tx.delete(presidencyMeetings).where(eq(presidencyMeetings.createdBy, id));
-      await tx.delete(presidencyResources).where(eq(presidencyResources.createdBy, id));
-      await tx.delete(sacramentalMeetings).where(eq(sacramentalMeetings.createdBy, id));
-      await tx.delete(organizationInterviews).where(eq(organizationInterviews.createdBy, id));
-      await tx.delete(organizationInterviews).where(eq(organizationInterviews.interviewerId, id));
-      await tx.delete(organizationWeeklyAttendance).where(eq(organizationWeeklyAttendance.createdBy, id));
-      await tx.delete(organizationAttendanceMonthlySnapshots).where(eq(organizationAttendanceMonthlySnapshots.closedBy, id));
 
-      // Budget & welfare
-      await tx.delete(budgetRequests).where(eq(budgetRequests.requestedBy, id));
+      // Budget & welfare approvals
       await tx.update(budgetRequests).set({ approvedBy: null }).where(eq(budgetRequests.approvedBy, id));
       await tx.update(budgetRequests).set({ financialApprovedBy: null }).where(eq(budgetRequests.financialApprovedBy, id));
       await tx.update(budgetRequests).set({ bishopApprovedBy: null }).where(eq(budgetRequests.bishopApprovedBy, id));
-      await tx.delete(welfareRequests).where(eq(welfareRequests.requestedBy, id));
       await tx.update(welfareRequests).set({ bishopApprovedBy: null }).where(eq(welfareRequests.bishopApprovedBy, id));
       await tx.delete(budgetUnlockExceptions).where(or(eq(budgetUnlockExceptions.userId, id), eq(budgetUnlockExceptions.grantedBy, id)));
 

@@ -3,10 +3,12 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound, Save, Loader2, Clock, AlertCircle } from "lucide-react";
+import { Plus, Download, Edit, Trash2, Play, CheckCircle2, ChevronDown, CalendarDays, UserRound, Save, Loader2, Clock, AlertCircle, FileText, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -203,6 +205,17 @@ const formatTimeForDisplay = (value?: string | Date | null) => {
   });
 };
 
+const safeFormatDate = (value?: string | Date | null, options?: Intl.DateTimeFormatOptions) => {
+  if (!value) return "Sin fecha";
+  try {
+    const date = typeof value === "string" ? new Date(value) : value;
+    if (Number.isNaN(date.getTime())) return "Fecha no válida";
+    return date.toLocaleDateString("es-ES", options);
+  } catch {
+    return "Sin fecha";
+  }
+};
+
 const combineDateTime = (date: string, time?: string) => {
   if (!date) return "";
   if (time?.trim()) {
@@ -279,10 +292,10 @@ function CouncilDetailsForm({
 
   const [expandedAssignments, setExpandedAssignments] = useState<Record<string, boolean>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => ({
-    livingGospelPersons: (council.livingGospelPersons?.length ?? 0) > 0,
-    careForOthersPersons: (council.careForOthersPersons?.length ?? 0) > 0,
-    missionaryPersons: (council.missionaryPersons?.length ?? 0) > 0,
-    familyHistoryPersons: (council.familyHistoryPersons?.length ?? 0) > 0,
+    livingGospelPersons: (council.livingGospelPersons?.length ?? 0) > 0 || Boolean(council.livingGospelNotes),
+    careForOthersPersons: (council.careForOthersPersons?.length ?? 0) > 0 || Boolean(council.careForOthersNotes || council.ministryNotes),
+    missionaryPersons: (council.missionaryPersons?.length ?? 0) > 0 || Boolean(council.missionaryNotes),
+    familyHistoryPersons: (council.familyHistoryPersons?.length ?? 0) > 0 || Boolean(council.familyHistoryNotes || council.salvationWorkNotes),
   }));
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "offline_saved" | "error">("saved");
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
@@ -500,6 +513,7 @@ function CouncilDetailsForm({
               title: "Vivir el Evangelio",
               description: "Fe, ordenanzas, convenios y actividad de miembros",
               situationPlaceholder: "Ej: Inactivo hace 3 meses, pendiente de bautismo...",
+              legacyNotes: council.livingGospelNotes,
             },
             {
               key: "careForOthersPersons" as const,
@@ -509,6 +523,7 @@ function CouncilDetailsForm({
               title: "Cuidar de los necesitados",
               description: "Ministerio, bienestar y familias que necesitan atención",
               situationPlaceholder: "Ej: Necesidad económica, visitas ministeriales pendientes...",
+              legacyNotes: council.careForOthersNotes || council.ministryNotes,
             },
             {
               key: "missionaryPersons" as const,
@@ -518,6 +533,7 @@ function CouncilDetailsForm({
               title: "Invitar a todos",
               description: "Investigadores, referencias de miembros y miembros nuevos",
               situationPlaceholder: "Ej: Investigador en lección 3, referencia de la Hna. García...",
+              legacyNotes: council.missionaryNotes,
             },
             {
               key: "familyHistoryPersons" as const,
@@ -527,8 +543,9 @@ function CouncilDetailsForm({
               title: "Unir familias para la eternidad",
               description: "Templo, historia familiar y preparación de ordenanzas",
               situationPlaceholder: "Ej: Listo para el templo, nombres de familia para ordenanzas...",
+              legacyNotes: council.familyHistoryNotes || council.salvationWorkNotes,
             },
-          ]).map(({ key, fieldArray, areaKey, number, title, description, situationPlaceholder }) => {
+          ]).map(({ key, fieldArray, areaKey, number, title, description, situationPlaceholder, legacyNotes }) => {
             const pending = (pendingByArea as Record<string, any[]>)[areaKey] ?? [];
             return (
             <Collapsible
@@ -704,7 +721,16 @@ function CouncilDetailsForm({
                       </div>
                     )}
 
-                    {fieldArray.fields.length === 0 && pending.length === 0 && (
+                    {Boolean(legacyNotes) && (
+                      <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
+                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5" /> Notas registradas (formato histórico)
+                        </p>
+                        <p className="text-sm whitespace-pre-wrap">{legacyNotes}</p>
+                      </div>
+                    )}
+
+                    {fieldArray.fields.length === 0 && pending.length === 0 && !legacyNotes && (
                       <p className="text-xs text-muted-foreground">
                         {isEditable ? "Sin personas agregadas todavía." : "No se discutieron personas en esta área."}
                       </p>
@@ -979,6 +1005,71 @@ function CouncilDetailsForm({
               />
             </div>
           </div>
+
+          {/* Legacy Notes & Historic Agreements */}
+          {Boolean(council.notes || (council.agreements && Array.isArray(council.agreements) && council.agreements.length > 0) || (council.previousAssignments && Array.isArray(council.previousAssignments) && council.previousAssignments.length > 0) || council.bishopNotes) && (
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Datos y acuerdos históricos del consejo
+              </h3>
+
+              {council.notes && (
+                <div className="pl-6 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Notas generales del acta:</p>
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm whitespace-pre-wrap">
+                    {council.notes}
+                  </div>
+                </div>
+              )}
+
+              {council.bishopNotes && (
+                <div className="pl-6 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Notas del Obispo:</p>
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm whitespace-pre-wrap">
+                    {council.bishopNotes}
+                  </div>
+                </div>
+              )}
+
+              {council.agreements && Array.isArray(council.agreements) && council.agreements.length > 0 && (
+                <div className="pl-6 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Acuerdos registrados:</p>
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5 text-sm">
+                    {council.agreements.map((agr: any, idx: number) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        <span className="text-primary font-bold">•</span>
+                        <span>{agr.description || agr} {agr.responsible ? `(Resp: ${agr.responsible})` : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {council.previousAssignments && Array.isArray(council.previousAssignments) && council.previousAssignments.length > 0 && (
+                <div className="pl-6 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Compromisos de consejos anteriores revisados en esta sesión:</p>
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                    {council.previousAssignments.map((pa: any, idx: number) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2 rounded bg-background border text-xs">
+                        <div className="min-w-0">
+                          <span className="font-semibold">{pa.assignment}</span>
+                          {pa.responsible && <span className="text-muted-foreground ml-2">({pa.responsible})</span>}
+                          {pa.notes && <p className="text-muted-foreground mt-0.5">{pa.notes}</p>}
+                        </div>
+                        <span className={`self-start sm:self-center px-2 py-0.5 rounded-full font-medium ${
+                          pa.status === "completada" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                          pa.status === "en_proceso" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                          "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                        }`}>
+                          {statusLabels[pa.status] || pa.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Save progress + Finalize */}
@@ -1070,6 +1161,34 @@ export default function WardCouncilPage() {
   const [editingCouncil, setEditingCouncil] = useState<any>(null);
   const [detailsCouncil, setDetailsCouncil] = useState<any>(null);
   const [, setEditLeaderOrganizationFilter] = useState("all");
+  const [councilTab, setCouncilTab] = useState<"todos" | "proximo" | "historial">("todos");
+
+  const sortedCouncils = useMemo(() => {
+    return [...councils].sort((a: any, b: any) => {
+      const timeA = a.date ? new Date(a.date).getTime() : 0;
+      const timeB = b.date ? new Date(b.date).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [councils]);
+
+  const activeCouncils = useMemo(
+    () => sortedCouncils.filter((c: any) => c.status === "en_progreso" || c.status === "programado"),
+    [sortedCouncils]
+  );
+  const finishedCouncils = useMemo(
+    () => sortedCouncils.filter((c: any) => c.status === "finalizado"),
+    [sortedCouncils]
+  );
+
+  const displayedCouncils = useMemo(() => {
+    if (councilTab === "proximo") {
+      return activeCouncils.length > 0 ? activeCouncils : sortedCouncils.slice(0, 1);
+    }
+    if (councilTab === "historial") {
+      return finishedCouncils;
+    }
+    return sortedCouncils;
+  }, [councilTab, activeCouncils, finishedCouncils, sortedCouncils]);
   const leaderGroups = (() => {
     const leaderRoles = new Set([
       "obispo",
@@ -1735,175 +1854,227 @@ export default function WardCouncilPage() {
         </div>
       </div>
 
+      {/* Tabs de navegación para acceder inmediatamente al Historial o Consejo Activo */}
+      {sortedCouncils.length > 0 && (
+        <Tabs value={councilTab} onValueChange={(v: any) => setCouncilTab(v)} className="w-full">
+          <TabsList className="grid w-full sm:w-auto grid-cols-3 max-w-md">
+            <TabsTrigger value="todos" className="gap-2">
+              Todos
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-semibold">
+                {sortedCouncils.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="proximo" className="gap-2">
+              Próximo / Activo
+              {activeCouncils.length > 0 && (
+                <Badge variant="default" className="px-1.5 py-0 text-[10px] font-semibold">
+                  {activeCouncils.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="historial" className="gap-2">
+              Historial Anteriores
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-semibold">
+                {finishedCouncils.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
       {/* Councils */}
-      {councils.length ? (
-        councils.map((c: any) => {
+      {displayedCouncils.length ? (
+        displayedCouncils.map((c: any) => {
           const councilStatus = c.status || "programado";
+          const totalPersons =
+            (c.livingGospelPersons?.length || 0) +
+            (c.careForOthersPersons?.length || 0) +
+            (c.missionaryPersons?.length || 0) +
+            (c.familyHistoryPersons?.length || 0);
+
           return (
-          <Card key={c.id} className="overflow-hidden">
-            <CardHeader className="space-y-3">
+            <Card key={c.id} className="overflow-hidden card-lift">
+              <CardHeader className="space-y-3">
+                {/* Título + acciones */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  {/* Título */}
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl leading-snug">
+                      Consejo –{" "}
+                      <span className="sm:hidden">
+                        {safeFormatDate(c.date)}
+                      </span>
+                      <span className="hidden sm:inline">
+                        {safeFormatDate(c.date, {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </CardTitle>
+                  </div>
 
-              {/* Título + acciones */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-
-                {/* Título */}
-                <div>
-                  <CardTitle className="text-lg sm:text-xl leading-snug">
-                    Consejo –{" "}
-                    <span className="sm:hidden">
-                      {new Date(c.date).toLocaleDateString("es-ES")}
-                    </span>
-                    <span className="hidden sm:inline">
-                      {new Date(c.date).toLocaleDateString("es-ES", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </CardTitle>
-                </div>
-
-                {/* Acciones */}
-                <div className="flex flex-wrap gap-2 justify-end sm:flex-nowrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => generateWardCouncilPDF(c)}
-                  >
-                    <Download className="h-4 w-4 sm:mr-1" />
-                    <span className="hidden sm:inline">PDF</span>
-                  </Button>
-
-                  {canManage && (
-                    <>
-                      {c.status === "programado" && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() =>
-                            updateMutation.mutate({
-                              id: c.id,
-                              data: { status: "en_progreso", startedAt: new Date() },
-                            })
-                          }
-                        >
-                          <Play className="h-4 w-4 sm:mr-1" />
-                          <span className="hidden sm:inline">Iniciar</span>
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => startEdit(c)}
-                      >
-                        <Edit className="h-4 w-4 lg:mr-1" />
-                        <span className="sr-only lg:not-sr-only">Editar</span>
-                      </Button>
-
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => removeCouncil(c.id)}
-                      >
-                        <Trash2 className="h-4 w-4 lg:mr-1" />
-                        <span className="sr-only lg:not-sr-only">Eliminar</span>
-                      </Button>
-                    </>
-                  )}
-
-                  {c.status === "finalizado" && (
+                  {/* Acciones */}
+                  <div className="flex flex-wrap gap-2 justify-end sm:flex-nowrap">
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setDetailsCouncil(c)}
+                      onClick={() => generateWardCouncilPDF(c)}
                     >
-                      Ver detalles
+                      <Download className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">PDF</span>
                     </Button>
-                  )}
+
+                    {canManage && (
+                      <>
+                        {c.status === "programado" && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              updateMutation.mutate({
+                                id: c.id,
+                                data: { status: "en_progreso", startedAt: new Date() },
+                              })
+                            }
+                          >
+                            <Play className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Iniciar</span>
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => startEdit(c)}
+                        >
+                          <Edit className="h-4 w-4 lg:mr-1" />
+                          <span className="sr-only lg:not-sr-only">Editar</span>
+                        </Button>
+
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removeCouncil(c.id)}
+                        >
+                          <Trash2 className="h-4 w-4 lg:mr-1" />
+                          <span className="sr-only lg:not-sr-only">Eliminar</span>
+                        </Button>
+                      </>
+                    )}
+
+                    {c.status === "finalizado" && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setDetailsCouncil(c)}
+                      >
+                        <FileText className="h-4 w-4 mr-1.5" />
+                        Ver detalles
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Descripción */}
-              <CardDescription className="text-sm text-muted-foreground">
-                <div className="grid gap-1 sm:grid-cols-2">
-                  <span>
-                    <strong>Estado:</strong>{" "}
-                    {c.status === "en_progreso"
-                      ? "En progreso"
-                      : c.status === "finalizado"
-                      ? "Finalizado"
-                      : "Programado"}
-                  </span>
-
-                  <span>
-                    <strong>Hora:</strong> {formatTimeForDisplay(c.date)}
-                  </span>
-
-                  <span>
-                    <strong>Lugar:</strong> {c.location || "-"}
-                  </span>
-
-                  <span>
-                    <strong>Preside:</strong> {c.presider || "-"}
-                  </span>
-
-                  <span>
-                    <strong>Dirige:</strong> {c.director || "-"}
-                  </span>
-
-                  <span>
-                    <strong>Oración inicial:</strong> {c.openingPrayer || "-"}
-                  </span>
-
-                  <span>
-                    <strong>Oración final:</strong> {c.closingPrayerBy || "-"}
-                  </span>
-
-                  {Array.isArray(c.previousAssignments) && (
+                {/* Descripción */}
+                <CardDescription className="text-sm text-muted-foreground">
+                  <div className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3">
                     <span>
-                      <strong>Compromisos anteriores:</strong>{" "}
-                      {c.previousAssignments.length}
+                      <strong>Estado:</strong>{" "}
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${
+                        c.status === "en_progreso" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                        c.status === "finalizado" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                        "bg-muted text-muted-foreground"
+                      }`}>
+                        {c.status === "en_progreso" ? "En progreso" : c.status === "finalizado" ? "Finalizado" : "Programado"}
+                      </span>
                     </span>
-                  )}
 
-                  {Array.isArray(c.newAssignments) && (
                     <span>
-                      <strong>Nuevas asignaciones:</strong>{" "}
-                      {c.newAssignments.length}
+                      <strong>Hora:</strong> {formatTimeForDisplay(c.date)}
                     </span>
-                  )}
-                </div>
-              </CardDescription>
 
-            </CardHeader>
+                    <span>
+                      <strong>Lugar:</strong> {c.location || "-"}
+                    </span>
 
-            {/* Detalles en progreso */}
-            {c.status === "en_progreso" && (
-              <CouncilDetailsForm
-                council={{ ...c, status: c.status }}
-                canManage={canManage}
-                isUpdating={updateMutation.isPending}
-                leaderGroups={leaderGroups}
-                leaderLookup={leaderLookup}
-                onAutoSave={(data) =>
-                  updateMutation.mutateAsync({
-                    id: c.id,
-                    data,
-                    silent: true,
-                  })
-                }
-                onFinalize={(data) => finalizeCouncil(c, data)}
-              />
-            )}
-          </Card>
+                    <span>
+                      <strong>Preside:</strong> {c.presider || "-"}
+                    </span>
 
-        );
+                    <span>
+                      <strong>Dirige:</strong> {c.director || "-"}
+                    </span>
+
+                    <span>
+                      <strong>Oración inicial:</strong> {c.openingPrayer || "-"}
+                    </span>
+
+                    <span>
+                      <strong>Oración final:</strong> {c.closingPrayerBy || "-"}
+                    </span>
+
+                    {totalPersons > 0 && (
+                      <span>
+                        <strong>Personas tratadas:</strong> {totalPersons}
+                      </span>
+                    )}
+
+                    {Array.isArray(c.previousAssignments) && c.previousAssignments.length > 0 && (
+                      <span>
+                        <strong>Compromisos revisados:</strong>{" "}
+                        {c.previousAssignments.length}
+                      </span>
+                    )}
+
+                    {Array.isArray(c.newAssignments) && c.newAssignments.length > 0 && (
+                      <span>
+                        <strong>Nuevas asignaciones:</strong>{" "}
+                        {c.newAssignments.length}
+                      </span>
+                    )}
+                  </div>
+                </CardDescription>
+
+              </CardHeader>
+
+              {/* Detalles en progreso */}
+              {c.status === "en_progreso" && (
+                <CouncilDetailsForm
+                  council={{ ...c, status: c.status }}
+                  canManage={canManage}
+                  isUpdating={updateMutation.isPending}
+                  leaderGroups={leaderGroups}
+                  leaderLookup={leaderLookup}
+                  onAutoSave={(data) =>
+                    updateMutation.mutateAsync({
+                      id: c.id,
+                      data,
+                      silent: true,
+                    })
+                  }
+                  onFinalize={(data) => finalizeCouncil(c, data)}
+                />
+              )}
+            </Card>
+          );
         })
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No hay consejos programados
+            <Users className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p className="text-base font-semibold text-foreground">
+              {councilTab === "historial"
+                ? "No hay consejos finalizados en el historial"
+                : councilTab === "proximo"
+                ? "No hay consejos activos o programados actualmente"
+                : "No hay consejos programados"}
+            </p>
+            <p className="text-xs mt-1 max-w-sm mx-auto">
+              {councilTab === "historial"
+                ? "Cuando finalices un consejo de barrio en curso, aparecerá automáticamente aquí en el historial."
+                : "Puedes planificar y registrar un nuevo consejo usando el botón 'Nuevo Consejo'."}
+            </p>
           </CardContent>
         </Card>
       )}
