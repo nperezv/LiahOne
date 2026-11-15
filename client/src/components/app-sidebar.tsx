@@ -413,7 +413,7 @@ function movePill(
 
   // If no target element or element has 0 width (not rendered / detached)
   if (!targetEl || !targetEl.offsetWidth) {
-    if (!(pillEl as any).__cur) {
+    if (!(pillEl as any).__state) {
       gsap.set(pillEl, { opacity: 0 });
     }
     return;
@@ -433,7 +433,6 @@ function movePill(
   const b = Math.round(scrollH - (t + targetRect.height));
 
   const target: PillBounds = { l, t, r, b };
-  const targetKey = `${l},${t},${r},${b}`;
 
   pillEl.style.width = `${scrollW}px`;
   pillEl.style.height = `${scrollH}px`;
@@ -441,6 +440,7 @@ function movePill(
   const clipFn = (p: PillBounds) =>
     `inset(${p.t}px ${p.r}px ${p.b}px ${p.l}px round ${radius}px)`;
 
+  const state: PillBounds | undefined = (pillEl as any).__state;
   const cur: PillBounds | undefined = (pillEl as any).__cur;
 
   // GUARD 1: If animate is false (e.g. from ResizeObserver) and we are currently tweening,
@@ -449,52 +449,61 @@ function movePill(
     return;
   }
 
-  // GUARD 2: If we are already heading to this target and tween is running, let it complete smoothly!
-  if ((pillEl as any).__targetKey === targetKey && cur && gsap.isTweening(cur)) {
+  // GUARD 2: If we are already targeting this exact destination and a tween is already in flight,
+  // let it run smoothly without restarting or snapping!
+  const isSameTarget =
+    state &&
+    Math.abs(state.l - target.l) < 2 &&
+    Math.abs(state.r - target.r) < 2 &&
+    Math.abs(state.t - target.t) < 2 &&
+    Math.abs(state.b - target.b) < 2;
+
+  if (isSameTarget && cur && gsap.isTweening(cur)) {
     return;
   }
 
-  (pillEl as any).__targetKey = targetKey;
-
   // If no animation requested, or first render, or pill currently hidden
-  if (!animate || !cur || Number(gsap.getProperty(pillEl, "opacity")) === 0) {
+  if (!animate || !state || Number(gsap.getProperty(pillEl, "opacity")) === 0) {
     if (cur) gsap.killTweensOf(cur);
     (pillEl as any).__cur = { ...target };
+    (pillEl as any).__state = { ...target };
     gsap.set(pillEl, { clipPath: clipFn(target), opacity: 1 });
     return;
   }
 
   // Animate the elastic rubber-band stretch between current position and target!
-  // Kill running tweens on the ACTUAL object being tweened
-  gsap.killTweensOf(cur);
+  (pillEl as any).__state = { ...target };
+  const tweenObj: PillBounds = cur ? { ...cur } : { ...state };
+  (pillEl as any).__cur = tweenObj;
+  gsap.killTweensOf(tweenObj);
 
-  const isVertical = Math.abs(target.t - cur.t) > Math.abs(target.l - cur.l);
-  const isMovingForward = isVertical ? target.t > cur.t : target.l > cur.l;
+  const isVertical = Math.abs(target.t - state.t) > Math.abs(target.l - state.l);
+  const isMovingForward = isVertical ? target.t > state.t : target.l > state.l;
   const [leading, trailing] = isVertical
     ? (isMovingForward ? ["b", "t"] : ["t", "b"])
     : (isMovingForward ? ["r", "l"] : ["l", "r"]);
   const cross = isVertical ? ["l", "r"] : ["t", "b"];
 
-  const update = () => gsap.set(pillEl, { clipPath: clipFn(cur), opacity: 1 });
+  const update = () => gsap.set(pillEl, { clipPath: clipFn(tweenObj), opacity: 1 });
 
-  const dist = Math.abs(target.t - cur.t);
-  // Tranquil, physical, elegant durations that clearly showcase the stretch:
-  // Leading edge stretches first: 0.42s - 0.52s with power2.out
-  const leadDur = Math.min(0.52, Math.max(0.40, 0.38 + dist / 2200));
-  // Trailing edge catches up smoothly: 0.65s - 0.78s with power3.inOut
-  const trailDur = Math.min(0.78, Math.max(0.64, 0.60 + dist / 1800));
+  const dist = Math.abs(target.t - state.t);
+  // Tranquil, elegant durations that clearly showcase the stretch:
+  // Leading edge stretches first: 0.40s - 0.50s with power3.out
+  const leadDur = Math.min(0.50, Math.max(0.40, 0.38 + dist / 2200));
+  // Trailing edge catches up smoothly: 0.62s - 0.74s with power3.inOut
+  const trailDur = Math.min(0.74, Math.max(0.62, 0.60 + dist / 1800));
   const crossDur = 0.48;
 
   // 1. Leading edge stretches out to the destination like liquid
-  gsap.to(cur, {
+  gsap.to(tweenObj, {
     [leading]: target[leading],
     duration: leadDur,
-    ease: "power2.out",
+    ease: "power3.out",
     onUpdate: update,
   });
 
   // 2. Trailing edge follows smoothly, creating the elastic snap
-  gsap.to(cur, {
+  gsap.to(tweenObj, {
     [trailing]: target[trailing],
     duration: trailDur,
     ease: "power3.inOut",
@@ -502,7 +511,7 @@ function movePill(
   });
 
   // 3. Cross axis adjustments (width/horizontal alignment)
-  gsap.to(cur, {
+  gsap.to(tweenObj, {
     [cross[0]]: target[cross[0]],
     [cross[1]]: target[cross[1]],
     duration: crossDur,
@@ -523,8 +532,6 @@ function AppSidebarInner() {
 
   const handleLinkClick = React.useCallback(
     (path: string, targetEl?: HTMLElement | null) => {
-      if (isMobile) setOpenMobile(false);
-
       // 1. Launch the stretch animation in the exact frame of the user click!
       if (targetEl && pillRef.current) {
         movePill(pillRef.current, targetEl, { animate: true, radius: 13 });
@@ -532,6 +539,13 @@ function AppSidebarInner() {
 
       // 2. Immediate route change
       setLocation(path);
+
+      // 3. On mobile, allow the user to see the liquid stretch feedback before closing the drawer
+      if (isMobile) {
+        setTimeout(() => {
+          setOpenMobile(false);
+        }, 220);
+      }
     },
     [isMobile, setLocation, setOpenMobile]
   );
@@ -687,7 +701,6 @@ function AppSidebarInner() {
                         <SidebarMenuButton
                           asChild
                           isActive={isActive}
-                          tooltip={title}
                           className={cn(
                             "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9",
                             isActive
@@ -699,6 +712,7 @@ function AppSidebarInner() {
                         >
                           <Link
                             href={item.url!}
+                            title={title}
                             aria-current={isActive ? "page" : undefined}
                             data-id={item.url}
                             onMouseEnter={() => handlePrefetch(item.url!)}
@@ -741,7 +755,7 @@ function AppSidebarInner() {
                             <SidebarMenuItem className="relative">
                               <CollapsibleTrigger asChild>
                                 <SidebarMenuButton
-                                  tooltip={title}
+                                  title={title}
                                   className={cn(
                                     "relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9",
                                     isActive
@@ -803,7 +817,6 @@ function AppSidebarInner() {
                           <SidebarMenuButton
                             asChild
                             isActive={isItemActive}
-                            tooltip={title}
                             className={cn(
                               "snav__item relative rounded-xl px-2.5 py-2 text-[0.83rem] font-medium leading-tight transition-colors duration-150 active:scale-[0.98] overflow-visible group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9",
                               isItemActive
@@ -815,6 +828,7 @@ function AppSidebarInner() {
                           >
                             <Link
                               href={item.url!}
+                              title={title}
                               aria-current={isItemActive ? "page" : undefined}
                               data-id={item.url}
                               onMouseEnter={() => handlePrefetch(item.url!)}

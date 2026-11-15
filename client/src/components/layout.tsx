@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Redirect, useLocation } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
+import { gsap } from "gsap";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -25,6 +26,63 @@ export function Layout({ children }: LayoutProps) {
     if (!mainEl) return;
 
     mainEl.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+    // Ardena card cascade & settling animation on route change ("se acomodan las cards")
+    const animTimer = window.setTimeout(() => {
+      // 1. Headings drop in smoothly
+      const headings = mainEl.querySelectorAll("h1, .phead, .page-header");
+      if (headings.length > 0) {
+        gsap.fromTo(
+          headings,
+          { opacity: 0, y: -8 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.4,
+            ease: "power2.out",
+            clearProps: "transform,opacity",
+          }
+        );
+      }
+
+      // 2. Visible cards, widgets, metrics, and primary section items
+      const candidateCards = Array.from(
+        mainEl.querySelectorAll<HTMLElement>(
+          ".glass-card, [data-slot='card'], [data-card], .card, .kpi, .app-card, main .space-y-6 > div, main .space-y-4 > div, main .grid > div"
+        )
+      ).filter((el) => {
+        const parentCard = el.parentElement?.closest(
+          ".glass-card, [data-slot='card'], [data-card], .card, .kpi, .app-card"
+        );
+        if (parentCard && parentCard !== el) return false;
+        if (el.closest("nav") || el.offsetHeight < 28) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.top < window.innerHeight + 80 && rect.bottom > 0;
+      });
+
+      if (candidateCards.length > 0) {
+        const cardsToAnimate = candidateCards.slice(0, 10);
+        gsap.fromTo(
+          cardsToAnimate,
+          {
+            opacity: 0,
+            y: 18,
+            scale: 0.985,
+          },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.52,
+            ease: "power3.out",
+            stagger: 0.045,
+            clearProps: "transform,opacity",
+          }
+        );
+      }
+    }, 45);
+
+    return () => window.clearTimeout(animTimer);
   }, [location]);
 
   useEffect(() => {
