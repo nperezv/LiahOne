@@ -2888,9 +2888,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     for (const [normalizedName, entries] of roleEntries) {
       const normalizedNameSignature = buildTokenSignature(normalizedName);
 
-      const matchedUser = users.find((u) => normalizeComparableName(u.name) === normalizedName)
-        || users.find((u) => buildTokenSignature(u.name) === normalizedNameSignature)
-        || findBestNameMatch(normalizedName, users, (u) => u.name);
+      const matchedUser = users.find((u) => normalizeComparableName(u.displayName || "") === normalizedName || normalizeComparableName(u.name) === normalizedName)
+        || users.find((u) => buildTokenSignature(u.displayName || u.name) === normalizedNameSignature)
+        || findBestNameMatch(normalizedName, users, (u) => u.displayName || u.name);
 
       const memberByName = members.find((m) => normalizeComparableName(m.nameSurename) === normalizedName)
         || members.find((m) => buildTokenSignature(m.nameSurename) === normalizedNameSignature)
@@ -3325,7 +3325,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     for (const agreement of agreements) {
       if (!agreement.description?.trim() || !agreement.responsible?.trim()) continue;
       const normResp = normalizeComparableName(agreement.responsible);
-      const matched = (allUsers as any[]).find((u: any) => normalizeComparableName(u.name) === normResp);
+      const matched = (allUsers as any[]).find((u: any) =>
+        normalizeComparableName(u.displayName || u.fullName || "") === normResp ||
+        normalizeComparableName(u.name || "") === normResp
+      );
       if (!matched) continue;
 
       const title = agreement.description.trim();
@@ -5111,7 +5114,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? await storage.getOrganization(member.organizationId)
         : null;
       const normalizedPersonName = normalizeComparableName(interview.personName);
-      const personUser = (await storage.getAllUsers()).find((u) => normalizeComparableName(u.name) === normalizedPersonName);
+      const personUser = (await storage.getAllUsers()).find((u) =>
+        normalizeComparableName(u.displayName || "") === normalizedPersonName ||
+        normalizeComparableName(u.name || "") === normalizedPersonName
+      );
       if (member?.email) {
         intervieweeRecipient = {
           email: member.email,
